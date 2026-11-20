@@ -16,7 +16,7 @@
   платформы выражает для этого свойства, и флаг `combinations` — допустимы ли сочетания. Список хранится по
   идентификаторам состояний в пределах компонента (`property_supported_states`), флаг — в
   `properties.state_combinations`; у свойств, заведённых до изменения, признак не задан (`null`).
-- Генераторы меты всех платформ (plasma-android для Compose и View, plasma-ios, `js/cli` для web) отдают поле
+- Генераторы меты Compose, View (plasma-android) и SwiftUI (plasma-ios) отдают поле
   `stateSupport`: общие состояния, которые выражает генератор кода, и флаг сочетаний. Форма корня меты не
   меняется.
 - Нормализаторы `dsbuilder components import-api` складывают список свойства из этого поля и из того, что мета уже
@@ -24,10 +24,11 @@
   - Compose — перегрузки `StatefulValue`/`InteractiveColor` и `stateEnum`;
   - View — тип свойства, `stateSets` и `stateValues`;
   - SwiftUI — типы `Stateful*`, поле `state` и `stateEnum`;
-  - web — состояния токенов.
+  - web — состояния токенов и запрет сочетаний: оба следуют из формата web-меты, у токена одно `state`, поэтому
+    web-мета и `js/cli` не меняются.
 
-  Собственных списков состояний в CLI нет. Манифест передаёт признак полем `stateSupport` свойства; мета без
-  поля признак не задаёт.
+  Собственных списков состояний в CLI нет. Манифест передаёт признак полем `stateSupport` свойства; мета Compose,
+  View или SwiftUI без поля признак не задаёт.
 - Импорт API-меты заводит недостающие общие состояния из `interactionStates` меты: таблица `states` остаётся
   хранилищем, а закрытый список из семи имён перестаёт быть источником правды.
 - Имя состояния во всех путях (импорт меты и конфигураций, операции редактора, клиент) разрешается одним правилом:
@@ -80,8 +81,7 @@
   `cli/USAGE.md`.
 - `js/apps/client`: DTO бандла и `ComponentAPI`, `StateBindingMenu`, `InspectorPropertyRow`, тип `PropState`,
   разрешение состояний и наборов в `componentRepository`, тесты.
-- `js/cli`: `generate-api-meta.ts` отдаёт `stateSupport` у записей компонентов; версия пакета поднимается.
-  `js/apps/preview-web-plugin` не меняется.
+- `js/cli` и `js/apps/preview-web-plugin` не меняются, версии не поднимаются.
 - Репозитории платформ (вне этого репозитория): генераторы меты plasma-android (`UikitComposeApiMetaTask`,
   `UikitApiMetaTask`) и plasma-ios отдают `stateSupport`.
 - Данные: после выкатки признак появляется у свойств платформы только после релиза её генератора меты и повторного

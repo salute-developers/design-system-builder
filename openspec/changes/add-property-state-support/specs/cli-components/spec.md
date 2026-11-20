@@ -2,24 +2,27 @@
 
 ### Requirement: Мета платформы объявляет общие состояния генератора
 
-Генератор меты каждой платформы SHALL отдавать поле `stateSupport` вида
-`{ "interactionStates": [<имя>, ...], "combinations": <bool> }`. Генераторы:
+Генераторы меты платформ, у которых генератор кода выражает общие состояния у любого компонента, SHALL отдавать
+поле `stateSupport` вида `{ "interactionStates": [<имя>, ...], "combinations": <bool> }`:
 
 - Compose — `UikitComposeApiMetaTask`, plasma-android;
 - View — `UikitApiMetaTask`, plasma-android;
-- SwiftUI — генератор `ios-api-meta.json`, plasma-ios;
-- web — `generate-api-meta.ts`, `js/cli`.
+- SwiftUI — генератор `ios-api-meta.json`, plasma-ios.
+
+Web поле не отдаёт, и `js/cli` не меняется: у web нет списка общих состояний генератора. Превью применяет любое
+состояние, для которого у свойства есть токен, поэтому список свойства и запрет сочетаний выводятся из формата
+web-меты (требование «API meta normalization reads state support»).
 
 `interactionStates` SHALL перечислять общие состояния, которые генератор кода платформы выражает без привязки к
 компоненту. Имена пишутся так же, как в конфигурациях оформления. Список SHALL строиться из того же кода, которым
 генератор переводит состояния конфигурации в код, а не из отдельной копии. `combinations` SHALL говорить, выражает
 ли генератор сочетание нескольких состояний в одном значении.
 
-Форма корня меты MUST NOT меняться: прежние CLI и другие потребители меты читают корень Compose, SwiftUI и web как
+Форма корня меты MUST NOT меняться: прежние CLI и другие потребители меты читают корень Compose и SwiftUI как
 массив компонентов. Поэтому поле стоит так:
 
 - View — в корневом объекте, рядом с `components` и `sharedStates`;
-- Compose, SwiftUI и web — у каждой записи компонента, с одним и тем же значением для всей меты.
+- Compose и SwiftUI — у каждой записи компонента, с одним и тем же значением для всей меты.
 
 Записи с разными значениями нормализатор SHALL считать ошибкой меты (`Invalid`).
 
@@ -43,17 +46,12 @@
 - **WHEN** генератор iOS переводит состояния через `InteractiveState` из `SDDSThemeCore`
 - **THEN** `interactionStates` MUST содержать имена этого перечисления, а `combinations` MUST быть `true`
 
-#### Scenario: Web
-
-- **WHEN** превью и генерация web выражают только одиночные состояния токенов
-- **THEN** `combinations` MUST быть `false`
-
 ### Requirement: API meta normalization reads state support
 
 Нормализатор SHALL выводить признак свойства из `stateSupport` меты и из того, что мета уже описывает о
 компоненте и параметре. Признак уходит в манифест полем `stateSupport` свойства:
-`{ "states": [...], "combinations": <bool> }`. Нормализатор MUST NOT содержать собственных списков общих
-состояний.
+`{ "states": [...], "combinations": <bool> }`. Нормализатор MUST NOT содержать собственных списков состояний,
+которые выражает генератор платформы.
 
 По платформам:
 
@@ -64,9 +62,11 @@
 - **SwiftUI.** `paramSimpleType`, начинающийся со `Stateful`, даёт `interactionStates` и состояния `stateEnum`
   компонента. Без такого типа список составляют состояния из поля `state` вхождений, и `combinations` равен
   `false`.
-- **Web.** Список составляют состояния токенов свойства.
+- **Web.** Список составляют состояния токенов свойства, `combinations` равен `false`. Оба вывода следуют из
+  формата меты: у токена одно поле `state`, поэтому значение для сочетания в web-мете описать нельзя. Признак
+  задаётся при любой версии web-меты, поля `stateSupport` для этого не нужно.
 
-`combinations` берётся из `stateSupport` меты, кроме случая SwiftUI без `Stateful*`. Признак сводится по всем вхождениям
+У Compose, View и SwiftUI `combinations` берётся из `stateSupport` меты, кроме случая SwiftUI без `Stateful*`. Признак сводится по всем вхождениям
 `(componentName, id)`. Имена канонизируются как имена состояний компонента. Порядок — первое появление, без
 дублей.
 
@@ -92,17 +92,21 @@
 
 #### Scenario: Web
 
-- **WHEN** у web-свойства `Button.backgroundColor` есть токены только для `pressed` и `hovered`, а в мете `combinations: false`
+- **WHEN** у web-свойства `Button.backgroundColor` есть токены только для `pressed` и `hovered`
 - **THEN** признак MUST быть `{ "states": ["pressed", "hovered"], "combinations": false }`
+- **WHEN** у web-свойства нет токенов с `state`
+- **THEN** признак MUST быть `{ "states": [], "combinations": false }`
 
 #### Scenario: Общие состояния уходят в манифест
 
-- **WHEN** в мете есть `stateSupport`
+- **WHEN** в мете Compose, View или SwiftUI есть `stateSupport`
 - **THEN** манифест MUST содержать на верхнем уровне `interactionStates` из меты, чтобы импорт завёл недостающие общие состояния
+- **WHEN** импортируется web-мета
+- **THEN** манифест MUST NOT содержать `interactionStates`; деление состояний токенов на общие и собственные остаётся прежним
 
 #### Scenario: Мета без поля
 
-- **WHEN** в мете нет `stateSupport` (мета прежнего генератора)
+- **WHEN** в мете Compose, View или SwiftUI нет `stateSupport` (мета прежнего генератора)
 - **THEN** манифест MUST NOT содержать `interactionStates`, ни одно свойство MUST NOT содержать `stateSupport`, и импорт MUST NOT менять признаки и общий словарь
 
 #### Scenario: Признак уходит в запрос
