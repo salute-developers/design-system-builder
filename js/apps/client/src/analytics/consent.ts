@@ -172,7 +172,10 @@ export const createAnalyticsConsent = (
         const response = await fetchState(saved);
         await commit(saved, ticket, () => {
             write({ ...saved, revision: response.current.revision });
-            publish({ policy: response.policy });
+            publish({
+                policy: response.policy,
+                allowed: !saved.pending && saved.decision === 'granted' && response.current.analytics_allowed,
+            });
         });
     };
     const start = () => {
@@ -250,8 +253,9 @@ export const createAnalyticsConsent = (
         },
         async review() {
             const ticket = generation;
+            const retry = state.error;
             await start();
-            if (!isCurrent(ticket) || state.policy || state.saving) return;
+            if (!isCurrent(ticket) || state.policy || state.saving || (state.error && !retry)) return;
             publish({ busy: true, error: false });
             await perform(ticket, () => review(ticket));
         },

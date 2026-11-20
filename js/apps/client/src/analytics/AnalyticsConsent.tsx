@@ -228,7 +228,7 @@ export const AnalyticsConsent = ({ children }: { children?: ReactNode }) => {
     const { pathname } = useLocation();
     useEffect(() => {
         if (!analyticsConsentEnabled) return;
-        const scope = getConsentStorageKey();
+        let scope = getConsentStorageKey();
         const update = () =>
             webAnalytics.setConsent(
                 scope === getConsentStorageKey() &&
@@ -244,8 +244,12 @@ export const AnalyticsConsent = ({ children }: { children?: ReactNode }) => {
         const unsubscribeSession = authService.onSessionReset(reset);
         void analyticsConsent.start();
         const listener = (event: StorageEvent) => {
-            if (scope !== getConsentStorageKey()) reset();
-            else if ([scope, null].includes(event.key)) analyticsConsent.changed();
+            const nextScope = authService.isAuthenticated() ? getConsentStorageKey() : undefined;
+            if (scope !== nextScope) {
+                scope = nextScope;
+                reset();
+                if (scope) void analyticsConsent.start();
+            } else if ([scope, null].includes(event.key)) analyticsConsent.changed();
         };
         window.addEventListener('storage', listener);
         return () => {

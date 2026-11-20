@@ -2,7 +2,7 @@ import { act, cleanup, fireEvent, render, screen } from '@testing-library/react'
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { MemoryRouter } from 'react-router-dom';
 
-const session = vi.hoisted(() => ({ authenticated: true, reset: () => {} }));
+const session = vi.hoisted(() => ({ authenticated: true, scope: 'lifecycle' as string | undefined, reset: () => {} }));
 vi.mock('../api', () => ({
     authService: {
         isAuthenticated: () => session.authenticated,
@@ -17,8 +17,12 @@ vi.mock('./consent', async (original) => {
     return {
         ...actual,
         analyticsConsentEnabled: true,
-        getConsentStorageKey: () => 'lifecycle',
-        analyticsConsent: actual.createAnalyticsConsent(localStorage, 'lifecycle', (...args) => fetch(...args)),
+        getConsentStorageKey: () => session.scope,
+        analyticsConsent: actual.createAnalyticsConsent(
+            localStorage,
+            () => session.scope,
+            (...args) => fetch(...args),
+        ),
     };
 });
 vi.mock('./metrica', async (original) => {
@@ -50,6 +54,7 @@ beforeEach(() => {
     analyticsConsent.stop();
     webAnalytics.setConsent(false);
     session.authenticated = true;
+    session.scope = 'lifecycle';
     request.mockReset();
     vi.stubGlobal('fetch', request);
 });
@@ -205,4 +210,63 @@ it('does not enable a saved grant until the startup GET confirms it', async () =
     });
     expect(screen.getByRole('switch', { name: 'Аналитика' })).toBeChecked();
     expect(request).toHaveBeenCalledOnce();
+});
+
+it.each([true, false])('rebinds an open tab to a new account (logout event: %s)', async (logout) => {
+    localStorage.setItem('lifecycle', JSON.stringify({ key: 'b'.repeat(64), revision: 1, decision: 'granted' }));
+    request
+        .mockResolvedValueOnce(ok(response(true, 1)))
+        .mockResolvedValueOnce(ok(response(false, 0)))
+        .mockResolvedValueOnce(ok(response(true, 1)));
+    render(
+        <MemoryRouter initialEntries={['/projects']}>
+            <AnalyticsConsent>
+                <AnalyticsNavigation />
+            </AnalyticsConsent>
+        </MemoryRouter>,
+    );
+    await vi.waitFor(() => expect(scripts()).toHaveLength(1));
+    if (logout) {
+        act(() => {
+            session.authenticated = false;
+            session.scope = undefined;
+            window.dispatchEvent(new StorageEvent('storage', { key: 'auth.access_token' }));
+        });
+        expect(scripts()).toHaveLength(0);
+    }
+    act(() => {
+        session.authenticated = true;
+        session.scope = 'account-b';
+        window.dispatchEvent(new StorageEvent('storage', { key: 'auth.access_token' }));
+    });
+    await screen.findByRole('button', { name: 'Разрешить', exact: true });
+    expect(scripts()).toHaveLength(0);
+    fireEvent.click(screen.getByRole('button', { name: 'Разрешить', exact: true }));
+    await vi.waitFor(() => expect(scripts()).toHaveLength(1));
+    const keys = request.mock.calls.map((call) => call[1].headers['X-Consent-Key']);
+    expect(keys[0]).not.toBe(keys[1]);
+    expect(keys[1]).toBe(keys[2]);
+    expect(JSON.parse(localStorage.getItem('lifecycle')!).decision).toBe('granted');
+    expect(JSON.parse(localStorage.getItem('account-b')!).decision).toBe('granted');
+});
+
+it('keeps the initial settings error until reopening, then restores the saved grant', async () => {
+    localStorage.setItem('lifecycle', JSON.stringify({ key: 'b'.repeat(64), revision: 1, decision: 'granted' }));
+    request.mockResolvedValueOnce(new Response('', { status: 503 })).mockResolvedValueOnce(ok(response(true, 1)));
+    const tree = (active: boolean) => (
+        <MemoryRouter initialEntries={['/settings']}>
+            <AnalyticsConsent>
+                <AnalyticsConsentSettings active={active} />
+            </AnalyticsConsent>
+        </MemoryRouter>
+    );
+    const view = render(tree(true));
+    await screen.findByText('Не удалось подтвердить выбор. Аналитика отключена.');
+    expect(request).toHaveBeenCalledOnce();
+    expect(screen.getByRole('switch')).not.toBeChecked();
+    view.rerender(tree(false));
+    view.rerender(tree(true));
+    await vi.waitFor(() => expect(screen.getByRole('switch')).toBeChecked());
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('Не удалось подтвердить выбор. Аналитика отключена.')).toBeNull();
 });
