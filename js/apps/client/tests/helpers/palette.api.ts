@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import { authenticatedRequest } from './authentication.ts';
 import type { Session } from './authentication.ts';
+import type { TokenValue } from './token-values.api.ts';
 
 export type PaletteSlot = Readonly<{ type: 'general' | 'additional'; shade: string }>;
 export type PaletteStep = Readonly<{ step: number; value: string; overridden: boolean; linkedCount: number }>;
@@ -39,6 +40,17 @@ export function paletteStep(group: PaletteGroup, slot: PaletteSlot, step: number
     const matches = paletteRamp(group, slot).steps.filter((item) => item.step === step);
     expect(matches, 'Точная ступень ' + group.label + '/' + slot.shade + '/' + step).toHaveLength(1);
     return matches[0]!;
+}
+
+/** Ссылки выбранной группы: одинаковый адрес в другой группе не является её зависимостью. */
+export function paletteLinkedValues(
+    palette: ThemePalette,
+    values: readonly TokenValue[],
+    groupId: string,
+    reference: string,
+): TokenValue[] {
+    const ids = new Set(palette.tokens.filter((token) => token.groupId === groupId).map((token) => token.tokenId));
+    return values.filter((value) => ids.has(value.tokenId) && value.paletteRef === reference);
 }
 
 /** Публичные чтения и подготовка палитры только собственной темы сценария. */

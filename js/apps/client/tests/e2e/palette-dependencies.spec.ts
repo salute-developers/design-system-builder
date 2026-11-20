@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/palette-dependencies.ts';
-import { paletteGroup, paletteRamp, paletteStep, green, blue } from '../helpers/palette.api.ts';
+import { paletteGroup, paletteRamp, paletteStep, paletteLinkedValues, green, blue } from '../helpers/palette.api.ts';
 import { exactValue } from '../helpers/color-data.ts';
 import { saveMutation } from '../helpers/save-mutation.ts';
 import type { ThemePalette } from '../helpers/palette.api.ts';
@@ -128,6 +128,7 @@ test.describe('Связи палитры', () => {
         async ({
             page,
             linkedPaletteBaseline,
+            linkedColor,
             palette,
             paletteApi,
             tokenValues,
@@ -138,6 +139,10 @@ test.describe('Связи палитры', () => {
         }) => {
             const accent = paletteGroup(linkedPaletteBaseline, 'accent');
             const values = await tokenValues.values(initialTheme.id, 'color');
+            const linkedBefore = paletteLinkedValues(linkedPaletteBaseline, values, accent.id, '[additional.h130.500]');
+            expect(linkedBefore, 'Подготовленные ссылки входят в зависимости Accent').toEqual(
+                expect.arrayContaining(linkedColor.references.map((reference) => expect.objectContaining(reference))),
+            );
             const template = linkedPaletteBaseline.template.find(
                 (item) => item.type === blue.type && item.shade === blue.shade,
             )!;
@@ -170,8 +175,6 @@ test.describe('Связи палитры', () => {
             expect(storedValues(tokenValuesAfter), 'Адреса семантических ссылок сохранены').toEqual(
                 storedValues(values),
             );
-            const linkedBefore = values.filter((value) => value.paletteRef === '[additional.h130.500]');
-            expect(linkedBefore).toHaveLength(36);
             for (const previous of linkedBefore) {
                 const current = tokenValuesAfter.find(
                     (value) =>

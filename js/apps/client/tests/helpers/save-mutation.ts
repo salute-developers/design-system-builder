@@ -1,4 +1,4 @@
-﻿import { expect, type Response } from '@playwright/test';
+import { expect, type Response } from '@playwright/test';
 import type { PendingMutation } from './pending-mutation.ts';
 
 /** Подписка до UI-действия, точные метод и адрес, подтверждённое завершение ответа. */
