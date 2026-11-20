@@ -80,6 +80,7 @@ class AddColorTokenStateUseCase(
             null,
             anchor.groupId,
             anchor.position,
+            anchor.enabled,
         )
         command.tenants.toSortedMap().forEach { (tenant, members) ->
             tokens.insertValues(listOf(tenant), members.storedForm().mapKeys { (name, _) -> ids.getValue(name) })

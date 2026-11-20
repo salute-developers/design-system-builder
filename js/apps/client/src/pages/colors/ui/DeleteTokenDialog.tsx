@@ -6,7 +6,8 @@ interface DeleteTokenDialogProps {
     group?: { tokens: number } | null;
     /** Удаление состояния токена, а не токена целиком. */
     state?: boolean;
-    components: string[];
+    /** Компоненты со ссылками; `null` — полный список компонентов ещё читается, удаление недоступно. */
+    components: string[] | null;
     busy: boolean;
     error: string | null;
     onCancel: () => void;
@@ -38,6 +39,7 @@ export const DeleteTokenDialog = ({
         meta={displayName}
         confirmLabel={group ? 'Удалить группу' : state ? 'Удалить состояние' : 'Удалить токен'}
         busy={busy}
+        confirmDisabled={components === null}
         error={error}
         onCancel={onCancel}
         onConfirm={onConfirm}
@@ -61,7 +63,9 @@ export const DeleteTokenDialog = ({
                 значениями во всех темах. Удаление нельзя отменить.
             </p>
         )}
-        {components.length > 0 ? (
+        {components === null ? (
+            <p>Проверяем, используется ли {group ? 'группа' : state ? 'состояние' : 'токен'} в компонентах…</p>
+        ) : components.length > 0 ? (
             <p data-testid="delete-token-components">
                 Используется в компонентах: {components.join(', ')}. Ссылки компонентов на токен будут сброшены.
             </p>

@@ -59,6 +59,7 @@ import { ColorTokenBoard } from './ui/ColorTokenBoard';
 import { ColorTokenInspector, PLATFORM_LABELS, type PickerTarget } from './ui/ColorTokenInspector';
 import { ColorTokenTree } from './ui/ColorTokenTree';
 import { DeleteTokenDialog } from './ui/DeleteTokenDialog';
+import { useDeletionComponents } from './deletionComponents';
 
 export interface ColorTokensScreenProps {
     context: ColorTokenContext;
@@ -258,6 +259,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         error: string | null;
     } | null>(null);
     const [removing, setRemoving] = useState(false);
+    // Окно удаления проверяет ссылки по всем компонентам: экран мог загрузить их не полностью.
+    const usages = useDeletionComponents(context, components, Boolean(deleting));
     const [legacy, setLegacy] = useState(() => editor.legacyDraft());
     const legacyFamilies = useMemo(() => legacyDraftFamilies(legacy).length, [legacy]);
     const [legacyBusy, setLegacyBusy] = useState(false);
@@ -924,13 +927,20 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     displayName={deleting.group?.label ?? deleting.view?.displayName ?? ''}
                     group={deleting.group ? { tokens: deleting.tokens.length } : null}
                     state={Boolean(deleting.view?.state)}
-                    components={[
-                        ...new Set(
-                            deleting.tokens.flatMap((view) => componentsUsingToken(components, view.key, view.state)),
-                        ),
-                    ]}
+                    components={
+                        usages.configs && [
+                            ...new Set(
+                                deleting.tokens.flatMap((view) =>
+                                    componentsUsingToken(usages.configs!, view.key, view.state),
+                                ),
+                            ),
+                        ]
+                    }
                     busy={deleting.busy}
-                    error={deleting.error}
+                    error={
+                        deleting.error ??
+                        (usages.failed ? 'Не удалось загрузить все компоненты: список может быть неполным.' : null)
+                    }
                     onCancel={() => setDeleting(null)}
                     onConfirm={() => {
                         if (deleting.group) void removeGroup(deleting.group);

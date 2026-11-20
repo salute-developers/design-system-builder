@@ -34,6 +34,7 @@ import { observeTokenValueRevisions, subjectBaseRevision } from '../../api/subje
 import type { ThemePalette } from '../../modules/palette';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { ColorTokensScreen } from './ColorTokensScreen';
+import { deletionReads } from './deletionComponents';
 import * as tokenEnabled from '../../api/tokenEnabled';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
@@ -194,6 +195,13 @@ const componentUsing = (name: string, token: string) =>
         }),
     }) as unknown as Config;
 
+/** Окно удаления после чтения полного списка компонентов. */
+const deleteDialog = async () => {
+    const dialog = screen.getByRole('dialog');
+    await waitFor(() => expect(dialog).not.toHaveTextContent('в компонентах…'));
+    return dialog;
+};
+
 const renderScreen = async (
     role = 'maintainer',
     missing: string[] = [],
@@ -275,6 +283,7 @@ const commitLight = (value: string) => {
 const openSubthemes = () => fireEvent.click(within(inspector()).getByRole('button', { name: /^Подтемы/ }));
 
 beforeEach(() => {
+    vi.spyOn(deletionReads, 'load').mockResolvedValue([]);
     localStorage.clear();
     published = null;
     familyType = 'color';
@@ -1180,7 +1189,7 @@ describe('ColorTokensScreen', () => {
         await screen.findByTestId('token-subgroup-Status');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить подгруппу Status' }));
-        const empty = screen.getByRole('dialog');
+        const empty = await deleteDialog();
         expect(within(empty).getByTestId('delete-group-tokens')).toHaveTextContent('Группа пустая');
         expect(groupRepository.remove).not.toHaveBeenCalled();
         fireEvent.click(within(empty).getByRole('button', { name: 'Удалить группу' }));
@@ -1188,7 +1197,7 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-0');
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить группу Text & Icons' }));
-        const dialog = screen.getByRole('dialog');
+        const dialog = await deleteDialog();
         expect(within(dialog).getByTestId('delete-group-tokens')).toHaveTextContent('1 токен');
         expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Button');
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить группу' }));
@@ -1204,7 +1213,7 @@ describe('ColorTokensScreen', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
 
-        const dialog = screen.getByRole('dialog');
+        const dialog = await deleteDialog();
         expect(dialog).toHaveTextContent('Токен не используется в компонентах дизайн-системы.');
         expect(repository.delete).not.toHaveBeenCalled();
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
@@ -1218,7 +1227,7 @@ describe('ColorTokensScreen', () => {
         await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-0' });
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
-        const dialog = screen.getByRole('dialog');
+        const dialog = await deleteDialog();
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
 
         // Ошибка остаётся в окне подтверждения.
@@ -1231,7 +1240,7 @@ describe('ColorTokensScreen', () => {
         await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')]);
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить токен' }));
-        const dialog = screen.getByRole('dialog');
+        const dialog = await deleteDialog();
         expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Button');
         expect(repository.delete).not.toHaveBeenCalled();
         fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить токен' }));
@@ -1378,6 +1387,22 @@ describe('ColorTokensScreen: состояния токена', () => {
         expect(await screen.findByText('Состояние уже есть')).toBeInTheDocument();
     });
 
+    it('окно удаления состояния проверяет ссылки по полному списку компонентов', async () => {
+        accentStates = ['hover'];
+        vi.mocked(deletionReads.load).mockResolvedValue([componentUsing('Chip', 'text.default.accent-hover')]);
+        await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-hover-0' });
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить состояние textAccentHover' }));
+        const loading = screen.getByRole('dialog');
+        expect(loading).toHaveTextContent('Проверяем, используется ли состояние в компонентах…');
+        expect(within(loading).getByRole('button', { name: 'Удалить состояние' })).toBeDisabled();
+
+        const dialog = await deleteDialog();
+        expect(within(dialog).getByTestId('delete-token-components')).toHaveTextContent('Chip');
+        expect(within(dialog).getByRole('button', { name: 'Удалить состояние' })).toBeEnabled();
+    });
+
     it('удаляет состояние после подтверждения и открывает его токен', async () => {
         accentStates = ['hover', 'active'];
         repository.deleteState.mockResolvedValue({ editRevision: 4 });
@@ -1387,7 +1412,7 @@ describe('ColorTokensScreen: состояния токена', () => {
         await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
 
         fireEvent.click(screen.getByRole('button', { name: 'Удалить состояние textAccentHover' }));
-        const dialog = screen.getByRole('dialog');
+        const dialog = await deleteDialog();
         expect(dialog).toHaveTextContent('Удалить состояние?');
         // Компонент ссылается на сам токен, а не на его Hover.
         expect(dialog).toHaveTextContent('Состояние не используется в компонентах дизайн-системы.');

@@ -48,6 +48,7 @@ interface ColorTokenRepository {
         description: String?,
         groupId: UUID?,
         position: Int,
+        enabled: Boolean = true,
     ): Map<String, UUID>
 
     /** Определения дизайн-системы [designSystemId], лежащие в группах [groupIds]. */

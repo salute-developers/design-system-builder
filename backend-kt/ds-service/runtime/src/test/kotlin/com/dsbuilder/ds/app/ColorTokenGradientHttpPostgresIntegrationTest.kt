@@ -30,6 +30,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -828,6 +829,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 // Добавление: у каждой темы свой цвет, признак ручного значения только в теме A.
                 val added = api.call("POST", path, EDITOR, body(tenantA to "#111111", tenantB to "#222222"))
                 assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
+                // Совместимое поле: технические редакции — в `X-DS-Mutation-Metadata`.
+                assertEquals(0, api.body(added).jsonObject.getValue("editRevision").jsonPrimitive.int)
                 val members = api.body(added).jsonObject.getValue("value").jsonObject.array("members")
                     .associate { it.text("name") to it.text("tokenId") }
                 assertEquals(setOf("text.default.glow", "text.default.glow-hover"), members.keys)
@@ -847,6 +850,14 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     api.values(system, tenant).filter { it.text("tokenId") == hover }.map { it.text("id") }
                 }.toSet()
                 val journal = api.journal(system)
+                // Откат одной записи определения без значений не каскадируется: значения тем A и B остаются.
+                val definitionOnly = api.revert(system, journal.single { it.text("entityId") == hover })
+                assertEquals(HttpStatusCode.Conflict, definitionOnly.status, definitionOnly.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(definitionOnly).text("code"))
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    val left = api.values(system, tenant).count { it.text("tokenId") == hover }
+                    assertEquals(MODES.size * PLATFORMS.size, left)
+                }
                 // Значения откатываются раньше определения, на которое они ссылаются.
                 val creation = journal.filter { it.text("entityId") == hover || it.text("entityId") in valueIds }
                     .sortedBy { it.text("entityId") == hover }
@@ -863,18 +874,46 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                     idempotencyKey = "state-revert",
                 )
                 assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
-                assertTrue(api.values(system, tenantA).none { it.text("tokenId") == hover })
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    assertTrue(api.values(system, tenant).none { it.text("tokenId") == hover })
+                }
+
+                // Состояние отключённого токена создаётся отключённым.
+                val disabled = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/tokens/$base",
+                    EDITOR,
+                    """{"enabled":false}""",
+                )
+                assertEquals(HttpStatusCode.OK, disabled.status, disabled.bodyAsText())
 
                 // Удаление: Editor не может, Maintainer удаляет состояние, член без состояния остаётся.
                 val again = api.call("POST", path, EDITOR, body(tenantA to "#333333", tenantB to "#444444"))
                 assertEquals(HttpStatusCode.Created, again.status, again.bodyAsText())
                 val revived = api.body(again).jsonObject.getValue("value").jsonObject.array("members")
                     .single { it.text("name") == "text.default.glow-hover" }.text("tokenId")
+                val revivedDefinition = api.read("/api/design-systems/$system/tokens/$revived")
+                assertFalse(revivedDefinition.getValue("enabled").jsonPrimitive.boolean)
+
+                // Единственный градиент семейства — у Hover темы A: после удаления Hover семейство снова `color`.
+                val gradient = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenantA/color-tokens/$revived/values",
+                    EDITOR,
+                    gradientBody(revived, emptyMap()),
+                )
+                assertEquals("gradient", api.body(gradient).jsonObject.text("type"), gradient.bodyAsText())
                 val deletePath = "$path/hover"
                 val editorDelete = api.call("DELETE", deletePath, EDITOR, """{"editRevision":0}""")
                 assertEquals(HttpStatusCode.Forbidden, editorDelete.status, editorDelete.bodyAsText())
                 val deleted = api.call("DELETE", deletePath, MAINTAINER, """{"editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
+                assertEquals("color", api.read("/api/design-systems/$system/tokens/$base").text("type"))
+                assertEquals(
+                    listOf("color"),
+                    api.body(deleted).jsonObject.getValue("structure").jsonObject.array("definitions")
+                        .map { it.text("type") }.distinct(),
+                )
                 assertTrue(api.values(system, tenantB).none { it.text("tokenId") == revived })
                 assertTrue(api.values(system, tenantB).any { it.text("tokenId") == base })
                 val missing = api.call("DELETE", "$path/active", MAINTAINER, """{"editRevision":0}""")

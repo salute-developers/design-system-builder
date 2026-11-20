@@ -112,7 +112,12 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         const source = byName.get(`dark.${baseName}`) ?? byName.get(`light.${baseName}`);
         const own = byName.get(`dark.${defaultName}`) ?? byName.get(`light.${defaultName}`);
         const placement = deps.placement(baseName);
-        const memberNames = [defaultName, ...COLOR_CONTEXTS.map((it) => memberOf(contextSubgroup(key.group, it)))];
+        // Состояние полно, если у него есть определения тех подгрупп, которые есть у токена.
+        const subgroups = COLOR_CONTEXTS.map((it) => contextSubgroup(key.group, it)).filter(
+            (subgroup) =>
+                !state || COLOR_MODES.some((mode) => byName.has(`${mode}.${key.group}.${subgroup}.${key.name}`)),
+        );
+        const memberNames = [defaultName, ...subgroups.map(memberOf)];
         const incomplete =
             memberNames.some((name) => deps.incomplete.has(name)) ||
             COLOR_MODES.some((mode) => memberNames.some((name) => !byName.has(`${mode}.${name}`)));

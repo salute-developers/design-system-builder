@@ -218,6 +218,18 @@ describe('состояния токена', () => {
         expect(hover.incomplete).toBe(true);
     });
 
+    it('полнота состояния считается по подгруппам, которые есть у токена', () => {
+        const tokens = [
+            state('light.text.default.glow', '#111111'),
+            state('dark.text.default.glow', '#EEEEEE'),
+            state('light.text.default.glow-hover', '#222222'),
+            state('dark.text.default.glow-hover', '#DDDDDD'),
+        ];
+        const [view] = buildColorTokenViews(tokens, deps());
+
+        expect(view.states?.[0].incomplete).toBe(false);
+    });
+
     it('формула есть у состояний групп text, surface, outline и data', () => {
         expect(['text', 'surface', 'outline', 'data'].map(hasStateFormula)).toEqual([true, true, true, true]);
         expect(hasStateFormula('background')).toBe(false);

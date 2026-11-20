@@ -15,6 +15,7 @@ import { normalizedColorValue } from '../../api/colorValue';
 import type { TenantTokenValueDto } from '../../api/editorContracts';
 import { tokenRepository } from '../../api/tokenRepository';
 import { themesApi } from '../../modules/themes/data/themesApi';
+import { invalidateQueryCache } from '../../shared/data/useLoad';
 import {
     AndroidColor,
     AndroidGradient,
@@ -226,10 +227,14 @@ export const isOverridden = (session: ColorTokenSession, themeName: string, plat
         tokenValueOverridden(session.context, id, platform, mode),
     );
 
-/** Связь подтемы явно разорвана: несохранённый выбор сессии или признак `detached` прочитанного значения web. */
+/**
+ * Связь подтемы или формула состояния явно разорвана: несохранённый выбор сессии или признак `detached` прочитанного
+ * значения любой платформы режима. Признак одной платформы, например после отката отдельной записи, тоже считается:
+ * иначе правка токена перезаписала бы ручное значение этой платформы.
+ */
 export const isDetached = (session: ColorTokenSession, themeName: string) =>
     valueFlag(session, themeName, session.detachments.get(themeName), (id, mode) =>
-        tokenValueDetached(session.context, id, 'web', mode),
+        PLATFORMS.some((platform) => tokenValueDetached(session.context, id, platform, mode)),
     );
 
 /** Значения платформ определения в классе своего типа: при смене типа семейства определение переносится. */
@@ -470,12 +475,10 @@ const captureUnsaved = (session: ColorTokenSession) => {
         const key = keyOfId(id);
         if (!key) continue;
         const edited = session.edited.get(id);
-        // Состояния пересчитываются из изменённого определения и накладываются вместе с ним; ручная правка
-        // состояния отмечает само состояние.
-        const isEdited = (name: string) =>
-            !edited || edited.has(name) || edited.has(name.replace(/-(hover|active|brightness)$/, ''));
+        // Накладываются только определения, изменённые на экране: правка и пересчёт формулой отмечают каждое
+        // определение. Ручное состояние, которое правка токена не меняла, берётся из новой загрузки.
         for (const token of familyTokens(theme, key)) {
-            if (!isEdited(token.getName())) continue;
+            if (edited && !edited.has(token.getName())) continue;
             overlay.set(token.getName(), {
                 values: Object.fromEntries(PLATFORMS.map((platform) => [platform, token.getValue(platform as never)])),
             });
@@ -666,6 +669,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         );
         const stateWeb = webChanged ? web : target.getValue('web' as never);
         if (stateWeb === undefined) return;
+        markEdited({ group: parsed.group, name: parsed.name }, target.getName());
         applyPaint(target, { web: stateWeb, own });
     };
 
@@ -684,12 +688,15 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         });
     };
 
-    /** Значение определения в теме без режима в форме экрана: ссылка палитры, иначе хранимое значение. */
-    const dtoValue = (value: TenantTokenValueDto, type: string) => {
-        if (value.paletteRef) return value.paletteRef;
-        const stored = storedTokenValue(type as never, value.sourceValue ?? value.value);
+    /** Хранимое значение в форме экрана. */
+    const screenValue = (value: unknown, type: string) => {
+        const stored = storedTokenValue(type as never, value);
         return type === 'color' ? normalizedColorValue(stored) : stored;
     };
+
+    /** Значение определения в теме без режима в форме экрана: ссылка палитры, иначе хранимое значение. */
+    const dtoValue = (value: TenantTokenValueDto, type: string) =>
+        value.paletteRef ?? screenValue(value.sourceValue ?? value.value, type);
 
     /**
      * Значения члена состояния [state] по значениям члена токена [base] темы: формула для `-hover` и `-active` групп с
@@ -702,6 +709,11 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             web: unknown;
             native: Record<NativePlatform, unknown>;
             own: Record<NativePlatform, boolean>;
+            /**
+             * Цвета платформ, разрешённые по палитре своей темы: формула другой темы считается от них, а не от ссылки,
+             * которую палитра открытой темы разрешила бы в другой цвет. Без них ссылки разрешает открытая тема.
+             */
+            resolved?: Partial<Record<PaintPlatform, unknown>>;
         },
     ): ColorTokenValueItem[] => {
         const parsed = parseMemberName(member);
@@ -710,7 +722,7 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         return COLOR_MODES.flatMap((mode) => {
             const source = base(mode);
             const derive = (value: unknown, platform: PaintPlatform) => {
-                const current = readPaint(value, platform);
+                const current = readPaint(source.resolved?.[platform] ?? value, platform);
                 if (!formula || current?.kind !== 'color') return value;
                 const values = getAdditionalColorValues(current.color, mode, parsed.group, parsed.subgroup, member);
                 return values ? values[STATE_INDEX[state]] : value;
@@ -833,7 +845,6 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                         if (!base) continue;
                         const member = memberToken(view.key, mode, context, state);
                         if (context && member) session.detachments.set(member.getName(), false);
-                        if (member) markEdited(view.key, member.getName());
                         recomputeState(base, paintOf(base), mode, state, true);
                     }
                 }
@@ -880,6 +891,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     // Тема без значений токена получает значения текущей темы.
                     if (!web) return fromTheme(member)(mode);
                     return {
+                        resolved: Object.fromEntries(
+                            PLATFORMS.map((platform) => [
+                                platform,
+                                at(platform) && screenValue(at(platform)!.value, type),
+                            ]),
+                        ),
                         web: dtoValue(web, type),
                         native: Object.fromEntries(
                             NATIVE_PLATFORMS.map((platform) => {
@@ -932,11 +949,16 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 family = await send();
             } catch (error) {
                 if (!(error instanceof ColorTokenOperationError) || error.code !== 'INVALID_TOKEN_FAMILY') throw error;
+                // Список тем кешируется: повтор читает его заново, иначе новая тема снова будет пропущена.
+                const { projectId, designSystemId } = session.context;
+                invalidateQueryCache(`themes:${projectId}:${designSystemId}`);
                 tenants = await collect();
                 family = await send();
             }
             const own = tenants.find((item) => item.tenantId === session.context.tenantId);
             const type: ColorTokenType = family.type ?? 'color';
+            // Состояние наследует доступность токена: сервер создаёт его определения с тем же `enabled`.
+            const enabled = findColorToken(current, `light.${key.group}.default.${key.name}`)?.getEnabled() ?? true;
             for (const member of own?.members ?? []) {
                 const id = family.members.find((item) => item.name === member.name)?.tokenId;
                 if (id) session.definitions.set(member.name, { id, type });
@@ -944,9 +966,11 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                     const name = `${mode}.${member.name}`;
                     const at = (platform: PaintPlatform) =>
                         member.values.find((value) => value.platform === platform && value.mode === mode)?.value;
-                    const unwrap = (value: unknown) => (Array.isArray(value) && value.length === 1 ? value[0] : value);
+                    // Обёртку снимает только цвет: градиент iOS и Android остаётся массивом слоёв, даже однослойный.
+                    const unwrap = (value: unknown) =>
+                        type === 'color' && Array.isArray(value) && value.length === 1 ? value[0] : value;
                     const token = new ColorToken(
-                        { name, tags: name.split('.'), displayName: name, enabled: true },
+                        { name, tags: name.split('.'), displayName: name, enabled },
                         {
                             web: new WebColor(unwrap(at('web')) as never),
                             ios: new IOSColor(unwrap(at('ios')) as never),
@@ -986,6 +1010,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                 current.removeToken(token.getName(), token.getType() as ColorTokenType);
                 if (parsed.mode) session.definitions.delete(token.getName().slice(parsed.mode.length + 1));
             }
+            // Удалённое состояние могло нести единственный градиент: сервер вернул члены с новым типом семейства.
+            const retyped = confirmation?.definitions.find((definition) => {
+                const parsed = parseMemberName(definition.name);
+                return parsed?.group === view.key.group && parsed.name === view.key.name;
+            });
+            if (retyped) adoptFamilyType(session, view.key, retyped.type);
             await refreshStructure(session, false, confirmation).catch(() => notify(session));
         },
 
@@ -1005,7 +1035,11 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             };
             const isEmpty = (value: unknown) =>
                 value === '' || value == null || (Array.isArray(value) && !value.length);
-            for (const member of newTokenMembers(view.key, base, stateValue)) {
+            // У состояния заполняются его определения: основа — его же Light и Dark, без формулы.
+            const members = view.state
+                ? newTokenMembers(view.key, base, (value) => value, view.state)
+                : newTokenMembers(view.key, base, stateValue);
+            for (const member of members) {
                 for (const { mode, value } of member.values) {
                     const token = findColorToken(current, `${mode}.${member.name}`);
                     if (!token) continue;

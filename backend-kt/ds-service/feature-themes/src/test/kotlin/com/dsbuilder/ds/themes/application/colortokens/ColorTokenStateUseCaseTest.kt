@@ -13,6 +13,7 @@ import com.dsbuilder.ds.themes.application.palette.FakeTenantPaletteRepository
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteSnapshot
 import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
+import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.palette.PaletteGoldenTest
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.json.JsonArray
@@ -20,6 +21,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
@@ -118,6 +120,29 @@ class ColorTokenStateUseCaseTest {
     }
 
     @Test
+    fun `состояние отключённого токена создаётся отключённым`() = runBlocking {
+        tokens.definitions.replaceAll { it.copy(enabled = false) }
+
+        success(add.execute(context("editor"), current, accent, command()))
+
+        assertFalse(tokens.named("text.default.accent-hover").enabled)
+        assertFalse(tokens.named("text.on-dark.accent-hover").enabled)
+    }
+
+    @Test
+    fun `удаление состояния с единственным градиентом возвращает семейству тип color`() = runBlocking {
+        val hover = tokens.define("text.default.accent-hover", ThemeTokenType.GRADIENT, group, 3)
+        tokens.definitions.replaceAll { it.copy(type = ThemeTokenType.GRADIENT) }
+        tokens.insertValues(listOf(current, other), mapOf(accent to complete("#111111"), onDark to complete("#111111")))
+        tokens.insertValues(listOf(current), mapOf(hover to complete(LINEAR)))
+
+        success(delete.execute(context("maintainer"), current, accent, "hover", 0))
+
+        assertEquals(setOf(accent to ThemeTokenType.COLOR, onDark to ThemeTokenType.COLOR), tokens.revisedTypes.toSet())
+        assertTrue(tokens.definitions.all { it.type == ThemeTokenType.COLOR })
+    }
+
+    @Test
     fun `удаление отсутствующего или неизвестного состояния`() = runBlocking {
         assertEquals(DsFailure.NotFound, failure(delete.execute(context("maintainer"), current, accent, "active", 0)))
         assertEquals(INVALID_TOKEN_STATE, code(delete.execute(context("maintainer"), current, accent, "focus", 0)))
@@ -161,3 +186,4 @@ class ColorTokenStateUseCaseTest {
 
     private fun code(result: DsResult<*>): String = assertIs<DsFailure.InvalidRequest>(failure(result)).code
 }
+private const val LINEAR = "linear-gradient(90deg, #FFFFFF 0%, #000000 100%)"
