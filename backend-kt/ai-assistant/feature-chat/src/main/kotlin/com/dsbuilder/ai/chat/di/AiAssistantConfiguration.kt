@@ -84,8 +84,6 @@ data class AiAssistantConfiguration(
     private class Reader(private val env: (String) -> String?) {
         fun text(name: String, default: String): String = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: default
 
-        fun secret(name: String): String = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: fail(name, "is required")
-
         fun required(name: String): String = env(name)?.trim()?.takeIf(String::isNotEmpty) ?: fail(name, "is required")
 
         fun positive(name: String, default: Int): Int {
@@ -124,7 +122,7 @@ data class AiAssistantConfiguration(
                 // Провайдер и модель задаются явно: данные DS не должны уйти тому, кого никто не выбирал.
                 AiProvider.OPENAI_COMPATIBLE -> ProviderSettings.OpenAiCompatible(
                     baseUrl = reader.required("AI_BASE_URL"),
-                    apiKey = reader.secret("AI_API_KEY"),
+                    apiKey = reader.required("AI_API_KEY"),
                     model = reader.required("AI_MODEL"),
                     extraBody = reader.json("AI_EXTRA_BODY", "{}"),
                     retryErrorCodes = reader.list("AI_RETRY_ERROR_CODES", ""),
@@ -132,7 +130,7 @@ data class AiAssistantConfiguration(
                 AiProvider.GIGACHAT -> ProviderSettings.GigaChat(
                     oauthUrl = reader.text("AI_GIGACHAT_OAUTH_URL", DEFAULT_GIGACHAT_OAUTH_URL),
                     baseUrl = reader.text("AI_GIGACHAT_BASE_URL", "https://api.giga.chat/v1"),
-                    authKey = reader.secret("AI_GIGACHAT_AUTH_KEY"),
+                    authKey = reader.required("AI_GIGACHAT_AUTH_KEY"),
                     scope = reader.text("AI_GIGACHAT_SCOPE", "GIGACHAT_API_PERS"),
                     model = reader.text("AI_MODEL", "GigaChat-2-Max"),
                 )

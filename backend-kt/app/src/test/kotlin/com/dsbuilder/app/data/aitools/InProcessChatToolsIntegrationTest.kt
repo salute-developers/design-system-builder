@@ -65,6 +65,12 @@ class InProcessChatToolsIntegrationTest {
                     .obj().getValue("items").jsonArray.single().jsonObject.text("id")
                 run.ok("token_get", """{"tokenId":"$colorToken"}""")
                 val values = run.ok("token_values_get", """{"tokenId":"$colorToken","platform":"web","mode":"light"}""")
+                listOf("tenantId", "platform", "mode").forEach { field ->
+                    val rejected = run.call("token_values_get", """{"tokenId":"$colorToken","$field":"invalid"}""")
+                    assertEquals("INVALID_ARGUMENT" to "invalid_query", rejected.code to rejected.backendCode)
+                }
+                run.ok("token_values_get", """{"tokenId":"$colorToken"}""")
+                run.ok("token_values_get", """{"tokenId":"$colorToken","tenantId":null,"platform":null,"mode":null}""")
                 val currentValue = Json.parseToJsonElement(values.content).jsonArray.first().jsonObject
                 val valueId = currentValue.text("id")
                 run.ok("palette_get", """{"tenantId":"$tenant"}""")

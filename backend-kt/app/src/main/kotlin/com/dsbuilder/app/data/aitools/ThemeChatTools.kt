@@ -11,25 +11,18 @@ import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
-import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
-import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValues
 import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.palette.GetTenantPaletteUseCase
 import com.dsbuilder.ds.themes.application.sizetokens.UpdateSizeTokenValue
 import com.dsbuilder.ds.themes.application.sizetokens.UpdateSizeTokenValueUseCase
 import com.dsbuilder.ds.themes.application.sizetokens.UpdatedSizeToken
-import com.dsbuilder.ds.themes.application.typography.TypographyBaseRevision
-import com.dsbuilder.ds.themes.application.typography.UpdateTypographyStyle
 import com.dsbuilder.ds.themes.application.typography.UpdateTypographyStyleUseCase
 import com.dsbuilder.ds.themes.application.typography.UpdatedTypographyStyle
-import com.dsbuilder.ds.themes.domain.ThemeTokenMode
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.sizetokens.SizeValueInput
-import com.dsbuilder.ds.themes.domain.typography.TypographyVariant
 import com.dsbuilder.ds.themes.presentation.TenantResponse
 import com.dsbuilder.ds.themes.presentation.TenantTokenValueResponse
-import com.dsbuilder.ds.themes.presentation.colortokens.ColorTokenValueItem
 import com.dsbuilder.ds.themes.presentation.colortokens.UpdateColorTokenValuesRequest
 import com.dsbuilder.ds.themes.presentation.sizetokens.UpdateSizeTokenValueRequest
 import com.dsbuilder.ds.themes.presentation.typography.UpdateTypographyStyleRequest
@@ -44,8 +37,9 @@ import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.longOrNull
 import kotlinx.serialization.json.put
 import org.koin.core.Koin
-import java.util.UUID
 import kotlin.coroutines.cancellation.CancellationException
+import com.dsbuilder.ds.themes.presentation.colortokens.toCommand as toColorCommand
+import com.dsbuilder.ds.themes.presentation.typography.toCommand as toTypographyCommand
 
 /** Обработчики инструментов чата этой области. */
 internal fun themeChatTools(koin: Koin): List<DsChatTool> = listOf(
@@ -140,7 +134,7 @@ private class ColorTokenValuesUpdateChatTool(private val update: UpdateColorToke
             put("editRevision", arguments["editRevision"]?.takeUnless { it is JsonNull } ?: JsonPrimitive(0))
             arguments["members"]?.let { put("members", it) }
         }
-        val command = body.decode(UpdateColorTokenValuesRequest.serializer())?.toCommand()
+        val command = body.decode(UpdateColorTokenValuesRequest.serializer())?.toColorCommand()
             ?: return call.reject(INVALID_BODY)
         val context = call.writeContext<ColorTokenMutation<ThemeTokenType>>(
             scope = "tenant:$tenantId|token:$tokenId",
@@ -192,7 +186,7 @@ private class TypographyStyleUpdateChatTool(private val update: UpdateTypography
         val request = arguments.body(TYPOGRAPHY_FIELDS).decode(UpdateTypographyStyleRequest.serializer())
             ?: return call.reject(INVALID_BODY)
         if (request.baseRevisions.orEmpty().any { it.baseRevision < 0 }) return call.reject(INVALID_BASE_REVISION)
-        val command = request.toCommand() ?: return call.reject(INVALID_BODY)
+        val command = request.toTypographyCommand() ?: return call.reject(INVALID_BODY)
         val context = call.writeContext<UpdatedTypographyStyle>(
             scope = "tenant:$tenantId|token:$tokenId",
             body = request,
@@ -201,49 +195,6 @@ private class TypographyStyleUpdateChatTool(private val update: UpdateTypography
         )
         return call.respond(::encodeUpdatedTypographyStyle) { update.execute(context, tenantId, tokenId, command) }
     }
-}
-
-/** Команда изменения цветов, как в `ColorTokenRoutes`; `null`, если идентификатор, платформа или режим не разобраны. */
-private fun UpdateColorTokenValuesRequest.toCommand(): UpdateColorTokenValues? {
-    val values = members.associate { member ->
-        (member.tokenId.toUuid() ?: return null) to (member.values.toValues() ?: return null)
-    }
-    return if (values.size == members.size) UpdateColorTokenValues(editRevision, values) else null
-}
-
-private fun List<ColorTokenValueItem>.toValues(): List<ColorTokenValue>? = map { item ->
-    if ((item.baseRevision ?: 0) < 0) return null
-    ColorTokenValue(
-        platform = ThemeTokenPlatform.fromWire(item.platform) ?: return null,
-        mode = ThemeTokenMode.fromWire(item.mode) ?: return null,
-        paletteId = item.paletteId?.let { it.toUuid() ?: return null },
-        value = item.value,
-        baseRevision = item.baseRevision,
-        overridden = item.overridden,
-    )
-}
-
-/** Команда изменения стиля, как в `TypographyStyleRoutes`; `null`, если начертание, токен или платформа неверны. */
-@Suppress("ReturnCount")
-private fun UpdateTypographyStyleRequest.toCommand(): UpdateTypographyStyle? {
-    val variants = weights.orEmpty().mapKeys { (name, _) -> TypographyVariant.fromWire(name) ?: return null }
-    val bases = baseRevisions.orEmpty().map { item ->
-        TypographyBaseRevision(
-            tokenId = item.tokenId.toUuid() ?: return null,
-            platform = ThemeTokenPlatform.fromWire(item.platform) ?: return null,
-            baseRevision = item.baseRevision,
-        )
-    }
-    val target = platform?.let { ThemeTokenPlatform.fromWire(it) ?: return null }
-    return UpdateTypographyStyle(
-        platform = target,
-        size = size,
-        lineHeight = lineHeight,
-        letterSpacing = letterSpacing,
-        weights = variants,
-        fontFamily = fontFamily,
-        baseRevisions = bases,
-    )
 }
 
 /** Общая базовая редакция, как заголовок `X-DS-Base-Revision`; `null` — недопустимое значение. */
@@ -267,51 +218,6 @@ private fun <T> JsonObject.decode(serializer: KSerializer<T>): T? = try {
     null
 }
 
-/**
- * Список с продолжением: тело маршрута в `items` и `nextCursor` из `X-DS-Next-Cursor`. [DsToolCall.respond] отдаёт
- * кодировщику только значение, поэтому успешный результат передаётся ему целиком.
- */
-private suspend fun <T> DsToolCall.respondPage(
-    serializer: KSerializer<T>,
-    block: suspend () -> DsResult<T>,
-): ToolResult = respond(
-    { success: DsResult.Success<T> ->
-        buildJsonObject {
-            put("items", Json.encodeToJsonElement(serializer, success.value))
-            success.readPage?.nextCursor?.let { put("nextCursor", it) }
-        }
-    },
-) {
-    when (val result = block()) {
-        is DsResult.Success -> DsResult.Success(result)
-        is DsResult.Failure -> result
-    }
-}
-
-/** Отказ без вызова use case, как ответ маршрута на некорректный запрос. */
-private suspend fun DsToolCall.reject(failure: DsFailure): ToolResult =
-    respond<Unit>({ JsonNull }) { DsResult.Failure(failure) }
-
-private fun <T, R> DsResult<T>.map(transform: (T) -> R): DsResult<R> = when (this) {
-    is DsResult.Success -> DsResult.Success(transform(value), mutationMetadata, readContext, readPage)
-    is DsResult.Failure -> this
-}
-
-/** Размер страницы и продолжение; `null` — недопустимые значения, как `INVALID_QUERY` маршрута. */
-private fun JsonObject.page(): ModelReadQuery? {
-    val limit = (this["limit"] as? JsonPrimitive)?.longOrNull ?: DEFAULT_LIMIT.toLong()
-    val cursor = text("cursor")
-    if (limit !in 1..MAX_LIMIT || cursor == "") return null
-    return ModelReadQuery(limit = limit.toInt(), cursor = cursor)
-}
-
-private fun JsonObject.text(name: String): String? =
-    (this[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
-
-private fun JsonObject.uuid(name: String): UUID? = text(name)?.toUuid()
-
-private fun String.toUuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
-
 private val SIZE_FIELDS = setOf("valuePx", "layers", "fallbackElevation", "platforms", "baseRevisions")
 private val TYPOGRAPHY_FIELDS =
     setOf("size", "lineHeight", "letterSpacing", "weights", "fontFamily", "platform", "baseRevisions")
@@ -326,5 +232,3 @@ private val INVALID_SIZE_BASE_REVISION = DsFailure.InvalidRequest(
     message = "Базовые редакции задаются для платформ web, ios и android",
 )
 private val INVALID_QUERY = DsFailure.InvalidRequest("INVALID_QUERY")
-private const val DEFAULT_LIMIT = 50
-private const val MAX_LIMIT = 200L

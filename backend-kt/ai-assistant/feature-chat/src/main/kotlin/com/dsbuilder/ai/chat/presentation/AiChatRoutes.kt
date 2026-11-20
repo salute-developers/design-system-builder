@@ -1,6 +1,8 @@
 package com.dsbuilder.ai.chat.presentation
 
 import com.dsbuilder.ai.chat.application.ChatAccess
+import com.dsbuilder.ai.chat.application.ChatAssistant
+import com.dsbuilder.ai.chat.application.ChatAssistantStatus
 import com.dsbuilder.ai.chat.application.ChatRejection
 import com.dsbuilder.ai.chat.application.ChatTurnRequest
 import com.dsbuilder.ai.chat.application.ChatTurnValidation
@@ -8,8 +10,6 @@ import com.dsbuilder.ai.chat.application.EventsResult
 import com.dsbuilder.ai.chat.application.StartResult
 import com.dsbuilder.ai.chat.application.StopResult
 import com.dsbuilder.ai.chat.application.TurnOwner
-import com.dsbuilder.ai.chat.di.AiAssistant
-import com.dsbuilder.ai.chat.di.AiAssistantConfiguration
 import com.dsbuilder.ai.chat.domain.ChatScope
 import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.authorization.ProjectActorType
@@ -51,13 +51,13 @@ private val log = LoggerFactory.getLogger("com.dsbuilder.ai.chat")
  * [trustedHeaders] возвращает проверенный контекст, построенный публичной границей монолита.
  */
 fun Route.aiChatRoutes(
-    assistant: AiAssistant?,
+    assistant: ChatAssistant?,
     evaluator: PolicyEvaluator,
     trustedHeaders: (ApplicationCall) -> Headers,
     heartbeat: Duration = 15.seconds,
 ) {
     get("/status") {
-        call.respondJson(HttpStatusCode.OK, statusBody(assistant?.configuration))
+        call.respondJson(HttpStatusCode.OK, statusBody(assistant?.status))
     }
 
     post("/chat") {
@@ -73,19 +73,19 @@ fun Route.aiChatRoutes(
     }
 }
 
-private fun statusBody(configuration: AiAssistantConfiguration?): JsonObject = if (configuration == null) {
+private fun statusBody(status: ChatAssistantStatus?): JsonObject = if (status == null) {
     buildJsonObject { put("enabled", false) }
 } else {
     buildJsonObject {
         put("enabled", true)
-        put("provider", configuration.provider?.wireValue)
-        put("model", configuration.model)
-        put("messageMaxChars", configuration.limits?.messageMaxChars)
+        put("provider", status.provider)
+        put("model", status.model)
+        put("messageMaxChars", status.messageMaxChars)
     }
 }
 
 private suspend fun ApplicationCall.startTurn(
-    assistant: AiAssistant?,
+    assistant: ChatAssistant?,
     evaluator: PolicyEvaluator,
     trustedHeaders: (ApplicationCall) -> Headers,
 ) {
@@ -113,7 +113,7 @@ private suspend fun ApplicationCall.startTurn(
 }
 
 /** Проверенный запрос хода; при ошибке отвечает отказом и возвращает null. */
-private suspend fun ApplicationCall.turnInput(ai: AiAssistant): ChatTurnRequest? {
+private suspend fun ApplicationCall.turnInput(ai: ChatAssistant): ChatTurnRequest? {
     val key = request.headers["Idempotency-Key"]?.takeIf { it.isNotBlank() && it.length <= MAX_KEY_LENGTH }
     if (key == null) {
         reject(ChatRejection(BAD_REQUEST, INVALID_REQUEST))
@@ -134,7 +134,7 @@ private suspend fun ApplicationCall.turnInput(ai: AiAssistant): ChatTurnRequest?
 }
 
 private suspend fun ApplicationCall.streamEvents(
-    assistant: AiAssistant?,
+    assistant: ChatAssistant?,
     evaluator: PolicyEvaluator,
     trustedHeaders: (ApplicationCall) -> Headers,
     heartbeat: Duration,
@@ -187,7 +187,7 @@ private suspend fun ApplicationCall.respondStream(stream: EventsResult.Stream, h
 }
 
 private suspend fun ApplicationCall.stopTurn(
-    assistant: AiAssistant?,
+    assistant: ChatAssistant?,
     evaluator: PolicyEvaluator,
     trustedHeaders: (ApplicationCall) -> Headers,
 ) {
@@ -200,10 +200,10 @@ private suspend fun ApplicationCall.stopTurn(
 
 /** Включённый ассистент и принципал проверенного контекста; иначе отвечает отказом и возвращает null. */
 private suspend fun ApplicationCall.authorized(
-    assistant: AiAssistant?,
+    assistant: ChatAssistant?,
     evaluator: PolicyEvaluator,
     trustedHeaders: (ApplicationCall) -> Headers,
-): Pair<AiAssistant, ProjectPrincipal>? {
+): Pair<ChatAssistant, ProjectPrincipal>? {
     if (assistant == null) {
         reject(ChatRejection(UNAVAILABLE, "ai_unavailable"))
         return null

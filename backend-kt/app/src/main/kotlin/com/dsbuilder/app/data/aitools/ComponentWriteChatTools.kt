@@ -23,6 +23,7 @@ import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import org.koin.core.Koin
+import com.dsbuilder.ds.components.presentation.toCommand as toPropertyCommand
 
 private const val MAX_NAME_LENGTH = 255
 
@@ -44,10 +45,10 @@ private class ComponentPropertySetChatTool(private val set: SetAppearancePropert
 
     @Suppress("ReturnCount")
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         val baseRevision = arguments.baseRevision() ?: return call.invalidArgument("invalid_base_revision")
         val request = arguments.propertyValueRequest() ?: return call.invalidArgument("invalid_body")
-        val command = request.toCommand() ?: return call.invalidArgument("invalid_body")
+        val command = request.toPropertyCommand() ?: return call.invalidArgument("invalid_body")
         val context = call.writeContext(
             scope = "appearance:$id|property:${command.scope.propertyId}",
             body = encodeComponentResponse(SetAppearancePropertyValueRequest.serializer(), request),
@@ -67,9 +68,9 @@ private class ComponentAxisValueCreateChatTool(private val add: AddAppearanceAxi
 
     @Suppress("ReturnCount")
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
-        val axisId = arguments.componentText("axisId").componentUuid() ?: return call.invalidArgument("invalid_id")
-        val name = arguments.componentText("name")?.takeIf { it.isNotBlank() && it.length <= MAX_NAME_LENGTH }
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
+        val axisId = arguments.text("axisId").toUuid() ?: return call.invalidArgument("invalid_id")
+        val name = arguments.text("name")?.takeIf { it.isNotBlank() && it.length <= MAX_NAME_LENGTH }
         val position = arguments.componentLong("position")
         val validPosition = position == null || position in Int.MIN_VALUE..Int.MAX_VALUE
         if (name == null || !validPosition) return call.invalidArgument("invalid_body")
@@ -95,8 +96,8 @@ private class ComponentConfigurationDuplicateChatTool(
     override val name = "component_configuration_duplicate"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
-        val name = arguments.componentText("name")?.trim()?.takeIf { it.isNotEmpty() }
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
+        val name = arguments.text("name")?.trim()?.takeIf { it.isNotEmpty() }
         if ((name?.length ?: 0) > MAX_NAME_LENGTH) return call.invalidArgument("invalid_body")
         val context = call.createContext().withIdempotentResponse { value: Appearance ->
             componentToolJson.encodeToString(AppearanceResponse.serializer(), AppearanceResponse.from(value))
@@ -119,11 +120,11 @@ private class ComponentPropertyResetChatTool(private val remove: RemoveAppearanc
 
     @Suppress("ReturnCount")
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         val baseRevision = arguments.baseRevision() ?: return call.invalidArgument("invalid_base_revision")
-        val propertyId = arguments.componentText("propertyId").componentUuid()
+        val propertyId = arguments.text("propertyId").toUuid()
             ?: return call.invalidArgument("invalid_property_id")
-        val styleIds = arguments.componentTexts("styleIds")?.filter { it.isNotBlank() }?.map { it.componentUuid() }
+        val styleIds = arguments.componentTexts("styleIds")?.filter { it.isNotBlank() }?.map { it.toUuid() }
         if (styleIds == null || styleIds.any { it == null }) return call.invalidArgument("invalid_style_ids")
         val states = arguments.componentTexts("states")?.filter { it.isNotBlank() }
             ?: return call.invalidArgument("invalid_body")
@@ -159,12 +160,12 @@ private fun JsonObject.baseRevision(): BaseRevision? {
 /** Тело запроса маршрута из аргументов модели; `null` — неверная форма вложенных полей. */
 @Suppress("ReturnCount")
 private fun JsonObject.propertyValueRequest(): SetAppearancePropertyValueRequest? {
-    val propertyId = componentText("propertyId") ?: return null
+    val propertyId = text("propertyId") ?: return null
     val styleIds = componentTexts("styleIds") ?: return null
     val states = componentTexts("states") ?: return null
-    val reference = componentObject("reference")?.let { raw ->
+    val reference = (this["reference"] as? JsonObject)?.let { raw ->
         StyleReferenceRequest(
-            raw.componentText("targetAppearanceId") ?: return null,
+            raw.text("targetAppearanceId") ?: return null,
             raw.componentTexts("styleIds") ?: return null,
         )
     }
@@ -172,35 +173,11 @@ private fun JsonObject.propertyValueRequest(): SetAppearancePropertyValueRequest
         propertyId = propertyId,
         styleIds = styleIds,
         states = states,
-        type = componentText("type"),
-        tokenId = componentText("tokenId"),
-        value = componentText("value"),
-        alpha = componentText("alpha"),
-        adjustment = componentText("adjustment"),
+        type = text("type"),
+        tokenId = text("tokenId"),
+        value = text("value"),
+        alpha = text("alpha"),
+        adjustment = text("adjustment"),
         reference = reference,
-    )
-}
-
-/** Те же правила, что у закрытого `toCommand` маршрута `PUT …/property-values`. */
-@Suppress("ReturnCount")
-private fun SetAppearancePropertyValueRequest.toCommand(): AppearanceEditorRepository.PropertyValueSet? {
-    val property = propertyId.componentUuid() ?: return null
-    val styles = styleIds.map { it.componentUuid() }
-    val token = tokenId?.let { it.componentUuid() ?: return null }
-    if (styles.any { it == null }) return null
-    val referenceInput = reference?.let { input ->
-        val target = input.targetAppearanceId.componentUuid() ?: return null
-        val referenceStyles = input.styleIds.map { it.componentUuid() }
-        if (referenceStyles.any { it == null }) return null
-        AppearanceEditorRepository.StyleReferenceInput(target, referenceStyles.filterNotNull())
-    }
-    return AppearanceEditorRepository.PropertyValueSet(
-        AppearanceEditorRepository.PropertyValueScope(property, styles.filterNotNull(), states),
-        type,
-        token,
-        value,
-        alpha,
-        adjustment,
-        referenceInput,
     )
 }

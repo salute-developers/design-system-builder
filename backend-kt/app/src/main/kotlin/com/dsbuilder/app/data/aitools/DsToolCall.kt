@@ -8,6 +8,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.IdempotentMutationRequest
 import com.dsbuilder.ds.core.application.IdempotentReplayException
 import com.dsbuilder.ds.core.application.withIdempotentResponse
+import kotlinx.serialization.KSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -55,10 +56,26 @@ class DsToolCall(private val tool: String, private val context: ChatToolContext)
      * Метаданные записи (новые ревизии и предупреждения) добавляются к результату и при успехе, и при повторе,
      * поэтому модель видит одно и то же.
      */
-    suspend fun <T> respond(encode: (T) -> JsonElement, block: suspend () -> DsResult<T>): ToolResult = try {
+    suspend fun <T> respond(encode: (T) -> JsonElement, block: suspend () -> DsResult<T>): ToolResult =
+        execute(block) { result -> success(encode(result.value).toString(), result.mutationMetadata) }
+
+    /** Список с продолжением: поля items и nextCursor совпадают с ответом маршрута. */
+    suspend fun <T> respondPage(serializer: KSerializer<T>, block: suspend () -> DsResult<T>): ToolResult =
+        execute(block) { result ->
+            val body = buildJsonObject {
+                put("items", Json.encodeToJsonElement(serializer, result.value))
+                result.readPage?.nextCursor?.let { put("nextCursor", it) }
+            }
+            success(body.toString())
+        }
+
+    private suspend fun <T> execute(
+        block: suspend () -> DsResult<T>,
+        encode: (DsResult.Success<T>) -> ToolResult,
+    ): ToolResult = try {
         when (val result = block()) {
-            is DsResult.Success -> success(encode(result.value).toString(), result.mutationMetadata)
-            is DsResult.Failure -> failure(result.error)
+            is DsResult.Success -> encode(result)
+            is DsResult.Failure -> reject(result.error)
         }
     } catch (replay: IdempotentReplayException) {
         success(replay.response.body, replay.response.mutationMetadata)
@@ -85,12 +102,13 @@ class DsToolCall(private val tool: String, private val context: ChatToolContext)
         return ToolResult("", tool, body, isError = false)
     }
 
-    private fun failure(error: DsFailure): ToolResult {
-        val (code, backendCode) = codes(error)
+    /** Отказ без вызова use case: тот же JSON и код, что у неуспешного результата. */
+    fun reject(error: DsFailure): ToolResult {
+        val (code, backendCode, message) = errorData(error)
         val body = buildJsonObject {
             put("code", code)
             backendCode?.let { put("backendCode", it) }
-            message(error)?.let { put("message", it) }
+            message?.let { put("message", it) }
             (error as? DsFailure.Conflict)?.editRevision?.let { put("editRevision", it) }
             (error as? DsFailure.Conflict)?.draftRevision?.let { put("draftRevision", it) }
             (error as? DsFailure.InvalidRequest)?.details?.takeIf { it.isNotEmpty() }?.let { details ->
@@ -104,20 +122,19 @@ class DsToolCall(private val tool: String, private val context: ChatToolContext)
         const val DRAFT = "draft"
         const val OK = 200
 
-        fun codes(error: DsFailure): Pair<String, String?> = when (error) {
-            DsFailure.Forbidden -> "FORBIDDEN" to null
-            DsFailure.NotFound -> "NOT_FOUND" to null
-            is DsFailure.InvalidRequest -> "INVALID_ARGUMENT" to error.code
-            is DsFailure.Conflict -> "CONFLICT" to error.code
-            is DsFailure.Unprocessable -> "VALIDATION_FAILED" to error.code
-            is DsFailure.DependencyUnavailable, DsFailure.TechnicalFailure -> "BACKEND_UNAVAILABLE" to null
-        }
-
-        fun message(error: DsFailure): String? = when (error) {
-            is DsFailure.InvalidRequest -> error.message
-            is DsFailure.Conflict -> error.message
-            is DsFailure.Unprocessable -> error.message
-            else -> null
+        fun errorData(error: DsFailure): Triple<String, String?, String?> = when (error) {
+            DsFailure.Forbidden -> Triple("FORBIDDEN", null, null)
+            DsFailure.NotFound -> Triple("NOT_FOUND", null, null)
+            is DsFailure.InvalidRequest -> Triple("INVALID_ARGUMENT", error.code, error.message)
+            is DsFailure.Conflict -> Triple("CONFLICT", error.code, error.message)
+            is DsFailure.Unprocessable -> Triple("VALIDATION_FAILED", error.code, error.message)
+            is DsFailure.DependencyUnavailable, DsFailure.TechnicalFailure -> Triple("BACKEND_UNAVAILABLE", null, null)
         }
     }
+}
+
+/** Преобразует успешное значение, сохраняя ревизии, контекст чтения и продолжение страницы. */
+internal fun <T, R> DsResult<T>.map(transform: (T) -> R): DsResult<R> = when (this) {
+    is DsResult.Success -> DsResult.Success(transform(value), mutationMetadata, readContext, readPage)
+    is DsResult.Failure -> this
 }
