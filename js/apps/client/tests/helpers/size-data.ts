@@ -18,11 +18,32 @@ type SizeTokens = Readonly<{
 type SavedValue = Pick<TokenValue, 'tokenId' | 'platform' | 'mode' | 'value' | 'editRevision' | 'overridden'>;
 export type SizeData = SizeTokens & Readonly<{ baseline: readonly SavedValue[] }>;
 
-type SizeView = {
-    radii: { tokenId: string; valuePx: number | null; fullRounding: boolean; platforms: object }[];
+export type ShadowLayer = Readonly<{ offsetX: number; offsetY: number; blur: number; spread: number; color: string }>;
+
+export type SizeView = {
+    radii: {
+        tokenId: string;
+        valuePx: number | null;
+        fullRounding: boolean;
+        platforms: Partial<Record<'ios' | 'android', number>>;
+        native: { ios: number | null; android: number | null };
+        derived: { offsetPx: number; valuePx: number }[];
+    }[];
     spacing: { tokenId: string; valuePx: number; platforms: object }[];
-    shadows: { tokenId: string; layers: unknown[]; platforms: object }[];
+    shadows: {
+        tokenId: string;
+        layers: ShadowLayer[];
+        platforms: Partial<Record<'ios' | 'android', { layers: ShadowLayer[] }>>;
+        native: Record<'ios' | 'android', { layers: ShadowLayer[] }>;
+    }[];
 };
+
+/** Независимое чтение представления размеров собственной темы. */
+export async function readSizeView(api: TokenValuesApi, themeId: string, session: Session): Promise<SizeView> {
+    const raw: unknown = await (await authenticatedRequest(session, api.sizeViewURL(themeId), 'GET', [200])).json();
+    expect(raw).toMatchObject({ radii: expect.any(Array), spacing: expect.any(Array), shadows: expect.any(Array) });
+    return raw as SizeView;
+}
 
 /** Только пять токенов RSS-BASE, включая редакции: независимый Owner GET после UI. */
 export async function readSizeValues(api: TokenValuesApi, themeId: string, tokens: SizeTokens): Promise<SavedValue[]> {
