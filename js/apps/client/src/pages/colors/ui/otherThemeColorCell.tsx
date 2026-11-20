@@ -2,7 +2,8 @@ import { gradientLabel, parseWebLayer, webLayers } from '../../../modules/colorT
 
 /** HEX для сравнения тем: верхний регистр, непрозрачная альфа отбрасывается. */
 const comparableHex = (value: unknown) => {
-    const text = (Array.isArray(value) ? value[0] : value) as unknown;
+    // Значение платформы — строка или массив слоёв: сравнивается первый.
+    const text: unknown = [value].flat()[0];
     if (typeof text !== 'string') return '';
     const hex = text.toUpperCase();
     return /^#[0-9A-F]{8}$/.test(hex) && hex.endsWith('FF') ? hex.slice(0, 7) : hex;
@@ -16,10 +17,12 @@ export const otherThemeColorCell = (value: unknown) => {
     const layers = webLayers(value);
     const gradient = parseWebLayer(layers[0] ?? '');
     const hex = comparableHex(value);
-    const label = gradient ? gradientLabel(gradient, layers.length) : hex.replace('#', '') || '—';
+    const { label, background } = gradient
+        ? { label: gradientLabel(gradient, layers.length), background: layers.join(', ') }
+        : { label: hex.replace('#', '') || '—', background: hex || 'transparent' };
     return (
         <span className="other-themes-color" title={label}>
-            <i style={{ background: gradient ? layers.join(', ') : hex || 'transparent' }} />
+            <i style={{ background }} />
             <span>{label}</span>
         </span>
     );

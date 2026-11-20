@@ -40,6 +40,7 @@ import {
     type ColorTokenContext,
     type ColorTokenView,
     type ContrastPair,
+    type NativePlatform,
     type TokenGroupDto,
     type TokenDefinitions,
     type TreeSort,
@@ -576,12 +577,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 ? selected.contexts[pickerField.context].values[pickerField.mode]
                 : selected.modes[pickerField.mode]
             : null;
-    const pickerValue =
-        picker && pickerBase
-            ? picker.platform === 'web'
-                ? pickerBase
-                : (pickerBase.platforms[picker.platform] ?? pickerBase)
-            : null;
+    // У Web своих значений платформы нет: поле Web и платформа без своего значения показывают значение Web.
+    const pickerValue = pickerBase && (pickerBase.platforms[picker?.platform as NativePlatform] ?? pickerBase);
     /** Пояснения выбора цвета: своё значение платформы и начальный угол Conic на Android. */
     const pickerNotes = (() => {
         if (!picker || !pickerBase || !pickerValue) return [];

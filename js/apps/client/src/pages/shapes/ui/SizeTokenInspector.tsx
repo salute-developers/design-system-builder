@@ -76,27 +76,30 @@ const platformsOf = <T,>(platforms: Partial<Record<NativePlatform, T>>) =>
     PLATFORM_ORDER.filter((platform) => platforms[platform] !== undefined);
 
 /** Статус сохранения под шапкой инспектора: у раздела нет шапки рабочей области (осознанное отступление). */
+/** Строка статуса сохранения по состоянию очереди: подпись и класс; «Сохранено» с ошибкой другой операции — своя. */
+const SAVE_LINE: Record<SaveStatus['state'], { label: string; className: string }> = {
+    saved: { label: 'Сохранено', className: '' },
+    pending: { label: 'Сохранение…', className: 'is-saving' },
+    saving: { label: 'Сохранение…', className: 'is-saving' },
+    error: { label: 'Не сохранено', className: 'is-error' },
+};
+const SAVED_WITH_OTHER_ERROR = { label: 'Не все правки сохранены', className: '' };
+
 const SaveLine = ({ save, otherError, onRetry }: Pick<InspectorProps, 'save' | 'otherError' | 'onRetry'>) => {
-    const failed = save.state === 'error' || otherError !== null;
+    const line = save.state === 'saved' && otherError ? SAVED_WITH_OTHER_ERROR : SAVE_LINE[save.state];
+    // Ошибка другой операции красит строку при любом состоянии своей очереди.
+    const otherFailed = otherError === null ? '' : 'is-error';
     // «Повторить» отправляет сразу операцию, которая иначе повторится автоматически; отказ проверки не повторяется.
     const retryable = save.state === 'error' ? Boolean(save.error?.retryable) : otherError !== null;
-    const label =
-        save.state === 'error'
-            ? 'Не сохранено'
-            : save.state === 'saved'
-              ? otherError
-                  ? 'Не все правки сохранены'
-                  : 'Сохранено'
-              : 'Сохранение…';
     return (
         <div className="st-save-row">
             <span
-                className={`st-save ${save.state === 'pending' || save.state === 'saving' ? 'is-saving' : ''} ${failed ? 'is-error' : ''}`}
+                className={`st-save ${line.className} ${otherFailed}`}
                 role="status"
                 data-testid="size-tokens-save-status"
             >
-                {label}
-                {failed && retryable && (
+                {line.label}
+                {retryable && (
                     <button type="button" className="st-inline-action" onClick={onRetry}>
                         Повторить
                     </button>

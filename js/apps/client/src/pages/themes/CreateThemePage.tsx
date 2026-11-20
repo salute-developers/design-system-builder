@@ -126,7 +126,7 @@ export const CreateThemePage = () => {
         const rawName = String(new FormData(event.currentTarget).get('name'));
         setBusy(true);
         try {
-            if (copying && source) {
+            if (source) {
                 const normalized = normalizeThemeName(rawName);
                 if (!normalized) throw new Error('Введите название Theme.');
                 const copy = await themesApi.duplicate(projectId, designSystemId, source.id, normalized);
@@ -152,10 +152,10 @@ export const CreateThemePage = () => {
         [palette[2], palette[3], palette[0], palette[1]],
     );
     const preview =
-        copying && source
+        source
             ? sourcePreview(source, mode)
             : { ...themeProfilePreviews, custom: { light: customPreview, dark: customPreview } }[profile][mode];
-    const previewLabel = copying && source ? profileLabel(source) : themeProfileLabels[profile];
+    const previewLabel = source ? profileLabel(source) : themeProfileLabels[profile];
     return (
         <BuilderShell
             title="Создать Theme"

@@ -90,15 +90,19 @@ export const useTokenEnabled = (options: {
     };
 };
 
+/** Кнопка-глаз по признаку `enabled`: открытый глаз отключает токен, перечёркнутый — включает. */
+const ENABLED_BUTTON = {
+    true: { label: 'Отключить токен', title: 'Отключить токен', icon: <EyeOutline /> },
+    false: { label: 'Включить токен', title: `${DISABLED_TOKEN_TEXT}. Включить токен`, icon: <EyeClosedOutline /> },
+};
+
 /**
  * Переключатель-глаз в шапке инспектора для обоих состояний: открытый глаз — токен включён, перечёркнутый — отключён.
  * Без права правки остаётся только отметка отключённого токена.
  */
 export const TokenEnabledButton = ({ toggle }: { toggle: TokenEnabledToggle }) => {
     if (!toggle.editable) return toggle.enabled ? null : <DisabledFlag />;
-    const state = toggle.enabled
-        ? { label: 'Отключить токен', title: 'Отключить токен', icon: <EyeOutline /> }
-        : { label: 'Включить токен', title: `${DISABLED_TOKEN_TEXT}. Включить токен`, icon: <EyeClosedOutline /> };
+    const state = ENABLED_BUTTON[String(toggle.enabled) as 'true' | 'false'];
     return (
         <button
             type="button"

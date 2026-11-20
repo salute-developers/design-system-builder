@@ -47,7 +47,8 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
 
     const overview = `/projects/${projectId}/design-systems/${designSystemId}`;
     const versionQuery = versionId ? `?${new URLSearchParams({ versionId })}` : '';
-    const back = embedded && tenantId ? `${overview}/themes/${tenantId}/colors${versionQuery}` : overview;
+    // Тема в адресе есть только у настроек, открытых из редактора: «Назад» возвращает в её раздел «Цвета».
+    const back = tenantId ? `${overview}/themes/${tenantId}/colors${versionQuery}` : overview;
     if ([project.error, system.error, themes.error].some(isAccessDenied))
         return (
             <State
@@ -103,8 +104,10 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
         );
     const role = project.data.effectiveRole;
     const active = project.data.status === 'active' && !versionId;
-    const canWriteSystem = active && can(role, 'designSystems:write');
-    const canDeleteSystem = active && can(role, 'designSystems:delete');
+    // Изменения доступны в действующем проекте и черновике; опубликованная версия только для чтения.
+    const allowed = (permission: Parameters<typeof can>[1]) => active && can(role, permission);
+    const canWriteSystem = allowed('designSystems:write');
+    const canDeleteSystem = allowed('designSystems:delete');
     const themeCount = themes.data.length;
     const sections: SettingsSection[] = ['Основное', 'Темы', ...(canDeleteSystem ? ['Опасная зона' as const] : [])];
     const save = async (event: FormEvent<HTMLFormElement>) => {
@@ -174,12 +177,12 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                     projectId={projectId}
                     designSystemId={designSystemId}
                     themes={themes.data}
-                    canWrite={active && can(role, 'tenants:write')}
-                    canDelete={active && can(role, 'tenants:delete')}
+                    canWrite={allowed('tenants:write')}
+                    canDelete={allowed('tenants:delete')}
                     highlightedId={params.get('theme')}
                     focusName={params.get('focus') === 'rename'}
                     confirmDeleteId={params.get('confirm') === 'delete' ? params.get('theme') : null}
-                    openTenantId={embedded ? tenantId : undefined}
+                    openTenantId={tenantId}
                 />
                 {canDeleteSystem && (
                     <section id="settings-danger" className="settings-section">

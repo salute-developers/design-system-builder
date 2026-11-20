@@ -126,10 +126,12 @@ export const ColorTokenInspector = (props: InspectorProps) => {
      */
     const field = (id: FieldId, label: string, value: ColorFieldValue, name: string, canRemove = true) => {
         const platform = props.platform;
-        const own = platform === 'web' ? undefined : value.platforms[platform];
-        const fromWeb = platform !== 'web' && !own;
+        // Своё значение бывает только у iOS и Android: у Web и платформы без него поле показывает значение Web, а
+        // кнопка «Убрать своё значение» есть только у поля со своим значением.
+        const native = platform as NativePlatform;
+        const own = value.platforms[native];
         // Построенное из Web поле показывает ошибки значения Web: его правят на Web.
-        const shown = fromWeb ? 'web' : platform;
+        const shown = own ? platform : 'web';
         const target = { field: id, platform };
         const platformName = platform === 'web' ? name : `${name}, ${PLATFORM_LABELS[platform]}`;
         return (
@@ -148,7 +150,6 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                 onOpacity={(percent) => props.onOpacity(target, percent)}
                 trailing={
                     editable &&
-                    platform !== 'web' &&
                     own &&
                     canRemove && (
                         <button
@@ -156,7 +157,7 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                             className="tw-icon-button ct-platform-button"
                             aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
                             title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
-                            onClick={() => props.onRemovePlatform(id, platform)}
+                            onClick={() => props.onRemovePlatform(id, native)}
                         >
                             <CloseOutline />
                         </button>
