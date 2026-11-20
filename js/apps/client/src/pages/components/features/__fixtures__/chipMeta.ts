@@ -15,7 +15,8 @@ export const style = (id: string, name: string, props: { id: string; value: stri
     props,
 });
 
-// Chip: вариации в модели идут как `pilled`, `view`, `size` — инспектор ставит `size` и `view` первыми. ID вариаций
+// Chip: вариации в модели идут как `pilled`, `view`, `size` — инспектор, как дерево «Структуры», ставит цветовую
+// схему `view` последней: `pilled`, `size`, `view`. ID вариаций
 // (`v-size`) отличаются от имён: связи свойств API приходят именами, как с сервера.
 export const chipMeta = {
     name: 'Chip',

@@ -15,6 +15,7 @@ vi.mock('./editorReads', () => ({
     invalidateEditorResources: vi.fn(),
 }));
 
+import { autosaveErrorMessage } from './autosaveHttp';
 import { componentRepository } from './componentRepository';
 import type { PendingComponentMutation } from './editorContracts';
 
@@ -109,11 +110,11 @@ describe('сохранение ссылки на стиль вложенного
         },
     );
 
-    it('показывает причину отказа проверки ссылки сообщением', async () => {
+    it('находит причину по коду в `code`, если общий `error` её не описывает', async () => {
         put.mockRejectedValue(
             Object.assign(new Error('Request failed'), {
                 isAxiosError: true,
-                response: { status: 422, data: { code: 'reference_cycle' } },
+                response: { status: 422, data: { error: 'editor_rule_violation', code: 'reference_cycle' } },
             }),
         );
 
@@ -127,6 +128,31 @@ describe('сохранение ссылки на стиль вложенного
                 () => reference,
             ),
         ).rejects.toThrow(/цикл/);
+    });
+
+    it('показывает причину отказа проверки ссылки сообщением', async () => {
+        put.mockRejectedValue(
+            Object.assign(new Error('Request failed'), {
+                isAxiosError: true,
+                response: {
+                    status: 422,
+                    data: { error: 'reference_cycle', message: 'The reference closes a cycle of configurations' },
+                },
+            }),
+        );
+
+        await expect(
+            componentRepository.saveComponentMutation(
+                context,
+                meta,
+                mutation([{ id: 'button-style', value: 'field.default' }]),
+                {},
+                undefined,
+                () => reference,
+            ),
+        ).rejects.toSatisfy(
+            (error) => autosaveErrorMessage(error)?.includes('цикл') === true,
+        );
     });
 
     it('не сохраняет ссылку, которую не удалось развернуть', async () => {

@@ -45,7 +45,14 @@ import {
 const ProtectedRoute = () => {
     const isAuthenticated = authService.isAuthenticated();
 
-    return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+    return isAuthenticated ? (
+        <AnalyticsConsent>
+            <AnalyticsNavigation />
+            <Outlet />
+        </AnalyticsConsent>
+    ) : (
+        <Navigate to="/login" />
+    );
 };
 
 const PublicRoute = ({ children }: { children: ReactNode }) => {
@@ -90,8 +97,6 @@ const LegacyThemeRedirect = () => {
 function App() {
     return (
         <Router basename={getBaseName()}>
-            <AnalyticsConsent />
-            <AnalyticsNavigation />
             <Routes>
                 <Route
                     path="/login"

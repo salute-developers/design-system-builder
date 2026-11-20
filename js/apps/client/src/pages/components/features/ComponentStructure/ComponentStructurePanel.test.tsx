@@ -1,3 +1,4 @@
+import { AxiosError, AxiosHeaders } from 'axios';
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -80,22 +81,32 @@ const meta = {
     },
 } as unknown as Meta;
 
-const renderPanel = (configurationId?: string) => {
+const lockedError = () =>
+    new AxiosError('Request failed', 'ERR_BAD_RESPONSE', undefined, undefined, {
+        status: 422,
+        statusText: '',
+        data: { code: 'axis_locked' },
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+    });
+
+const renderPanel = (
+    configurationId?: string,
+    selection: Record<string, string | boolean> = { size: 's-m', view: 'v-default' },
+) => {
     const run = vi.fn(async (operation: (value: typeof context) => Promise<string | void>) => {
         await operation(context);
     });
     const onSelectionChange = vi.fn();
     const onConfigurationSelect = vi.fn();
-    const onCombinationSelect = vi.fn();
     const structure = { context, run };
     const panel = (id?: string) => (
         <ComponentStructurePanel
             config={id ? new Config(meta).withConfiguration(id) : new Config(meta)}
             structure={structure}
-            selection={{ size: 's-m', view: 'v-default' }}
+            selection={selection}
             onSelectionChange={onSelectionChange}
             onConfigurationSelect={onConfigurationSelect}
-            onCombinationSelect={onCombinationSelect}
         />
     );
     const { rerender } = render(panel(configurationId));
@@ -103,7 +114,6 @@ const renderPanel = (configurationId?: string) => {
         run,
         onSelectionChange,
         onConfigurationSelect,
-        onCombinationSelect,
         open: (id?: string) => rerender(panel(id)),
     };
 };
@@ -140,14 +150,25 @@ describe('ComponentStructurePanel', () => {
         expect(run).toHaveBeenCalledTimes(2);
     });
 
-    it('shows the colour scheme variation first, protected, and selects values for the preview', async () => {
+    it('shows the colour scheme variation last under its own subheading, protected, and selects values', async () => {
         const { onSelectionChange } = renderPanel();
         const view = await screen.findByRole('region', { name: 'Вариация view' });
         const groups = screen
             .getAllByRole('region', { name: /^Вариация / })
             .map((item) => item.getAttribute('aria-label'));
 
-        expect(groups).toEqual(['Вариация view', 'Вариация size', 'Вариация pilled']);
+        expect(groups).toEqual(['Вариация size', 'Вариация pilled', 'Вариация view']);
+        // Подзаголовок с замком стоит прямо перед вариацией цветовой схемы, «Настраиваемых вариаций» больше нет.
+        const subheading = screen.getByText('Цветовая схема');
+        expect(subheading.nextElementSibling).toBe(view);
+        // Один замок — у самой вариации, на месте ручки и перед стрелкой; у подзаголовка замка нет.
+        expect(subheading.querySelector('.component-protected-lock')).toBeNull();
+        const title = view.querySelector('.component-axis-title-main')!;
+        expect(title.firstElementChild).toHaveClass('component-axis-lock-slot');
+        expect(title.firstElementChild?.nextElementSibling).toHaveClass('component-axis-toggle');
+        expect(view.querySelectorAll('.component-protected-lock')).toHaveLength(1);
+        expect(screen.queryByText('Настраиваемые вариации')).toBeNull();
+        expect(within(view).queryByRole('button', { name: /Порядок вариации/ })).toBeNull();
         expect(
             within(view).getByRole('button', { name: 'Нельзя удалить базовую вариацию', hidden: true }),
         ).toBeDisabled();
@@ -197,6 +218,44 @@ describe('ComponentStructurePanel', () => {
         );
     });
 
+    it('moves a variation down with the keyboard but never past the colour scheme', async () => {
+        renderPanel();
+        await screen.findByRole('region', { name: 'Вариация pilled' });
+
+        // `pilled` — последняя перемещаемая: ниже только цветовая схема.
+        fireEvent.keyDown(screen.getByRole('button', { name: /Порядок вариации pilled/ }), { key: 'ArrowDown' });
+        expect(repository.reorderAxes).not.toHaveBeenCalled();
+
+        fireEvent.keyDown(screen.getByRole('button', { name: /Порядок вариации size/ }), { key: 'ArrowDown' });
+        await waitFor(() =>
+            expect(repository.reorderAxes).toHaveBeenCalledWith(context, 'base', [
+                'axis-pilled',
+                'axis-view',
+                'axis-size',
+            ]),
+        );
+    });
+
+    it('drops a variation over the colour scheme before it, keeping the scheme in its server place', async () => {
+        renderPanel();
+        await screen.findByRole('region', { name: 'Вариация pilled' });
+        const dataTransfer = { setData: vi.fn(), effectAllowed: '' };
+
+        fireEvent.dragStart(screen.getByRole('button', { name: /Порядок вариации size/ }), { dataTransfer });
+        fireEvent.dragOver(screen.getByRole('region', { name: 'Вариация view' }).parentElement!, { clientY: 1000 });
+        expect(screen.getByRole('region', { name: 'Вариация pilled' })).toHaveClass('is-drop-after');
+        expect(screen.getByRole('region', { name: 'Вариация view' })).not.toHaveClass('is-drop-after');
+        fireEvent.drop(screen.getByRole('region', { name: 'Вариации' }));
+
+        await waitFor(() =>
+            expect(repository.reorderAxes).toHaveBeenCalledWith(context, 'base', [
+                'axis-pilled',
+                'axis-view',
+                'axis-size',
+            ]),
+        );
+    });
+
     it('moves a variation by drag and drop, dropping into the gap of the list', async () => {
         renderPanel();
         await screen.findByRole('region', { name: 'Вариация pilled' });
@@ -221,11 +280,7 @@ describe('ComponentStructurePanel', () => {
     it('reloads its model after an operation even when the component config stays the same', async () => {
         renderPanel();
         await screen.findByRole('region', { name: 'Вариация pilled' });
-        const reordered = [
-            { ...axes[2], position: 0 },
-            axes[1],
-            { ...axes[0], position: 2 },
-        ];
+        const reordered = [{ ...axes[2], position: 0 }, axes[1], { ...axes[0], position: 2 }];
         repository.loadModel.mockResolvedValue({ appearance: {}, revision: 2, axes: reordered });
 
         fireEvent.keyDown(screen.getByRole('button', { name: /Порядок вариации pilled/ }), { key: 'ArrowUp' });
@@ -281,8 +336,8 @@ describe('ComponentStructurePanel', () => {
         await waitFor(() => expect(repository.addAxis).toHaveBeenCalledWith(context, 'base', 'density'));
     });
 
-    it('показывает дерево вариаций, фильтрует настроенные и открывает пересечение', async () => {
-        const { onSelectionChange, onCombinationSelect } = renderPanel();
+    it('показывает дерево вариаций, фильтрует настроенные и выставляет путь узла в «Variants»', async () => {
+        const { onSelectionChange } = renderPanel();
         const tree = await screen.findByRole('region', { name: 'Дерево вариаций' });
         await within(tree).findByRole('button', { name: 'size: m' });
 
@@ -297,14 +352,75 @@ describe('ComponentStructurePanel', () => {
         );
 
         fireEvent.click(intersection);
-        expect(onSelectionChange).toHaveBeenCalledWith('size', 's-m');
-        expect(onSelectionChange).toHaveBeenCalledWith('pilled', 'p-true');
-        expect(onCombinationSelect).toHaveBeenCalledWith(['s-m', 'p-true']);
+        // Ровно путь узла: остальные вариации — «не выбрано»; режима пересечения нет.
+        expect(onSelectionChange.mock.calls).toEqual([
+            ['size', 's-m'],
+            ['pilled', 'p-true'],
+            ['view', undefined],
+        ]);
+        expect(screen.getByRole('region', { name: 'Дерево вариаций' })).toBeInTheDocument();
 
         fireEvent.click(within(tree).getByRole('button', { name: 'Только настроенные пересечения' }));
         expect(within(tree).queryByRole('button', { name: 'size: xs' })).toBeNull();
         expect(within(tree).queryByRole('button', { name: 'pilled: true' })).toBeNull();
         expect(within(tree).getByRole('button', { name: 'size: m · pilled: true' })).toBeInTheDocument();
+    });
+
+    it('выбор одного значения в дереве снимает выбор остальных вариаций и флагов', async () => {
+        const { onSelectionChange } = renderPanel(undefined, { size: 's-m', view: 'v-accent', pilled: 'p-true' });
+        const tree = await screen.findByRole('region', { name: 'Дерево вариаций' });
+
+        fireEvent.click(await within(tree).findByRole('button', { name: 'size: xs' }));
+        expect(onSelectionChange.mock.calls).toEqual([
+            ['size', 's-xs'],
+            ['pilled', undefined],
+            ['view', undefined],
+        ]);
+    });
+
+    it('подсвечивает узел, когда выбор в «Variants» совпадает с его путём', async () => {
+        renderPanel(undefined, { size: 's-m', pilled: 'p-true' });
+        const tree = await screen.findByRole('region', { name: 'Дерево вариаций' });
+        fireEvent.click(await within(tree).findByRole('button', { name: 'Развернуть ветку size: m' }));
+
+        expect(within(tree).getByRole('button', { name: 'size: m · pilled: true' })).toHaveAttribute(
+            'aria-pressed',
+            'true',
+        );
+        expect(within(tree).getByRole('button', { name: 'size: m' })).toHaveAttribute('aria-pressed', 'false');
+        cleanup();
+
+        renderPanel(undefined, { size: 's-m' });
+        const single = await screen.findByRole('region', { name: 'Дерево вариаций' });
+        expect(await within(single).findByRole('button', { name: 'size: m' })).toHaveClass('is-selected');
+        cleanup();
+
+        // Выбрано больше, чем путь узла: узел не подсвечен.
+        renderPanel(undefined, { size: 's-m', view: 'v-default' });
+        const wider = await screen.findByRole('region', { name: 'Дерево вариаций' });
+        expect(await within(wider).findByRole('button', { name: 'size: m' })).not.toHaveClass('is-selected');
+    });
+
+    it('объясняет отказ удалить единственное значение цветовой схемы', async () => {
+        repository.deleteValue.mockRejectedValueOnce(lockedError());
+        renderPanel();
+        const view = await screen.findByRole('region', { name: 'Вариация view' });
+
+        fireEvent.click(within(view).getByRole('button', { name: 'Удалить accent', hidden: true }));
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить значение' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+            'Нельзя удалить единственное значение цветовой схемы',
+        );
+    });
+
+    it('объясняет отказ удалить вариацию цветовой схемы', async () => {
+        repository.deleteAxis.mockRejectedValueOnce(lockedError());
+        renderPanel();
+        const size = await screen.findByRole('region', { name: 'Вариация size' });
+
+        fireEvent.click(within(size).getByRole('button', { name: 'Удалить вариацию size', hidden: true }));
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить вариацию' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Вариацию цветовой схемы удалить нельзя');
     });
 
     it('удаляет пересечение только после подтверждения', async () => {
@@ -345,7 +461,7 @@ describe('ComponentStructurePanel', () => {
         expect(repository.loadModel).toHaveBeenLastCalledWith(context, 'copy', expect.anything());
     });
 
-    it('lists intersections that skip a level under the tree and opens them', async () => {
+    it('lists intersections that skip a level under the tree and selects exactly their styles', async () => {
         const skipping = {
             ...meta,
             sources: {
@@ -361,21 +477,36 @@ describe('ComponentStructurePanel', () => {
                 ],
             },
         } as unknown as Meta;
-        const onCombinationSelect = vi.fn();
-        render(
+        const onSelectionChange = vi.fn();
+        const { rerender } = render(
             <ComponentStructurePanel
                 config={new Config(skipping)}
                 structure={{ context, run: vi.fn() }}
-                selection={{ size: 's-m', view: 'v-default' }}
-                onSelectionChange={vi.fn()}
+                selection={{ size: 's-m', view: 'v-default', pilled: 'p-true' }}
+                onSelectionChange={onSelectionChange}
                 onConfigurationSelect={vi.fn()}
-                onCombinationSelect={onCombinationSelect}
             />,
         );
         const others = await screen.findByRole('group', { name: 'Другие пересечения' });
 
-        fireEvent.click(within(others).getByRole('button', { name: 'size: m · view: accent' }));
-        expect(onCombinationSelect).toHaveBeenCalledWith(['s-m', 'v-accent']);
+        const row = within(others).getByRole('button', { name: 'size: m · view: accent' });
+        expect(row).not.toHaveClass('is-selected');
+        fireEvent.click(row);
+        expect(onSelectionChange.mock.calls).toEqual([
+            ['size', 's-m'],
+            ['view', 'v-accent'],
+            ['pilled', undefined],
+        ]);
+        rerender(
+            <ComponentStructurePanel
+                config={new Config(skipping)}
+                structure={{ context, run: vi.fn() }}
+                selection={{ size: 's-m', view: 'v-accent' }}
+                onSelectionChange={onSelectionChange}
+                onConfigurationSelect={vi.fn()}
+            />,
+        );
+        expect(within(others).getByRole('button', { name: 'size: m · view: accent' })).toHaveClass('is-selected');
         fireEvent.click(
             within(others).getByRole('button', { name: 'Удалить пересечение size: m · view: accent', hidden: true }),
         );

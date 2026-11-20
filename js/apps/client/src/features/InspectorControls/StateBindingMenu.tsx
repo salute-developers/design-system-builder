@@ -3,15 +3,15 @@ import { useRef, useState } from 'react';
 import { useDismiss } from '../../hooks';
 import { TyGlyph } from '../../components/TyGlyph';
 
-/** Состояния меню прототипа в порядке, в котором их имена соединяются через `+`. */
-export const BINDING_STATES = ['focused', 'pressed', 'hovered'] as const;
+/** Состояния меню в порядке пунктов; в этом же порядке их имена соединяются через `+` в подписи строки. */
+export const BINDING_STATES = ['hovered', 'pressed', 'focused'] as const;
 
 export type BindingState = (typeof BINDING_STATES)[number];
 
 interface StateBindingMenuProps {
     label: string;
     disabled?: boolean;
-    /** Выбранные состояния в порядке `focused`, `pressed`, `hovered`. */
+    /** Выбранные состояния в порядке пунктов меню: `hovered`, `pressed`, `focused`. */
     onAdd: (states: BindingState[]) => void;
 }
 
@@ -52,7 +52,7 @@ export const StateBindingMenu = ({ label, disabled, onAdd }: StateBindingMenuPro
             {open && (
                 <div className="component-binding-menu" role="menu" aria-label="Состояния">
                     <div className="component-binding-state-options">
-                        {[...BINDING_STATES].reverse().map((state) => (
+                        {BINDING_STATES.map((state) => (
                             <button
                                 key={state}
                                 type="button"

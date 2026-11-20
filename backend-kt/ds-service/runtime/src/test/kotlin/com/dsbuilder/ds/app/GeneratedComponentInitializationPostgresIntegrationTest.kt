@@ -7,6 +7,7 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
+import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.Transaction
 import org.jetbrains.exposed.v1.core.statements.BatchInsertStatement
 import org.jetbrains.exposed.v1.core.statements.StatementContext
@@ -130,15 +131,28 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
                 component.items("variations").filter { declared == null || it["name"] in declared }
             }
         }
+        // Конфигурация шаблона без вариации `view` получает ось `view` со значением `default`, а шаблон — эту вариацию.
+        val withoutView = components.associateWith { component ->
+            component.items("appearances").count { appearance ->
+                val declared = appearance["variations"]?.jsonArray?.map { it.jsonPrimitive.content }
+                    ?: component.items("variations").map { it.getValue("name").jsonPrimitive.content }
+                "view" !in declared
+            }
+        }
+        check(components.none { component -> withoutView.getValue(component) > 0 && component.hasView() }) {
+            "Счёт ниже не учитывает шаблон с вариацией view, которую объявляют не все конфигурации"
+        }
+        val viewVariations = withoutView.values.count { it > 0 }
+        val viewAxes = withoutView.values.sum()
         mapOf(
             "design_system_components" to components.size,
-            "variations" to components.sumOf { it.items("variations").size },
+            "variations" to components.sumOf { it.items("variations").size } + viewVariations,
             "styles" to components.sumOf { component ->
                 component.items("variations").sumOf { it.items("styles").size }
-            },
+            } + viewVariations,
             "appearances" to appearances.size,
-            "appearance_variations" to axes.size,
-            "appearance_variation_values" to axes.sumOf { it.items("styles").size },
+            "appearance_variations" to axes.size + viewAxes,
+            "appearance_variation_values" to axes.sumOf { it.items("styles").size } + viewAxes,
             "variation_property_values" to variants.size,
             "invariant_property_values" to invariants.size,
             "variation_platform_param_adjustments" to variants.sumOf { it.items("adjust").size },
@@ -158,6 +172,9 @@ class GeneratedComponentInitializationPostgresIntegrationTest {
     }
 
     private fun JsonObject.items(name: String): List<JsonObject> = this[name]?.jsonArray.orEmpty().map { it.jsonObject }
+
+    private fun JsonObject.hasView(): Boolean =
+        items("variations").any { it.getValue("name").jsonPrimitive.content.equals("view", ignoreCase = true) }
 
     private val revisions = mapOf(
         "design_system_components" to "design_system_component_revisions",

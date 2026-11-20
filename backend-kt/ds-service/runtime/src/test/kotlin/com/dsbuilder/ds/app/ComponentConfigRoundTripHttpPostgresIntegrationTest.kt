@@ -23,7 +23,6 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /** Выгрузка конфигураций компонентов, загруженная обратно без правок, ничего не меняет в дизайн-системе. */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
@@ -32,7 +31,7 @@ class ComponentConfigRoundTripHttpPostgresIntegrationTest {
     fun `exported web configurations import back unchanged`() {
         IsolatedPostgresDatabase.create().use { database ->
             ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
-            runTestWithRealTime(timeout = 300.seconds) {
+            runTestWithRealTime(timeout = INTEGRATION_TEST_TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(database)) }
                     val created = api(client, "POST", "/api/design-systems", DESIGN_SYSTEM)

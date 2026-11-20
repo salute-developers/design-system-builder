@@ -13,7 +13,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -113,6 +112,28 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertNotEquals(published.list("variations").size, current.list("variations").size)
         assertNotEquals(published.getValue("export"), current.getValue("export"))
     }
+
+    @Test
+    fun `combination members cost the same number of database calls whatever the number of combinations`() =
+        withService {
+            val ds = designSystem("combinations")
+            val few = component("Few", "compose")
+            val many = component("Many", "compose")
+            property(few, "gap", "value")
+            property(many, "gap", "value")
+            imported(ds, importBody(ds, "compose", "few", "default", crossedConfig(combinations = 1)))
+            imported(ds, importBody(ds, "compose", "many", "default", crossedConfig(combinations = SIZES)))
+            bundle(ds, few, "compose")
+
+            val (fewBundle, fewCalls) = countedBundle(ds, few)
+            val (manyBundle, manyCalls) = countedBundle(ds, many)
+
+            assertEquals(1, crossedValues(fewBundle))
+            assertEquals(SIZES, crossedValues(manyBundle))
+            // Участники сочетаний читаются фиксированным числом запросов на оформление: раньше каждый ключ
+            // сочетания стоил отдельного чтения всех участников дизайн-системы.
+            assertEquals(fewCalls, manyCalls, "1 combination: $fewCalls calls, $SIZES combinations: $manyCalls calls")
+        }
 
     // ── сравнение с существующими маршрутами ───────────────────────────────────────────────────────
 
@@ -266,6 +287,31 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         return Fixture(alpha, webButton, webIcon, webOther, composeButton, composeBadge)
     }
 
+    /** Вариации size (одинаковые у всех) и view, у значения default которой [combinations] пересечений с size. */
+    private fun crossedConfig(combinations: Int): String {
+        val sizes = (0 until SIZES).joinToString(",") { """{"name":"s$it","properties":{}}""" }
+        val crossed = (0 until combinations).joinToString("") {
+            """,{"name":"default","targets":[{"properties":[{"id":"size","value":"s$it"}]}],""" +
+                """"properties":{"gap":{"type":"value","value":$it}}}"""
+        }
+        return """{"invariants":{},"variations":[{"id":"size","name":"size","values":[$sizes]},""" +
+            """{"id":"view","name":"view","values":[{"name":"default","properties":{}}$crossed]}]}"""
+    }
+
+    private suspend fun countedBundle(ds: String, component: String): Pair<JsonObject, Long> {
+        val before = QueryCounter.snapshot()
+        val bundle = bundle(ds, component, "compose")
+        return bundle to (QueryCounter.snapshot() - before).executions
+    }
+
+    /** Число значений вариаций с пересечениями в выгрузке бандла. */
+    private fun crossedValues(bundle: JsonObject): Int = bundle.getValue("export").jsonObject
+        .getValue("components").jsonArray.sumOf { component ->
+            component.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray.sumOf { variation ->
+                variation.jsonObject.getValue("values").jsonArray.count { "targets" in it.jsonObject }
+            }
+        }
+
     private suspend fun designSystem(name: String): String = id(
         created("/api/design-systems", """{"name":"$name","projectName":"$name"}""", admin = false),
     )
@@ -367,7 +413,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
 
     private fun withService(body: suspend ComponentEditorBundleHttpPostgresIntegrationTest.() -> Unit) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }
@@ -432,6 +478,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     private companion object {
+        const val SIZES = 8
         val EXPECTED_FIELDS = setOf(
             "component",
             "appearances",

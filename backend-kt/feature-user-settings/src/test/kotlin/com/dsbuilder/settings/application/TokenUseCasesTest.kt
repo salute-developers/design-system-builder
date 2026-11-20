@@ -53,6 +53,23 @@ class TokenUseCasesTest {
         assertTrue(tokens.list("u").isEmpty())
     }
 
+    @Test fun `recheck by id follows revocation owner and identity without the secret`() = runBlocking {
+        val token = tokens.create("u", "n", setOf("projects:read"), null).token
+        assertIs<PersonalAccessTokenVerification.Valid>(tokens.recheck(token.id, "u"))
+        assertEquals(PersonalAccessTokenVerification.Invalid, tokens.recheck(token.id, "other"))
+        assertEquals(PersonalAccessTokenVerification.Invalid, tokens.recheck("missing", "u"))
+
+        unavailable = true
+        assertEquals(PersonalAccessTokenVerification.Unavailable, tokens.recheck(token.id, "u"))
+        unavailable = false
+        identity = AccountIdentity(false, false)
+        assertEquals(PersonalAccessTokenVerification.Invalid, tokens.recheck(token.id, "u"))
+        identity = AccountIdentity(true, false)
+
+        tokens.revoke("u", token.id)
+        assertEquals(PersonalAccessTokenVerification.Invalid, tokens.recheck(token.id, "u"))
+    }
+
     @Test fun `revocation is owner scoped and idempotent`() = runBlocking {
         val token = tokens.create("u", "n", setOf("projects:read"), null)
         assertFailsWith<TokenNotFound> { tokens.revoke("other", token.token.id) }

@@ -1,13 +1,16 @@
 import type { ExportPlan, ExportReport } from '../shared/exportPlan';
+import type { ExportEditor } from '../shared/editor';
 import type { MainToUi, UiToMain } from '../shared/messages';
 import { zip } from '../shared/zip';
 
-/** Что нужно основному потоку от Figma: хранилище, внешний браузер и запись плана экспорта. */
+/** Что нужно основному потоку от редактора: хранилище, внешний браузер и запись плана экспорта. */
 export interface PluginHost {
     getValue(key: string): Promise<string | undefined>;
     setValue(key: string, value: string): Promise<void>;
     deleteValue(key: string): Promise<void>;
     openExternal(url: string): void;
+    /** Редактор для текстов окна и построения плана: Figma или Pixso. */
+    editor: ExportEditor;
     applyExport(plan: ExportPlan): Promise<ExportReport>;
     reply(message: MainToUi): void;
 }
@@ -28,6 +31,10 @@ let exporting: Promise<unknown> = Promise.resolve();
 export const handleMessage = async (message: UiToMain, host: PluginHost) => {
     if (message.type === 'open-external') {
         host.openExternal(message.url);
+        return;
+    }
+    if (message.type === 'editor:get') {
+        host.reply({ type: 'editor:result', requestId: message.requestId, editor: host.editor });
         return;
     }
     if (message.type === 'zip:pack') {

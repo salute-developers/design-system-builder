@@ -46,9 +46,16 @@ internal class JournalHttpFixture(
                 }
                 version = call("POST", "$root/versions", body.toString()).jsonObject.getValue("id")
             }
-            val values = get("$root/tenants/$tenant/token-values?types=color").jsonArray.take(changes)
+            val values = get("$root/tenants/$tenant/token-values?types=color").jsonArray
+                .filterNot { "paletteRef" in it.jsonObject || "sourceValue" in it.jsonObject }
+                .take(changes)
+            check(values.size == changes) { "Not enough literal colors for journal changes" }
             for (value in values) {
-                call("PATCH", "$root/token-values/${value.jsonObject.string("id")}", """{"value":["#123456"]}""")
+                call(
+                    "PATCH",
+                    "$root/token-values/${value.jsonObject.string("id")}",
+                    """{"value":["#123456"]}""",
+                )
             }
             themes[kind] = buildJsonObject {
                 put("system", JsonPrimitive(system))

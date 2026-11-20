@@ -7,13 +7,18 @@ interface WorkspaceProps {
     menu?: React.ReactNode;
     content?: React.ReactNode;
     readOnly?: boolean;
+    /**
+     * Только чтение делает меню и область неактивными (`inert`). Раздел, который сам закрывает правку (компоненты),
+     * передаёт `false`: просмотр, выбор и переключения остаются доступны.
+     */
+    inertWhenReadOnly?: boolean;
     section?: 'overview' | 'colors' | 'shapes' | 'typography' | 'components';
 }
 
 export const Workspace = (props: WorkspaceProps) => {
-    const { menu, menuBackground, menuWidth, content, readOnly, section } = props;
+    const { menu, menuBackground, menuWidth, content, readOnly, section, inertWhenReadOnly = true } = props;
     const setReadOnly = (node: HTMLDivElement | null) => {
-        if (node) (node as HTMLDivElement & { inert: boolean }).inert = Boolean(readOnly);
+        if (node) (node as HTMLDivElement & { inert: boolean }).inert = Boolean(readOnly) && inertWhenReadOnly;
     };
 
     return (

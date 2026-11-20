@@ -37,6 +37,24 @@ internal class TokenUseCases(
     suspend fun revoke(userId: String, id: String): PersonalAccessToken =
         repository.revoke(userId, id, Instant.now(clock)) ?: throw TokenNotFound()
 
+    override suspend fun recheck(tokenId: String, userId: String): PersonalAccessTokenVerification {
+        val token = repository.find(tokenId)
+            ?.takeIf { it.userId == userId && it.isActive(Instant.now(clock)) }
+            ?: return PersonalAccessTokenVerification.Invalid
+        val identity = try {
+            identities.read(token.userId)
+        } catch (_: IdentityUnavailable) {
+            return PersonalAccessTokenVerification.Unavailable
+        }
+        return if (identity?.enabled == true && !identity.serviceAccount) {
+            PersonalAccessTokenVerification.Valid(
+                VerifiedPersonalAccessToken(token.id, token.userId, token.scopes, identity.systemAdmin),
+            )
+        } else {
+            PersonalAccessTokenVerification.Invalid
+        }
+    }
+
     override suspend fun verify(secret: String): PersonalAccessTokenVerification {
         val token = validStoredToken(secret) ?: return PersonalAccessTokenVerification.Invalid
         val identity = try {

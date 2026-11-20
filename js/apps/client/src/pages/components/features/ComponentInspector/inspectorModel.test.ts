@@ -4,9 +4,9 @@ import { Config } from '../../../../controllers';
 import type { Meta } from '../../../../controllers';
 import { chipMeta, style } from '../__fixtures__/chipMeta';
 import {
-    collectCombinationProperties,
-    collectSourceProperties,
+    collectProperties,
     combinationTitle,
+    editSource,
     compareProperties,
     fallbackStyle,
     orderedVariations,
@@ -34,59 +34,95 @@ describe('sectionOf', () => {
         expect(sectionOf('dimension', 'padding')).toBe('Layout');
         expect(sectionOf('icon', 'closeIcon')).toBe('Icons');
         expect(sectionOf('component_style', 'buttonStyle')).toBe('Nested styles');
-        expect(sectionOf('value', 'width')).toBeUndefined();
+        // Сырой CSS раскладывается по имени.
+        expect(sectionOf('value', 'width')).toBe('Size');
+        expect(sectionOf('value', 'backgroundColor')).toBe('Color');
+        expect(sectionOf('value', 'avatarSize')).toBe('Layout');
+        expect(sectionOf('value', 'statusLeft')).toBe('Layout');
+        expect(sectionOf(undefined, 'width')).toBeUndefined();
     });
 });
 
 describe('compareProperties', () => {
     it('puts the prototype primary rows first, then sorts by label', () => {
         const config = new Config(meta);
-        const names = collectSourceProperties(config, selection)
+        const names = collectProperties(config, { size: 's-m' })
             .sort(compareProperties)
             .map(({ prop }) => prop.getName());
 
-        expect(names).toEqual([
-            'height',
-            'padding',
-            'radius',
-            'typography',
-            'background',
-            'closeIcon',
-            'disabledOpacity',
-            'pilledBorderRadius',
-        ]);
+        expect(names).toEqual(['height', 'padding', 'radius', 'typography']);
     });
 });
 
-describe('collectSourceProperties', () => {
-    it('collects invariants and the selected style of every variation in the combination', () => {
-        const config = new Config(meta);
-
-        const rows = collectSourceProperties(config, selection).map(
-            ({ prop, source, section }) => `${prop.getName()}|${sourceLabel(source)}|${section}`,
-        );
-
-        expect(rows).toEqual([
-            'closeIcon|Инвариант|Icons',
-            'disabledOpacity|Инвариант|Color',
-            'height|size: m|Size',
-            'padding|size: m|Layout',
-            'radius|size: m|Appearance',
-            'typography|size: m|Text',
-            'background|view: default|Color',
-            'pilledBorderRadius|pilled: true|Appearance',
-        ]);
+describe('editSource', () => {
+    it('edits the invariant when nothing is selected', () => {
+        expect(editSource(new Config(meta), {})).toEqual({ kind: 'invariant' });
     });
 
-    it('drops the properties of a switched-off flag', () => {
+    it('edits the style of the only selected value, a flag included', () => {
         const config = new Config(meta);
 
-        const names = collectSourceProperties(config, { size: 's-m', view: 'v-accent' }).map(({ prop }) =>
-            prop.getName(),
-        );
+        expect(editSource(config, { view: 'v-accent' })).toMatchObject({
+            kind: 'style',
+            variationID: 'v-view',
+            styleID: 'v-accent',
+        });
+        expect(editSource(config, { pilled: 'p-true' })).toMatchObject({ kind: 'style', styleID: 'p-true' });
+    });
 
-        expect(names).not.toContain('pilledBorderRadius');
-        expect(collectSourceProperties(config, { view: 'v-accent' }).at(-1)?.prop.getValue()).toBe('surfaceAccent');
+    it('edits the intersection of two and more selected values', () => {
+        const source = editSource(new Config(meta), { size: 's-xs', view: 'v-accent' });
+
+        expect(source).toMatchObject({ kind: 'combination', styleIDs: ['s-xs', 'v-accent'] });
+        expect(sourceLabel(source)).toBe('size: xs · view: accent');
+    });
+
+    it('skips an unknown style as not selected', () => {
+        expect(editSource(new Config(meta), { size: 'gone', view: 'v-accent' })).toMatchObject({
+            kind: 'style',
+            styleID: 'v-accent',
+        });
+    });
+});
+
+describe('collectProperties', () => {
+    it('shows the values of the edited source only', () => {
+        const config = new Config(meta);
+        const rows = (selection: Record<string, string>) =>
+            collectProperties(config, selection).map(
+                ({ prop, source, section }) => `${prop.getName()}|${sourceLabel(source)}|${section}`,
+            );
+
+        // `width` — сырой CSS (`value`): виден в Size, как и прочие свойства источника.
+        expect(rows({})).toEqual([
+            'closeIcon|Инвариант|Icons',
+            'disabledOpacity|Инвариант|Color',
+            'width|Инвариант|Size',
+        ]);
+        expect(rows({ view: 'v-accent' })).toEqual(['background|view: accent|Color']);
+        expect(rows({ pilled: 'p-true' })).toEqual(['pilledBorderRadius|pilled: true|Appearance']);
+    });
+
+    it('keeps the same property list for every source, one row per property', () => {
+        const config = new Config(meta);
+        const api = meta.sources.api;
+        const ids = (selection: Record<string, string>) =>
+            collectProperties(config, selection, api)
+                .map(({ prop }) => prop.getID())
+                .sort();
+
+        const invariant = ids({});
+        expect(new Set(invariant).size).toBe(invariant.length);
+        expect(ids({ size: 's-m' })).toEqual(invariant);
+        expect(ids({ view: 'v-accent' })).toEqual(invariant);
+        expect(ids({ size: 's-m', view: 'v-accent' })).toEqual(invariant);
+    });
+
+    it('marks properties of another variation as unlinked for a style, linked by name or ID', () => {
+        const rows = collectProperties(new Config(meta), { size: 's-xs' }, meta.sources.api);
+
+        expect(rows.find((row) => row.prop.getName() === 'height')).toMatchObject({ isSet: false, linked: true });
+        expect(rows.find((row) => row.prop.getName() === 'background')).toMatchObject({ isSet: false, linked: false });
     });
 
     it('keeps a style value whose type is absent from the variation API', () => {
@@ -109,33 +145,14 @@ describe('collectSourceProperties', () => {
             },
         } as unknown as Meta);
 
-        expect(collectSourceProperties(config, { size: 'm' }).map(({ prop }) => prop.getID())).toEqual(['focus']);
-    });
-});
-
-describe('collectSourceProperties with API', () => {
-    it('adds unset API properties of every source as empty rows, except style links', () => {
-        const config = new Config(meta);
-
-        const empty = collectSourceProperties(config, selection, meta.sources.api)
-            .filter((item) => !item.isSet)
-            .map(
-                ({ prop, source, section }) =>
-                    `${prop.getName()}|${sourceLabel(source)}|${section}|${prop.getValue() ?? ''}`,
-            );
-
-        expect(empty).toEqual([
-            'focusColor|Инвариант|Color|',
-            'leftIcon|Инвариант|Icons|',
-            'color|view: default|Color|',
-        ]);
+        expect(collectProperties(config, { size: 'm' }).map(({ prop }) => prop.getID())).toEqual(['focus']);
     });
 
     it('does not touch the model for empty rows', () => {
         const config = new Config(meta);
         const revision = config.getRevision();
 
-        collectSourceProperties(config, selection, meta.sources.api);
+        collectProperties(config, { size: 's-m' }, meta.sources.api);
 
         expect(config.getInvariants()?.getProp('focus')).toBeUndefined();
         expect(config.getRevision()).toBe(revision);
@@ -146,7 +163,8 @@ describe('combinationTitle', () => {
     it('writes size in capitals, other styles capitalised and skips flags', () => {
         const config = new Config(meta);
 
-        expect(orderedVariations(config).map((variation) => variation.getName())).toEqual(['size', 'view', 'pilled']);
+        // Порядок дерева «Структуры»: модель (`pilled`, `view`, `size`), цветовая схема `view` последней.
+        expect(orderedVariations(config).map((variation) => variation.getName())).toEqual(['pilled', 'size', 'view']);
         expect(combinationTitle(config, selection)).toBe('Chip M Default');
         expect(combinationTitle(config, { size: 's-xs' })).toBe('Chip XS');
     });
@@ -159,108 +177,6 @@ describe('fallbackStyle', () => {
         expect(fallbackStyle(config, 'v-size')).toBe('s-m');
         config.removeDefault('v-size');
         expect(fallbackStyle(config, 'v-size')).toBe('s-xs');
-    });
-});
-
-describe('collectSourceProperties: links of properties to variations', () => {
-    it('matches a link by the variation name, not only by its ID', () => {
-        const rows = collectSourceProperties(new Config(meta), { size: 's-xs' }, meta.sources.api);
-        const height = rows.find((row) => row.prop.getName() === 'height');
-
-        expect(height).toMatchObject({
-            isSet: false,
-            source: { kind: 'style', variationID: 'v-size', styleID: 's-xs' },
-        });
-    });
-
-    it('does not treat properties as invariants when the component has no links at all', () => {
-        const api = meta.sources.api.map((item) => ({ ...item, variations: null }));
-        const rows = collectSourceProperties(
-            new Config({ ...meta, sources: { ...meta.sources, api } } as Meta),
-            selection,
-            api,
-        );
-
-        expect(rows.filter((row) => !row.isSet)).toEqual([]);
-        expect(rows.filter((row) => row.prop.getName() === 'height')).toEqual([
-            expect.objectContaining({
-                isSet: true,
-                source: expect.objectContaining({ kind: 'style', styleID: 's-m' }),
-            }),
-        ]);
-    });
-});
-
-describe('collectSourceProperties for structure changes', () => {
-    // Chip с новой вариацией `density` (ни привязок, ни значений) и вариацией `legacy`: значения есть, привязок нет.
-    const withVariations = () => {
-        const base = chipMeta.sources.configs[0].config;
-        return {
-            ...chipMeta,
-            sources: {
-                ...chipMeta.sources,
-                variations: [
-                    ...chipMeta.sources.variations,
-                    { id: 'density', name: 'density' },
-                    { id: 'legacy', name: 'legacy' },
-                ],
-                configs: [
-                    {
-                        ...chipMeta.sources.configs[0],
-                        config: {
-                            ...base,
-                            variations: [
-                                ...base.variations,
-                                { id: 'density', styles: [style('d-compact', 'compact')] },
-                                { id: 'legacy', styles: [style('l-on', 'on', [{ id: 'padding', value: '2' }])] },
-                            ],
-                        },
-                    },
-                ],
-            },
-        } as unknown as Meta;
-    };
-    const rows = (selection: Record<string, string>, showAll = false) => {
-        const meta = withVariations();
-        return collectSourceProperties(new Config(meta), selection, meta.sources.api, showAll);
-    };
-
-    it('shows every component property to a style of a new variation, unlinked', () => {
-        const density = rows({ size: 's-m', density: 'd-compact' }).filter(
-            (item) => item.source.kind === 'style' && item.source.variationID === 'density',
-        );
-
-        expect(density.map((item) => item.prop.getName())).toEqual(
-            expect.arrayContaining(['background', 'height', 'padding']),
-        );
-        expect(density.every((item) => !item.isSet && !item.linked)).toBe(true);
-    });
-
-    it('does not expand an old variation without links and keeps other styles to linked properties', () => {
-        const result = rows({ size: 's-m', legacy: 'l-on' });
-
-        expect(
-            result
-                .filter((item) => item.source.kind === 'style' && item.source.variationID === 'legacy')
-                .map((item) => item.prop.getName()),
-        ).toEqual(['padding']);
-        expect(
-            result
-                .filter((item) => item.source.kind === 'style' && item.source.variationID === 'v-size')
-                .every((item) => item.linked),
-        ).toBe(true);
-    });
-
-    it('adds unlinked properties as empty rows when all properties are shown', () => {
-        const size = rows({ size: 's-m' }, true).filter(
-            (item) => item.source.kind === 'style' && item.source.variationID === 'v-size',
-        );
-
-        expect(size.find((item) => item.prop.getName() === 'background')).toMatchObject({
-            isSet: false,
-            linked: false,
-        });
-        expect(size.find((item) => item.prop.getName() === 'height')).toMatchObject({ isSet: true, linked: true });
     });
 });
 
@@ -297,7 +213,7 @@ describe('Config configurations', () => {
     });
 });
 
-describe('collectCombinationProperties', () => {
+describe('collectProperties for an intersection', () => {
     const withCombination = {
         ...chipMeta,
         sources: {
@@ -315,21 +231,96 @@ describe('collectCombinationProperties', () => {
     } as Meta;
     const api = withCombination.sources.api;
 
-    it('shows the values of the intersection and empty rows for properties of its variations', () => {
-        const rows = collectCombinationProperties(new Config(withCombination), ['p-true', 's-m'], api);
+    it('shows the values of the intersection of the selected styles', () => {
+        const rows = collectProperties(new Config(withCombination), { size: 's-m', pilled: 'p-true' }, api);
         const height = rows.find((row) => row.prop.getName() === 'height');
 
         expect(height).toMatchObject({ isSet: true, source: { kind: 'combination', styleIDs: ['p-true', 's-m'] } });
         expect(height?.prop.getValue()).toBe('44');
-        expect(sourceLabel(height!.source)).toBe('pilled: true · size: m');
-        // Свойства `view` к сочетанию не относятся.
-        expect(rows.some((row) => row.prop.getName() === 'background')).toBe(false);
-        expect(rows.filter((row) => !row.isSet).every((row) => row.source.kind === 'combination')).toBe(true);
+        expect(rows.filter((row) => row.prop.getName() === 'height')).toHaveLength(1);
+        expect(rows.every((row) => row.source.kind === 'combination' && row.linked)).toBe(true);
     });
 
     it('starts empty for an intersection without values', () => {
-        const rows = collectCombinationProperties(new Config(withCombination), ['s-xs', 'p-true'], api);
+        const rows = collectProperties(new Config(withCombination), { size: 's-xs', pilled: 'p-true' }, api);
         expect(rows.length).toBeGreaterThan(0);
         expect(rows.every((row) => !row.isSet)).toBe(true);
+    });
+});
+
+describe('collectProperties: значения пересечения с учётом выбранных стилей', () => {
+    // Пример из требования: size = m и view = default со своими значениями и пересечение с цветом текста (`color`);
+    // `value` — свойство `width`.
+    const meta = (order: string[] = ['v-size', 'v-view']) => {
+        const variations = {
+            'v-size': {
+                id: 'v-size',
+                styles: [
+                    style('s-m', 'm', [
+                        { id: 'height', value: '100' },
+                        { id: 'value', value: '200' },
+                        { id: 'padding', value: '4' },
+                    ]),
+                ],
+            },
+            'v-view': {
+                id: 'v-view',
+                styles: [
+                    style('v-default', 'default', [
+                        { id: 'background', value: 'red' },
+                        { id: 'color', value: 'white' },
+                        { id: 'padding', value: '8' },
+                    ]),
+                ],
+            },
+        } as Record<string, unknown>;
+        return {
+            ...chipMeta,
+            sources: {
+                ...chipMeta.sources,
+                configs: [
+                    {
+                        ...chipMeta.sources.configs[0],
+                        config: {
+                            defaultVariations: [],
+                            invariantProps: [],
+                            variations: order.map((id) => variations[id]),
+                            combinations: [
+                                { styleIDs: ['s-m', 'v-default'], props: [{ id: 'color', value: 'green' }] },
+                            ],
+                        },
+                    },
+                ],
+            },
+        } as unknown as Meta;
+    };
+    const values = (selection: Record<string, string>, order?: string[]) =>
+        Object.fromEntries(
+            collectProperties(new Config(meta(order)), selection)
+                .filter((row) => row.isSet || row.inheritedFrom)
+                .map((row) => [
+                    row.prop.getID(),
+                    `${row.prop.getValue()}${row.inheritedFrom ? ` ← ${row.inheritedFrom}` : ''}`,
+                ]),
+        );
+
+    it('показывает у одного стиля только его значения', () => {
+        expect(values({ size: 's-m' })).toEqual({ height: '100', value: '200', padding: '4' });
+        expect(values({ view: 'v-default' })).toEqual({ background: 'red', color: 'white', padding: '8' });
+    });
+
+    it('у пересечения показывает унаследованные значения и своё поверх них', () => {
+        expect(values({ size: 's-m', view: 'v-default' })).toEqual({
+            height: '100 ← size: m',
+            value: '200 ← size: m',
+            background: 'red ← view: default',
+            color: 'green',
+            // Цветовая схема последняя в дереве: её значение перекрывает значение size.
+            padding: '8 ← view: default',
+        });
+    });
+
+    it('цветовая схема перекрывает другие вариации, даже если в модели она раньше', () => {
+        expect(values({ size: 's-m', view: 'v-default' }, ['v-view', 'v-size']).padding).toBe('8 ← view: default');
     });
 });

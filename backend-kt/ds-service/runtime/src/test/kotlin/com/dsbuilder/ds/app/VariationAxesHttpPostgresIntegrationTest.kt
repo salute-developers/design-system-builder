@@ -14,7 +14,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.jsonArray
@@ -217,13 +216,14 @@ class VariationAxesHttpPostgresIntegrationTest {
             )
             assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
         }
+        // Импорт без `view` добавляет её второй осью.
+        assertEquals(listOf("size", "view"), axisNames(component, systemA))
+        assertEquals(listOf("size", "view"), axisNames(component, systemB))
         val idsA = axisIds(component, systemA)
         val idsB = axisIds(component, systemB)
-        assertEquals(1, idsA.size)
-        assertEquals(1, idsB.size)
-        assertNotEquals(idsA.single(), idsB.single())
-        assertEquals("1", query("SELECT count(*) FROM variations WHERE design_system_id = '$systemA'"))
-        assertEquals("1", query("SELECT count(*) FROM variations WHERE design_system_id = '$systemB'"))
+        assertTrue(idsA.none(idsB::contains))
+        assertEquals("2", query("SELECT count(*) FROM variations WHERE design_system_id = '$systemA'"))
+        assertEquals("2", query("SELECT count(*) FROM variations WHERE design_system_id = '$systemB'"))
         assertEquals(
             "0",
             query(
@@ -517,7 +517,7 @@ class VariationAxesHttpPostgresIntegrationTest {
 
     private fun withService(body: suspend VariationAxesHttpPostgresIntegrationTest.() -> Unit) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }

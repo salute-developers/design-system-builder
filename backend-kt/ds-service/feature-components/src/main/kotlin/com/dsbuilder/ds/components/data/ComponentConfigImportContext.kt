@@ -57,11 +57,15 @@ internal class ComponentConfigImportContext(
     val completed = mutableListOf<() -> Unit>()
 }
 
-/** Цель ссылки на стиль: оформление, его стили оси по имени каталога и по действующему имени. */
+/**
+ * Цель ссылки на стиль: оформление, его стили вариаций по имени каталога и по действующему имени, а также стили
+ * значений и сочетаний по исходному идентификатору (`authored_id`).
+ */
 internal class ReferenceTarget(
     val appearance: org.jetbrains.exposed.v1.core.ResultRow?,
     val available: Map<String, UUID>,
     val effective: Map<String, UUID>,
+    val authored: Map<String, List<UUID>> = emptyMap(),
 )
 
 internal data class PendingComponentStyleReference(

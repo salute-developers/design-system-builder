@@ -10,13 +10,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.runTestApplication
-import io.ktor.server.testing.testApplication
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import kotlinx.coroutines.test.runTest
-import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -31,7 +25,6 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.minutes
 
 /** HTTP остаётся эквивалентен прежнему читателю при нуле, одной и девяти правках. */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
@@ -50,7 +43,7 @@ class JournalProjectionHttpPostgresIntegrationTest {
         IsolatedPostgresDatabase.create().use { postgres ->
             val db = Database.connect(postgres.jdbcUrl, user = postgres.username, password = postgres.password)
             lateinit var legacy: ExposedDraftChangeRepository
-            slowTestApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(
@@ -76,7 +69,11 @@ class JournalProjectionHttpPostgresIntegrationTest {
                 val root = "/api/design-systems/$owner"
                 val summaryPath = "$root/changes/summary"
                 val marksPath = "$root/changes/token-ids?tenantId=$tenant"
-                val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray.take(9)
+                val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray
+                    // Hex записывается только в литералы: paletteRef/sourceValue скрывают ссылку и её прозрачность.
+                    .filterNot { "paletteRef" in it.jsonObject || "sourceValue" in it.jsonObject }
+                    .take(9)
+                assertEquals(9, values.size)
                 val initialSummary = api.get(summaryPath)
                 val initialMarks = api.get(marksPath)
                 val version = item.jsonObject["versionId"]?.jsonPrimitive?.content
@@ -188,7 +185,7 @@ class JournalProjectionHttpPostgresIntegrationTest {
                     exec("ANALYZE")
                 }
             }
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(
@@ -245,11 +242,3 @@ class JournalProjectionHttpPostgresIntegrationTest {
         assertEquals(expected.first.toString(), full.headers["X-DS-Journal-Total"])
     }
 }
-
-/**
- * `testApplication` с лимитом три минуты вместо минуты `runTest` по умолчанию: создание и чтение темы на PostgreSQL
- * идёт около 50 секунд локально, а на раннере CI выходит за минуту. Как и сам `testApplication`, тело выполняется на
- * реальном диспетчере, а не в виртуальном времени.
- */
-private fun slowTestApplication(block: suspend ApplicationTestBuilder.() -> Unit) =
-    runTest(timeout = 3.minutes) { withContext(Dispatchers.Default) { runTestApplication(block = block) } }

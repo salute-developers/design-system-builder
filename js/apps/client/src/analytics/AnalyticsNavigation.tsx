@@ -21,7 +21,7 @@ export const AnalyticsNavigation = () => {
         observedPathname.current = pathname;
         if (sentPathname.current === pathname) return;
         const authenticated = authService.isAuthenticated();
-        if ((pathname === '/login') === authenticated) return;
+        if (!authenticated || pathname === '/login') return;
         const view = normalizeAnalyticsView(pathname);
         if (!view) return;
         const timer = window.setTimeout(() => {

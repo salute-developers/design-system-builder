@@ -46,6 +46,21 @@ describe('AutosaveIndicator', () => {
         expect(retry).toHaveBeenCalledTimes(1);
     });
 
+    it('при известной причине отказа показывает её вместо общего текста', () => {
+        render(
+            <AutosaveIndicator
+                status="error"
+                retry={vi.fn()}
+                errorMessage="Ссылка на стиль создаёт цикл: вложенный компонент уже ссылается на этот"
+            />,
+        );
+        fireEvent.mouseEnter(screen.getByRole('alert'));
+        expect(screen.getByRole('tooltip')).toHaveTextContent(
+            'Ссылка на стиль создаёт цикл: вложенный компонент уже ссылается на этот. Нажмите, чтобы повторить.',
+        );
+        expect(screen.getByRole('tooltip')).not.toHaveTextContent('Не удалось сохранить');
+    });
+
     it('при ошибке показывает красный крестик и время последнего успешного сохранения', () => {
         const lastSavedAt = new Date('2026-10-19T10:17:07Z').getTime();
         const time = new Intl.DateTimeFormat('ru-RU', { hour: '2-digit', minute: '2-digit', second: '2-digit' }).format(lastSavedAt);

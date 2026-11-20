@@ -93,6 +93,11 @@ export class Config {
     }
 
     /** Значения свойств для сочетаний стилей нескольких вариаций (например, `size` и `gap`). */
+    /** Имена вариаций из каталога компонента по ID: не зависят от переименования оси в конфигурации. */
+    public getCatalogVariationNames(): ReadonlyMap<string, string> {
+        return new Map(this.meta.sources.variations.map(({ id, name }) => [id, name]));
+    }
+
     public getCombinations() {
         return this.combinations;
     }

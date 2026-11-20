@@ -329,8 +329,9 @@ private suspend inline fun <reified T> RoutingContext.requestBody(json: Json): T
     return body
 }
 
+/** Команда записи свойства; неверные UUID в области или ссылке дают null. */
 @Suppress("ReturnCount")
-private fun SetAppearancePropertyValueRequest.toCommand(): AppearanceEditorRepository.PropertyValueSet? {
+fun SetAppearancePropertyValueRequest.toCommand(): AppearanceEditorRepository.PropertyValueSet? {
     val property = propertyId.toUuidOrNull() ?: return null
     val styles = styleIds.map { it.toUuidOrNull() }
     val token = tokenId?.let { it.toUuidOrNull() ?: return null }

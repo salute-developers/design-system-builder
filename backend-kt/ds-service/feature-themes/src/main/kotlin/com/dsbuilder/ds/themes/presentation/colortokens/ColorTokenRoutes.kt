@@ -96,7 +96,7 @@ private fun MoveColorTokenRequest.toCommand(): MoveColorToken? =
     uuid(groupId)?.let { MoveColorToken(editRevision, it, position, name) }
 
 /** Команда изменения или `null`, если идентификатор, платформа или режим не разобраны. */
-private fun UpdateColorTokenValuesRequest.toCommand(): UpdateColorTokenValues? {
+fun UpdateColorTokenValuesRequest.toCommand(): UpdateColorTokenValues? {
     val values = members.associate { member ->
         (uuid(member.tokenId) ?: return null) to (member.values.toValues() ?: return null)
     }

@@ -306,6 +306,7 @@ fun Application.module(
     installDependencyGraph(configuration, runtime, pluginStorages, iconStorage)
     installDsHttpPlugins(json, runtime.metrics)
     installDsRoutes(runtime, json)
+    launchViewAxisBackfill(runtime)
 }
 
 /** Возвращает модули зависимостей без создания глобального Koin. */

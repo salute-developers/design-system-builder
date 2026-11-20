@@ -234,6 +234,7 @@ it('does not finish a settings request when startup has no work', async () => {
     await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
     await consent.start();
     expect(consent.getSnapshot().busy).toBe(true);
+    expect(consent.getSnapshot().saving).toBeUndefined();
     finish(ok(response(false)));
     await reviewing;
     expect(consent.getSnapshot()).toMatchObject({ allowed: false, busy: false, error: false });
@@ -322,3 +323,203 @@ it.each(['timeout', '503'])(
         expect(request).toHaveBeenCalledTimes(3);
     },
 );
+
+it('invalidates a late confirmation on session stop and rechecks the preserved grant on next start', async () => {
+    localStorage.setItem('test', JSON.stringify(saved()));
+    let finish!: (response: Response) => void;
+    const request = vi
+        .fn()
+        .mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        )
+        .mockResolvedValueOnce(ok(response()));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    const first = consent.start();
+    const duplicate = consent.start();
+    expect(duplicate).toBe(first);
+    await vi.waitFor(() => expect(request).toHaveBeenCalledTimes(1));
+    consent.stop();
+    finish(ok(response()));
+    await first;
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, policy: undefined });
+    expect(JSON.parse(localStorage.getItem('test')!).decision).toBe('granted');
+    await consent.start();
+    expect(consent.getSnapshot().allowed).toBe(true);
+    expect(request).toHaveBeenCalledTimes(2);
+});
+
+it('keeps separate choices per account and does not inherit a legacy browser grant', async () => {
+    localStorage.setItem('legacy', JSON.stringify(saved()));
+    localStorage.setItem('account-a', JSON.stringify(saved()));
+    let account: string | undefined = 'account-a';
+    const request = vi
+        .fn()
+        .mockResolvedValueOnce(ok(response(true, 1)))
+        .mockResolvedValueOnce(ok(response(false, 0)))
+        .mockResolvedValueOnce(ok(response(false, 1)))
+        .mockResolvedValueOnce(ok(response(true, 1)));
+    const consent = createAnalyticsConsent(localStorage, () => account, request);
+    await consent.start();
+    expect(consent.getSnapshot().allowed).toBe(true);
+    consent.stop();
+    account = 'account-b';
+    await consent.start();
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, choice: undefined });
+    const other = JSON.parse(localStorage.getItem('account-b')!);
+    expect(other.key).not.toBe(saved().key);
+    expect(other.decision).toBeUndefined();
+    await consent.choose('denied');
+    expect(JSON.parse(localStorage.getItem('account-a')!).decision).toBe('granted');
+    expect(JSON.parse(localStorage.getItem('account-b')!).decision).toBe('denied');
+    consent.stop();
+    account = 'account-a';
+    await consent.start();
+    expect(consent.getSnapshot().allowed).toBe(true);
+    expect(request).toHaveBeenCalledTimes(4);
+});
+
+it('does not use a shared grant or contact the server when account identity is absent', async () => {
+    localStorage.setItem('legacy', JSON.stringify(saved()));
+    const request = vi.fn();
+    const consent = createAnalyticsConsent(localStorage, () => undefined, request);
+    await consent.start();
+    expect(consent.getSnapshot().allowed).toBe(false);
+    expect(request).not.toHaveBeenCalled();
+    expect(localStorage.length).toBe(1);
+});
+
+it('does not apply an old account GET after starting another account', async () => {
+    localStorage.setItem('account-a', JSON.stringify(saved()));
+    let account = 'account-a';
+    let finish!: (response: Response) => void;
+    const request = vi
+        .fn()
+        .mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        )
+        .mockResolvedValueOnce(ok(response(false, 0)));
+    const consent = createAnalyticsConsent(localStorage, () => account, request);
+    const first = consent.start();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+    consent.stop();
+    account = 'account-b';
+    await consent.start();
+    finish(ok(response(true, 1)));
+    await first;
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, choice: undefined });
+    expect(JSON.parse(localStorage.getItem('account-b')!).decision).toBeUndefined();
+    expect(JSON.parse(localStorage.getItem('account-a')!).decision).toBe('granted');
+});
+
+it('keeps the original account storage scope while a startup lock is queued', async () => {
+    let account = 'account-a';
+    let unlock!: () => unknown;
+    let locked = true;
+    const synchronize = async <T>(operation: () => T): Promise<T> => {
+        if (locked) {
+            locked = false;
+            return new Promise((resolve) => {
+                unlock = () => resolve(operation());
+            });
+        }
+        return operation();
+    };
+    const request = vi.fn().mockResolvedValue(ok(response(false, 0)));
+    const consent = createAnalyticsConsent(localStorage, () => account, request, synchronize);
+    const first = consent.start();
+    consent.stop();
+    account = 'account-b';
+    await consent.start();
+    const second = localStorage.getItem('account-b');
+    unlock();
+    await first;
+    expect(request).toHaveBeenCalledOnce();
+    expect(localStorage.getItem('account-b')).toBe(second);
+    expect(JSON.parse(localStorage.getItem('account-a')!).key).not.toBe(JSON.parse(second!).key);
+    expect(consent.getSnapshot().allowed).toBe(false);
+});
+
+it('rejects an old account response even before the session-reset event is delivered', async () => {
+    localStorage.setItem('account-a', JSON.stringify(saved()));
+    let account = 'account-a';
+    let finish!: (response: Response) => void;
+    const request = vi.fn().mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    const consent = createAnalyticsConsent(localStorage, () => account, request);
+    const first = consent.start();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+    account = 'account-b';
+    finish(ok(response(true, 1)));
+    await first;
+    expect(consent.getSnapshot().allowed).toBe(false);
+    expect(localStorage.getItem('account-b')).toBeNull();
+});
+
+it('restores a saved grant after a failed startup is explicitly retried in settings', async () => {
+    localStorage.setItem('test', JSON.stringify(saved()));
+    const request = vi
+        .fn()
+        .mockResolvedValueOnce(new Response('', { status: 503 }))
+        .mockResolvedValueOnce(ok(response()));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    await consent.start();
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, error: true });
+    await consent.review();
+    expect(consent.getSnapshot()).toMatchObject({ allowed: true, choice: 'granted', error: false });
+    expect(request.mock.calls.map((call) => call[1].method)).toEqual(['GET', 'GET']);
+});
+
+it('does not restore an uncertain grant from a settings GET', async () => {
+    localStorage.setItem(
+        'test',
+        JSON.stringify({
+            ...saved(),
+            pending: {
+                request_id: 'uncertain',
+                decision: 'granted',
+                expected_revision: 0,
+            },
+        }),
+    );
+    const request = vi.fn().mockRejectedValueOnce(new Error('offline')).mockResolvedValueOnce(ok(response()));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    await consent.start();
+    await consent.review();
+    expect(consent.getSnapshot().allowed).toBe(false);
+    expect(JSON.parse(localStorage.getItem('test')!).pending.request_id).toBe('uncertain');
+});
+
+it('does not retry a failed startup during the same settings opening', async () => {
+    let finish!: (response: Response) => void;
+    const request = vi
+        .fn()
+        .mockImplementationOnce(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        )
+        .mockResolvedValueOnce(ok(response(false, 0)));
+    const consent = createAnalyticsConsent(localStorage, 'test', request);
+    const initial = consent.start();
+    const opening = consent.review();
+    await vi.waitFor(() => expect(request).toHaveBeenCalledOnce());
+    finish(new Response('', { status: 503 }));
+    await Promise.all([initial, opening]);
+    expect(request).toHaveBeenCalledOnce();
+    expect(consent.getSnapshot()).toMatchObject({ allowed: false, error: true });
+    expect(consent.getSnapshot().policy).toBeUndefined();
+    await consent.review();
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(consent.getSnapshot()).toMatchObject({ error: false, policy });
+});

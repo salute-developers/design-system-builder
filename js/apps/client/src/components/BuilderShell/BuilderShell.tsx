@@ -18,11 +18,13 @@ export type SettingsSection =
     | 'Администрирование'
     | 'Удаление'
     | 'Опасная зона'
-    | 'Personal Access Token';
+    | 'Personal Access Token'
+    | 'Общее';
 /** `render` заменяет ссылку сегмента своим элементом, например переключателем тем. */
 export type BreadcrumbSegment = { label: string; to: string; render?: ReactNode };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
+    Общее: 'user-general',
     'Personal Access Token': 'personal-access-token',
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
@@ -31,6 +33,13 @@ export const settingsSectionIds: Record<SettingsSection, string> = {
     // Удаление дизайн-системы: `delete` в настройках, открытых из темы, означает удаление этой темы.
     'Опасная зона': 'danger',
 };
+/** Единое определение активного раздела по URL с возвратом к первому доступному. */
+export const useActiveSettingsSection = (sections: readonly SettingsSection[]) => {
+    const [searchParams] = useSearchParams();
+    const requested = searchParams.get('section');
+    return sections.find((section) => settingsSectionIds[section] === requested) ?? sections[0];
+};
+
 const railEntityInitials = (name: string, fallback = 'PR') => {
     const words = name.trim().split(/\s+/).filter(Boolean);
     const [first = '', second = ''] = words;
@@ -104,10 +113,15 @@ export const BuilderAccount = () => {
                                 {[user?.username, user?.email].filter(Boolean).join(' · ') || 'Нет данных профиля'}
                             </span>
                         </div>
-                        <button role="menuitem" onClick={() => {
-                            setAccountOpen(false);
-                            navigate('/settings?section=personal-access-token');
-                        }}>Настройки</button>
+                        <button
+                            role="menuitem"
+                            onClick={() => {
+                                setAccountOpen(false);
+                                navigate('/settings');
+                            }}
+                        >
+                            Настройки
+                        </button>
                         <button
                             role="menuitem"
                             className="danger-menu-item"
@@ -298,9 +312,8 @@ export const SettingsFrame = ({
     asideHeaders?: Partial<Record<string, { title: string; subtitle: string }>>;
     embedded?: boolean;
 }) => {
-    const [searchParams, setSearchParams] = useSearchParams();
-    const requestedSection = searchParams.get('section');
-    const active = sections.find((section) => settingsSectionIds[section] === requestedSection) ?? sections[0];
+    const [, setSearchParams] = useSearchParams();
+    const active = useActiveSettingsSection(sections);
     const activeId = settingsSectionIds[active];
     const asideHeader = asideHeaders?.[activeId] ?? { title: entity, subtitle: title };
     const visibleChildren = (node: ReactNode): ReactNode =>
@@ -333,11 +346,13 @@ export const SettingsFrame = ({
                             key={section}
                             className={`ps-nav-item ${active === section ? 'is-active' : ''}`}
                             aria-current={active === section ? 'page' : undefined}
-                            onClick={() => setSearchParams((previous) => {
-                                const next = new URLSearchParams(previous);
-                                next.set('section', settingsSectionIds[section]);
-                                return next;
-                            })}
+                            onClick={() =>
+                                setSearchParams((previous) => {
+                                    const next = new URLSearchParams(previous);
+                                    next.set('section', settingsSectionIds[section]);
+                                    return next;
+                                })
+                            }
                         >
                             {section}
                         </button>

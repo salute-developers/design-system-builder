@@ -47,9 +47,9 @@ describe('связь с Kotlin', () => {
         const kotlin = createKotlin();
         const { signal } = new AbortController();
 
-        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', 'ios', signal);
+        const plan = await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', 'ios', false, signal);
 
-        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', 'ios', signal);
+        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', 'ios', false, signal);
         expect(plan.collections).toEqual([]);
         const broken = createPluginCore(
             createKotlin({ exportPlan: vi.fn().mockRejectedValue(failure('export', 'bad')) }),
@@ -57,6 +57,14 @@ describe('связь с Kotlin', () => {
         const error = await broken.api.exportPlan(context, null, 'Malachite', 'web').catch((reason: unknown) => reason);
         expect(error).toBeInstanceOf(ExportPlanError);
         expect(error).toHaveProperty('message', 'Не удалось построить план экспорта: bad');
+    });
+
+    it('по умолчанию строит план для редактора с привязкой стопов градиента', async () => {
+        const kotlin = createKotlin();
+
+        await createPluginCore(kotlin).api.exportPlan(context, null, 'Malachite', 'web');
+
+        expect(kotlin.exportPlan).toHaveBeenCalledWith('p1', 'd1', 't1', null, 'Malachite', 'web', true, undefined);
     });
 
     it.each([

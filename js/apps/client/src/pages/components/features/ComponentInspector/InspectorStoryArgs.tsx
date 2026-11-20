@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type KeyboardEvent } from 'react';
 
 import type { PreviewExamplePropertyDescription } from '../../../../composePreview';
 import type { StoryArgs, StoryArgValue } from '../ComponentEditorPreview/storyArgs';
@@ -36,8 +36,14 @@ const NumberArg = ({ property, value, onChange }: StoryArgRowProps & { property:
                 if (number !== undefined) onChange(property.name, number);
             }}
             onBlur={() => setDraft(undefined)}
+            onKeyDown={blurOnEnter}
         />
     );
+};
+
+/** `Enter` снимает фокус: значение уже применено к превью, уход из поля показывает, что ввод закончен. */
+const blurOnEnter = (event: KeyboardEvent<HTMLInputElement>) => {
+    if (event.key === 'Enter') event.currentTarget.blur();
 };
 
 /** Строка аргумента story (`component-instance-preview-row` прототипа) в разметке строк вариаций. */
@@ -83,6 +89,7 @@ const StoryArgRow = (props: StoryArgRowProps) => {
                 aria-label={label}
                 value={String(value)}
                 onChange={(event) => onChange(property.name, event.target.value)}
+                onKeyDown={blurOnEnter}
             />
         ) : (
             <NumberArg {...props} property={property} />
@@ -97,7 +104,7 @@ const StoryArgRow = (props: StoryArgRowProps) => {
 };
 
 /**
- * Аргументы story в конце «Variants» (`component-instance-preview-controls` прототипа): действуют только на превью,
+ * Аргументы story в секции Preview (`component-instance-preview-controls` прототипа): действуют только на превью,
  * в сочетание вариаций и модель компонента не попадают.
  */
 export const InspectorStoryArgs = ({ storyArgs }: { storyArgs?: StoryArgs }) =>

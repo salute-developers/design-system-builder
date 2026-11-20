@@ -113,6 +113,7 @@ export const Main = () => {
         paletteError,
         setPalette,
         autosaveStatus,
+        autosaveErrorMessage,
         lastSavedAt,
         retryAutosave,
         refreshChanges,
@@ -371,6 +372,7 @@ export const Main = () => {
                                             <>
                                                 <AutosaveIndicator
                                                     status={autosaveStatus}
+                                                    errorMessage={autosaveErrorMessage}
                                                     retry={retryAutosave}
                                                     lastSavedAt={lastSavedAt}
                                                 />

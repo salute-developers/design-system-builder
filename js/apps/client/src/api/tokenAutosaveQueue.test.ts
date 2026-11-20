@@ -16,6 +16,25 @@ describe('TokenAutosaveQueue', () => {
     beforeEach(() => vi.useFakeTimers());
     afterEach(() => vi.useRealTimers());
 
+    it('reports the rejection of a failed operation with the error status until it is retried', async () => {
+        const rejection = new Error('Ссылка на стиль создаёт цикл');
+        const send = vi.fn().mockRejectedValueOnce(rejection).mockResolvedValue('ok');
+        const statusChanged = vi.fn<(status: AutosaveStatus, error?: unknown) => void>();
+        const queue = new TokenAutosaveQueue<Operation, string>({
+            send,
+            confirmed: vi.fn(),
+            retryable: () => false,
+            statusChanged,
+        });
+        queue.enqueue(operation('first', '#111'), true);
+        await vi.advanceTimersByTimeAsync(0);
+        expect(statusChanged).toHaveBeenLastCalledWith('error', rejection);
+
+        queue.retryFailed();
+        await vi.advanceTimersByTimeAsync(0);
+        expect(statusChanged).toHaveBeenLastCalledWith('saved', undefined);
+    });
+
     it('stops pending sends and retries when disposed', async () => {
         const send = vi.fn().mockRejectedValue(new Error('offline'));
         const confirmed = vi.fn();

@@ -13,7 +13,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -49,7 +48,18 @@ class WebGenerationPostgresIntegrationTest {
                 }
             }
             seedFixture(postgres, designSystemId)
-            testApplication {
+            // Фикстура проверяет выгрузку прежнего черновика: разовое дописывание `view` при старте здесь не нужно
+            // и гонялось бы с публикацией, поэтому оно отмечается выполненным до старта.
+            Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
+                .locations("classpath:dsbuilder/ds/db/migration").load().migrate()
+            DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                connection.createStatement().use {
+                    it.executeUpdate(
+                        "UPDATE view_axis_backfill SET completed_at = now()",
+                    )
+                }
+            }
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val publishedId = publish(client, designSystemId)
 

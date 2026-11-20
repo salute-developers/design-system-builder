@@ -13,7 +13,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
@@ -40,7 +39,7 @@ class TenantInitialValuesHttpPostgresIntegrationTest {
     @Test
     fun `theme is created with passed values over the profile values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.createDesignSystem()
@@ -84,7 +83,7 @@ class TenantInitialValuesHttpPostgresIntegrationTest {
     @Test
     fun `invalid passed values roll the theme creation back`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.createDesignSystem()

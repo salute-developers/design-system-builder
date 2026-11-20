@@ -1,0 +1,87 @@
+name: CodeQL
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [dev, master]
+  schedule:
+    - cron: '23 2 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  security-events: write
+
+concurrency:
+  group: codeql-${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  kotlin:
+    name: CodeQL (${{ matrix.project }})
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - project: backend
+            runner: ubuntu-22.04
+            directory: backend-kt
+            gradle-tasks: '-p app assemble'
+          - project: frontend
+            runner: macos-15-intel
+            directory: frontend-kt
+            gradle-tasks: 'compileKotlin compileKotlinJvm compileJava'
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle JVM
+        if: matrix.project == 'frontend'
+        uses: actions/setup-java@v4
+        with:
+          distribution: corretto
+          java-version: '21'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          cache-read-only: ${{ github.event_name == 'pull_request' }}
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: java-kotlin
+          build-mode: manual
+
+      - name: Compile for CodeQL
+        working-directory: ${{ matrix.directory }}
+        run: ./gradlew --no-daemon --no-build-cache ${{ matrix.gradle-tasks }}
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:java-kotlin/project:${{ matrix.project }}'
+
+  other-languages:
+    name: CodeQL (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, python, actions]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: '/language:${{ matrix.language }}'

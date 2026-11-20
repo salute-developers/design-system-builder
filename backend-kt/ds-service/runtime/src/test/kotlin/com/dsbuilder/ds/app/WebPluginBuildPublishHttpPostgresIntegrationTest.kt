@@ -15,7 +15,6 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -323,7 +322,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         bucket = "plugins-${UUID.randomUUID()}"
         MinioTestServer.createPublicBucket(bucket)
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres, keepBuilds, webConfigured)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }

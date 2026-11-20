@@ -572,39 +572,11 @@
     font-size: 10px;
 }
 
-/* Плашка открытого пересечения над секциями «Стилизации». */
-.component-workbench .component-combination-banner {
-    margin: 0 12px 8px;
-    padding: 6px 6px 6px 10px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    border: 1px solid #3d4f6a;
-    border-radius: 6px;
-    background: #2a3443;
-}
-.component-workbench .component-combination-banner > span {
-    min-width: 0;
-    display: grid;
-    gap: 2px;
-}
-.component-workbench .component-combination-banner small {
-    color: #8bb3ff;
-    font-size: 9px;
-    font-weight: 600;
-    text-transform: uppercase;
-}
-.component-workbench .component-combination-banner b {
-    overflow: hidden;
-    color: #e8edf4;
-    font-size: 11px;
-    font-weight: 600;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-}
-
 /* Пересечения с пропуском уровня: отдельный список под деревом. */
 .component-workbench .component-intersections-other {
     margin-top: 6px;
+}
+/* Замок цветовой схемы стоит в колонке ручки перетаскивания: стрелка и имя — на тех же вертикалях, что у остальных. */
+.component-workbench .component-axis-lock-slot {
+    justify-content: center;
 }

@@ -14,12 +14,14 @@ import {
     resolveColorToken,
     type ThemeMode,
 } from './inspectorTokens';
+import { InspectorGroup } from './InspectorGroup';
+import { InspectorStoryArgs } from './InspectorStoryArgs';
+import { InspectorConfiguration } from './InspectorConfiguration';
 import { InspectorVariants } from './InspectorVariants';
 import { StyleReferenceContext } from './StyleReferenceContext';
 import { ComponentStructurePanel, type StructureAccess } from '../ComponentStructure';
 import { componentStructureRepository } from '../../../../api/componentStructureRepository';
-import { combinationLabel, type Selection } from './inspectorModel';
-import { TyGlyph } from '../../../../components/TyGlyph';
+import { editSource, type Selection } from './inspectorModel';
 import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 
 interface ComponentInspectorProps {
@@ -40,6 +42,8 @@ interface ComponentInspectorProps {
     structure?: StructureAccess;
     /** Догрузка компонента по маршруту для выбора стиля вложенного компонента. */
     onLoadComponent?: (route: string) => Promise<void>;
+    /** Только просмотр: поля свойств неактивны, «Variants» и аргументы story работают. */
+    readOnly?: boolean;
 }
 
 type InspectorTab = 'style' | 'tree';
@@ -91,14 +95,12 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
         }
         document.getElementById(`component-inspector-tab-${next}`)?.focus();
     };
-    // Пересечение, выбранное в «Дереве вариаций»: «Стилизация» правит его, пока все его стили выбраны в превью.
-    const [chosenCombination, setCombination] = useState<string[]>();
+    // Пересечение правится, когда в «Variants» выбрано два стиля и больше: значения сразу уходят в ds-service.
     const configurationId = config.getConfigurationId();
-    useEffect(() => setCombination(undefined), [configurationId]);
-    const selectedStyles = Object.values(selection);
-    const combination =
-        structure && chosenCombination?.every((id) => selectedStyles.includes(id)) ? chosenCombination : undefined;
+    const source = editSource(config, selection);
+    const combination = source.kind === 'combination' ? source.styleIDs : undefined;
     const [combinationError, setCombinationError] = useState<string>();
+    useEffect(() => setCombinationError(undefined), [configurationId, combination?.join('+')]);
     const changeCombination = (propertyId: string, value: string | null) => {
         if (!structure || !combination || !configurationId) return;
         setCombinationError(undefined);
@@ -184,59 +186,56 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                         selection={selection}
                         onSelectionChange={onSelectionChange}
                         onConfigurationSelect={onConfigurationSelect ?? (() => undefined)}
-                        combination={combination}
-                        onCombinationSelect={setCombination}
                     />
                 </section>
             ) : (
                 <section
-                    className="component-inspector-body"
+                    className="component-inspector-body is-split"
                     role="tabpanel"
                     id="component-inspector-panel-style"
                     aria-labelledby="component-inspector-tab-style"
                 >
-                    <InspectorVariants
-                        config={config}
-                        selection={selection}
-                        onSelectionChange={onSelectionChange}
-                        onConfigurationSelect={onConfigurationSelect}
-                        storyArgs={storyArgs}
-                    />
-                    {combination && (
-                        <div className="component-combination-banner" role="status">
-                            <span>
-                                <small>Пересечение</small>
-                                <b>{combinationLabel(config, combination)}</b>
-                            </span>
-                            <button
-                                type="button"
-                                className="component-tree-icon-button"
-                                aria-label="Выйти из пересечения"
-                                title="Вернуться к значениям стилей"
-                                onClick={() => setCombination(undefined)}
-                            >
-                                <TyGlyph name="close" />
-                            </button>
-                        </div>
-                    )}
-                    {combinationError && (
-                        <p className="component-property-error" role="alert">
-                            {combinationError}
-                        </p>
-                    )}
-                    <StyleReferenceContext.Provider value={styleReferenceAccess}>
-                        <InspectorSections
+                    {/* Конфигурация и вариации не прокручиваются: выбор источника правки всегда на месте, свойства прокручиваются под ним. */}
+                    <div className="component-inspector-pinned">
+                        {onConfigurationSelect && (
+                            <InspectorConfiguration config={config} onConfigurationSelect={onConfigurationSelect} />
+                        )}
+                        <InspectorVariants
                             config={config}
-                            api={api}
                             selection={selection}
-                            tokens={tokens}
-                            updated={updated}
-                            onConfigUpdate={onConfigUpdate}
-                            onLinkProperty={linkProperty}
-                            combination={combination}
-                            onCombinationChange={changeCombination}
+                            onSelectionChange={onSelectionChange}
                         />
-                    </StyleReferenceContext.Provider>
+                    </div>
+                    <div className="component-inspector-scroll">
+                        {/* Параметры story действуют только на превью: отдельно от вариаций, которые задают источник правки. */}
+                        {storyArgs?.properties.length ? (
+                            <InspectorGroup title="Предпросмотр">
+                                <div className="component-variation-targets">
+                                    <InspectorStoryArgs storyArgs={storyArgs} />
+                                </div>
+                            </InspectorGroup>
+                        ) : null}
+                        {combinationError && (
+                            <p className="component-property-error" role="alert">
+                                {combinationError}
+                            </p>
+                        )}
+                        <div className="component-inspector-sections">
+                            <StyleReferenceContext.Provider value={styleReferenceAccess}>
+                                <InspectorSections
+                                    config={config}
+                                    api={api}
+                                    selection={selection}
+                                    tokens={tokens}
+                                    updated={updated}
+                                    onConfigUpdate={onConfigUpdate}
+                                    onLinkProperty={linkProperty}
+                                    onCombinationChange={changeCombination}
+                                    readOnly={props.readOnly}
+                                />
+                            </StyleReferenceContext.Provider>
+                        </div>
+                    </div>
                 </section>
             )}
         </aside>

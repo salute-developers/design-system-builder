@@ -65,10 +65,17 @@ export const resolvePayload = (
 /** CSS-значение в строке: единицы (`3rem`, `12px`) или функции CSS (`var(…)`, `calc(…)`, `rgba(…)`, градиенты). */
 const CSS_STRING = /(^|[\s(,])-?\d*\.?\d+(rem|px|em|vh|vw)\b|\b(var|calc|rgba?|hsla?|linear-gradient|radial-gradient)\(/i;
 
+/** Типы параметров меты, которые в payload — числа протокола: пользователь может задать их выражением CSS. */
+const NUMERIC_PARAM_TYPES = new Set(['dimension', 'float', 'integer']);
+
+/** Выражение CSS, введённое пользователем в числовое поле, а не число, переведённое клиентом (`3rem`). */
+const CSS_EXPRESSION = /^(calc|var|min|max|clamp)\(/i;
+
 /**
  * Значение свойства, заранее переведённое в CSS (старый формат `WEB`): строковый литерал с единицами или функциями
  * CSS у свойства, параметр которого в мете не `value`, или у свойства, названного ключом ядра компонента
  * (`buttonBackgroundColorHover`). У параметров типа `value` CSS-строка — нормальное значение (`0 0.5rem`, `auto`).
+ * У свойства из меты с числовым параметром выражение (`calc(100% - 8px)`, `var(--chip-width)`) — тоже значение.
  * Возвращает путь первого такого значения.
  */
 export const findPreconvertedCss = (payload: PreviewPayload, meta: ApiMeta = apiMeta): string | undefined => {
@@ -77,16 +84,20 @@ export const findPreconvertedCss = (payload: PreviewPayload, meta: ApiMeta = api
         const componentMeta = index.get(component);
         for (const [name, value] of Object.entries(properties)) {
             const propertyMeta = componentMeta?.properties.get(name);
+            const params = propertyMeta ? [...propertyMeta.base, ...[...propertyMeta.states.values()].flat()] : [];
             const expectsCss = propertyMeta
-                ? [...propertyMeta.base, ...[...propertyMeta.states.values()].flat()].some((param) => param.type === 'value')
+                ? params.some((param) => param.type === 'value')
                 : !componentMeta?.paramNames.has(name);
             if (expectsCss) continue;
+            const acceptsExpression = params.some((param) => NUMERIC_PARAM_TYPES.has(param.type));
             const sources = [
                 ['base', value.base] as const,
                 ...(value.states ?? []).map((entry, i) => [`states[${i}].source`, entry.source] as const),
             ];
             for (const [suffix, source] of sources) {
-                if (source.type === 'literal' && typeof source.value === 'string' && CSS_STRING.test(source.value)) {
+                if (source.type !== 'literal' || typeof source.value !== 'string') continue;
+                if (acceptsExpression && CSS_EXPRESSION.test(source.value.trim())) continue;
+                if (CSS_STRING.test(source.value)) {
                     return `${path}${pathKey(name)}.${suffix}.value`;
                 }
             }

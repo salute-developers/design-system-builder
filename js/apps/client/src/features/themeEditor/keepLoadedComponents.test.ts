@@ -49,6 +49,22 @@ describe('keepUnchangedComponents', () => {
         expect(result[0]).not.toBe(current);
     });
 
+    it('берёт новый экземпляр после дублирования конфигурации: содержимое открытой конфигурации то же', () => {
+        const current = configured();
+        const duplicated = structuredClone(buttonMeta());
+        duplicated.sources.configs.push({
+            ...structuredClone(duplicated.sources.configs[0]),
+            id: 'copy',
+            name: 'default-copy',
+            isDefault: false,
+        });
+
+        const result = keepUnchangedComponents([current], [new Config(duplicated)]);
+
+        expect(result[0]).not.toBe(current);
+        expect(result[0].getConfigurations().map((item) => item.name)).toContain('default-copy');
+    });
+
     it('заменяет незагруженную заготовку компонента загруженным экземпляром', () => {
         const stub = new Config({
             ...structuredClone(buttonMeta()),
