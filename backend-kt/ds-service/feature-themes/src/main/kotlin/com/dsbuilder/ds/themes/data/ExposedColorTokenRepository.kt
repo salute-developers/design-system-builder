@@ -225,6 +225,7 @@ class ExposedColorTokenRepository(
         description: String?,
         groupId: UUID?,
         position: Int,
+        enabled: Boolean,
     ): Map<String, UUID> = names.associateWith { name ->
         val entity = UUID.randomUUID()
         ThemeTokensTable.insert {
@@ -241,7 +242,7 @@ class ExposedColorTokenRepository(
                 family.type,
                 displayName.takeIf { isDefault },
                 description.takeIf { isDefault },
-                true,
+                enabled,
                 groupId,
                 position,
             ),
@@ -286,6 +287,7 @@ class ExposedColorTokenRepository(
         requireNotNull(row[ThemeTokenRevisionsTable.type]),
         row[ThemeTokenRevisionsTable.groupId],
         row[ThemeTokenRevisionsTable.position],
+        row[ThemeTokenRevisionsTable.enabled],
     )
 
     override suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>) {

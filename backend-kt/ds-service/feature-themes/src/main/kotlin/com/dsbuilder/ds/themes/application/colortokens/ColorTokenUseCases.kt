@@ -10,4 +10,8 @@ data class ColorTokenUseCases(
     val delete: DeleteColorTokenUseCase,
     /** Перенос и переименование токена. */
     val move: MoveColorTokenUseCase,
+    /** Добавление состояния токена. */
+    val addState: AddColorTokenStateUseCase,
+    /** Удаление состояния токена. */
+    val deleteState: DeleteColorTokenStateUseCase,
 )

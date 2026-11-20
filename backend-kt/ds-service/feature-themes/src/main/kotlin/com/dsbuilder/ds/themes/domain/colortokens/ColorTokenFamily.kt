@@ -33,6 +33,15 @@ data class ColorTokenFamily(
     fun memberOf(definitionType: ThemeTokenType, fullName: String): Boolean =
         of(definitionType, fullName)?.let { it.group == group && it.name == name } == true
 
+    /**
+     * Имена членов состояния [state] для подгрупп, где у семейства есть член без состояния: по одному
+     * `<group>.<subgroup>.<name>-<state>` на каждое имя из [memberNames].
+     */
+    fun stateMembers(state: String, memberNames: Collection<String>): Set<String> =
+        memberNames.mapNotNull { fullName ->
+            fullName.split('.').takeIf { it.size == SEGMENTS && it[0] == group && it[2] == name }?.get(1)
+        }.map { subgroup -> "$group.$subgroup.$name-$state" }.toSet()
+
     companion object {
         /** Суффиксы состояний членов семейства. */
         val STATES: List<String> = listOf("hover", "active", "brightness")

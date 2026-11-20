@@ -298,8 +298,8 @@ class OpenApiDocumentResourceTest {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
         // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
-        // каталог иконок и дублирование темы.
-        assertEquals(201, operationCount)
+        // каталог иконок, дублирование темы и состояния цветового токена.
+        assertEquals(203, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
@@ -325,6 +325,22 @@ class OpenApiDocumentResourceTest {
             .single { it["name"]?.jsonPrimitive?.content == "tokenIds" }
         assertEquals("query", tokenIds.getValue("in").jsonPrimitive.content)
         assertEquals("20", tokenIds.getValue("schema").jsonObject.getValue("maxItems").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `color token states document their contracts`() {
+        val prefix = "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states"
+        val add = paths.getValue(prefix).jsonObject.getValue("post").jsonObject
+        assertEquals("tenants:write", add.getValue("x-permission").jsonPrimitive.content)
+        assertEquals(setOf("201", "400", "403", "404", "409", "500"), add.getValue("responses").jsonObject.keys)
+        val delete = paths.getValue("$prefix/{state}").jsonObject.getValue("delete").jsonObject
+        assertEquals("tenants:write", delete.getValue("x-permission").jsonPrimitive.content)
+        val state = delete.getValue("parameters").jsonArray.map { it.jsonObject }
+            .single { it["name"]?.jsonPrimitive?.content == "state" }
+        assertEquals(
+            listOf("hover", "active", "brightness"),
+            state.getValue("schema").jsonObject.getValue("enum").jsonArray.map { it.jsonPrimitive.content },
+        )
     }
 
     /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */

@@ -7,9 +7,13 @@ import {
     collectContrastPairs,
     contrastRatio,
     fieldsInheritingFrom,
+    hasStateFormula,
     newTokenMembers,
     parseMemberName,
+    parseRowId,
+    stateRowId,
     tokenNameFromLabel,
+    treeTokens,
     type ComponentStyleSource,
     type ThemeTokenSource,
     type TokenGroupDto,
@@ -177,6 +181,82 @@ describe('дерево', () => {
     });
 });
 
+describe('состояния токена', () => {
+    const state = (name: string, web: string, detached = false): ThemeTokenSource => ({
+        name,
+        type: 'color',
+        displayName: name,
+        enabled: true,
+        web,
+        detached,
+    });
+
+    it('строятся в порядке Hover, Active, Brightness с признаком формулы по detached', () => {
+        const tokens = [
+            ...family('text', 'accent', '#111111', '#EEEEEE'),
+            state('light.text.default.accent-brightness', '#222222'),
+            state('dark.text.default.accent-brightness', '#DDDDDD'),
+            state('light.text.default.accent-active', '#333333', true),
+            state('dark.text.default.accent-active', '#CCCCCC'),
+            state('light.text.default.accent-hover', '#444444'),
+            state('dark.text.default.accent-hover', '#BBBBBB'),
+            state('light.text.on-dark.accent-hover', '#555555', true),
+        ];
+        const [view] = buildColorTokenViews(tokens, deps());
+
+        expect(view.states?.map((item) => [item.state, item.id, item.formulaAvailable, item.formula])).toEqual([
+            ['hover', 'text.accent#hover', true, true],
+            ['active', 'text.accent#active', true, false],
+            ['brightness', 'text.accent#brightness', true, true],
+        ]);
+        const hover = view.states![0];
+        expect(hover.displayName).toBe('textAccentHover');
+        expect(hover.modes.light.value).toBe('#444444');
+        // Подтема состояния без определения наследует Light и Dark состояния; отвязанная — нет.
+        expect(hover.contexts.ondark.linked).toBe(false);
+        expect(hover.contexts.onlight).toMatchObject({ linked: true });
+        expect(hover.incomplete).toBe(true);
+    });
+
+    it('полнота состояния считается по подгруппам, которые есть у токена', () => {
+        const tokens = [
+            state('light.text.default.glow', '#111111'),
+            state('dark.text.default.glow', '#EEEEEE'),
+            state('light.text.default.glow-hover', '#222222'),
+            state('dark.text.default.glow-hover', '#DDDDDD'),
+        ];
+        const [view] = buildColorTokenViews(tokens, deps());
+
+        expect(view.states?.[0].incomplete).toBe(false);
+    });
+
+    it('формула есть у состояний групп text, surface, outline и data', () => {
+        expect(['text', 'surface', 'outline', 'data'].map(hasStateFormula)).toEqual([true, true, true, true]);
+        expect(hasStateFormula('background')).toBe(false);
+        expect(hasStateFormula('brand')).toBe(false);
+    });
+
+    it('ключ строки состояния разбирается обратно', () => {
+        const key = { group: 'text', name: 'accent-minor' };
+        expect(parseRowId(stateRowId(key, 'active'))).toEqual({ key, state: 'active' });
+        expect(parseRowId('text.accent-minor')).toEqual({ key, state: null });
+        expect(parseRowId('text.accent#focus')).toBeNull();
+    });
+
+    it('фильтр проблем показывает токен, у которого не проходит проверку только состояние', () => {
+        const tokens = [
+            ...family('text', 'accent', '#111111', '#EEEEEE'),
+            state('light.text.default.accent-hover', 'missing'),
+            state('dark.text.default.accent-hover', '#BBBBBB'),
+        ];
+        const views = buildColorTokenViews(tokens, deps());
+        expect(views[0].issues).toEqual([]);
+        expect(views[0].states?.[0].issues.length).toBeGreaterThan(0);
+        const tree = buildTree([group('text', 'Text', 0)], views, { query: '', sort: 'az', issuesOnly: true });
+        expect(tree.flatMap(treeTokens).map((view) => view.id)).toEqual(['text.accent']);
+    });
+});
+
 describe('новый токен', () => {
     const taken = new Set(['text.accent']);
 
@@ -185,7 +265,7 @@ describe('новый токен', () => {
         expect(tokenNameFromLabel('Привет', 'text', taken)).toEqual({ error: 'Введите имя: латиница и цифры.' });
         expect(tokenNameFromLabel('Accent', 'text', taken)).toEqual({ error: 'Имя accent уже занято.' });
         expect(tokenNameFromLabel('accent hover', 'text', taken)).toEqual({
-            error: 'Имя не может оканчиваться на -hover, -active или -brightness.',
+            error: 'Имя не может оканчиваться на -hover, -active или -brightness. Состояние добавляется кнопкой «+» у токена.',
         });
     });
 

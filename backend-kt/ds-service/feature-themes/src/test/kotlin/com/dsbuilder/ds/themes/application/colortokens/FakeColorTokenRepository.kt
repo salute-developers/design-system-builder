@@ -27,6 +27,7 @@ internal class FakeColorTokenRepository(
         val groupId: UUID? = null,
         val position: Int = 0,
         val displayName: String? = null,
+        val enabled: Boolean = true,
     )
 
     val revisions: MutableMap<UUID, Int> = tenantIds.associateWith { 0 }.toMutableMap()
@@ -87,7 +88,10 @@ internal class FakeColorTokenRepository(
         description: String?,
         groupId: UUID?,
         position: Int,
-    ): Map<String, UUID> = names.associateWith { define(it, family.type, groupId, position) }.also(onInsert)
+        enabled: Boolean,
+    ): Map<String, UUID> = names.associateWith { name ->
+        define(name, family.type, groupId, position).also { id -> update(listOf(id)) { it.copy(enabled = enabled) } }
+    }.also(onInsert)
 
     override suspend fun placedIn(designSystemId: UUID, groupIds: Collection<UUID>): List<PlacedToken> =
         definitions.filter { it.groupId != null && it.groupId in groupIds }.map(::placed)
@@ -116,7 +120,14 @@ internal class FakeColorTokenRepository(
     }
 
     private fun placed(definition: Definition) =
-        PlacedToken(definition.id, definition.name, definition.type, definition.groupId, definition.position)
+        PlacedToken(
+            definition.id,
+            definition.name,
+            definition.type,
+            definition.groupId,
+            definition.position,
+            definition.enabled,
+        )
 
     override suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>) {
         tenantIds.forEach { tenant -> values.forEach { (token, items) -> this.values[tenant to token] = items } }

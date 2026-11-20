@@ -84,11 +84,16 @@ interface InspectorProps {
     resetDisabled?: boolean;
     /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
     addressLabel: (address: string) => string;
+    /** Переключатель «По формуле» состояния. */
+    onStateFormula?: (formula: boolean) => void;
 }
 
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
-    const { view, editable, canDelete, openPicker, save } = props;
+    const { view, canDelete, openPicker, save } = props;
+    const state = view.state;
+    // Состояние по формуле правится только через значение токена.
+    const editable = props.editable && !(state && view.formula);
     // Поле имени открыто: у опубликованного токена рядом предупреждение, что новое имя изменит переменную пакета.
     const [naming, setNaming] = useState(false);
     useEffect(() => setNaming(false), [view.id]);
@@ -176,21 +181,22 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     // Поля имени и описания принадлежат токену: другой токен открывает их заново.
                     key={view.id}
                     title={view.displayName}
-                    description={view.description}
-                    onRename={editable ? props.onRename : undefined}
-                    onDescribe={editable ? props.onDescribe : undefined}
-                    onReset={props.onReset}
-                    resetDisabled={!editable || props.resetDisabled}
+                    // Имя, описание, отключение и сброс принадлежат всему семейству: у состояния их правят в токене.
+                    description={state ? '' : view.description}
+                    onRename={props.editable && !state ? props.onRename : undefined}
+                    onDescribe={props.editable && !state ? props.onDescribe : undefined}
+                    onReset={state ? undefined : props.onReset}
+                    resetDisabled={!props.editable || props.resetDisabled}
                     actions={
                         <>
                             {naming && view.publishedIn && <PublishedWarning version={view.publishedIn} />}
-                            <TokenEnabledButton toggle={enabledToggle} />
+                            {!state && <TokenEnabledButton toggle={enabledToggle} />}
                             {canDelete && (
                                 <button
                                     type="button"
                                     className="tw-icon-button"
-                                    title="Удалить токен"
-                                    aria-label="Удалить токен"
+                                    title={state ? 'Удалить состояние' : 'Удалить токен'}
+                                    aria-label={state ? 'Удалить состояние' : 'Удалить токен'}
                                     onClick={props.onDelete}
                                 >
                                     <TrashOutline />
@@ -200,7 +206,28 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     }
                 />
             </div>
-            <TokenEnabledNotice toggle={enabledToggle} name={view.displayName} />
+            {!state && <TokenEnabledNotice toggle={enabledToggle} name={view.displayName} />}
+            {state && (
+                <section className="ct-inspector-section tw-section ct-state-formula">
+                    <label className="ct-formula-switch">
+                        <input
+                            type="checkbox"
+                            role="switch"
+                            checked={Boolean(view.formula)}
+                            disabled={!props.editable || !view.formulaAvailable}
+                            onChange={(event) => props.onStateFormula?.(event.target.checked)}
+                        />
+                        <span>По формуле</span>
+                    </label>
+                    <p className="ct-formula-note">
+                        {!view.formulaAvailable
+                            ? 'Для группы нет формулы'
+                            : view.formula
+                              ? 'Значения считаются от значений токена'
+                              : 'Значения заданы вручную'}
+                    </p>
+                </section>
+            )}
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>

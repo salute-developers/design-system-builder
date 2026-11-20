@@ -1,12 +1,24 @@
 import type { PaletteRampRef } from '../../palette';
 import { colorField, emptyField, type PaletteColorResolver } from './field';
-import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
+import {
+    COLOR_CONTEXTS,
+    COLOR_MODES,
+    COLOR_STATES,
+    STATE_LABELS,
+    contextSubgroup,
+    hasStateFormula,
+    inheritedMode,
+    parseMemberName,
+    stateRowId,
+    tokenId,
+} from './family';
 import { NATIVE_PLATFORMS, type NativePlatform } from './nativeGradient';
 import { validateColorValue } from './validation';
 import type {
     ColorContext,
     ColorFieldValue,
     ColorMode,
+    ColorState,
     ColorTokenKey,
     ColorTokenType,
     ColorTokenView,
@@ -47,8 +59,9 @@ const camelName = (key: ColorTokenKey) =>
         .join('');
 
 /**
- * Токены экрана из определений темы: семейство — группа и имя независимо от типа; состояния `-hover`, `-active`,
- * `-brightness` в строки не попадают.
+ * Токены экрана из определений темы: семейство — группа и имя независимо от типа. Состояния `-hover`, `-active`,
+ * `-brightness` становятся отдельными видами в `states` своего токена, если у состояния есть определение подгруппы
+ * `default`.
  */
 export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps): ColorTokenView[] => {
     const byName = new Map(tokens.map((token) => [token.name, token]));
@@ -61,9 +74,11 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         if (!families.has(id)) families.set(id, key);
     });
 
-    return [...families.values()].map((key) => {
+    const build = (key: ColorTokenKey, state: ColorState | null): ColorTokenView => {
+        const suffix = state ? `-${state}` : '';
+        const memberOf = (subgroup: string) => `${key.group}.${subgroup}.${key.name}${suffix}`;
         const field = (mode: ColorMode, subgroup: string): ColorFieldValue | null => {
-            const name = `${mode}.${key.group}.${subgroup}.${key.name}`;
+            const name = `${mode}.${memberOf(subgroup)}`;
             const token = byName.get(name);
             if (!token) return null;
             // Строки своих значений есть только у платформ с признаком `overridden`.
@@ -87,20 +102,22 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
                 ) as Record<ColorMode, ColorFieldValue>;
                 // Связь хранится только признаком `detached`: подтема связана, пока её не отвязали явно, даже если
                 // значения сида отличаются от режимов. Правка Light или Dark переносит в неё значения режима.
-                const linked = COLOR_MODES.every(
-                    (mode) => !byName.get(`${mode}.${key.group}.${subgroup}.${key.name}`)?.detached,
-                );
+                const linked = COLOR_MODES.every((mode) => !byName.get(`${mode}.${memberOf(subgroup)}`)?.detached);
                 return [context, { linked, values }];
             }),
         ) as Record<ColorContext, { linked: boolean; values: Record<ColorMode, ColorFieldValue> }>;
 
-        const defaultName = `${key.group}.default.${key.name}`;
-        const source = byName.get(`dark.${defaultName}`) ?? byName.get(`light.${defaultName}`);
-        const placement = deps.placement(defaultName);
-        const memberNames = [
-            defaultName,
-            ...COLOR_CONTEXTS.map((it) => `${key.group}.${contextSubgroup(key.group, it)}.${key.name}`),
-        ];
+        const defaultName = memberOf('default');
+        const baseName = `${key.group}.default.${key.name}`;
+        const source = byName.get(`dark.${baseName}`) ?? byName.get(`light.${baseName}`);
+        const own = byName.get(`dark.${defaultName}`) ?? byName.get(`light.${defaultName}`);
+        const placement = deps.placement(baseName);
+        // Состояние полно, если у него есть определения тех подгрупп, которые есть у токена.
+        const subgroups = COLOR_CONTEXTS.map((it) => contextSubgroup(key.group, it)).filter(
+            (subgroup) =>
+                !state || COLOR_MODES.some((mode) => byName.has(`${mode}.${key.group}.${subgroup}.${key.name}`)),
+        );
+        const memberNames = [defaultName, ...subgroups.map(memberOf)];
         const incomplete =
             memberNames.some((name) => deps.incomplete.has(name)) ||
             COLOR_MODES.some((mode) => memberNames.some((name) => !byName.has(`${mode}.${name}`)));
@@ -114,13 +131,14 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
             const message = validateColorValue(value);
             return message ? [{ field: name, message }] : [];
         });
+        const displayName =
+            source?.displayName && source.displayName !== source.name ? source.displayName : camelName(key);
 
         const view: ColorTokenView = {
             key,
-            id: tokenId(key),
-            type: source?.type ?? 'color',
-            displayName:
-                source?.displayName && source.displayName !== source.name ? source.displayName : camelName(key),
+            id: state ? stateRowId(key, state) : tokenId(key),
+            type: (own ?? source)?.type ?? 'color',
+            displayName: state ? `${displayName}${STATE_LABELS[state]}` : displayName,
             description: source?.description ?? '',
             groupId: placement?.groupId ?? null,
             position: placement?.position ?? 0,
@@ -131,8 +149,19 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
             contexts,
             issues,
         };
-        return view;
-    });
+        if (!state) return view;
+        const formulaAvailable = hasStateFormula(key.group);
+        // Ручное значение — признак `detached` у значений подгруппы `default` состояния.
+        const manual = COLOR_MODES.some((mode) => byName.get(`${mode}.${defaultName}`)?.detached);
+        return { ...view, state, formulaAvailable, formula: formulaAvailable && !manual };
+    };
+
+    return [...families.values()].map((key) => ({
+        ...build(key, null),
+        states: COLOR_STATES.filter((state) =>
+            COLOR_MODES.some((mode) => byName.has(`${mode}.${key.group}.default.${key.name}-${state}`)),
+        ).map((state) => build(key, state)),
+    }));
 };
 
 /**
@@ -154,5 +183,6 @@ export const viewForPlatform = (view: ColorTokenView, platform: NativePlatform |
                 { ...item, values: { light: at(item.values.light), dark: at(item.values.dark) } },
             ]),
         ) as ColorTokenView['contexts'],
+        ...(view.states ? { states: view.states.map((state) => viewForPlatform(state, platform)) } : {}),
     };
 };
