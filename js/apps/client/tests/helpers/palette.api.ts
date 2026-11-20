@@ -17,6 +17,7 @@ export type ThemePalette = Readonly<{
     editRevision: number;
     groups: readonly PaletteGroup[];
     template: readonly (PaletteSlot & { steps: readonly { step: number; value: string }[] })[];
+    tokens: readonly Readonly<{ tokenId: string; tokenName: string; groupId: string; assignment: string }>[];
 }>;
 
 export const green: PaletteSlot = { type: 'additional', shade: 'h130' };
@@ -68,9 +69,15 @@ export class PaletteApi {
             tenantId: this.themeId,
             groups: expect.any(Array),
             template: expect.any(Array),
+            tokens: expect.any(Array),
             editRevision: expect.any(Number),
         });
-        return raw as ThemePalette;
+        const palette = raw as ThemePalette;
+        // Каталог токенов не упорядочен; порядок групп, растяжек и ступеней сохраняется.
+        return {
+            ...palette,
+            tokens: [...palette.tokens].sort((left, right) => left.tokenId.localeCompare(right.tokenId)),
+        };
     }
 
     async seedStep(groupId: string, slot: PaletteSlot, step: number, value: string): Promise<void> {

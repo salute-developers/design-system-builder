@@ -65,7 +65,7 @@ test(
 test(
     'PLASMABLDR-T738: RSS-004 Изменение радиуса и пересчёт вычисляемых',
     { annotation: { type: 'zephyr', description: 'PLASMABLDR-T738' } },
-    async ({ page, sizes, sizeData, tokenValues, initialTheme, pendingMutation, setupSession }) => {
+    async ({ page, sizes, derivedSizeData: sizeData, tokenValues, initialTheme, pendingMutation, setupSession }) => {
         const id = sizeData.l.id;
         const url = tokenValues.sizeURL(initialTheme.id, id);
         const before = await tokenValues.values(initialTheme.id, 'shape,spacing,shadow');
