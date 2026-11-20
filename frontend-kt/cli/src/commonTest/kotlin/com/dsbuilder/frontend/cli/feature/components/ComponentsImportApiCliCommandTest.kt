@@ -14,6 +14,7 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -31,7 +32,7 @@ class ComponentsImportApiCliCommandTest {
     private val credentials = mutableListOf<BackendCredential>()
 
     @Test
-    fun dryRunReadsTheFileAndSendsOneRequestToTheAdminRoute() {
+    fun dryRunReadsTheFileAndSendsOneRequestToTheAdminRoute() = runTest {
         val result = run(base())
 
         assertEquals(0, result.exitCode, result.output)
@@ -49,7 +50,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun theCredentialIsTheUserSessionTokenNotTheProjectKeyFromTheEnvironment() {
+    fun theCredentialIsTheUserSessionTokenNotTheProjectKeyFromTheEnvironment() = runTest {
         val result =
             run(base(), env = mapOf("DSBUILDER_API_KEY" to "secret-key", "DSBUILDER_API_URL" to "http://backend"))
 
@@ -59,7 +60,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun applySendsTheRequestAsNonDryRun() {
+    fun applySendsTheRequestAsNonDryRun() = runTest {
         val result = run(base() + "--apply")
 
         assertEquals(0, result.exitCode, result.output)
@@ -68,7 +69,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun printsTheTargetWithoutProjectOrDesignSystem() {
+    fun printsTheTargetWithoutProjectOrDesignSystem() = runTest {
         val result = run(base())
 
         listOf(
@@ -82,7 +83,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aRelativeFromPathIsResolvedAgainstTheWorkingDirectory() {
+    fun aRelativeFromPathIsResolvedAgainstTheWorkingDirectory() = runTest {
         val result =
             run(
                 listOf(
@@ -101,7 +102,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun printsRejectionsAndTypeMismatches() {
+    fun printsRejectionsAndTypeMismatches() = runTest {
         val result = run(base(), report = REPORT_WITH_FINDINGS)
 
         assertEquals(0, result.exitCode, result.output)
@@ -112,7 +113,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun strictFailsOnRejectedProperties() {
+    fun strictFailsOnRejectedProperties() = runTest {
         val result = run(base() + "--strict", report = REPORT_WITH_FINDINGS)
 
         assertEquals(1, result.exitCode, result.output)
@@ -120,12 +121,12 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun strictPassesWhenNothingIsRejected() {
+    fun strictPassesWhenNothingIsRejected() = runTest {
         assertEquals(0, run(base() + "--strict").exitCode)
     }
 
     @Test
-    fun mapTypeIsAppliedToTheRequest() {
+    fun mapTypeIsAppliedToTheRequest() = runTest {
         run(base() + listOf("--map-type", "dimension:float"))
 
         val body = requests.single().second
@@ -134,7 +135,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun malformedMapTypeIsRejectedBeforeAnythingIsSent() {
+    fun malformedMapTypeIsRejectedBeforeAnythingIsSent() = runTest {
         val result = run(base() + listOf("--map-type", "dimension"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -143,7 +144,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun applyAndDryRunTogetherAreRejectedBeforeAnythingIsSent() {
+    fun applyAndDryRunTogetherAreRejectedBeforeAnythingIsSent() = runTest {
         val result = run(base() + listOf("--apply", "--dry-run"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -151,7 +152,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun fromAndPlatformAreRequired() {
+    fun fromAndPlatformAreRequired() = runTest {
         val withoutFrom =
             run(listOf("components", "import-api", "--platform", "compose"))
         val withoutPlatform =
@@ -165,7 +166,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun theGradleToolAndTheApiKeyOptionsAreGone() {
+    fun theGradleToolAndTheApiKeyOptionsAreGone() = runTest {
         val tool = run(base() + listOf("--tool", "gradle"))
         val key = run(base() + listOf("--api-key", "secret-key"))
 
@@ -177,7 +178,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun withoutAnExplicitApiUrlNothingIsSent() {
+    fun withoutAnExplicitApiUrlNothingIsSent() = runTest {
         val result =
             run(listOf("components", "import-api", "--from", META_PATH, "--platform", "compose"), env = emptyMap())
 
@@ -187,7 +188,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anUnknownPlatformIsRefusedBeforeAnythingIsSent() {
+    fun anUnknownPlatformIsRefusedBeforeAnythingIsSent() = runTest {
         // Все платформы TargetPlatform поддержаны, поэтому отказ проверяется на значении вне словаря.
         val result = run(base(platform = "flutter"))
 
@@ -198,7 +199,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aMissingFileNamesThePath() {
+    fun aMissingFileNamesThePath() = runTest {
         val result = run(base(), files = emptyMap())
 
         assertEquals(1, result.exitCode, result.output)
@@ -207,7 +208,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anEmptyMetaIsRefusedAndNothingIsSent() {
+    fun anEmptyMetaIsRefusedAndNothingIsSent() = runTest {
         val result = run(base(), files = mapOf(META_PATH to "[]"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -216,7 +217,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun withoutAUserSessionTheMessageSaysHowToLogIn() {
+    fun withoutAUserSessionTheMessageSaysHowToLogIn() = runTest {
         val result = run(base(), session = false)
 
         assertEquals(1, result.exitCode, result.output)
@@ -226,7 +227,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aForbiddenAnswerShowsTheReasonOfTheServer() {
+    fun aForbiddenAnswerShowsTheReasonOfTheServer() = runTest {
         val result = run(
             base(),
             answer = AuthenticatedHttpResult.Failure(
@@ -239,7 +240,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anAndroidViewMetaGoesWithTheXmlPlatform() {
+    fun anAndroidViewMetaGoesWithTheXmlPlatform() = runTest {
         val result =
             run(base(platform = "android-view", from = VIEW_META_PATH), files = mapOf(VIEW_META_PATH to VIEW_META))
 
@@ -257,7 +258,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aSwiftUiMetaGoesWithTheIosPlatform() {
+    fun aSwiftUiMetaGoesWithTheIosPlatform() = runTest {
         val result =
             run(base(platform = "swiftui", from = IOS_META_PATH), files = mapOf(IOS_META_PATH to IOS_META))
 
@@ -277,7 +278,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun whatTheSwiftUiNormalizerSkippedIsPrinted() {
+    fun whatTheSwiftUiNormalizerSkippedIsPrinted() = runTest {
         val result =
             run(base(platform = "swiftui", from = IOS_META_PATH), files = mapOf(IOS_META_PATH to IOS_META))
 
@@ -285,7 +286,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun whatTheViewNormalizerSkippedIsPrintedBetweenTheReportAndTheStatus() {
+    fun whatTheViewNormalizerSkippedIsPrintedBetweenTheReportAndTheStatus() = runTest {
         val result =
             run(base(platform = "android-view", from = VIEW_META_PATH), files = mapOf(VIEW_META_PATH to VIEW_META))
 
@@ -299,12 +300,12 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun composeImportPrintsNoSkippedLines() {
+    fun composeImportPrintsNoSkippedLines() = runTest {
         assertTrue(!run(base()).output.contains("Skipped:"))
     }
 
     @Test
-    fun aComposeMetaGivenAsAndroidViewIsReportedWithTheFile() {
+    fun aComposeMetaGivenAsAndroidViewIsReportedWithTheFile() = runTest {
         val result = run(base(platform = "android-view"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -314,7 +315,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aWebMetaGoesWithTheWebPlatform() {
+    fun aWebMetaGoesWithTheWebPlatform() = runTest {
         val result = run(base(platform = "react", from = WEB_META_PATH), files = mapOf(WEB_META_PATH to WEB_META))
 
         assertEquals(0, result.exitCode, result.output)
@@ -337,7 +338,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun aComposeMetaGivenAsReactIsReportedWithTheFile() {
+    fun aComposeMetaGivenAsReactIsReportedWithTheFile() = runTest {
         val result = run(base(platform = "react"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -347,7 +348,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun printsDeprecationCountersOnlyWhenTheyAreNotZero() {
+    fun printsDeprecationCountersOnlyWhenTheyAreNotZero() = runTest {
         val quiet = run(base())
         val busy = run(
             base(),
@@ -362,7 +363,7 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun printsTheAbsentListAsInformationAndItNeverFailsStrict() {
+    fun printsTheAbsentListAsInformationAndItNeverFailsStrict() = runTest {
         val result = run(
             base() + "--strict",
             report = """{"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,
@@ -375,12 +376,12 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun noAbsentSectionWhenNothingIsAbsent() {
+    fun noAbsentSectionWhenNothingIsAbsent() = runTest {
         assertTrue(!run(base()).output.contains("Absent from meta"))
     }
 
     @Test
-    fun aDeprecatedPropertyInTheMetaReachesTheRequest() {
+    fun aDeprecatedPropertyInTheMetaReachesTheRequest() = runTest {
         val meta = """[{"componentName":"Box","params":[
             {"id":"color","type":"color","deprecated":{"message":"Use X"}},
             {"id":"size","type":"dimension"}]}]"""
@@ -401,7 +402,7 @@ class ComponentsImportApiCliCommandTest {
         platform,
     )
 
-    private fun run(
+    private suspend fun run(
         args: List<String>,
         files: Map<String, String> = mapOf(META_PATH to META),
         env: Map<String, String> = mapOf("DSBUILDER_API_URL" to "http://backend"),

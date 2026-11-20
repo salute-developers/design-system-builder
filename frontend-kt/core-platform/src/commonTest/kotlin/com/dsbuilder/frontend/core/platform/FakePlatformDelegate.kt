@@ -14,7 +14,7 @@ internal class FakePlatformDelegate(
     private val status: (String?) -> ToolchainStatus = {
         ToolchainStatus.Ready(executable = "/fake/tool", version = "1.0.0")
     },
-    private val result: (DelegateInvocation) -> DelegateResult = { DelegateResult.Completed(summary = "done") },
+    private val result: suspend (DelegateInvocation) -> DelegateResult = { DelegateResult.Completed(summary = "done") },
 ) : PlatformDelegate {
     /** Вызовы `run` в порядке поступления. */
     val invocations: MutableList<DelegateInvocation> = mutableListOf()
@@ -22,12 +22,12 @@ internal class FakePlatformDelegate(
     /** Вызовы `doctor`: рабочая копия и путь инструмента из `--tool`. */
     val doctorCalls: MutableList<Pair<WorkspacePaths, String?>> = mutableListOf()
 
-    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+    override suspend fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         doctorCalls += workspace to toolOverride
         return status(toolOverride)
     }
 
-    override fun run(invocation: DelegateInvocation): DelegateResult {
+    override suspend fun run(invocation: DelegateInvocation): DelegateResult {
         invocations += invocation
         return result(invocation)
     }

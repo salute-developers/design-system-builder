@@ -2,9 +2,7 @@
 
 ## Purpose
 Определяет, как CLI `dsbuilder` делегирует генерацию кода темы, компонентов и платформенную агрегацию документации инструментам платформ: порт делегата, реестр, выбор целевой платформы, запуск внешних процессов и команды, которые этим пользуются.
-
 ## Requirements
-
 ### Requirement: Target platform dictionary
 
 CLI SHALL define a single dictionary of target platforms shared by all platform-aware commands and by local project config.
@@ -173,38 +171,47 @@ CLI SHALL run a platform capability through a shared sequence: resolve project c
 
 ### Requirement: External process port
 
-CLI SHALL run external tools only through a `ProcessRunner` port with platform implementations for JVM and macOS.
+CLI SHALL запускать внешние инструменты только через приостанавливаемый порт `ProcessRunner` с реализациями JVM, macOS, Windows native и Node.js. Ожидание SHALL позволять обработку отмены и сетевых событий среды выполнения.
 
 #### Scenario: Запрос на запуск
-
-- **WHEN** a delegate builds a process request
-- **THEN** the executable MUST be an absolute path
-- **THEN** the working directory MUST be an absolute path
-- **THEN** extra environment variables MUST be added to the parent environment, overriding same-named variables
-- **THEN** arguments MUST be passed as is, without a shell
+- **WHEN** делегат создаёт запрос процесса
+- **THEN** executable и рабочая директория MUST быть абсолютными путями
+- **THEN** дополнительные переменные MUST дополнять окружение родителя, перекрывая одноимённые значения
+- **THEN** аргументы обычного executable MUST передаваться без оболочки и без интерполяции
+- **THEN** `.cmd`/`.bat` на Windows MUST запускаться только через специальный адаптер с проверенным экранированием аргументов
 
 #### Scenario: Наследование stdio по умолчанию
-
-- **WHEN** a process request does not disable stdio inheritance
-- **THEN** the child process MUST write to the CLI terminal directly
-- **THEN** the result output MUST be empty
+- **WHEN** запрос не отключает наследование потоков
+- **THEN** дочерний процесс MUST писать напрямую в терминал CLI
+- **THEN** поле вывода результата MUST быть пустым
 
 #### Scenario: Захват вывода
-
-- **WHEN** a process request disables stdio inheritance
-- **THEN** stdout and stderr MUST be captured together into the result output
+- **WHEN** запрос отключает наследование потоков
+- **THEN** stdout и stderr MUST читаться одновременно и объединяться в вывод результата
+- **THEN** порядок внутри каждого потока MUST сохраняться без обещания абсолютного порядка между потоками
+- **THEN** результат MUST возвращаться после закрытия обоих потоков
 
 #### Scenario: Exit code
-
-- **WHEN** the child process exits
-- **THEN** the result MUST carry its exit code
-- **WHEN** the child process is killed by a signal
-- **THEN** the exit code MUST be `128 + signal number`
+- **WHEN** дочерний процесс завершается
+- **THEN** результат MUST содержать его код завершения
+- **WHEN** дочерний процесс завершён сигналом без отмены вызывающей корутины
+- **THEN** код завершения MUST быть `128 + signal number`
 
 #### Scenario: Инструмент не запускается
+- **WHEN** executable отсутствует либо не может быть запущен
+- **THEN** реализация MUST выбросить детерминированную ошибку запуска с именем executable
 
-- **WHEN** the executable does not exist or cannot be started
-- **THEN** the runner MUST throw a deterministic launch error naming the executable
+#### Scenario: Асинхронное ожидание
+- **WHEN** процесс работает, а среда выполнения получает сетевое событие, таймер или отмену
+- **THEN** ожидание процесса MUST NOT блокировать обработку этих событий
+- **THEN** делегат, установщик и вызывающий сценарий MUST ожидать результат через `suspend`, не через `runBlocking` в общем коде
+
+#### Scenario: Отмена активного процесса
+- **WHEN** вызывающая корутина отменена до завершения процесса
+- **THEN** реализация MUST запросить остановку запущенного процесса и управляемой группы его потомков средствами ОС, ожидая не более двух секунд до принудительного завершения
+- **THEN** очистка принадлежащих реализации потоков, дескрипторов и обработчиков MUST завершиться не позднее трёх секунд после принудительного завершения
+- **THEN** реализация MUST повторно выбросить `CancellationException`, не возвращая `ProcessResult`, `Failed` или успешный результат
+- **THEN** отмена MUST NOT запускать повторный процесс
 
 ### Requirement: CLI generate commands
 
@@ -337,3 +344,13 @@ CLI SHALL сообщать, что iOS-инструмент недоступен
 - **WHEN** пользователь Windows запускает генерацию для `swiftui`
 - **THEN** CLI MUST вернуть понятное сообщение о неподдерживаемой среде
 - **THEN** CLI MUST NOT запускать macOS-команды установки или поиска `dsbuilder-ios`
+
+### Requirement: Асинхронная цепочка платформенной операции
+
+Проверка инструмента, установка и запуск генерации SHALL предоставлять приостанавливаемые контракты от application-сценария через `PlatformDelegate`/`ToolchainInstaller` до `ProcessRunner` на всех таргетах.
+
+#### Scenario: Ожидание и распространение отмены
+- **WHEN** команда выполняет doctor, установку либо генерацию, и тестовый процесс задерживает завершение
+- **THEN** команда MUST ждать его результата, сохраняя контекст ошибки и прежний код завершения
+- **WHEN** операция отменена
+- **THEN** отмена MUST дойти до процесса и MUST NOT быть преобразована в отсутствие инструмента или другой обычный результат

@@ -7,9 +7,9 @@ import com.dsbuilder.frontend.cli.feature.toolchain.presentation.ToolchainListCl
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.ListToolchainsUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Создаёт Koin module для presentation-слоя фичи `toolchain` в `:cli`.

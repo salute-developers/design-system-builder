@@ -22,7 +22,7 @@ internal class PlatformDelegateDocsAggregator(
     private val registry: PlatformDelegateRegistry,
     private val platformCapabilityRunner: PlatformCapabilityRunner,
 ) : DocsPlatformAggregator {
-    override fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult {
+    override suspend fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult {
         val delegate = registry.forPlatform(platform)
         if (delegate == null || Capability.DOCS_AGGREGATE !in delegate.capabilities) {
             return DocsAggregationResult.Skipped

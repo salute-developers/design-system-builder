@@ -22,7 +22,7 @@ public class GenerateComponentsUseCase internal constructor(
      * @param command параметры запуска.
      * @param onPlan вызывается до запуска инструмента, чтобы presentation напечатала, что и чем запускается.
      */
-    public fun execute(
+    public suspend fun execute(
         command: GenerateComponentsCommand,
         onPlan: (PlatformRunPlan) -> Unit = {},
     ): PlatformRunResult =

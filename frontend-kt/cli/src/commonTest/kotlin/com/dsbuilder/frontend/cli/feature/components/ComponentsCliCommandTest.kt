@@ -9,13 +9,14 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ComponentsCliCommandTest {
     @Test
-    fun rootHelpListsComponents() {
+    fun rootHelpListsComponents() = runTest {
         val result = cli().execute(listOf("--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -23,7 +24,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun componentsHelpListsPush() {
+    fun componentsHelpListsPush() = runTest {
         val result = cli().execute(listOf("components", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -31,7 +32,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun componentsHelpListsImportApi() {
+    fun componentsHelpListsImportApi() = runTest {
         val result = cli().execute(listOf("components", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -39,7 +40,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun importApiHelpListsOptionsWithoutTouchingFilesOrBackend() {
+    fun importApiHelpListsOptionsWithoutTouchingFilesOrBackend() = runTest {
         val fileSystem = RecordingFileSystem()
         var backendCalls = 0
 
@@ -56,7 +57,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun componentsHelpListsFetch() {
+    fun componentsHelpListsFetch() = runTest {
         val result = cli().execute(listOf("components", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -64,7 +65,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun fetchHelpListsOptions() {
+    fun fetchHelpListsOptions() = runTest {
         val result = cli().execute(listOf("components", "fetch", "--help"))
 
         // Help не требует ни project config, ни backend, ни credentials.
@@ -74,7 +75,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun pushHelpListsOptions() {
+    fun pushHelpListsOptions() = runTest {
         val result = cli().execute(listOf("components", "push", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -86,7 +87,7 @@ class ComponentsCliCommandTest {
      * Удалённый источник снят: пакет берётся только из директории.
      */
     @Test
-    fun pushHelpDoesNotOfferRemoteSource() {
+    fun pushHelpDoesNotOfferRemoteSource() = runTest {
         val result = cli().execute(listOf("components", "push", "--help"))
 
         assertTrue(result.output.contains("--design-system"), result.output)
@@ -94,14 +95,14 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun pushHelpDoesNotOfferSkipNameCheck() {
+    fun pushHelpDoesNotOfferSkipNameCheck() = runTest {
         val result = cli().execute(listOf("components", "push", "--help"))
 
         assertTrue(!result.output.contains("--skip-name-check"), result.output)
     }
 
     @Test
-    fun helpNeedsNeitherConfigNorBackend() {
+    fun helpNeedsNeitherConfigNorBackend() = runTest {
         val fileSystem = RecordingFileSystem()
         var backendCalls = 0
 
@@ -113,7 +114,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun applyAndDryRunTogetherAreRejected() {
+    fun applyAndDryRunTogetherAreRejected() = runTest {
         val result = cli().execute(listOf("components", "push", "--apply", "--dry-run"))
 
         assertEquals(1, result.exitCode)
@@ -121,7 +122,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun optionErrorsDoNotTouchBackendOrFiles() {
+    fun optionErrorsDoNotTouchBackendOrFiles() = runTest {
         val fileSystem = RecordingFileSystem()
         var backendCalls = 0
 
@@ -133,7 +134,7 @@ class ComponentsCliCommandTest {
     }
 
     @Test
-    fun pushWithoutProjectContextIsRejectedBeforeAnyRequest() {
+    fun pushWithoutProjectContextIsRejectedBeforeAnyRequest() = runTest {
         val fileSystem = RecordingFileSystem()
         var backendCalls = 0
 

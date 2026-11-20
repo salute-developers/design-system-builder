@@ -3,11 +3,11 @@ package com.dsbuilder.frontend.cli.presentation
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.platform.PlatformRunPlan
 import com.dsbuilder.frontend.core.platform.PlatformRunResult
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.NullableOption
 import com.github.ajalt.clikt.parameters.options.RawOption
 import com.github.ajalt.clikt.parameters.types.choice
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /** Общий help `--platform`, чтобы словарь платформ не расходился между командами. */
 internal const val PLATFORM_OPTION_HELP: String = "Target platform; taken from .sdds/config.json when omitted."

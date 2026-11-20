@@ -11,7 +11,6 @@ import com.dsbuilder.frontend.core.auth.CredentialStoreLock
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.process.isAbsolutePath
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.runBlocking
 import kotlin.random.Random
 import kotlin.time.Clock
 import kotlin.time.ExperimentalTime
@@ -35,17 +34,17 @@ internal class CliAnalyticsSession(
         "mcp" to MutableStateFlow<Analytics?>(null),
     )
     private val closed = MutableStateFlow(false)
-    fun prepare(prompt: ((String) -> Boolean?)? = null) {
-        recordSafely { runBlocking { consent?.prepare(prompt) } }
+    suspend fun prepare(prompt: ((String) -> Boolean?)? = null) {
+        recordSafely { run { consent?.prepare(prompt) } }
     }
-    fun record(
+    suspend fun record(
         channel: String,
         operations: Set<String>,
         operation: String,
         outcome: String,
     ) {
         if (closed.value) return
-        if (requireConsent && runBlocking { consent?.allowed() != true }) return
+        if (requireConsent && run { consent?.allowed() != true }) return
         val holder = clients.getValue(channel)
         val analytics = holder.value ?: factory(channel, operations).let { candidate ->
             if (holder.compareAndSet(null, candidate)) {
@@ -62,11 +61,11 @@ internal class CliAnalyticsSession(
         }
     }
 
-    fun finish() {
+    suspend fun finish() {
         if (!closed.compareAndSet(false, true)) return
         for (analytics in clients.values.mapNotNull { it.value }) {
             recordSafely {
-                runBlocking { analytics.flush(1500) }
+                run { analytics.flush(1500) }
             }
             recordSafely { analytics.close() }
         }
@@ -168,6 +167,8 @@ internal class CliMetricaIdentityStore(
 internal inline fun recordSafely(block: () -> Unit) {
     try {
         block()
+    } catch (cancelled: kotlinx.coroutines.CancellationException) {
+        throw cancelled
     } catch (_: Exception) {
         // Без вывода: событие и исключение могут содержать непубличные данные.
     }

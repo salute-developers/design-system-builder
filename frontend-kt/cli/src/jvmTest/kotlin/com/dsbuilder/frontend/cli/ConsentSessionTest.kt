@@ -9,6 +9,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import kotlin.test.Test
@@ -84,7 +85,7 @@ class ConsentSessionTest {
         assertEquals(1, sent)
     }
 
-    @Test fun heldLocalLockCannotDelayAutomaticChecksForThirtySeconds() {
+    @Test fun heldLocalLockCannotDelayAutomaticChecksForThirtySeconds() = runTest {
         var held = false
         val lock = object : com.dsbuilder.frontend.core.auth.CredentialStoreLock {
             override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {

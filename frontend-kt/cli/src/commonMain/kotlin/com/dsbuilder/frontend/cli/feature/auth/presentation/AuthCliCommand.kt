@@ -11,11 +11,10 @@ import com.dsbuilder.frontend.feature.auth.application.LoginUseCase
 import com.dsbuilder.frontend.feature.auth.application.LogoutCommand
 import com.dsbuilder.frontend.feature.auth.application.LogoutResult
 import com.dsbuilder.frontend.feature.auth.application.LogoutUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.subcommands
-import kotlinx.coroutines.runBlocking
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * CLI command group for user auth lifecycle.
@@ -29,7 +28,7 @@ internal class AuthCliCommand(
 
     override fun help(context: Context): String = "Manage user authentication."
 
-    override fun run(): Unit = Unit
+    override suspend fun run(): Unit = Unit
 }
 
 /**
@@ -40,10 +39,10 @@ internal class AuthLoginCliCommand(
     private val apiUrlResolver: ApiUrlResolver,
 ) : AnalyticsCliCommand(name = "login", operation = "auth login") {
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val resolvedApiUrl = apiUrlResolver.resolve(null)
         echo("API URL: ${resolvedApiUrl.value} (from ${resolvedApiUrl.sourceName})")
-        val result = runBlocking {
+        val result = run {
             useCase.execute(
                 LoginCommand(
                     apiUrlOverride = resolvedApiUrl.value,
@@ -69,8 +68,8 @@ internal class AuthStatusCliCommand(
     private val useCase: AuthStatusUseCase,
 ) : AnalyticsCliCommand(name = "status", operation = "auth status") {
 
-    override fun runOperation() {
-        val result = runBlocking { useCase.execute(AuthStatusCommand(apiUrlOverride = null)) }
+    override suspend fun runOperation() {
+        val result = run { useCase.execute(AuthStatusCommand(apiUrlOverride = null)) }
         when (result) {
             is AuthStatusResult.LoggedIn -> echo("Logged in: ${result.username} (${result.apiUrl})")
             is AuthStatusResult.NotLoggedIn -> echo("Not logged in (${result.apiUrl})")
@@ -87,8 +86,8 @@ internal class AuthLogoutCliCommand(
     private val useCase: LogoutUseCase,
 ) : AnalyticsCliCommand(name = "logout", operation = "auth logout") {
 
-    override fun runOperation() {
-        val result = runBlocking { useCase.execute(LogoutCommand(apiUrlOverride = null)) }
+    override suspend fun runOperation() {
+        val result = run { useCase.execute(LogoutCommand(apiUrlOverride = null)) }
         when (result) {
             is LogoutResult.Failed -> {
                 echo(result.message)

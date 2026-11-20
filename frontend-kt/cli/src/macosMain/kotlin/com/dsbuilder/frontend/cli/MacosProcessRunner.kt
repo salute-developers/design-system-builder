@@ -1,100 +1,135 @@
+@file:OptIn(kotlinx.cinterop.ExperimentalForeignApi::class)
+
 package com.dsbuilder.frontend.cli
 
+import com.dsbuilder.frontend.cli.macosprocess.dsb_poll
+import com.dsbuilder.frontend.cli.macosprocess.dsb_spawn
 import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
-import kotlinx.cinterop.BetaInteropApi
-import kotlinx.cinterop.ExperimentalForeignApi
-import kotlinx.cinterop.ObjCObjectVar
+import kotlinx.cinterop.ByteVar
+import kotlinx.cinterop.CPointerVar
+import kotlinx.cinterop.IntVar
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
+import kotlinx.cinterop.allocArray
+import kotlinx.cinterop.convert
+import kotlinx.cinterop.cstr
+import kotlinx.cinterop.get
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
-import kotlinx.cinterop.readBytes
+import kotlinx.cinterop.set
+import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
-import platform.Foundation.NSError
-import platform.Foundation.NSPipe
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
+import okio.Buffer
 import platform.Foundation.NSProcessInfo
-import platform.Foundation.NSTask
-import platform.Foundation.NSTaskTerminationReasonUncaughtSignal
-import platform.Foundation.NSURL
-import platform.Foundation.readDataToEndOfFile
-import platform.Foundation.waitUntilExit
+import platform.posix.EAGAIN
+import platform.posix.EINTR
+import platform.posix.EWOULDBLOCK
+import platform.posix.SIGKILL
+import platform.posix.SIGTERM
+import platform.posix.close
+import platform.posix.errno
+import platform.posix.kill
+import platform.posix.read
+import kotlin.coroutines.coroutineContext
 
-/**
- * Запуск процессов через `NSTask`.
- *
- * `posix_spawn` в биндингах Kotlin/Native для macOS отсутствует, а `fork` небезопасен для runtime.
- * В режиме наследования stdio дочерний процесс пишет прямо в терминал; в режиме захвата stdout и
- * stderr направляются в один pipe и читаются до EOF одним потоком — так исключён deadlock
- * на заполненном буфере.
- *
- * `standardInput` дочернего процесса в обоих режимах — пустой `NSPipe`, а не унаследованный терминал,
- * даже когда stdout/stderr наследуются для потокового вывода долгих сборок (Gradle, xcodebuild):
- * некоторые из этих инструментов всё равно трогают stdin при инициализации консоли. Если оставить им
- * терминал родителя, а процесс окажется вне foreground process group терминала (реальный сценарий при
- * запуске из интерактивной оболочки — таймингово нестабильный, отсюда и "иногда" воспроизводится),
- * ядро присылает `SIGTTIN` и стопит процесс — это выглядит как зависание без единой строчки вывода
- * (или зависание сразу после последней строчки), хотя на самом деле процесс просто ждёт ввода,
- * который никогда не придёт.
- */
-@OptIn(ExperimentalForeignApi::class, BetaInteropApi::class)
+/** Ожидает группу процессов macOS без блокировки корутины или чтения заполненного pipe. */
 internal object MacosProcessRunner : ProcessRunner {
-    private const val SIGNAL_EXIT_CODE_BASE = 128
-
-    override fun run(request: ProcessRequest): ProcessResult {
-        val task = NSTask()
-        task.executableURL = NSURL.fileURLWithPath(request.executable)
-        task.arguments = request.args
-        task.currentDirectoryURL = NSURL.fileURLWithPath(request.workingDirectory, isDirectory = true)
-        task.environment = mergedEnvironment(request.environment)
-        task.standardInput = NSPipe()
-
-        val pipe = if (request.inheritStdio) {
-            null
-        } else {
-            NSPipe().also {
-                task.standardOutput = it
-                task.standardError = it
+    override suspend fun run(request: ProcessRequest): ProcessResult = memScoped {
+        coroutineContext.ensureActive()
+        val arguments = request.commandLine
+        val argv = allocArray<CPointerVar<ByteVar>>(arguments.size + 1)
+        arguments.forEachIndexed { index, argument -> argv[index] = argument.cstr.ptr }
+        argv[arguments.size] = null
+        val environment = NSProcessInfo.processInfo.environment.entries.associate {
+            it.key.toString() to it.value.toString()
+        } + request.environment
+        val values = environment.filterKeys { !it.startsWith("DSBUILDER_METRICA_", true) }
+            .map { (key, value) -> "$key=$value" }
+        val env = allocArray<CPointerVar<ByteVar>>(values.size + 1)
+        values.forEachIndexed { index, value -> env[index] = value.cstr.ptr }
+        env[values.size] = null
+        val pid = alloc<IntVar>()
+        val fd = alloc<IntVar>().also { it.value = -1 }
+        val launchError = dsb_spawn(
+            request.executable,
+            argv,
+            env,
+            request.workingDirectory,
+            if (request.inheritStdio) 0 else 1,
+            pid.ptr,
+            fd.ptr,
+        )
+        if (launchError != 0) {
+            throw ProcessLaunchException(
+                "Cannot start process ${request.executable}: OS error $launchError",
+            )
+        }
+        val output = Buffer()
+        val code = alloc<IntVar>()
+        var completed = false
+        var parentExited = false
+        var outputClosed = fd.value < 0
+        try {
+            while (true) {
+                if (!outputClosed) outputClosed = drain(fd.value, output)
+                if (!parentExited) {
+                    val state = dsb_poll(pid.value, code.ptr)
+                    check(state >= 0) { "Cannot wait for process ${request.executable}" }
+                    parentExited = state == 1
+                }
+                if (parentExited && outputClosed) {
+                    completed = true
+                    return@memScoped ProcessResult(code.value, output.readUtf8())
+                }
+                delay(10)
+            }
+            @Suppress("UNREACHABLE_CODE")
+            error("Unreachable")
+        } finally {
+            withContext(NonCancellable) {
+                if (!completed) {
+                    kill(-pid.value, SIGTERM)
+                    val stopped = if (parentExited) {
+                        true
+                    } else {
+                        withTimeoutOrNull(2000) {
+                            while (dsb_poll(pid.value, code.ptr) == 0) delay(10)
+                            true
+                        }
+                    }
+                    // Stop remaining descendants even if their parent already exited.
+                    kill(-pid.value, SIGKILL)
+                    if (stopped != true) {
+                        withTimeoutOrNull(3000) {
+                            while (dsb_poll(pid.value, code.ptr) == 0) delay(10)
+                        }
+                    }
+                }
+                if (fd.value >= 0) close(fd.value)
             }
         }
+    }
 
-        memScoped {
-            val error = alloc<ObjCObjectVar<NSError?>>()
-            if (!task.launchAndReturnError(error.ptr)) {
-                val reason = error.value?.localizedDescription ?: "unknown error"
-                throw ProcessLaunchException("Cannot start process ${request.executable}: $reason")
+    private fun drain(fd: Int, output: Buffer): Boolean {
+        if (fd < 0) return true
+        val bytes = ByteArray(8192)
+        repeat(64) {
+            val size = bytes.usePinned { read(fd, it.addressOf(0), bytes.size.convert()).toInt() }
+            if (size == 0) return true
+            if (size < 0) {
+                check(errno in listOf(EAGAIN, EWOULDBLOCK, EINTR)) { "Cannot read process output: $errno" }
+                return false
             }
+            output.write(bytes, 0, size)
         }
-
-        val output = pipe?.let(::readToEnd).orEmpty()
-        task.waitUntilExit()
-        val status = task.terminationStatus
-        val exitCode = if (task.terminationReason == NSTaskTerminationReasonUncaughtSignal) {
-            SIGNAL_EXIT_CODE_BASE + status
-        } else {
-            status
-        }
-
-        return ProcessResult(exitCode = exitCode, output = output)
-    }
-
-    /** Окружение родителя плюс переменные запроса: одноимённые перекрываются запросом. */
-    private fun mergedEnvironment(extra: Map<String, String>): Map<Any?, Any?> {
-        val environment: MutableMap<Any?, Any?> = NSProcessInfo.processInfo.environment.toMutableMap()
-        environment.putAll(extra)
-        environment.keys.filterIsInstance<String>()
-            .filter { it.startsWith("DSBUILDER_METRICA_", ignoreCase = true) }
-            .forEach { environment.remove(it) }
-
-        return environment
-    }
-
-    private fun readToEnd(pipe: NSPipe): String {
-        val data = pipe.fileHandleForReading.readDataToEndOfFile()
-        val length = data.length.toInt()
-        if (length == 0) return ""
-
-        return data.bytes?.readBytes(length)?.decodeToString().orEmpty()
+        return false
     }
 }

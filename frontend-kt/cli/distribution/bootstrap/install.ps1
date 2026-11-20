@@ -63,11 +63,13 @@ try {
     $entries = foreach ($platform in @('macos-arm64', 'macos-x64', 'windows-x64', 'jvm')) {
         '"' + $platform + '":\{"file":"dsbuilder-cli-' + $platform + '\.zip","sha256":"[0-9a-f]{64}"\}'
     }
-    $pattern += ($entries -join ',') + '\}\}$'
+    $node = '(,"node":\{"fileName":"dsbuilder-cli-node\.tgz","packageName":"@sddsjs/design-system-builder-cli","minNodeVersion":"[1-9][0-9]*","version":"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)","sha256":"[0-9a-f]{64}"\})?'
+    $pattern += ($entries -join ',') + '\}' + $node + '\}$'
     if ($manifestText -cnotmatch $pattern) { throw 'Invalid release manifest' }
     $manifest = $manifestText | ConvertFrom-Json
     if ($Version -and $Version -ne $manifest.version) { throw 'Release version mismatch' }
     $Version = $manifest.version
+    if ($manifest.PSObject.Properties['node'] -and $manifest.node.version -ne $Version) { throw 'Node release version mismatch' }
     $name = 'dsbuilder-cli-windows-x64.zip'
     $download = "$base/releases/download/cli-v$Version"
     $sumsFile = Join-Path $work 'SHA256SUMS'

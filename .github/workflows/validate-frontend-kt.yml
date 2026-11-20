@@ -75,6 +75,18 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Test native Windows CLI processes and cancellation
+        shell: bash
+        working-directory: frontend-kt
+        run: ./gradlew :cli:mingwX64Test :cli:packageWindowsX64Cli
+      - name: Test native CLI with real console Ctrl+C
+        shell: powershell
+        run: python frontend-kt/cli/distribution/tests/windows_console_smoke.py frontend-kt/cli/build/bin/mingwX64/releaseExecutable/dsbuilder.exe
       - name: Test local and network installers
         shell: powershell
         run: ./frontend-kt/cli/distribution/tests/install-windows.Tests.ps1
@@ -90,3 +102,31 @@ jobs:
           python-version: '3.12'
       - name: Test delivery with isolated MinIO
         run: python3 frontend-kt/cli/distribution/tests/run_s3_integration.py
+
+  cli-node:
+    name: CLI Node.js / npm package
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15, windows-2022]
+        node: ['22.20.0', '24']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Check JVM Windows process ownership
+        if: runner.os == 'Windows'
+        shell: bash
+        working-directory: frontend-kt
+        run: DSBUILDER_TEST_NODE="$(node -p 'process.execPath')" ./gradlew :cli:jvmIntegrationTest --tests '*JvmWindowsProcessRunnerTest'
+      - name: Check Node CLI and package
+        shell: bash
+        working-directory: frontend-kt
+        run: ./gradlew :runtime-node:jsNodeTest :cli:jsNodeTest :cli:npmPackCliNodeSmoke :cli:npmPublicationSmoke

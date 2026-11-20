@@ -9,6 +9,7 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import tarfile
 from urllib.parse import urlsplit
 import zipfile
 
@@ -107,6 +108,39 @@ def github_repository():
     return repository
 
 
+def node_descriptor():
+    descriptor = Path(__file__).with_name('node-package.json')
+    if not descriptor.exists():
+        return None
+    value = json.loads(descriptor.read_text())
+    if value != {'fileName': 'dsbuilder-cli-node.tgz', 'packageName': '@sddsjs/design-system-builder-cli', 'minNodeVersion': '22'}:
+        raise ValueError('Invalid Node distribution descriptor')
+    return value
+
+
+def validate_node_archive(data, release_version, descriptor):
+    with tarfile.open(fileobj=BytesIO(data), mode='r:gz') as archive:
+        names = set()
+        for entry in archive.getmembers():
+            parts = entry.name.split('/')
+            if (not entry.name.startswith('package/') or '..' in parts or
+                    any(part in ('.env', '.npmrc', '.sdds', 'node_modules') for part in parts) or
+                    not (entry.isfile() or entry.isdir()) or entry.size > 100_000_000 or entry.name in names):
+                raise ValueError('Unsafe npm archive entry')
+            names.add(entry.name)
+        required = {'package/package.json', 'package/bin/dsbuilder.js',
+                    'package/dist/kotlin/design-system-builder-frontend-cli.js', 'package/README.md', 'package/LICENSE'}
+        if not required <= names:
+            raise ValueError('Node CLI archive is incomplete')
+        manifest = json.load(archive.extractfile('package/package.json'))
+        if (manifest.get('name') != descriptor['packageName'] or manifest.get('version') != release_version or
+                manifest.get('engines') != {'node': '>=' + descriptor['minNodeVersion']} or
+                manifest.get('publishConfig', {}).get('access') != 'public' or manifest.get('private') is True or
+                manifest.get('bin') != {'dsbuilder': 'bin/dsbuilder.js'}):
+            raise ValueError('Node package metadata does not match the release')
+    return dict(descriptor, version=release_version, sha256=digest(data))
+
+
 def prepare(directory, release_version, bootstrap):
     version(release_version)
     artifacts = {}
@@ -121,9 +155,13 @@ def prepare(directory, release_version, bootstrap):
         sha = digest(path.read_bytes())
         artifacts[target] = {'file': name, 'sha256': sha}
         checksums.append(f'{sha}  {name}\n')
-    (directory / 'release.json').write_bytes(json_bytes({
-        'schemaVersion': 1, 'version': release_version, 'iosCliReleaseTag': ios_tag, 'artifacts': artifacts,
-    }))
+    manifest = {'schemaVersion': 1, 'version': release_version, 'iosCliReleaseTag': ios_tag, 'artifacts': artifacts}
+    descriptor = node_descriptor()
+    if descriptor:
+        name = descriptor['fileName']
+        manifest['node'] = validate_node_archive((directory / name).read_bytes(), release_version, descriptor)
+        checksums.append(f"{manifest['node']['sha256']}  {name}\n")
+    (directory / 'release.json').write_bytes(json_bytes(manifest))
     (directory / 'SHA256SUMS').write_text(''.join(checksums))
     for name, data in rendered_installers(bootstrap).items():
         (directory / name).write_bytes(data)
@@ -211,6 +249,7 @@ class S3Store:
 def release_files(directory):
     return {name: (directory / name).read_bytes() for name in [
         *(f'dsbuilder-cli-{target}.zip' for target in TARGETS), 'SHA256SUMS', 'release.json', *INSTALLERS,
+        *([node_descriptor()['fileName']] if node_descriptor() else []),
     ]}
 
 
@@ -246,6 +285,16 @@ def verified_remote_release(store, release_version, require_installers=True):
             if archived_tag != ios_tag:
                 raise ValueError('Release iOS CLI tag does not match the archive')
         checksums.append(f'{sha}  {name}\n')
+    descriptor = node_descriptor()
+    if descriptor:
+        name = descriptor['fileName']
+        data = store.get(name)
+        if data is None:
+            raise ValueError('Node CLI archive is missing')
+        metadata = validate_node_archive(data, release_version, descriptor)
+        if manifest.get('node') != metadata:
+            raise ValueError('Node CLI metadata or checksum mismatch')
+        checksums.append(f"{metadata['sha256']}  {name}\n")
     if store.get(prefix + 'SHA256SUMS') != ''.join(checksums).encode():
         raise ValueError('Release SHA256SUMS mismatch')
     if require_installers:
@@ -378,6 +427,9 @@ def main():
     elif args.operation == 'prepare':
         prepare(args.directory, release_version, Path(__file__).parent / 'bootstrap')
     elif args.operation == 'validate':
+        descriptor = node_descriptor()
+        if descriptor:
+            validate_node_archive((args.directory / descriptor['fileName']).read_bytes(), tag_version(args.tag), descriptor)
         for target in TARGETS:
             validate_archive(args.directory / f'dsbuilder-cli-{target}.zip', target)
     elif args.operation == 'upload-installers':
