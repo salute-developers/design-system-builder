@@ -1,48 +1,37 @@
 # Карта операций чтения backend
 
-## Основание и ограничения карты
+## Исходный снимок и согласованные дополнения
 
-Карта составлена по текущему checkout `feature/public-ds` до реализации. Источники: [OpenAPI](../../../backend-kt/ds-service/runtime/src/main/resources/openapi/documentation.yaml), [манифест](../../../backend-kt/ds-service/contracts/route-manifest.json), зарегистрированные Ktor-маршруты и прикладные сценарии. Адреса ниже приведены относительно `/api/design-systems`; публичный префикс — `/api/projects/{projectId}/design-systems`. Сопоставление статическое: оно определяет план реализации, а не доказывает безопасность ещё не написанного публичного режима.
+Исходные 91 пара метод/путь взяты из [OpenAPI](../../../backend-kt/ds-service/runtime/src/main/resources/openapi/documentation.yaml) checkout `69d54e3c`; [манифест](../../../backend-kt/ds-service/contracts/route-manifest.json) и прикладные вызовы сверены статически. Это снимок исследования, а не обещание неизменности актуального dev. В приложение отдельно включены GET иконок из `origin/dev` (`1130166a`) и пять планируемых системных чтений. При реализации карта и контракт сверяются с фактической базой; код в этом Change не меняется.
 
-В OpenAPI найден 91 маршрут чтения: GET и два POST (`export`, `web-adapter`). Все прочие методы по умолчанию закрыты. Чтение с названием «предварительная проверка» не становится публичным. Диагностика `/health`, `/ready`, OpenAPI и административные входы не относятся к данным ДС и сохраняют прежний контракт.
+Адреса таблиц приведены после `/api/design-systems`; публичный префикс — `/api/projects/{projectId}/design-systems`. «Граница ДС» — общий транзакционный доступ к выбранной системе и публикации либо живому черновику участника. «Закрыто» сохраняет проектную авторизацию. «Общий ресурс» — только явно согласованные preview/иконки, без нового типа `environment` и без выбора ДС.
 
-Статический поиск в `feature-*/application` обнаружил 54 файла с 58 вызовами `transactions.readOnly`; 18 из этих файлов содержат `ModelReadTarget`. Ещё 42 сценария компонентов используют `modelList` (17), `modelFind` (18), `modelFindList` (7). Эти группы пересекаются через помощники и включают закрытые операции; это не сумма будущих изменений и не число публичных маршрутов.
+## Общие точки подготовки чтения
 
-## Основные цепочки и необходимые изменения
+Статический поиск исходной базы: 54 прикладных файла содержат 58 вызовов readOnly; 18 файлов используют ModelReadTarget. 42 компонентных сценария вызывают три общих помощника modelList/modelFind/modelFindList. Эти пересекающиеся числа не являются оценкой количества правок.
 
-| Группа | Существующая цепочка | Централизованное изменение | Локальные исключения |
-|---|---|---|---|
-| Карточка, списки токенов/компонентов/тем, стили | `DsAccessPolicy` → `readOnly(context, target)` → `ExposedModelReadSelectionResolver` | Единый подготовленный контекст чтения в `core`; разрешение публичности и последней публикации | Проверить DTO, счётчики и preview; в репозитории карточки они уже учитывают `ds.version_id`, `draftId` уже отсутствует у опубликованной строки |
-| Токен, его значения, палитра темы, группы, оси, разрешённые свойства и ссылки | Тот же путь с `TOKEN/TENANT/APPEARANCE/DESIGN_SYSTEM` | Сохранить проверку ресурса относительно пути; не повторять выбор публикации после подготовки | Палитра может читать служебные редакции: наружу выдавать только редакции выбранной границы |
-| Простые темы/значения, обычные компонентные чтения | `DsAccessPolicy` → `readOnly(context)` | Подготовить опубликованную границу либо режим живого draft перед блоком и выставить SQL-контекст | Типография и размеры читают `context.versionId` для `canEdit`; им нужен подготовленный контекст, не только SQL-настройка. `ListTenantPaletteLinksUseCase` должен сохранить `readContext` делегированного чтения |
-| Списки/детали компонентной модели | `ComponentModelUseCaseSupport` → один из трёх помощников → `readOnly(context)` | Перевести помощники на общий подготовленный контекст; сохранить вызовы предметных сценариев | Общий помощник `policy.read` используется и записью: имя не является доказательством права на публичное чтение |
-| Экспорт, web-адаптер, пакет компонента | Проверка права → `readOnly(context)` → несколько SQL-чтений | Разрешить одну версию в общем транзакционном входе; все внутренние чтения используют её | Контрактные тесты builders/ownership; не добавлять `if(public)` в каждый сборщик |
-| Список публикаций | `readOnly(context, VERSION_HISTORY)` | Проверить публичность, но не ограничивать список единственным `versionId` | Пагинация/фильтр версии сохраняются; нет фиктивного «последнего» контекста у истории |
-| Публикация по ID пути | `readOnly(context)` → publishedRows | Операция имеет отдельный вид: ID пути становится выбранной границей (параметр `id`, не query `versionId`) | Проверить совпадение с селекторами query; противоречие — 400, чужой/неизвестный ID — 404 |
-| Глобальные определения | `readOnly(context)` и глобальные репозитории без системного фильтра | Только с явной публичной ДС и её публикацией; общий адаптер вычисляет используемые ID | Фильтр до пагинации. ExposedComponentTemplateRepository обходит ComponentOwnership: нужен отдельный фильтр шаблонов и dependsOn |
-| Каталоги, журнал, SSE, предварительная проверка перестроения палитры, глобальное влияние состояния, плагины | Разные права и транзакции | Публичный вход отказывает по описателю операции | Предметные сценарии сохраняют проектное поведение |
+| Группа | Централизованная точка | Исключение/проверка |
+|---|---|---|
+| Карточка, темы, токены, конфигурации | Оба контекстных readOnly → DsReadScopeResolver | Публичность/проект раньше запрета draft; выбор публикации в той же транзакции |
+| Чтение с ModelReadTarget | Та же подготовка + проверка принадлежности ресурса пути | Не выбирать последнюю публикацию повторно |
+| Простые компонентные чтения | Три помощника ComponentModelUseCaseSupport | policy.read используется также записью, поэтому не заменяет описание операции |
+| Размеры/типографика/палитра | Подготовленный контекст и ds.version_id | canEdit=false у публикации; ListTenantPaletteLinksUseCase сохраняет readContext |
+| Экспорт/web-адаптер/editor-bundle | Одна граница через существующие сборщики | Первая разрешённая операция возвращает версию без обязательной карточки и лишнего scope PAT |
+| История и деталь версии | history либо version-by-id | Истории не приписывать одну версию; ID пути детали не подменяется query |
+| Необходимые определения | Системные properties/deps/editor-bundle и пять дополнений ниже | SQL-отбор только по выбранной границе; общий catalog закрыт, в том числе шаблоны/dependsOn |
+| Preview и иконки | Явный перечень трёх GET в общем входе и обработчиках | Без членства и ДС, сохранить кеш/ETag/304; загрузка и публикация защищены |
 
-### Где уже есть версия и где её нет
+SelectedVersionBoundary уже использует ds.version_id; большинство репозиториев сохраняются. Отсутствие селектора и явный draft разделяются общим парсером. Проектный GET component-config сохраняет устаревший version как неисторическую подсказку; в публичном режиме version является обычным селектором. Простой readOnly добавляет фактические метаданные, которые нельзя терять в делегирующих сценариях. Черновик продолжается через draft, не versionId=draftId.
 
-[SelectedVersionBoundary](../../../backend-kt/ds-service/core/src/main/kotlin/com/dsbuilder/ds/core/data/SelectedVersionBoundary.kt) использует локальный `ds.version_id`. Поэтому большинство версионированных репозиториев можно сохранить после подготовки одной границы. Общий `ComponentOwnership` ограничивает системные строки, однако его `readableDs` / `projectReadableDs` выбирают ДС всего проекта. Для публичного режима эти подзапросы и выбор используемых определений должны ограничиваться только выбранной ДС и публикацией; проектный и записывающий пути сохраняются. Это изменение общих предикатов в `feature-components/data`, а не публичные условия в каждом сценарии.
+Общий ComponentOwnership применяется только к системным связям и новым адресным проекциям. ExposedComponentTemplateRepository.list читает весь набор web-компонентов, но адаптировать его для гостя больше не требуется: каталог шаблонов полностью закрыт. Параметр query designSystemId не открывает ни один общий каталог и не заменяет ID из pathParameters.
 
-Но текущий `readOnly(context)` сам номер версии не разрешает и не добавляет `readContext` в результат. Его обновление должно покрыть оба эффекта, а не только разрешить гостя.
+ProjectPrincipal, роли/scopes и PolicyEvaluator в authorization-core остаются прежними; DsAccessPolicy получает DS-контекст. Для членства достаточно ProjectContextResolution.Allowed/Denied/Unavailable. JwtVerifier отдельно различает недоступность JWKS и неверный токен внутри identity-gateway. Записывающие транзакции не принимают публичный контекст.
 
-Текущий `ModelReadSelection.parse` объединяет отсутствие версии и явный `draft`; их необходимо разделить. `modelReadContext` вызывается не во всех маршрутах: например, token-values и component-config используют `TrustedDsRequestContextMapper` с одним `versionId`. Поэтому общий вход чтения разбирает селекторы для всех описанных операций до старых обработчиков и передаёт нормализованные метаданные через единый источник DS-контекста. Только изменение helper `modelReadContext` оставило бы часть маршрутов без поддержки точного номера версии. `configure` транзакционного адаптера должен явно устанавливать или очищать все значения контекста при каждом входе/повторе. `required`, `rollback` и неконтекстный `readOnly` не должны принимать публичный контекст; глобальные служебные операции не получают публичность автоматически.
+## Исходные операции
 
-### Общая авторизация
+Исходный снимок: закрыто: 24, граница ДС: 63, история: 1, публикация по ID: 1, общий ресурс: 2.
 
-`ProjectPrincipal`, `TrustedProjectPrincipalFactory`, роли, области разрешений и `PolicyEvaluator` в `authorization-core` остаются прежними. Новый тип контекста доступа принадлежит `ds-service/core` и оборачивает проектный principal либо представляет кандидата на публичное чтение. В `DsAccessPolicy` делегирование общей RBAC выполняется только для настоящего проектного principal. Проверка публичного кандидата перед транзакцией лишь допускает разрешённую операцию и её разрешение; окончательный доступ возникает в транзакции.
-
-В identity-gateway уже существуют `ProjectContextResolution.Allowed/Denied/Unavailable`. Их достаточно для решения о членстве: модель и БД `projects-service` не расширяются публичностью. Потребуется узкий прикладной сценарий шлюза, отличающий подтверждённого пользователя вне проекта от неверных credentials, недостаточных scopes PAT и недоступной проверки. Нельзя интерпретировать любой текущий `GatewayAuthDecision.Forbidden` как отсутствие членства: сейчас в `AuthorizeProjectRequestUseCase.authorizeActor` в него также превращается `Unavailable`.
-
-## Полный перечень
-
-Вид операции — планируемая семантика централизованной политики. «Граница ДС» означает публикацию в публичном режиме и существующий выбор версии в проектном; «связанные определения» требует явного контекста и фильтра используемых определений. «Закрыто» означает сохранение проектных ограничений независимо от публичности ДС.
-
-Итого: закрыто: 8; граница ДС: 63; история: 1; публикация по ID: 1; связанные определения: 18.
-
-| Метод | Остаток пути | Вид операции | Текущий вход чтения |
+| Метод | Остаток пути | Доступ | Текущая точка чтения |
 |---|---|---|---|
 | GET | `/` | закрыто | ListDesignSystemsUseCase → readOnly(context) |
 | GET | `/{designSystemId}` | граница ДС | GetDesignSystemUseCase → DESIGN_SYSTEM |
@@ -68,23 +57,23 @@
 | GET | `/{designSystemId}/tokens/{id}/values` | граница ДС | GetTokenValuesUseCase → TOKEN |
 | GET | `/{designSystemId}/token-values` | граница ДС | feature-tokens → readOnly(context) |
 | GET | `/{designSystemId}/token-values/{id}` | граница ДС | feature-tokens → readOnly(context) |
-| GET | `/catalog/palette` | связанные определения | feature-tokens → readOnly(context); глобальный репозиторий |
-| GET | `/catalog/palette/{id}` | связанные определения | feature-tokens → readOnly(context); глобальный репозиторий |
-| GET | `/catalog/palette/by-type/{type}` | связанные определения | feature-tokens → readOnly(context); глобальный репозиторий |
-| GET | `/catalog/compose-preview/plugin` | закрыто | GetActivePluginBuildUseCase → readOnly без контекста |
-| GET | `/catalog/web-preview/plugin` | закрыто | GetActivePluginBuildUseCase → readOnly без контекста |
-| GET | `/catalog/components` | связанные определения | feature-components → readOnly(context); глобальная мета |
-| GET | `/catalog/components/{id}` | связанные определения | feature-components → readOnly(context); глобальная мета |
+| GET | `/catalog/palette` | закрыто | feature-tokens → readOnly(context); глобальный репозиторий |
+| GET | `/catalog/palette/{id}` | закрыто | feature-tokens → readOnly(context); глобальный репозиторий |
+| GET | `/catalog/palette/by-type/{type}` | закрыто | feature-tokens → readOnly(context); глобальный репозиторий |
+| GET | `/catalog/compose-preview/plugin` | общий ресурс | GetActivePluginBuildUseCase; открыть чтение, сохранить прежнее кеширование |
+| GET | `/catalog/web-preview/plugin` | общий ресурс | GetActivePluginBuildUseCase; открыть чтение, сохранить прежнее кеширование |
+| GET | `/catalog/components` | закрыто | feature-components → readOnly(context); глобальная мета |
+| GET | `/catalog/components/{id}` | закрыто | feature-components → readOnly(context); глобальная мета |
 | GET | `/{designSystemId}/components/{id}/variations` | граница ДС | ListComponentVariationsUseCase → readOnly(context) |
-| GET | `/catalog/components/{id}/properties` | связанные определения | feature-components → readOnly(context); глобальная мета |
+| GET | `/catalog/components/{id}/properties` | закрыто | feature-components → readOnly(context); глобальная мета |
 | GET | `/{designSystemId}/components/{id}/properties` | граница ДС | GetComponentPropertiesWithPlatformParamsUseCase → DESIGN_SYSTEM |
-| GET | `/catalog/components/{id}/deps` | связанные определения | feature-components → readOnly(context); глобальная мета |
+| GET | `/catalog/components/{id}/deps` | закрыто | feature-components → readOnly(context); глобальная мета |
 | GET | `/{designSystemId}/components/{id}/deps` | граница ДС | GetComponentDependenciesWithReuseConfigUseCase → DESIGN_SYSTEM |
 | GET | `/{designSystemId}/design-system-components` | граница ДС | feature-components → readOnly(context) |
-| GET | `/catalog/component-templates` | связанные определения | modelList → ExposedComponentTemplateRepository.list; прямое чтение всех web-компонентов, обход ComponentOwnership |
+| GET | `/catalog/component-templates` | закрыто | modelList → ExposedComponentTemplateRepository.list; проектный каталог целиком закрыт гостю |
 | GET | `/{designSystemId}/design-system-components/{id}` | граница ДС | feature-components → readOnly(context) |
-| GET | `/catalog/component-deps` | связанные определения | feature-components → readOnly(context); глобальные зависимости |
-| GET | `/catalog/component-deps/{id}` | связанные определения | feature-components → readOnly(context); глобальные зависимости |
+| GET | `/catalog/component-deps` | закрыто | feature-components → readOnly(context); глобальные зависимости |
+| GET | `/catalog/component-deps/{id}` | закрыто | feature-components → readOnly(context); глобальные зависимости |
 | GET | `/{designSystemId}/component-reuse-configs` | граница ДС | feature-components → readOnly(context) |
 | GET | `/{designSystemId}/component-reuse-configs/{id}` | граница ДС | feature-components → readOnly(context) |
 | GET | `/{designSystemId}/component-reuse-configs/by-dep/{componentDepId}` | граница ДС | feature-components → readOnly(context) |
@@ -92,10 +81,10 @@
 | GET | `/{designSystemId}/variations/{id}` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/variations/{id}/styles` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/variations/{id}/properties` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/properties` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/properties/{id}` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/property-platform-params` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/property-platform-params/{id}` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/properties` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/properties/{id}` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/property-platform-params` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/property-platform-params/{id}` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/property-variations` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/property-variations/{id}` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/variation-platform-param-adjustments` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
@@ -121,11 +110,11 @@
 | GET | `/{designSystemId}/invariant-property-values` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/invariant-property-values/{id}` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/invariant-property-values/by-component/{componentId}` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/states` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/states/{id}` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/states` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/states/{id}` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/catalog/states/{id}/impact` | закрыто | modelFind; глобальные последствия |
-| GET | `/catalog/state-sets` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
-| GET | `/catalog/state-sets/{id}` | связанные определения | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/state-sets` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
+| GET | `/catalog/state-sets/{id}` | закрыто | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/style-combinations` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/style-combinations/{id}` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
 | GET | `/{designSystemId}/style-combinations/{id}/members` | граница ДС | ComponentModelUseCaseSupport → modelList/modelFind/modelFindList |
@@ -136,17 +125,27 @@
 | POST | `/{designSystemId}/component-config/web-adapter` | граница ДС | feature-components → readOnly(context); сборка нескольких чтений |
 | GET | `/{designSystemId}/events` | закрыто | Журнал / SSE; отдельные сценарии |
 
-## Проверка покрытия при реализации
+## Дополнение к исходному снимку
 
-OpenAPI является единственным источником перечня публичных операций через новое расширение `x-ds-public-read` со значениями `boundary`, `history`, `version-by-id`, `related-definitions`; отсутствие расширения означает отказ. При загрузке контракта должны проверяться допустимый HTTP-метод, ожидаемый шаблон пути, наличие явной системы и совместимость вида операции с параметрами. Шлюз и предметный вход получают один неизменяемый каталог через DI, без независимых списков URL.
+| Метод | Остаток пути | Источник | Доступ/контракт |
+|---|---|---|---|
+| GET | `/catalog/icons` | Добавлен в dev после исходного снимка | Без входа; прежний DTO каталога иконок, ETag/If-None-Match/304 |
+| GET | `/{designSystemId}/components/{componentId}` | Из #167 | ComponentResponse только связанного компонента, метаданные границы |
+| GET | `/{designSystemId}/component-deps` | Из #167 | Массив зависимостей только компонентов выбранной границы |
+| GET | `/{designSystemId}/states` | Из #167 | Используемые состояния в прежнем формате массива |
+| GET | `/{designSystemId}/state-sets` | Новая системная проекция | Используемые наборы без недоступных вложенных ID |
+| GET | `/{designSystemId}/palette` | Новая системная проекция | Необходимые PaletteItem[] для CLI/просмотра |
 
-Контрактный тест сравнивает зарегистрированные маршруты, OpenAPI, манифест и каталог политики. Для каждой разрешённой операции нужен положительный запрос на опубликованную границу и отрицательные проверки чужого ресурса/проекта, приватности и черновика. Для каждой закрытой операции — отказ публичному контексту. Такая проверка нужна и для GET с тем же permission, что у разрешённого чтения: `design-systems:read` одновременно встречается у карточки, журнала и SSE.
+Системный список компонентов дополнительно отдаёт platform; остальные прежние поля сохраняются. Системные properties/deps/editor-bundle переиспользуются для свойств и параметров. Catalog/property-platform-params, states, component-deps, palette и другие общие каталоги не становятся публичными даже при query с ID публичной ДС.
 
-Отдельные тесты доказывают применение подготовленного контекста к обоим вариантам `readOnly`, вызовам трёх помощников, истории без выбранной единственной версии и SQL-фильтру связанных определений до пагинации. Прикладные вызовы без HTTP не должны иметь возможность создать доверенный описатель из произвольной строки; они получают его от прикладного каталога/внутреннего сценария и проходят ту же транзакционную проверку.
+## Проверка покрытия
 
-## Уточнения по результатам независимого ревью
+OpenAPI описывает boundary/history/version-by-id для содержимого ДС. Preview/иконки входят в один явный перечень исключений шлюза/предметного входа без нового вида environment и без no-store. Контрактные проверки сравнивают регистрацию, YAML, манифест, исходную карту и дополнения на фактической базе реализации. Неизвестные операции и все прочие методы закрыты по умолчанию.
 
-- Версия закрепляется по первому разрешённому предметному ответу, а не обязательной карточке: экспорту достаточно `components:read`. Для черновика продолжается `version=draft`; `draftId` не является `versionId` и не фиксирует неизменный снимок.
-- Для проектного GET component-config прежний `version` остаётся неисторической подсказкой и допускается вместе с `versionId`. Для публичного чтения действуют обычные селекторы публикации. Поле перестаёт быть обязательным, в том числе при передаче одного `versionId`; остальные параметры маршрута сохраняются.
-- Уточнение фильтра `ComponentOwnership` не ограничит `ExposedComponentTemplateRepository.list`: его прямое чтение и вложенные `dependsOn` адаптируются отдельно и проверяются на компонентах других ДС и только черновых компонентах.
-- Существующих результатов ProjectContextResolver достаточно для членства, но не для JWKS: JwtVerifier получает отдельную недоступность; ошибка получения нужного ключа без кеша даёт 503, а достоверно неверный токен — 401. Общая RBAC при этом остаётся прежней.
+Для каждого системного чтения проверяются публикация, отсутствие данных соседней ДС/черновика, приватность и неподменяемость пути query. Обязательны приватная+draft→404 и публичная+draft→403. Для catalog — отказ, кроме трёх исключений; для icons — 200/304, для preview — прежний контракт отсутствующего ресурса. Клиентские проверки подтверждают нейтральное предложение входа при анонимном 404, отсутствие закрытых catalog-запросов и успешный гостевой просмотр preview/иконок. Изменения лимитера, аудит доступности и новые события не входят в проверки Change.
+
+## Интеграция маршрутов #167
+
+Исходная таблица остаётся снимком прежней базы. До реализации она сверяется с интегрированным `version-core-entities-and-preview`: системные detail/component-deps/states, properties и property-platform-params переиспользуются и классифицируются как boundary; системное разрешение preview по ДС/версии/платформе также получает boundary. Точный шаблон и operationId берутся из OpenAPI #167, без создания второго маршрута. Для states сохраняются различия глобальных interaction states и компонентных состояний Core из #167; публичная проекция не раскрывает несвязанные данные.
+
+Compatibility-диагностика, управление выбором Core и ремонт не получают публичного разрешения по факту появления в #167. Общие catalog остаются закрытыми независимо от query. Все релизные метаданные используют Core выбранной границы; preview использует закреплённую сборку без fallback на общий дескриптор. Для системного публичного дескриптора действует no-store; для общих ресурсов сохраняется кеширование.
