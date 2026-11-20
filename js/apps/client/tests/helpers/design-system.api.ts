@@ -1,6 +1,7 @@
 import { expect } from '@playwright/test';
 import { authenticatedRequest } from './authentication.ts';
 import type { Session } from './authentication.ts';
+import { systemPreparationTimeoutMs } from '../config/timeouts.ts';
 import { requireOwnerProject } from './project.ts';
 
 export type DesignSystem = Readonly<{
@@ -43,7 +44,7 @@ export class DesignSystemApi {
 
     url(suffix = ''): string {
         return new URL(
-            `api/projects/${encodeURIComponent(this.projectId)}/ds/design-systems${suffix}`,
+            `api/projects/${encodeURIComponent(this.projectId)}/design-systems${suffix}`,
             this.gatewayBaseURL,
         ).href;
     }
@@ -53,11 +54,16 @@ export class DesignSystemApi {
     /** Возвращает исходный DTO: fixture регистрирует ID до полной проверки ответа. */
     async create(name: string): Promise<unknown> {
         const project = await this.requireOwner();
-        const response = await authenticatedRequest(this.session, this.url(), 'POST', [201], {
-            name,
-            projectName: project.name,
-            projectId: this.projectId,
-        });
+        const response = await authenticatedRequest(
+            this.session,
+            this.url(),
+            'POST',
+            [201],
+            { name, projectName: project.name, projectId: this.projectId },
+            undefined,
+            undefined,
+            systemPreparationTimeoutMs,
+        );
         return response.json();
     }
     async list(): Promise<DesignSystem[]> {

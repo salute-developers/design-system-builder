@@ -89,6 +89,9 @@ jobs:
           cache-dependency-path: js/apps/client/package-lock.json
       - run: npm ci --no-progress
         working-directory: js/apps/client
+      - name: Check E2E types and discovery
+        run: npm run test:e2e:check
+        working-directory: js/apps/client
       # Схема и общие фикстуры Preview Protocol читаются из backend-kt/preview/contract.
       - run: npm test
         working-directory: js/apps/client

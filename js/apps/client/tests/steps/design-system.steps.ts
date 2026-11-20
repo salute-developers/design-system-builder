@@ -1,3 +1,5 @@
+import { systemCreationResponseTimeoutMs, systemCreationSettlementTimeoutMs } from '../config/timeouts.ts';
+import { within } from '../helpers/pending-mutation.ts';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 import { designSystem } from '../helpers/design-system.api.ts';
@@ -25,7 +27,7 @@ export class DesignSystemSteps {
             const observed = this.page
                 .waitForResponse(
                     (response) => response.url() === this.api.url() && response.request().method() === 'POST',
-                    { timeout: 15000 },
+                    { timeout: systemCreationSettlementTimeoutMs },
                 )
                 .then(async (response) => {
                     expect(response.status(), 'Создание системы должно вернуть HTTP 201').toBe(201);
@@ -35,9 +37,13 @@ export class DesignSystemSteps {
                     expect(system.isTechnical, 'UI должен создать обычную систему').toBe(false);
                     return system;
                 });
+            this.data.observeCreation(observed);
             this.data.creationAttempted();
-            // Оба Promise завершаются до teardown, даже если нажатие и ответ расходятся по времени.
-            const [creation, action] = await Promise.allSettled([observed, this.systems.createButton.click()]);
+            // Ошибка лимита UI не отменяет observer: fixture отдельно подтвердит поздний результат.
+            const [creation, action] = await Promise.allSettled([
+                within(observed, systemCreationResponseTimeoutMs, 'UI-создание ДС превысило лимит 30 секунд.'),
+                this.systems.createButton.click(),
+            ]);
             if (creation.status === 'rejected') {
                 if (action.status === 'rejected')
                     throw new AggregateError(

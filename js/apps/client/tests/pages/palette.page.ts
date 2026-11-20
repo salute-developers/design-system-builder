@@ -1,3 +1,4 @@
+import { sectionReadyTimeoutMs } from '../config/timeouts.ts';
 import type { Locator, Page } from '@playwright/test';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
 import type { PaletteSlot } from '../helpers/palette.api.ts';
@@ -50,17 +51,39 @@ export class PalettePage {
             .filter({ has: this.page.getByRole('button', { name: label, exact: true }) });
     }
 
+    rampRow(groupLabel: string, familyLabel: string): Locator {
+        return this.treeGroup(groupLabel)
+            .locator('.tw-tree-row')
+            .filter({ has: this.page.getByText(familyLabel, { exact: true }) });
+    }
+
+    rampCard(groupLabel: string, name: string, meta: string): Locator {
+        return this.page
+            .getByRole('button', { name: 'Редактировать палитру ' + name + ' в группе ' + groupLabel, exact: true })
+            .filter({ has: this.page.getByText(meta, { exact: true }) });
+    }
+
+    async removeRamp(groupLabel: string, name: string, familyLabel: string): Promise<void> {
+        const row = this.rampRow(groupLabel, familyLabel);
+        await row.hover();
+        await row.getByRole('button', { name: 'Убрать ' + name + ' из группы ' + groupLabel, exact: true }).click();
+    }
+
+    async waitForReady(): Promise<void> {
+        await this.readiness.waitFor('Палитра: готовность данных', this.colorMode, { timeout: sectionReadyTimeoutMs });
+    }
+
     async open(): Promise<void> {
         await this.readiness.run('Открытие палитры', async () => {
             await this.page.goto(this.url);
-            await this.colorMode.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 
     async reload(): Promise<void> {
         await this.readiness.run('Повторная загрузка палитры', async () => {
             await this.page.reload();
-            await this.colorMode.waitFor({ state: 'visible' });
+            await this.waitForReady();
         });
     }
 

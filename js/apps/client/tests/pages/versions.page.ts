@@ -1,4 +1,6 @@
+import { sectionReadyTimeoutMs } from '../config/timeouts.ts';
 import type { PageReadiness } from '../helpers/page-readiness.ts';
+import { expect } from '@playwright/test';
 import type { Locator, Page } from '@playwright/test';
 
 /** История публикаций выбирается независимо от версии редактора. */
@@ -44,14 +46,36 @@ export class VersionsPage {
         this.editorVersionButton = page.getByRole('button', { name: 'Версия редактора', exact: true });
         this.editorDraftOption = page.getByRole('option', { name: 'Черновик', exact: true });
         this.editorSettingsButton = page.getByRole('button', { name: 'Настройки темы', exact: true });
-        this.editorReady = page.getByRole('main').getByText('Text & Icons', { exact: true });
+        this.editorReady = page.getByRole('button', { name: 'Порядок токенов', exact: true });
+    }
+
+    async waitForContent(): Promise<void> {
+        await this.readiness.run('Состав версии: готовность данных', async () => {
+            await this.readiness.waitFor('Появление состава версии', this.content, { timeout: sectionReadyTimeoutMs });
+            await this.readiness.waitFor(
+                'Загрузка состава версии',
+                this.content.getByRole('status').filter({ hasText: 'Загрузка состава…' }),
+                { timeout: sectionReadyTimeoutMs, state: 'hidden' },
+            );
+            await expect(this.content.getByRole('alert'), 'Состав версии загрузился без ошибки').toHaveCount(0);
+        });
+    }
+
+    async waitForEditor(): Promise<void> {
+        await this.readiness.waitFor('Готовность цветового редактора', this.editorReady, {
+            timeout: sectionReadyTimeoutMs,
+        });
+        await expect(this.page.getByRole('alert'), 'Редактор загрузился без ошибки').toHaveCount(0);
     }
 
     async open(): Promise<void> {
         await this.readiness.run('Открытие списка версий', async () => {
             await this.page.goto(this.editorURL);
             await this.navigationButton.click();
-            await this.draftButton.waitFor({ state: 'visible' });
+            await this.readiness.waitFor('Появление списка версий', this.draftButton, {
+                timeout: sectionReadyTimeoutMs,
+            });
+            await this.waitForContent();
         });
     }
 

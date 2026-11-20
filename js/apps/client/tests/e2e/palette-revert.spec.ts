@@ -84,8 +84,14 @@ test(
             }
             const changes = await versionsApi.changes();
             expect(changes).toHaveLength(1);
-            expect(changes[0]).toMatchObject({ entityType: 'palette-step', changeId: expect.any(String) });
-            const endpoint = new URL(versionsApi.revertURL((changes[0] as { changeId: string }).changeId));
+            expect(changes[0]).toMatchObject({
+                entityType: 'palette-step',
+                changeId: expect.any(String),
+                entityId: expect.stringMatching(/\S/u),
+                editRevision: expect.any(Number),
+            });
+            const change = changes[0] as { entityId: string; editRevision: number };
+            const endpoint = new URL(versionsApi.addressedRevertURL());
             const started = performance.now();
             const response = await pendingMutation.run(
                 (response) => {
@@ -101,6 +107,12 @@ test(
                 10_000,
             );
             expect(response.status()).toBe(200);
+            expect(response.request().postDataJSON(), 'Адресный откат ровно проверенной ступени').toEqual({
+                draftId: expect.stringMatching(/\S/u),
+                targets: [
+                    { entityType: 'palette-step', entityId: change.entityId, expectedRevision: change.editRevision },
+                ],
+            });
             await expect(journal.emptyHeading).toBeVisible({
                 timeout: Math.max(1, 10_000 - (performance.now() - started)),
             });

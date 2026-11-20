@@ -18,6 +18,19 @@ export class ColorTokenSteps {
         return this.save(valuesURL, () => this.editor.confirmLight(), hex.replace('#', ''));
     }
 
+    /** Прямой ввод Light и Enter, как в сценарии Editor; наблюдение начинается до изменения поля. */
+    saveLightInline(hex: string, valuesURL: string): Promise<Response> {
+        const expected = hex.replace('#', '');
+        return this.save(
+            valuesURL,
+            async () => {
+                await this.editor.light.fill(expected);
+                await this.editor.light.press('Enter');
+            },
+            expected,
+        );
+    }
+
     async selectLibraryStep(name: string, step: number, hex: string, valuesURL: string): Promise<Response> {
         return this.save(
             valuesURL,

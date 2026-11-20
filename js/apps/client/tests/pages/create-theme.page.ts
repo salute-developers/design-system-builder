@@ -34,13 +34,17 @@ export class CreateThemePage {
     async open(systemURL: string): Promise<void> {
         await this.readiness.run('Каталог тем и форма создания', async () => {
             await this.page.goto(systemURL, { timeout: 30_000 });
-            await this.page
-                .getByRole('main')
-                .locator('header')
-                .getByRole('link', { name: 'Создать тему', exact: true })
-                .click();
-            await this.nameInput.waitFor({ state: 'visible' });
+            await this.openFromCatalog();
         });
+    }
+
+    async openFromCatalog(): Promise<void> {
+        await this.page
+            .getByRole('main')
+            .locator('header')
+            .getByRole('link', { name: 'Создать тему', exact: true })
+            .click();
+        await this.nameInput.waitFor({ state: 'visible' });
     }
 
     async fillPalette(palette: CustomPalette): Promise<void> {

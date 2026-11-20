@@ -20,6 +20,7 @@ test(
         const shadowPreview = sizes.shadowPreview('down.hard.m');
         const selectStep = async () => {
             await palette.navigationButton.click();
+            await palette.waitForReady();
             await palette.colorMode.click();
             await step.click();
         };
@@ -29,6 +30,7 @@ test(
         };
         const selectShadow = async () => {
             await sizes.navigationButton.click();
+            await sizes.waitForReady();
             await sizes.select('shadow', shadowId);
         };
 
@@ -107,6 +109,7 @@ test(
 
             await test.step('Журнал и история показывают границу публикации без изменения данных', async () => {
                 await journal.navigationButton.click();
+                await journal.waitForReady();
                 await expect(page).toHaveURL(versionPath);
                 await journal.list
                     .getByRole('button', {
@@ -128,6 +131,7 @@ test(
 
                 await versions.navigationButton.click();
                 await versions.version(version.version).click();
+                await versions.waitForContent();
                 await expect(page).toHaveURL(
                     (url) => versionPath(url) && url.searchParams.get('historyVersionId') === version.id,
                 );

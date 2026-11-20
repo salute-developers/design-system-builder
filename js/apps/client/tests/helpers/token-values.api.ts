@@ -9,6 +9,8 @@ export type TokenValue = Readonly<{
     platform: 'web' | 'ios' | 'android';
     mode: 'light' | 'dark' | null;
     value: unknown;
+    paletteRef?: string | null;
+    sourceValue?: unknown;
     editRevision: number;
     overridden?: boolean;
 }>;
@@ -20,13 +22,16 @@ export class TokenValuesApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, systemId: string, session: Session) {
-        this.root = new URL(`api/projects/${encodeURIComponent(projectId)}/ds/`, gatewayBaseURL);
+        this.root = new URL(
+            `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(systemId)}/`,
+            gatewayBaseURL,
+        );
         this.systemId = systemId;
         this.session = session;
     }
 
     async definitions(): Promise<TokenDefinition[]> {
-        const url = new URL(`design-systems/${encodeURIComponent(this.systemId)}/tokens`, this.root).href;
+        const url = new URL('tokens', this.root).href;
         const raw: unknown = await (await authenticatedRequest(this.session, url, 'GET', [200])).json();
         expect(Array.isArray(raw), 'Определения собственной ДС').toBe(true);
         for (const item of raw as unknown[]) {
@@ -60,6 +65,10 @@ export class TokenValuesApi {
         ).href;
     }
 
+    sizeViewURL(themeId: string): string {
+        return new URL(`tenants/${encodeURIComponent(themeId)}/size-tokens`, this.root).href;
+    }
+
     typographyStyleURL(themeId: string, tokenId: string): string {
         return new URL(
             `tenants/${encodeURIComponent(themeId)}/typography-styles/${encodeURIComponent(tokenId)}`,
@@ -79,7 +88,13 @@ export class TokenValuesApi {
                 editRevision: expect.any(Number),
             });
         }
-        return raw as TokenValue[];
+        // Порядок строк GET не является частью контракта; поля и ревизии сравниваются полностью.
+        return [...(raw as TokenValue[])].sort(
+            (left, right) =>
+                left.tokenId.localeCompare(right.tokenId) ||
+                left.platform.localeCompare(right.platform) ||
+                (left.mode ?? '').localeCompare(right.mode ?? ''),
+        );
     }
 
     async seed(themeId: string, updates: readonly { current: TokenValue; value: unknown }[]): Promise<void> {
