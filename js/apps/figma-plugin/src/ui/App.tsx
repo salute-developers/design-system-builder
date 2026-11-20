@@ -20,11 +20,18 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
     const [attempt, setAttempt] = useState(0);
     const [failure, setFailure] = useState('');
     const [editor, setEditor] = useState<ExportEditor | null>(null);
+    const [editorFailure, setEditorFailure] = useState<string>();
+    const [editorAttempt, setEditorAttempt] = useState(0);
 
-    // Редактор нужен только экспорту: остальное окно не ждёт ответа.
+    // Редактор нужен только экспорту: остальное окно не ждёт ответа, а отказ показывается у кнопки экспорта.
     useEffect(() => {
-        bridge.editor().then(setEditor, () => undefined);
-    }, [bridge]);
+        setEditorFailure(undefined);
+        bridge
+            .editor()
+            .then(setEditor, (error: unknown) =>
+                setEditorFailure(error instanceof Error ? error.message : String(error)),
+            );
+    }, [bridge, editorAttempt]);
 
     const fail = (error: unknown) => {
         setFailure(failureText(error));
@@ -74,7 +81,9 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
             />
         );
     return (
-        <EditorContext.Provider value={editor}>
+        <EditorContext.Provider
+            value={{ editor, failure: editorFailure, retry: () => setEditorAttempt((value) => value + 1) }}
+        >
             <Browser
                 api={core.api}
                 storage={bridge}

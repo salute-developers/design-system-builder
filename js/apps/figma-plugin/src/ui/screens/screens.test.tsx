@@ -573,6 +573,26 @@ describe('экспорт в Figma', () => {
         expect(screen.getByRole('button', { name: 'Экспортировать в Figma' })).toBeDisabled();
     });
 
+    it('объясняет недоступный экспорт, если основной поток не назвал редактор, и запрашивает снова', async () => {
+        const { bridge } = createBridge();
+        vi.mocked(bridge.editor).mockRejectedValueOnce(new Error('нет ответа основного потока'));
+        mount({ bridge });
+        await chooseTenant();
+        await screen.findByText('Accent');
+
+        const alert = await screen.findByText(/Экспорт недоступен: плагин не узнал/);
+        expect(alert).toHaveTextContent('нет ответа основного потока');
+        expect(screen.getByRole('button', { name: 'Экспортировать в Figma' })).toBeDisabled();
+
+        fireEvent.click(
+            within(alert.closest('[role="alert"]') as HTMLElement).getByRole('button', { name: 'Повторить' }),
+        );
+
+        expect(await screen.findByRole('button', { name: 'Экспортировать в Figma' })).toBeEnabled();
+        expect(screen.queryByText(/Экспорт недоступен/)).toBeNull();
+        expect(bridge.editor).toHaveBeenCalledTimes(2);
+    });
+
     it('в Pixso называет свой редактор и не советует установщик шрифтов Figma', async () => {
         const { bridge } = createBridge();
         vi.mocked(bridge.editor).mockResolvedValue(PIXSO_EDITOR);

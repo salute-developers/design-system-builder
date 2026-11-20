@@ -325,6 +325,7 @@ const writeVariables = async (
                     if (flat) flattened += 1;
                     if (!same(current[modeId], resolved)) target.setValueForMode(modeId, resolved);
                 } else if (!modeId) skip({ name: variable.name, reason: `в коллекции нет режима ${mode}` });
+                else if (flatten) skip({ name: variable.name, reason: unresolvedOpacity(mode, editor) });
                 else skip({ name: variable.name, reason: `нет переменной для ссылки в режиме ${mode}` });
             }
         }
@@ -461,6 +462,11 @@ const parseModes = (raw: string): Record<string, string> => {
  * Цвет ссылки по значениям плана: режим берётся тот же, а у коллекции с одним режимом — единственный. Прозрачность
  * ссылки в процентах умножается на альфу цвета.
  */
+/** Ссылку с прозрачностью редактор не принимает, а готовый цвет по плану не вычислился: цель ссылки не цвет или её нет. */
+const unresolvedOpacity = (mode: string, editor: ExportEditor) =>
+    `ссылка с прозрачностью в режиме ${mode} не записана: ${editor.name} не принимает её, ` +
+    'а в плане нет цвета, на который она ведёт';
+
 const plannedColor = (collections: PlanCollection[]) => {
     const entries = new Map(
         collections.flatMap((collection) =>

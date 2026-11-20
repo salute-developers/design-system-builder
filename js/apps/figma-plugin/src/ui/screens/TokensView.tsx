@@ -4,7 +4,7 @@ import type { ExportCounts, ExportPlatform, ExportReport } from '../../shared/ex
 import type { ApplyExport, PackZip } from '../bridge';
 import { copyText } from '../clipboard';
 import { FIGMA_EDITOR } from '../../shared/editor';
-import { useEditor } from '../editor';
+import { useEditor, useEditorState } from '../editor';
 import { ApiError, type DsBuilderApi, type TenantContext } from '../core/pluginCore';
 import { FontArchiveButton } from '../fonts/FontArchiveButton';
 import type { TypographyScreenId } from '../api/types';
@@ -321,7 +321,8 @@ const ExportPanel = ({
     packZip: PackZip;
 }) => {
     const [result, setResult] = useState<ExportState>({ state: 'idle' });
-    const editorName = useEditor()?.name ?? FIGMA_EDITOR.name;
+    const { editor, failure: editorFailure, retry: retryEditor } = useEditorState();
+    const editorName = editor?.name ?? FIGMA_EDITOR.name;
     // В файле одна платформа: повторный экспорт с другой платформой перезаписывает значения тех же переменных.
     const [platform, setPlatform] = useState<ExportPlatform>('web');
     useEffect(() => {
@@ -359,6 +360,14 @@ const ExportPanel = ({
             <button type="button" disabled={!run || result.state === 'running'} onClick={start}>
                 {result.state === 'running' ? 'Экспортируем…' : `Экспортировать в ${editorName}`}
             </button>
+            {!editor && editorFailure && (
+                <div className="error" role="alert">
+                    <p>Экспорт недоступен: плагин не узнал, в каком редакторе открыт. {editorFailure}</p>
+                    <button type="button" className="secondary" onClick={retryEditor}>
+                        Повторить
+                    </button>
+                </div>
+            )}
             {result.state === 'done' && (
                 <ExportResult
                     report={result.report}

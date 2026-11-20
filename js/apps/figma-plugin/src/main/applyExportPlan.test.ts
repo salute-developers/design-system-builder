@@ -862,9 +862,12 @@ describe('запись плана в Pixso', () => {
         // Light у t1 — ссылка без прозрачности на ступень с альфой 0,5: цепочка даёт 0,5 × 50 %.
         expect(value('Text&Icons/Default/General/Secondary', lightMode)).toEqual({ r: 0.1, g: 0, b: 0, a: 0.25 });
         expect(value('Text&Icons/Default/General/Secondary', darkMode)).toBeUndefined();
+        // Цели ссылки нет в плане: причина говорит о прозрачности, а не о пропавшей переменной Pixso.
         expect(report.skipped).toContainEqual({
             name: 'Text&Icons/Default/General/Secondary',
-            reason: 'нет переменной для ссылки в режиме dark',
+            reason:
+                'ссылка с прозрачностью в режиме dark не записана: Pixso не принимает её, ' +
+                'а в плане нет цвета, на который она ведёт',
         });
         expect(report.notes).toContainEqual({
             name: 'Цвета с прозрачностью',
