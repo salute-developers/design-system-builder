@@ -289,6 +289,11 @@ export const analyticsConsentEnabled =
     Number.isSafeInteger(Number(import.meta.env.VITE_METRICA_COUNTER_ID)) &&
     Number(import.meta.env.VITE_METRICA_COUNTER_ID) > 0;
 const consentStorageKey = `dsbuilder.analytics-consent:${import.meta.env.MODE}:${API_GATEWAY_URL}:${import.meta.env.VITE_METRICA_COUNTER_ID}`;
+try {
+    window.localStorage.removeItem(consentStorageKey);
+} catch {
+    // Недоступное хранилище не мешает загрузке клиента; сбор требует проверки согласия.
+}
 /** Выбор изолирован для аккаунта, браузера и окружения; прежняя общая запись не используется. */
 export const getConsentStorageKey = () => {
     const accountId = authService.getCurrentUser()?.id;
