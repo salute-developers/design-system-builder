@@ -95,10 +95,15 @@
 - **WHEN** у web-свойства `Button.backgroundColor` есть токены только для `pressed` и `hovered`, а в мете `combinations: false`
 - **THEN** признак MUST быть `{ "states": ["pressed", "hovered"], "combinations": false }`
 
+#### Scenario: Общие состояния уходят в манифест
+
+- **WHEN** в мете есть `stateSupport`
+- **THEN** манифест MUST содержать на верхнем уровне `interactionStates` из меты, чтобы импорт завёл недостающие общие состояния
+
 #### Scenario: Мета без поля
 
 - **WHEN** в мете нет `stateSupport` (мета прежнего генератора)
-- **THEN** ни одно свойство манифеста MUST NOT содержать `stateSupport`, и импорт MUST NOT менять признаки
+- **THEN** манифест MUST NOT содержать `interactionStates`, ни одно свойство MUST NOT содержать `stateSupport`, и импорт MUST NOT менять признаки и общий словарь
 
 #### Scenario: Признак уходит в запрос
 
