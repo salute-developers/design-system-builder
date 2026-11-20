@@ -4,8 +4,8 @@
 
 `ComponentEditorBundleResponse` SHALL содержать у каждого элемента `properties` поле `stateSupport` (как в
 `ComponentPropertySummaryResponse`) и SHALL содержать список `states` (`ComponentStateResponse` с `id`, `name` и
-`componentId`). В список входят все общие состояния и собственные состояния этого компонента, в порядке, в
-котором их отдаёт `GET /api/design-systems/catalog/states`. Собственное состояние с именем общего («тень») в список
+`componentId`). В список входят все общие состояния и собственные состояния этого компонента в порядке их
+создания. Собственное состояние с именем общего («тень») в список
 MUST NOT входить: по имени находится общее. Изменение SHALL быть отражено в `openapi/documentation.yaml`.
 
 #### Scenario: Состояния компонента с собственными состояниями

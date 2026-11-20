@@ -10,9 +10,12 @@ import com.dsbuilder.frontend.core.domain.TargetPlatform
  * `stateEnum`, ни `group`, ни `attrName`.
  *
  * @property components компоненты с их свойствами и состояниями.
+ * @property interactionStates общие состояния, которые выражает генератор платформы, из поля `stateSupport` меты;
+ * `null`, если мета их не сообщает (мета прежнего генератора или web).
  */
 internal data class ApiMetaManifest(
     val components: List<ApiMetaComponent>,
+    val interactionStates: List<String>? = null,
 ) {
     /** Число свойств во всех компонентах. */
     val propertyCount: Int get() = components.sumOf { it.properties.size }
@@ -44,6 +47,8 @@ internal data class ApiMetaComponent(
  * @property description справочное описание; `null`, если сказать нечего.
  * @property deprecations пометки устаревания по платформенным именам: ключ — имя из [platformNames].
  * Имя без записи актуально (в запрос оно уходит объектом без `deprecated`, и backend снимет прежнюю пометку).
+ * @property stateSupport признак поддержки состояний; `null` — нормализатор его не вывел, поле не уходит в запрос,
+ * и backend признак не меняет.
  */
 internal data class ApiMetaProperty(
     val name: String,
@@ -51,6 +56,7 @@ internal data class ApiMetaProperty(
     val platformNames: List<String>,
     val description: String?,
     val deprecations: Map<String, ApiMetaDeprecation> = emptyMap(),
+    val stateSupport: ApiMetaStateSupport? = null,
 )
 
 /**

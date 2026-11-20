@@ -1,9 +1,17 @@
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 
-import { stateKey, type ComponentAPI, type Config, type PropState, type PropUnion } from '../../../../controllers';
 import {
-    BINDING_STATES,
+    PRIMARY_STATES,
+    allowsCombinations,
+    bindableStates,
+    isStateSetAllowed,
+    stateKey,
+    type ComponentAPI,
+    type Config,
+    type PropUnion,
+} from '../../../../controllers';
+import {
     ColorControl,
     NumberControl,
     OpacityControl,
@@ -11,7 +19,6 @@ import {
     StateRemoveButton,
     TokenField,
     TypographyCombo,
-    type BindingState,
     type ColorTokenOption,
     type TokenOption,
 } from '../../../../features/InspectorControls';
@@ -49,21 +56,21 @@ interface InspectorPropertyRowProps {
     inheritedFrom?: string;
 }
 
-/** Подпись набора состояний в порядке пунктов меню: `hovered + pressed`. */
+/** Подпись набора состояний в порядке пунктов меню: `pressed + hovered`. */
 const stateLabel = (state: readonly string[]) =>
     [
-        ...BINDING_STATES.filter((item) => state.includes(item)),
-        ...state.filter((item) => !(BINDING_STATES as readonly string[]).includes(item)),
+        ...PRIMARY_STATES.filter((item) => state.includes(item)),
+        ...state.filter((item) => !PRIMARY_STATES.includes(item)),
     ].join(' + ');
 
 /**
- * Порядок строк состояний: одиночные раньше сочетаний, внутри — по пунктам меню (`hovered`, `pressed`, `focused`).
+ * Порядок строк состояний: одиночные раньше сочетаний, внутри — по пунктам меню (`focused`, `pressed`, `hovered`).
  * Сервер не хранит порядок добавления, поэтому строки выводятся по этому правилу и не переставляются после перечитывания.
  */
 const stateRank = (state: readonly string[]) => {
     const rank = (item: string) => {
-        const index = (BINDING_STATES as readonly string[]).indexOf(item);
-        return index < 0 ? BINDING_STATES.length : index;
+        const index = PRIMARY_STATES.indexOf(item);
+        return index < 0 ? PRIMARY_STATES.length : index;
     };
     return [state.length, ...state.map(rank).sort((a, b) => a - b)];
 };
@@ -197,105 +204,134 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     // Стиль вложенного компонента выбирается только у Compose и не у сочетаний; иначе ссылка только читается.
     const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose' && !isCombination;
 
-    const control = (() => {
-        if (type === 'color') {
-            // У свойств фокуса состояний нет, как у `supportsInspectorColorStates` прототипа; у пересечения — тоже.
-            const actions =
-                isCombination || /focus/i.test(prop.getName()) ? null : (
-                    <StateBindingMenu
-                        label={label}
-                        disabled={!text}
-                        onAdd={(selected: BindingState[]) => {
-                            const key = stateKey(selected);
-                            if (states.some((item) => stateKey(item.state) === key)) return;
-                            config.addTokenState(
-                                id,
-                                { state: selected as PropState[], value: text },
-                                variationID,
-                                styleID,
-                            );
-                            onConfigUpdate();
-                        }}
+    const propertyApi = api.find((item) => item.id === id);
+    // Состояния предлагаются по признаку свойства из меты; без признака — прежнее правило (цвет без `focus`).
+    const offered = bindableStates(propertyApi, isCombination);
+    const bindingActions = offered.length ? (
+        <StateBindingMenu
+            label={label}
+            states={offered}
+            combinations={allowsCombinations(propertyApi)}
+            disabled={!text}
+            onAdd={(selected: string[]) => {
+                const key = stateKey(selected);
+                if (states.some((item) => stateKey(item.state) === key)) return;
+                config.addTokenState(id, { state: selected, value: text }, variationID, styleID);
+                onConfigUpdate();
+            }}
+        />
+    ) : null;
+
+    /** Контрол значения по типу свойства: один и тот же у базового значения и у строк состояний. */
+    const controlFor = (
+        current: string,
+        onChange: (next: string) => void,
+        actions: ReactNode,
+        name: string,
+        onClear?: ReactNode,
+        clearIcon?: () => void,
+    ): ReactNode => {
+        if (type === 'color') return colorControl(current, onChange, actions, name, onClear);
+        const node = (() => {
+            if ((type === 'float' || type === 'dimension') && isOpacity(prop)) {
+                return <OpacityControl label={name} value={current} onCommit={onChange} />;
+            }
+            if (type === 'dimension' || type === 'float' || type === 'integer') {
+                return (
+                    <NumberControl
+                        label={name}
+                        value={current}
+                        unit={type === 'dimension' ? 'px' : ''}
+                        // Значения ядра бывают CSS-выражениями (`calc(…)`, `var(…)`): их можно видеть и править.
+                        allowExpressions
+                        icon={
+                            /radius/i.test(prop.getName()) ? (
+                                <span className="component-radius-icon" aria-hidden="true">
+                                    <TyGlyph name="radius" />
+                                </span>
+                            ) : undefined
+                        }
+                        onCommit={onChange}
                     />
                 );
-            return colorControl(text, update, actions, label, clear);
-        }
-        if ((type === 'float' || type === 'dimension') && isOpacity(prop)) {
-            return <OpacityControl label={label} value={text} onCommit={update} />;
-        }
-        if (type === 'dimension' || type === 'float' || type === 'integer') {
+            }
+            if (type === 'value') {
+                // Сырой CSS ядра (`3rem`, `calc(var(--plasma-avatar-size) …)`): строка как есть, без единиц и приведения.
+                return <NumberControl label={name} value={current} unit="" parse={rawValue} onCommit={onChange} />;
+            }
+            if (type === 'shape') {
+                return <TokenField label={name} value={current} options={tokens.shapes} mark="↔" onChange={onChange} />;
+            }
+            if (type === 'shadow') {
+                return (
+                    <TokenField
+                        label={name}
+                        value={current}
+                        options={tokens.shadows}
+                        mark={<TyGlyph name="shadow" />}
+                        onChange={onChange}
+                    />
+                );
+            }
+            if (type === 'typography') {
+                return <TypographyCombo label={name} value={current} options={tokens.typography} onChange={onChange} />;
+            }
+            if (type === 'icon') {
+                return <IconControl label={name} value={current} onChange={onChange} onClear={clearIcon} />;
+            }
             return (
-                <NumberControl
-                    label={label}
-                    value={text}
-                    unit={type === 'dimension' ? 'px' : ''}
-                    // Значения ядра бывают CSS-выражениями (`calc(…)`, `var(…)`): их можно видеть и править.
-                    allowExpressions
-                    icon={
-                        /radius/i.test(prop.getName()) ? (
-                            <span className="component-radius-icon" aria-hidden="true">
-                                <TyGlyph name="radius" />
-                            </span>
-                        ) : undefined
-                    }
-                    onCommit={update}
-                />
+                <div className="component-number-control is-raw">
+                    <input aria-label={name} readOnly value={current} />
+                </div>
             );
-        }
-        if (type === 'value') {
-            // Сырой CSS ядра (`3rem`, `calc(var(--plasma-avatar-size) …)`): строка как есть, без единиц и приведения.
-            return <NumberControl label={label} value={text} unit="" parse={rawValue} onCommit={update} />;
-        }
-        if (type === 'shape') {
-            return <TokenField label={label} value={text} options={tokens.shapes} mark="↔" onChange={update} />;
-        }
-        if (type === 'shadow') {
-            return (
-                <TokenField
-                    label={label}
-                    value={text}
-                    options={tokens.shadows}
-                    mark={<TyGlyph name="shadow" />}
-                    onChange={update}
-                />
-            );
-        }
-        if (type === 'typography') {
-            return <TypographyCombo label={label} value={text} options={tokens.typography} onChange={update} />;
-        }
-        if (type === 'icon') {
-            return (
-                <IconControl label={label} value={text} onChange={update} onClear={isSet ? removeValue : undefined} />
-            );
-        }
+        })();
         return (
-            <div className="component-number-control is-raw">
-                <input aria-label={label} readOnly value={text} />
-            </div>
+            <>
+                {node}
+                {actions}
+            </>
         );
-    })();
+    };
+
+    const control = controlFor(text, update, bindingActions, label, clear, isSet ? removeValue : undefined);
 
     const stateRows = () =>
         states.map((state) => {
             const key = stateKey(state.state);
             const name = stateLabel(state.state);
+            const remove = (
+                <StateRemoveButton
+                    label={`${label} ${name}`}
+                    onRemove={() => {
+                        config.removeTokenState(id, key, variationID, styleID);
+                        onConfigUpdate();
+                    }}
+                />
+            );
+            const onChange = (next: string) => {
+                config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
+                onConfigUpdate();
+            };
+            // Набор, который признак свойства не допускает, сервер не даст править (`states_not_supported`):
+            // строка видна только для чтения и удаляется.
+            const allowed = isStateSetAllowed(propertyApi, state.state);
             return (
-                <div key={key} className="component-variation-state-row" data-state-name={key}>
+                <div
+                    key={key}
+                    className="component-variation-state-row"
+                    data-state-name={key}
+                    data-state-readonly={allowed ? undefined : 'true'}
+                >
                     <span>{name}</span>
-                    {colorControl(
-                        String(state.value ?? ''),
-                        (next) => {
-                            config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
-                            onConfigUpdate();
-                        },
-                        <StateRemoveButton
-                            label={`${label} ${name}`}
-                            onRemove={() => {
-                                config.removeTokenState(id, key, variationID, styleID);
-                                onConfigUpdate();
-                            }}
-                        />,
-                        `${label} ${name}`,
+                    {allowed ? (
+                        controlFor(String(state.value ?? ''), onChange, remove, `${label} ${name}`)
+                    ) : (
+                        <>
+                            <fieldset className="component-inspector-readonly-rows" disabled>
+                                {controlFor(String(state.value ?? ''), onChange, null, `${label} ${name}`)}
+                            </fieldset>
+                            {remove}
+                        </>
                     )}
                 </div>
             );
@@ -321,7 +357,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 </div>
             </div>
             {rows}
-            {type === 'color' &&
+            {states.length > 0 &&
                 (isCombination ? (
                     // Состояния, унаследованные пересечением от стиля, видны, но не правятся: у пересечения нет записи
                     // состояний.

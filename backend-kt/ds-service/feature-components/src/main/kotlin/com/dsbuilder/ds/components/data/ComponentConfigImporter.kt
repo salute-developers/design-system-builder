@@ -6,6 +6,7 @@ import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.components.domain.EditorAxisValue
 import com.dsbuilder.ds.components.domain.RootCandidate
+import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
@@ -613,7 +614,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     ) {
         val colorScheme = config.colorSchemeVariationId?.let(axes::get)
         val root = config.rootVariationId?.let(axes::get) ?: fallbackRoot(
-            axes(config, trailingAxisId).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
+            axes(config, trailingAxisId).mapIndexed { position, (key, name) ->
+                RootCandidate(axes.getValue(key), name, position)
+            },
             colorScheme,
         )
         val current = AppearanceAxisRoleStore.load(listOf(id)).getValue(id)
@@ -1167,6 +1170,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun invalidType(entry: ImportComponentConfig.Entry) = allProperties(entry.config)
         .flatMap { listOf(it.type) + it.states.mapNotNull(ComponentConfig.State::type) }
         .firstOrNull { it !in valueTypes }
+
     /**
      * Оси конфигурации по порядку: объявленные вариации, затем оси, заданные только в `targets`. Ось `trailingAxisId`
      * (`view`, добавленная импортом) ставится последней.
@@ -1289,7 +1293,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
 }
 
 private fun styleKey(axis: String, value: String) = "$axis\u0000$value"
-private fun String.canonical() = lowercase().filter(Char::isLetterOrDigit)
+
+/** Каноническое имя состояния; общие состояния разрешаются раньше собственных (см. [StateNames.resolve]). */
+private fun String.canonical() = StateNames.canonical(this)
 private fun ComponentConfig.Scalar.text() = when (this) {
     is ComponentConfig.Scalar.Text -> value
     is ComponentConfig.Scalar.Number -> value

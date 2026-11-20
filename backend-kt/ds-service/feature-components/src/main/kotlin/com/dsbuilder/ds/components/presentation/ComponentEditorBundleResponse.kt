@@ -32,6 +32,8 @@ data class ComponentEditorBundleResponse(
     val dependencies: List<ComponentDependencyResponse>,
     /** Компоненты по другую сторону связей, привязанные к той же дизайн-системе и имеющие ту же платформу. */
     val dependencyComponents: List<ComponentResponse>,
+    /** Состояния, которые видит компонент: общие и собственные без «теней» общих, в порядке создания. */
+    val states: List<ComponentStateResponse>,
 ) {
     companion object {
         /** Отображает пакет компонента в ответ. */
@@ -47,6 +49,7 @@ data class ComponentEditorBundleResponse(
             webAdapter = value.webAdapter?.let(ComponentWebAdapterEntryResponse::from),
             dependencies = value.dependencies.map(ComponentDependencyResponse::from),
             dependencyComponents = value.dependencyComponents.map(ComponentResponse::from),
+            states = value.states.map(ComponentStateResponse::from),
         )
     }
 }

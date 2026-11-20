@@ -8,17 +8,20 @@ package com.dsbuilder.frontend.feature.components.domain.apimeta
  *
  * @property createdComponents число созданных компонентов.
  * @property createdProperties число созданных свойств.
- * @property createdStates число созданных состояний компонентов.
+ * @property createdStates число созданных состояний: компонентов и общих из меты.
  * @property createdAliases число созданных платформенных имён свойств.
  * @property unchangedProperties число свойств, которые уже были в базе с тем же типом.
  * @property deprecatedMarked число платформенных имён, ставших устаревшими.
  * @property deprecatedMessageChanged число устаревших имён, у которых изменилось сообщение.
  * @property deprecatedCleared число имён, с которых снята пометка: в мете её больше нет.
+ * @property stateSupportChanged число существующих свойств, у которых изменился признак поддержки состояний.
  * @property rejected свойства, которые не удалось записать, с причинами.
  * @property typeMismatches существующие свойства, чей тип в базе отличается от присланного;
  * тип не менялся.
  * @property absent справочно: компоненты платформы и свойства импортируемых компонентов, которые
  * есть в базе и отсутствуют в мете; ничего не удаляется.
+ * @property unresolvedStates имена состояний признака, не найденные ни среди общих, ни среди состояний компонента:
+ * `Компонент.свойство: имя`.
  */
 public data class ApiMetaImportReport(
     public val createdComponents: Int = 0,
@@ -32,6 +35,8 @@ public data class ApiMetaImportReport(
     public val rejected: List<ApiMetaRejection> = emptyList(),
     public val typeMismatches: List<String> = emptyList(),
     public val absent: List<String> = emptyList(),
+    public val stateSupportChanged: Int = 0,
+    public val unresolvedStates: List<String> = emptyList(),
 )
 
 /**

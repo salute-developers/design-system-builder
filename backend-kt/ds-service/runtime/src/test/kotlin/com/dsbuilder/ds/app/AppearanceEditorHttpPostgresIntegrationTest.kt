@@ -25,6 +25,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.server.testing.ApplicationTestBuilder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -470,6 +471,113 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val gradient = setValue(fixture.appearance, fill, listOf(styleA), value = "#fff", type = "gradient")
         assertEquals(HttpStatusCode.OK, gradient.status)
     }
+
+    @Test
+    fun `the editor write of a value checks the state set against the state support`() = withService {
+        val fixture = fixture()
+        val padding = property("padding", "dimension")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        declareSupport(padding, combinations = false, "hovered", "pressed")
+
+        val hovered = setValue(fixture.appearance, padding, listOf(styleA), value = "1", states = listOf("hovered"))
+        assertEquals(HttpStatusCode.OK, hovered.status, hovered.bodyAsText())
+        val focused = setValue(fixture.appearance, padding, listOf(styleA), value = "2", states = listOf("focused"))
+        assertEquals("states_not_supported", code(focused))
+        val pair = listOf("hovered", "pressed")
+        val both = setValue(fixture.appearance, padding, listOf(styleA), value = "3", states = pair)
+        assertEquals("states_not_supported", code(both))
+        val stored = valuesOf(fixture.appearance, padding, styleA).map { it.states() }.filter { it.isNotEmpty() }
+        assertEquals(listOf(listOf("hovered")), stored)
+
+        execute("UPDATE properties SET state_combinations = true WHERE id = '$padding'")
+        val combined = setValue(fixture.appearance, padding, listOf(styleA), value = "4", states = pair)
+        assertEquals(HttpStatusCode.OK, combined.status, combined.bodyAsText())
+    }
+
+    @Test
+    fun `autosave routes check the state set on create and on an edit of an existing row`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val path = "/api/design-systems/${fixture.ds}/invariant-property-values"
+        fun body(stateSet: String) = """{"propertyId":"$fill","componentId":"${fixture.component}",""" +
+            """"appearanceId":"${fixture.appearance}","value":"#fff","stateSetId":"$stateSet"}"""
+
+        val hoveredSet = stateSet(commonState("hovered"))
+        val created = post(path, body(hoveredSet))
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val row = id(created.bodyAsText())
+
+        // The meta narrowed the support after the editor read the bundle.
+        declareSupport(fill, combinations = false)
+        assertEquals("states_not_supported", code(post(path, body(stateSet(commonState("pressed"))))))
+        assertEquals("states_not_supported", code(patch("$path/$row", """{"value":"#000"}""")))
+        assertEquals(HttpStatusCode.OK, delete("$path/$row").status)
+    }
+
+    @Test
+    fun `a state of another component is rejected even without a declared support`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val foreign = query("INSERT INTO states (component_id, name) VALUES ('$child', 'collapsed') RETURNING id")
+        val response = post(
+            "/api/design-systems/${fixture.ds}/invariant-property-values",
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(foreign)}"}""",
+        )
+        assertEquals("state_not_in_component", code(response))
+    }
+
+    @Test
+    fun `a value stored in a shadow of a common state is found and edited by the common name`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val shadow = query(
+            "INSERT INTO states (component_id, name) VALUES ('${fixture.component}', 'disabled') RETURNING id",
+        )
+        declareSupport(fill, combinations = false, "disabled")
+        val created = post(
+            "/api/design-systems/${fixture.ds}/invariant-property-values",
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(shadow)}"}""",
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+
+        val edited = setValue(fixture.appearance, fill, emptyList(), value = "#000", states = listOf("disabled"))
+        assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
+        val stateful = propertyValues(fixture.appearance)
+            .filter { it.string("propertyId") == fill && it.states().isNotEmpty() }
+        assertEquals(1, stateful.size)
+        assertEquals("#000", stateful.single().string("value"))
+    }
+
+    private fun commonState(name: String) =
+        query("SELECT id FROM states WHERE component_id IS NULL AND name = '$name'")
+
+    private suspend fun stateSet(vararg stateIds: String): String {
+        val ids = stateIds.joinToString(",") { "\"$it\"" }
+        val response = post("/api/design-systems/catalog/state-sets/resolve", """{"stateIds":[$ids]}""")
+        assertTrue(response.status.isSuccess(), response.bodyAsText())
+        return id(response.bodyAsText())
+    }
+
+    /** Признак свойства так, как его записал бы импорт меты: общие состояния по именам. */
+    private fun declareSupport(property: String, combinations: Boolean, vararg states: String) {
+        execute("UPDATE properties SET state_combinations = $combinations WHERE id = '$property'")
+        execute("DELETE FROM property_supported_states WHERE property_id = '$property'")
+        states.forEach { name ->
+            execute(
+                "INSERT INTO property_supported_states (property_id, state_id) " +
+                    "SELECT '$property', id FROM states WHERE component_id IS NULL AND name = '$name'",
+            )
+        }
+    }
+
+    private fun execute(sql: String) = DriverManager.getConnection(
+        service.postgres.jdbcUrl,
+        service.postgres.username,
+        service.postgres.password,
+    ).use { connection -> connection.createStatement().use { it.execute(sql) } }
 
     @Test
     fun `a token reference stores the token id with an empty value and follows a rename`() = withService {

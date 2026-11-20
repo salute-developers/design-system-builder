@@ -12,6 +12,8 @@ data class ImportApiMeta(
     val dryRun: Boolean,
     /** Components carried by the manifest. */
     val components: List<Component>,
+    /** Общие состояния, которые выражает генератор платформы; `null` — мета их не сообщила. */
+    val interactionStates: List<String>? = null,
 ) {
     /** One component of the manifest. */
     data class Component(
@@ -33,5 +35,15 @@ data class ImportApiMeta(
         val aliases: List<ApiMetaAlias>,
         /** Optional description. */
         val description: String?,
+        /** Признак поддержки состояний; `null` — манифест его не несёт, и признак не меняется. */
+        val stateSupport: StateSupport? = null,
+    )
+
+    /** Признак поддержки состояний свойства манифеста: имена состояний и допустимость сочетаний. */
+    data class StateSupport(
+        /** Имена состояний; разрешаются в пределах компонента свойства. */
+        val states: List<String>,
+        /** Допускается ли сочетание нескольких состояний. */
+        val combinations: Boolean,
     )
 }

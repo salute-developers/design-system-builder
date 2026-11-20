@@ -30,6 +30,7 @@ import { AutosaveRejection, isUnknownIconError } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
+import { resolveStateId, stateSupportOf } from './componentStates';
 import {
     collectDependencies,
     enrichApi,
@@ -162,6 +163,8 @@ interface ComponentSources {
     params: PropertyPlatformParamDto[];
     propertyVariations: PropertyVariationDto[];
     dependencies: ComponentDependencyDto[];
+    /** Состояния, которые видит компонент; есть только у editor-bundle. */
+    states?: ComponentStateDto[];
     details: (component: ComponentDto) => Promise<{
         properties: ComponentPropertyDto[];
         variations: ComponentVariationDto[];
@@ -291,6 +294,7 @@ const readEditorBundle = async (
         params: data.platformParams,
         propertyVariations: data.propertyVariations,
         dependencies: data.dependencies,
+        states: data.states,
         details: async () => ({
             properties: data.properties,
             variations: data.variations,
@@ -540,6 +544,7 @@ export const componentRepository = {
                                     ios: null,
                                     web: null,
                                 },
+                                stateSupport: stateSupportOf(property, sources.states),
                             })),
                             webParams,
                             variationNamesByProperty(
@@ -634,7 +639,6 @@ export const componentRepository = {
         );
         const axisValueByStyle = new Map(axisValues.data.map((value) => [value.styleId, value]));
         const stateNameById = new Map(states.data.map((state) => [state.id, state.name]));
-        const stateIdByName = new Map(states.data.map((state) => [state.name, state.id]));
         const stateNamesBySet = new Map(
             stateSets.data.map((set) => [
                 set.id,
@@ -783,12 +787,15 @@ export const componentRepository = {
             },
         );
 
+        // Набор ищется по идентификаторам, а имена разрешаются в пределах компонента (сначала общее состояние, затем
+        // собственное), как у ds-service: одноимённое состояние другого компонента в набор не попадает.
+        const setIdByStates = new Map(stateSets.data.map((set) => [[...set.stateIds].sort().join(','), set.id]));
         const resolveStateSet = async (stateNames: string[]) => {
-            const key = [...stateNames].sort().join('+');
-            const existing = [...stateNamesBySet.entries()].find(([, names]) => names === key)?.[0];
-            if (existing) return existing;
-            const stateIds = stateNames.map((name) => stateIdByName.get(name));
+            const stateIds = stateNames.map((name) => resolveStateId(name, stableBinding.componentId, states.data));
             if (stateIds.some((id) => !id)) throw new Error('COMPONENT_STATE_NOT_FOUND');
+            const key = [...new Set(stateIds as string[])].sort().join(',');
+            const existing = setIdByStates.get(key);
+            if (existing) return existing;
             return (
                 await http.post<{ id: string }>(
                     `${apiRoot(context.projectId)}/state-sets/resolve`,

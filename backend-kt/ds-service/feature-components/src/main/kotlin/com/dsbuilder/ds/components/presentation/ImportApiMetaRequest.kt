@@ -26,6 +26,8 @@ data class ImportApiMetaRequest(
     val dryRun: Boolean = true,
     /** Components carried by the manifest. */
     val components: List<Component>,
+    /** Общие состояния, которые выражает генератор платформы. */
+    val interactionStates: List<String>? = null,
 ) {
     /** Reference information about the meta file. */
     @Serializable
@@ -55,14 +57,27 @@ data class ImportApiMetaRequest(
         val platformName: String? = null,
         /** Optional description. */
         val description: String? = null,
+        /** Признак поддержки состояний. */
+        val stateSupport: StateSupport? = null,
+    )
+
+    /** Признак поддержки состояний свойства. */
+    @Serializable
+    data class StateSupport(
+        /** Имена состояний. */
+        val states: List<String>,
+        /** Допускается ли сочетание нескольких состояний. */
+        val combinations: Boolean,
     )
 
     /** True when the body satisfies the contract that the generated serializer cannot express. */
     fun valid(): Boolean = platform in componentPlatforms && components.isNotEmpty() &&
+        interactionStates.orEmpty().none(String::isBlank) &&
         components.all { component ->
             component.name.isNotEmpty() && component.states.none(String::isEmpty) &&
                 component.properties.all { property ->
-                    property.name.isNotEmpty() && property.type.isNotEmpty() && property.aliases() != null
+                    property.name.isNotEmpty() && property.type.isNotEmpty() && property.aliases() != null &&
+                        property.stateSupport?.states.orEmpty().none(String::isBlank)
                 }
         }
 
@@ -75,11 +90,20 @@ data class ImportApiMetaRequest(
             ImportApiMeta.Component(
                 component.name,
                 component.properties.map {
-                    ImportApiMeta.Property(it.name, it.type, requireNotNull(it.aliases()), it.description)
+                    ImportApiMeta.Property(
+                        it.name,
+                        it.type,
+                        requireNotNull(it.aliases()),
+                        it.description,
+                        it.stateSupport?.let { support ->
+                            ImportApiMeta.StateSupport(support.states, support.combinations)
+                        },
+                    )
                 },
                 component.states,
             )
         },
+        interactionStates,
     )
 
     /**

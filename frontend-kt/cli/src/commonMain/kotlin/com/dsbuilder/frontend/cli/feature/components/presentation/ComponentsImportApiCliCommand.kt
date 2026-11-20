@@ -130,6 +130,8 @@ internal fun ApiMetaImportReport.render(): String = buildString {
         appendLine("Deprecated message changed: $deprecatedMessageChanged")
         appendLine("Deprecated cleared: $deprecatedCleared")
     }
+    // Признак поддержки состояний обновляется у существующих свойств: строка печатается, только если он менялся.
+    if (stateSupportChanged > 0) appendLine("State support changed: $stateSupportChanged")
     append("Rejected: ${rejected.size}")
     rejected.forEach { rejection ->
         appendLine()
@@ -147,6 +149,8 @@ internal fun ApiMetaImportReport.render(): String = buildString {
     }
     // Справочно: в базе есть, в мете нет. Ничего не удаляется и на код выхода не влияет.
     appendSection("Absent from meta (informational, nothing was removed)", absent)
+    // Состояние генератора, которого нет ни среди общих, ни среди состояний компонента: в признак оно не вошло.
+    appendSection("Unresolved states of state support (informational)", unresolvedStates)
 }
 
 /**

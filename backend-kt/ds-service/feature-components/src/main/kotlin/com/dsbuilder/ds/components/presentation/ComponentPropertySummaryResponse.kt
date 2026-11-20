@@ -3,8 +3,10 @@
 package com.dsbuilder.ds.components.presentation
 
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
+import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.Serializable
+import java.util.UUID
 
 /** External nested property representation. */
 @Serializable
@@ -25,6 +27,8 @@ data class ComponentPropertySummaryResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Признак поддержки состояний; `null` — мета его ещё не сообщила. Пишется всегда. */
+    val stateSupport: PropertyStateSupportResponse?,
     /** Платформенные параметры при явном include. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val platformParams: List<PropertyPlatformParamResponse>? = null,
@@ -43,7 +47,23 @@ data class ComponentPropertySummaryResponse(
             value.description,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.stateSupport?.let(PropertyStateSupportResponse::from),
             platformParams,
         )
+    }
+}
+
+/** Признак поддержки состояний свойства. */
+@Serializable
+data class PropertyStateSupportResponse(
+    /** Допустимые состояния. */
+    val stateIds: List<String>,
+    /** Допускается ли сочетание нескольких состояний. */
+    val combinations: Boolean,
+) {
+    companion object {
+        /** Ответ из доменного признака. */
+        fun from(value: PropertyStateSupport) =
+            PropertyStateSupportResponse(value.stateIds.map(UUID::toString), value.combinations)
     }
 }

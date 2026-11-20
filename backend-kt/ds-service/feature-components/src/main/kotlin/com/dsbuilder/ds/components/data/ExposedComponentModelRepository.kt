@@ -9,6 +9,7 @@ import com.dsbuilder.ds.components.domain.ComponentStyleSummary
 import com.dsbuilder.ds.components.domain.ComponentVariationSummary
 import com.dsbuilder.ds.components.domain.InvariantPlatformParamAdjustment
 import com.dsbuilder.ds.components.domain.PropertyPlatformParam
+import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import com.dsbuilder.ds.components.domain.PropertyVariation
 import com.dsbuilder.ds.components.domain.VariationPlatformParamAdjustment
 import com.dsbuilder.ds.core.domain.ProjectId
@@ -201,13 +202,13 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             (PropertyVariationsTable.variationId eq id) and
                 ComponentOwnership.readableVariation(PropertyVariationsTable.variationId, projectId, systemAdmin) and
                 ComponentOwnership.readableProperty(PropertiesTable.id, projectId, systemAdmin)
-        }.map(::propertyModel)
+        }.map(::propertyModel).let(PropertyStateSupportStore::attach)
     }
 
     override suspend fun listProperties(projectId: ProjectId, systemAdmin: Boolean): List<ComponentPropertySummary> =
         PropertiesTable.selectAll().where {
             ComponentOwnership.readableProperty(PropertiesTable.id, projectId, systemAdmin)
-        }.map(::propertyModel)
+        }.map(::propertyModel).let(PropertyStateSupportStore::attach)
 
     override suspend fun findProperty(
         projectId: ProjectId,
@@ -215,7 +216,7 @@ class ExposedComponentModelRepository : ComponentModelRepository {
         id: UUID,
     ): ComponentPropertySummary? = PropertiesTable.selectAll().where {
         (PropertiesTable.id eq id) and ComponentOwnership.readableProperty(PropertiesTable.id, projectId, systemAdmin)
-    }.singleOrNull()?.let(::propertyModel)
+    }.singleOrNull()?.let(::propertyModel)?.let { PropertyStateSupportStore.attach(listOf(it)).single() }
 
     override suspend fun createProperty(
         projectId: ProjectId,
@@ -253,7 +254,7 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             if (command.defaultValuePresent) it[defaultValue] = command.defaultValue
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::propertyModel)
+        }.singleOrNull()?.let(::propertyModel)?.let { PropertyStateSupportStore.attach(listOf(it)).single() }
     }
 
     override suspend fun deleteProperty(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean =
@@ -722,6 +723,7 @@ private fun propertyModel(row: ResultRow) = ComponentPropertySummary(
     row[PropertiesTable.description],
     row[PropertiesTable.createdAt],
     row[PropertiesTable.updatedAt],
+    row[PropertiesTable.stateCombinations]?.let { PropertyStateSupport(emptyList(), it) },
 )
 
 private fun componentStyle(row: ResultRow) = ComponentStyleSummary(

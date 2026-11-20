@@ -30,7 +30,7 @@ MUST NOT быть. Пустой список при заданном призн�
 
 - **WHEN** клиент читает свойства компонента (`ComponentPropertySummaryResponse`)
 - **THEN** ответ MUST содержать `stateSupport`: `null` или объект `{ "stateIds": [...], "combinations": <bool> }`
-- **THEN** `stateIds` MUST идти в порядке позиции состояния в словаре `states`, как его отдаёт `GET /api/design-systems/catalog/states`
+- **THEN** `stateIds` MUST идти в порядке создания состояний
 
 ### Requirement: Имя состояния разрешается одинаково во всех путях
 

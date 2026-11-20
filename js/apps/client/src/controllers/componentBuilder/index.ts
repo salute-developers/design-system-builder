@@ -20,3 +20,4 @@ export { isColorSchemeVariation, resolveSelectedProps, variationOrder } from './
 export type { SelectedProp, SelectedPropOrigin } from './selectedProps';
 
 export * from './type';
+export * from './stateSupport';

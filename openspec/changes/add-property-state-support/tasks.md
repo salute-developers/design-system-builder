@@ -1,36 +1,36 @@
 ## 1. Схема и домен ds-service
 
-- [ ] 1.1 Добавить миграцию `V21__property_state_support.sql` (перед реализацией перенумеровать на следующий свободный номер с учётом `dev` и открытого PR #167, который после перенумерации своих `V19`/`V20` займёт `V21`–`V22`): nullable-столбец `properties.state_combinations` и таблица `property_supported_states (property_id, state_id)` с внешними ключами и индексом по `state_id`, без заполнения
-- [ ] 1.2 Добавить доменный `PropertyStateSupport` и правило `StateSetRule` (`Allowed`, `ForeignState`, `NotSupported`) со сравнением по каноническим именам и модульными тестами: пустой набор, незаданный признак, состояние не из списка, сочетание при `combinations = false`, состояние чужого компонента, значение в «тени» общего состояния
-- [ ] 1.3 Добавить `state_combinations` в `PropertiesTable`, таблицу `PropertySupportedStatesTable` и `stateSupport` в `ComponentPropertySummary`; заполнять его в `ExposedComponentRepository` и `ExposedComponentModelRepository` одним запросом на компонент
+- [x] 1.1 Добавить миграцию `V22__property_state_support.sql` (`V21` занял `dev`): nullable-столбец `properties.state_combinations` и таблица `property_supported_states (property_id, state_id)` с внешними ключами и индексом по `state_id`, без заполнения
+- [x] 1.2 Добавить доменный `PropertyStateSupport` и правило `StateSetRule` (`Allowed`, `ForeignState`, `NotSupported`) со сравнением по каноническим именам и модульными тестами: пустой набор, незаданный признак, состояние не из списка, сочетание при `combinations = false`, состояние чужого компонента, значение в «тени» общего состояния
+- [x] 1.3 Добавить `state_combinations` в `PropertiesTable`, таблицу `PropertySupportedStatesTable` и `stateSupport` в `ComponentPropertySummary`; заполнять его в `ExposedComponentRepository` и `ExposedComponentModelRepository` одним запросом на компонент
 
 ## 2. Импорт API-меты в ds-service
 
-- [ ] 2.1 Принять `stateSupport` (`states`, `combinations`) в `ImportApiMetaRequest.Property`, отклонять некорректную форму в `valid()`, передавать его в `ImportApiMeta.Property`
-- [ ] 2.1a Принять `interactionStates` верхнего уровня манифеста и заводить в общем словаре отсутствующие имена (учитывать в `createdStates`, в dry run — без записи); собственные состояния компонентов заводить как раньше
-- [ ] 2.2 В `ExposedApiMetaRepository` разрешать имена по общему правилу (сначала общее, затем собственное состояние компонента) после создания общих и собственных состояний манифеста; записывать признак у новых свойств и обновлять у существующих при отличии флага или множества идентификаторов (в том числе при расхождении типа); считать `stateSupportChanged` и собирать `unresolvedStates`
-- [ ] 2.3 Добавить `stateSupportChanged` и `unresolvedStates` в `ApiMetaImportReport` и `ImportApiMetaResponse`
-- [ ] 2.4 Дополнить `ApiMetaImportHttpPostgresIntegrationTest`: создание общего состояния из `interactionStates`, отсутствие поля, порядок импорта двух платформ с общим и собственным `checked` (одинаковый состав), создание с признаком, изменение списка и флага, отсутствие поля, некорректная форма, неразрешимое имя, одинаковое имя состояния у двух компонентов, повторный импорт и dry run
+- [x] 2.1 Принять `stateSupport` (`states`, `combinations`) в `ImportApiMetaRequest.Property`, отклонять некорректную форму в `valid()`, передавать его в `ImportApiMeta.Property`
+- [x] 2.1a Принять `interactionStates` верхнего уровня манифеста и заводить в общем словаре отсутствующие имена (учитывать в `createdStates`, в dry run — без записи); собственные состояния компонентов заводить как раньше
+- [x] 2.2 В `ExposedApiMetaRepository` разрешать имена по общему правилу (сначала общее, затем собственное состояние компонента) после создания общих и собственных состояний манифеста; записывать признак у новых свойств и обновлять у существующих при отличии флага или множества идентификаторов (в том числе при расхождении типа); считать `stateSupportChanged` и собирать `unresolvedStates`
+- [x] 2.3 Добавить `stateSupportChanged` и `unresolvedStates` в `ApiMetaImportReport` и `ImportApiMetaResponse`
+- [x] 2.4 Дополнить `ApiMetaImportHttpPostgresIntegrationTest`: создание общего состояния из `interactionStates`, отсутствие поля, порядок импорта двух платформ с общим и собственным `checked` (одинаковый состав), создание с признаком, изменение списка и флага, отсутствие поля, некорректная форма, неразрешимое имя, одинаковое имя состояния у двух компонентов, повторный импорт и dry run
 
 ## 3. Чтение и запись редактора в ds-service
 
-- [ ] 3.0 Вынести правило разрешения имени (сначала общее, затем собственное состояние компонента, без чужих компонентов) в одну функцию и применить в `EditorSupport.stateIds` и `ComponentConfigImporter.stateSet`; тесты на «тень» `disabled` у `TextField` и на собственное состояние другого компонента
+- [x] 3.0 Вынести правило разрешения имени (сначала общее, затем собственное состояние компонента, без чужих компонентов) в одну функцию и применить в `EditorSupport.stateIds` и `ComponentConfigImporter.stateSet`; тесты на «тень» `disabled` у `TextField` и на собственное состояние другого компонента
 
-- [ ] 3.1 Отдавать `stateSupport` (`stateIds`, `combinations` или `null`) в `ComponentPropertySummaryResponse` и обновить `ComponentReadEnrichmentResponseTest`
-- [ ] 3.2 Добавить `states` (`id`, `name`, `componentId`: общие и собственные состояния компонента без «теней») в `ComponentEditorBundle` и `ComponentEditorBundleResponse`; обновить `ComponentEditorBundleUseCaseTest` и `ComponentEditorBundleHttpPostgresIntegrationTest`
-- [ ] 3.3 Добавить `PropertyStateSetGuard` и вызывать его в транзакции записи: создание и правка invariant- и variation-значений (`PATCH` проверяет набор изменяемой строки по текущему признаку) и `AppearanceEditorValueOperations`; коды `422 states_not_supported` и `422 state_not_in_component`; удаление, переупорядочивание и копирование при дублировании не проверять
-- [ ] 3.4 Интеграционные тесты на PostgreSQL для каждого маршрута записи (`POST` и `PATCH` обоих видов значений, `PUT property-values`): состояние не из списка, сочетание при запрете сочетаний, состояние чужого компонента при заданном и незаданном признаке, допустимый набор, удаление прежнего значения; сценарий «признак изменён импортом после чтения бандла»
-- [ ] 3.5 Обновить `openapi/documentation.yaml` (поле манифеста, `stateSupportChanged` и `unresolvedStates`, `stateSupport`, `states` бандла, обе ошибки на всех маршрутах записи) и проверить `OpenApiDocumentResourceTest`
+- [x] 3.1 Отдавать `stateSupport` (`stateIds`, `combinations` или `null`) в `ComponentPropertySummaryResponse` и обновить `ComponentReadEnrichmentResponseTest`
+- [x] 3.2 Добавить `states` (`id`, `name`, `componentId`: общие и собственные состояния компонента без «теней») в `ComponentEditorBundle` и `ComponentEditorBundleResponse`; обновить `ComponentEditorBundleUseCaseTest` и `ComponentEditorBundleHttpPostgresIntegrationTest`
+- [x] 3.3 Добавить `PropertyStateSetGuard` и вызывать его в транзакции записи: создание и правка invariant- и variation-значений (`PATCH` проверяет набор изменяемой строки по текущему признаку) и `AppearanceEditorValueOperations`; коды `422 states_not_supported` и `422 state_not_in_component`; удаление, переупорядочивание и копирование при дублировании не проверять
+- [x] 3.4 Интеграционные тесты на PostgreSQL для каждого маршрута записи (`POST` и `PATCH` обоих видов значений, `PUT property-values`): состояние не из списка, сочетание при запрете сочетаний, состояние чужого компонента при заданном и незаданном признаке, допустимый набор, удаление прежнего значения; сценарий «признак изменён импортом после чтения бандла»
+- [x] 3.5 Обновить `openapi/documentation.yaml` (поле манифеста, `stateSupportChanged` и `unresolvedStates`, `stateSupport`, `states` бандла, обе ошибки на всех маршрутах записи) и проверить `OpenApiDocumentResourceTest`
 
 ## 4. Нормализаторы и CLI во frontend-kt
 
-- [ ] 4.1 Добавить `ApiMetaStateSupport` (`states`, `combinations`) и nullable-поле `stateSupport` в `ApiMetaProperty` (`null` — признак не выведен, поле не уходит в манифест); читать `stateSupport` меты (`interactionStates`, `combinations`): у View — в корне, у Compose и SwiftUI — у записей компонентов; разные значения у записей — `Invalid`
-- [ ] 4.2 Compose: `StatefulValue` → `interactionStates` и `stateEnum`, `InteractiveColor` → `interactionStates`; тесты на корпусе с полем: `DropZone.paddingStart`, `Slider.thumbColor` без `disabled` и `readonly`, `Slider.orientation` с пустым списком
-- [ ] 4.3 View: для `color`, `dimension`, `float`, `typography` — `interactionStates`, `configName` из `stateSets` и состояния из `stateValues`; иные типы — пустой список; дополнить корпус полем, фрагментом `BasicButton.backgroundColor` с пустым `stateValues` и параметром с `stateValues`, тесты
-- [ ] 4.4 SwiftUI: `Stateful*` → `interactionStates` и `stateEnum`, только поле `state` → эти состояния без сочетаний; тест на `CheckBox.toggleIconColor`. Web: состояния токенов, `combinations: false` по формату меты, признак задаётся при любой версии меты, `interactionStates` в манифест не передаётся; тест на `Button.backgroundColor` (`pressed`, `hovered`) на текущем корпусе
-- [ ] 4.5 Тесты нормализаторов Compose, View и SwiftUI на мете без поля (признак не уходит) и на прежних корпусах (результат прежний, кроме признака)
-- [ ] 4.6 Передавать `interactionStates` меты верхним полем манифеста и `stateSupport` свойств в общем `toImportRequest` (им пользуются `HttpApiMetaRemoteSource` и `HttpPreviewPluginRemoteSource`) с тестами обоих источников, в том числе что `null` не отправляется; читать `stateSupportChanged` (по умолчанию `0`) и `unresolvedStates` (по умолчанию пусто) в `ApiMetaImportReport` и печатать их в отчёте `:cli`; обновить `ComponentsImportApiCliCommandTest`
-- [ ] 4.7 Описать поле меты, правило по слотам и вывод признака в `frontend-kt/feature-components/API_META_NORMALIZERS.md` и `frontend-kt/cli/USAGE.md`
+- [x] 4.1 Добавить `ApiMetaStateSupport` (`states`, `combinations`) и nullable-поле `stateSupport` в `ApiMetaProperty` (`null` — признак не выведен, поле не уходит в манифест); читать `stateSupport` меты (`interactionStates`, `combinations`): у View — в корне, у Compose и SwiftUI — у записей компонентов; разные значения у записей — `Invalid`
+- [x] 4.2 Compose: `StatefulValue` → `interactionStates` и `stateEnum`, `InteractiveColor` → `interactionStates`; тесты на корпусе с полем: `DropZone.paddingStart`, `Slider.thumbColor` без `disabled` и `readonly`, `Slider.orientation` с пустым списком
+- [x] 4.3 View: для `color`, `dimension`, `float`, `typography` — `interactionStates`, `configName` из `stateSets` и состояния из `stateValues`; иные типы — пустой список; дополнить корпус полем, фрагментом `BasicButton.backgroundColor` с пустым `stateValues` и параметром с `stateValues`, тесты
+- [x] 4.4 SwiftUI: `Stateful*` → `interactionStates` и `stateEnum`, только поле `state` → эти состояния без сочетаний; тест на `CheckBox.toggleIconColor`. Web: состояния токенов, `combinations: false` по формату меты, признак задаётся при любой версии меты, `interactionStates` в манифест не передаётся; тест на `Button.backgroundColor` (`pressed`, `hovered`) на текущем корпусе
+- [x] 4.5 Тесты нормализаторов Compose, View и SwiftUI на мете без поля (признак не уходит) и на прежних корпусах (результат прежний, кроме признака)
+- [x] 4.6 Передавать `interactionStates` меты верхним полем манифеста и `stateSupport` свойств в общем `toImportRequest` (им пользуются `HttpApiMetaRemoteSource` и `HttpPreviewPluginRemoteSource`) с тестами обоих источников, в том числе что `null` не отправляется; читать `stateSupportChanged` (по умолчанию `0`) и `unresolvedStates` (по умолчанию пусто) в `ApiMetaImportReport` и печатать их в отчёте `:cli`; обновить `ComponentsImportApiCliCommandTest`
+- [x] 4.7 Описать поле меты, правило по слотам и вывод признака в `frontend-kt/feature-components/API_META_NORMALIZERS.md` и `frontend-kt/cli/USAGE.md`
 
 ## 4a. Генераторы меты
 
@@ -39,17 +39,17 @@
 
 ## 5. Билдер в js/apps/client
 
-- [ ] 5.1 Добавить `stateSupport` в `ComponentPropertyDto`, `states` в `ComponentEditorBundleDto`, `stateSupport` в `ComponentAPI` и пробросить их через `componentRepository`
-- [ ] 5.2 В `componentRepository` разрешать имя состояния по `states` бандла (`resolveStateId`: сначала общее, затем компонента), искать готовый набор по множеству идентификаторов и создавать новый из них; тесты на собственный `checked` у трёх компонентов и на общий `checked`
-- [ ] 5.3 Расширить `PropState` до имени состояния и добавить `bindableStates` (ровно состояния признака; запасное правило для `null`) с модульными тестами
-- [ ] 5.4 Перевести `StateBindingMenu` на список состояний из пропсов с порядком `focused`, `pressed`, `hovered`, затем остальные; при `combinations = false` — выбор одного состояния
-- [ ] 5.5 В `InspectorPropertyRow` вынести выбор контрола по типу и показывать кнопку и строки состояний у свойства любого типа по признаку; строки записанных недопустимых состояний показывать только для чтения с удалением; отказ автосохранения `422` возвращает прежнее значение с сообщением
-- [ ] 5.6 Дополнить `InspectorControls.test.tsx` и тесты инспектора: числовое свойство со списком, web-свойство без сочетаний, пустой список без кнопки и с строкой только для чтения, запасное правило для `null`
+- [x] 5.1 Добавить `stateSupport` в `ComponentPropertyDto`, `states` в `ComponentEditorBundleDto`, `stateSupport` в `ComponentAPI` и пробросить их через `componentRepository`
+- [x] 5.2 В `componentRepository` разрешать имя состояния по `states` бандла (`resolveStateId`: сначала общее, затем компонента), искать готовый набор по множеству идентификаторов и создавать новый из них; тесты на собственный `checked` у трёх компонентов и на общий `checked`
+- [x] 5.3 Расширить `PropState` до имени состояния и добавить `bindableStates` (ровно состояния признака; запасное правило для `null`) с модульными тестами
+- [x] 5.4 Перевести `StateBindingMenu` на список состояний из пропсов с порядком `focused`, `pressed`, `hovered`, затем остальные; при `combinations = false` — выбор одного состояния
+- [x] 5.5 В `InspectorPropertyRow` вынести выбор контрола по типу и показывать кнопку и строки состояний у свойства любого типа по признаку; строки записанных недопустимых состояний показывать только для чтения с удалением; отказ автосохранения `422` возвращает прежнее значение с сообщением
+- [x] 5.6 Дополнить `InspectorControls.test.tsx` и тесты инспектора: числовое свойство со списком, web-свойство без сочетаний, пустой список без кнопки и с строкой только для чтения, запасное правило для `null`
 
 ## 6. Локальные автоматические проверки
 
 - [ ] 6.1 `tools/verify fast --change add-property-state-support` проходит до ревью; после ревью — `tools/verify full --change add-property-state-support` (интеграционные тесты ds-service на PostgreSQL обязательны, отсутствие Docker — провал)
-- [ ] 6.2 Тесты клиента `cd js/apps/client && npm test` и сборка `cd js && npm run build`
+- [x] 6.2 Тесты клиента `cd js/apps/client && npm test` и сборка `cd js && npm run build`
 
 ## 7. Локальный контур: обновление с состояния dev
 
