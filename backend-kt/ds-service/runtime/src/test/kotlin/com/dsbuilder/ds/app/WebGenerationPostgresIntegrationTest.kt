@@ -13,7 +13,6 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -49,7 +48,7 @@ class WebGenerationPostgresIntegrationTest {
                 }
             }
             seedFixture(postgres, designSystemId)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val publishedId = publish(client, designSystemId)
 

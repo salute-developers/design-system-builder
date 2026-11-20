@@ -9,7 +9,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
@@ -58,7 +57,7 @@ class EditorSectionReadsPostgresIntegrationTest {
                     }
                 }
             }
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(

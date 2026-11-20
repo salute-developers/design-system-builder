@@ -9,7 +9,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.jsonArray
@@ -28,7 +27,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
     fun `initial component configurations are baseline and later edits can be reverted`() {
         IsolatedPostgresDatabase.create().use { database ->
             ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val key = UUID.randomUUID().toString()
                 val body = """{"name":"baseline","projectName":"baseline"}"""
@@ -87,7 +86,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
     @Test
     fun `late global metadata does not seed existing systems when a theme is created`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val created = api(
                     client,
@@ -147,7 +146,7 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 FOR EACH ROW EXECUTE FUNCTION fail_initial_configuration();
                 """.trimIndent(),
             )
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val key = UUID.randomUUID().toString()
                 val body = """{"name":"retry baseline","projectName":"retry-baseline"}"""

@@ -10,7 +10,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -28,7 +27,7 @@ class SpecializedMutationReplayHttpPostgresIntegrationTest {
     fun `specialized writes replay after restart resource deletion and system deletion`() {
         IsolatedPostgresDatabase.create().use { database ->
             var prepared: Fixture? = null
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val fixture = prepare(client)
                 prepared = fixture
@@ -42,13 +41,13 @@ class SpecializedMutationReplayHttpPostgresIntegrationTest {
                 }
             }
             val fixture = requireNotNull(prepared)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 replayWithoutWrites(client, database, fixture)
                 val deleted = call(client, "DELETE", "$ROOT/${fixture.system}")
                 assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
             }
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 replayWithoutWrites(client, database, fixture)
             }

@@ -34,7 +34,6 @@ import kotlin.test.assertFalse
 import kotlin.test.assertNotEquals
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /**
  * Операции раздела «Отступы, радиусы и тени» через HTTP на реальном PostgreSQL на модели предметных редакций:
@@ -49,7 +48,7 @@ class SizeTokenHttpPostgresIntegrationTest {
     @Test
     fun `size tokens are read and edited on subject revisions and published boundaries`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            runTestWithRealTime(timeout = TIMEOUT) {
+            runTestWithRealTime(timeout = INTEGRATION_TEST_TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
                     val api = Api(client)
@@ -79,7 +78,7 @@ class SizeTokenHttpPostgresIntegrationTest {
     @Test
     fun `size tokens are created repeatably, deleted logically and shadow layers reference the palette`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            runTestWithRealTime(timeout = TIMEOUT) {
+            runTestWithRealTime(timeout = INTEGRATION_TEST_TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
                     val api = Api(client)
@@ -882,6 +881,5 @@ class SizeTokenHttpPostgresIntegrationTest {
         const val LAYER = """{"offsetX":0,"offsetY":2,"blur":8,"spread":0,"color":"#000000"}"""
         const val IOS_LAYER = """{"offsetX":1,"offsetY":1,"blur":1,"spread":1,"color":"#FFFFFF"}"""
         const val HEX_RGB = 7
-        val TIMEOUT = 240.seconds
     }
 }
