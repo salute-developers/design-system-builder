@@ -88,7 +88,13 @@ export class TokenValuesApi {
                 editRevision: expect.any(Number),
             });
         }
-        return raw as TokenValue[];
+        // Порядок строк GET не является частью контракта; поля и ревизии сравниваются полностью.
+        return [...(raw as TokenValue[])].sort(
+            (left, right) =>
+                left.tokenId.localeCompare(right.tokenId) ||
+                left.platform.localeCompare(right.platform) ||
+                (left.mode ?? '').localeCompare(right.mode ?? ''),
+        );
     }
 
     async seed(themeId: string, updates: readonly { current: TokenValue; value: unknown }[]): Promise<void> {
