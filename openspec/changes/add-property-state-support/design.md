@@ -10,7 +10,7 @@
 | Платформа | Что выражает генератор | Где это знание |
 |---|---|---|
 | Compose | `StatefulValue` и `InteractiveColor`; состояния переводятся в `InteractiveState` (`focused`, `pressed`, `hovered`, `activated`, `selected`) или в `stateEnum` компонента, остальные имена отбрасываются (`PropertyMapper.toStateEnums`) | `PropertyMapper`, plasma-android |
-| View | селекторы по `states` свойства для `color`, `dimension`, `float`, `typography`: состояния framework (`focused`, `pressed`, `hovered`, `activated`, `checked`) и привязки компонента; `stateValues` — дополнительные значения под состоянием (например, `disabled` через `loadingAlpha`) | `ValueStateListGenerator`, `ViewStateResolver`, plasma-android |
+| View | селекторы по `states` свойства для `color`, `dimension`, `float`, `typography`: состояния framework (`focused`, `pressed`, `hovered`, `activated`, `checked`) и привязки компонента; `stateValues` — дополнительные значения под состоянием (например, `readonly` у `valueColor` поля ввода через `valueColorReadOnly`) | `ValueStateListGenerator`, `ViewStateResolver`, plasma-android |
 | SwiftUI | типы `Stateful*` (`StatefulFillStyle` читает `source.states`) и параметры с полем `state` | `StatefulFillStyleContextBuilder` и `InteractiveState`, plasma-ios |
 | web | только одиночные состояния, для которых есть токен: превью отвечает `unsupported_state` на сочетание и на состояние без токена | `preview-web-plugin`, `js/cli` |
 
@@ -24,11 +24,72 @@
 - какие слоты принимают значения по состояниям: перегрузки и `paramSimpleType` у Compose и SwiftUI, тип и
   `stateValues` у View, токены с `state` у web.
 
-Не хватает одного: какие общие состояния выражает генератор платформы. В базе есть общий словарь из семи
-состояний (`pressed`, `hovered`, `focused`, `selected`, `activated`, `readonly`, `disabled`, базовая миграция), но
-это объединение по всем платформам. Генераторы выражают разные части и добавляют свои имена: Compose — пять, без
-`readonly` и `disabled`; View — четыре и `checked`; iOS — шесть и свои. Если зашить эти списки в CLI, копия
-разойдётся с генератором при первом новом состоянии. Поэтому их объявляет генератор меты.
+Не хватает одного: какие общие состояния выражает генератор платформы.
+
+### Общие состояния базы и платформ
+
+В базе общий словарь из семи состояний (`component_id IS NULL`, базовая миграция `V1`): `pressed`, `hovered`,
+`focused`, `selected`, `activated`, `readonly`, `disabled`. Это объединение по всем платформам, а не то, что
+выражает конкретный генератор.
+
+У каждой платформы два уровня состояний:
+
+- **общие** — генератор понимает их у любого компонента;
+- **собственные** — их объявляет компонент.
+
+Генератор разрешает имя сначала среди собственных состояний компонента, затем среди общих. Имя, которого нет ни
+там, ни там, Compose отбрасывает, View считает ошибкой генерации, а iOS не может разобрать в конфигурации.
+
+| Состояние | В общем словаре базы | Compose | View | iOS | web |
+|---|---|---|---|---|---|
+| `pressed` | да | ✅ | ✅ | ✅ | если у свойства есть токен |
+| `hovered` | да | ✅ | ✅ | ✅ | если у свойства есть токен |
+| `focused` | да | ✅ | ✅ | ✅ | если у свойства есть токен |
+| `activated` | да | ✅ | ✅ | ✅ | не встречается |
+| `selected` | да | ✅ | ❌ | ✅ | если у свойства есть токен |
+| `readonly` | да | ❌ только собственное | ❌ только у отдельных параметров через `stateValues` | ✅ | не встречается |
+| `disabled` | да | ❌ только собственное | ❌ | ❌ нет вообще | не встречается |
+| `checked` | нет | ❌ только собственное | ✅ | ✅ | — |
+| `indeterminate`, `error`, `inactive`, `text-inlined` | нет | ❌ только собственные | ❌ только собственные | ✅ | — |
+| `collapsed` | нет | ❌ только собственное | ✅ через `sharedStates` | ✅ | — |
+
+Откуда это знание у каждой платформы:
+
+- **Compose.**
+  - Общие — `InteractiveState` из uikit-compose (`InteractiveColor.kt`), пять имён.
+  - Собственные — `stateEnum` компонента. В текущей мете это, например: `TextField` и `TextArea` — `readonly`,
+    `disabled`; `Editable` — `readonly`; `DropZone` — `disabled`, `dragging-over`; `CheckBox` — `checked`,
+    `indeterminate`, `error`.
+  - Так `readonly` работает у `TextField` и пропадает у `Button`.
+- **View.**
+  - Общие — состояния Android из `AndroidState` (`focused`, `pressed`, `hovered`, `activated`, `checked`) и
+    словарь `sharedStates` в корне меты. В корпусе нормализатора в нём есть `accent`, `black`, `clear`,
+    `collapsed`; есть ли там `disabled` и `readonly`, по полной мете ещё не проверено.
+  - Собственные — `stateSets` компонента.
+  - `stateValues` — дополнительное значение конкретного параметра в состоянии, а не состояние компонента.
+- **iOS.**
+  - Общие — `ComponentState` генератора (совпадает с `InteractiveState` в `SDDSThemeCore`), двенадцать имён.
+  - Состояния вне этого списка конфигурация iOS не выражает, поэтому `disabled` на iOS нет: недоступность задаётся
+    свойствами вроде `disabledAlpha`.
+  - `stateEnum` компонента выбирает часть общего списка, например `collapsed`.
+- **web.**
+  - Общего списка нет: у свойства ровно те состояния, для которых есть токен. В локальной мете встречаются
+    `hovered`, `pressed`, `focused`, `selected`.
+  - Превью и генерация выражают только одиночные состояния.
+
+Выводы:
+
+- только `pressed`, `hovered` и `focused` работают на всех платформах (на web — при наличии токена);
+- `readonly` и `disabled` в базе общие, но как общие их понимает только iOS (`readonly`). На Compose это
+  собственные состояния отдельных компонентов, на View — дополнительные значения отдельных параметров;
+- `checked` и ещё пять имён у View и iOS общие, а в общем словаре базы их нет: в базе они существуют только как
+  собственные состояния компонента. Если у компонента такого состояния нет, имя попадает в `unresolvedStates`
+  импорта.
+
+Поэтому меню не может предлагать весь общий словарь базы. Если зашить списки платформ в CLI, копия разойдётся с
+генератором при первом новом состоянии. Поэтому общие состояния объявляет генератор меты (`interactionStates`),
+собственные приходят из `stateEnum` и `stateSets`, а имя разрешается сначала у компонента, затем в общем словаре —
+так же, как в генераторах.
 
 ## Цели / Вне целей
 
