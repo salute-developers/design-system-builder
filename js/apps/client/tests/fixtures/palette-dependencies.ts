@@ -1,4 +1,4 @@
-﻿import { test as base, expect } from './palette.ts';
+import { test as base, expect } from './palette.ts';
 import { paletteGroup } from '../helpers/palette.api.ts';
 import { exactValue } from '../helpers/color-data.ts';
 import type { ThemePalette } from '../helpers/palette.api.ts';

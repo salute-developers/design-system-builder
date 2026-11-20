@@ -1,8 +1,9 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { TokenValuesApi } from './token-values.api.ts';
-import { PaletteApi } from './palette.api.ts';
+import { PaletteApi, paletteLinkedValues, type ThemePalette } from './palette.api.ts';
 import type { Session } from './authentication.ts';
+import type { TokenValue } from './token-values.api.ts';
 
 const session = { accessToken: 'unit-test-token' } as Session;
 
@@ -51,4 +52,30 @@ test('PaletteApi normalizes only the token catalog and retains all token fields'
     assert.notDeepEqual(await api.get(), before, 'Group changes remain visible');
     body = { ...palette, tokens: tokens.map((item) => ({ ...item, tokenName: 'renamed' })) };
     assert.notDeepEqual(await api.get(), before, 'Name changes remain visible');
+});
+
+test('Palette dependencies include extra references in the target group and exclude other groups', () => {
+    const token = { tokenId: 'prepared', tokenName: 'text.primary', groupId: 'accent', assignment: 'default' };
+    const palette: ThemePalette = {
+        tenantId: 'theme',
+        editRevision: 0,
+        groups: [],
+        template: [],
+        tokens: [token, { ...token, tokenId: 'extra' }, { ...token, tokenId: 'foreign', groupId: 'status' }],
+    };
+    const row: TokenValue = {
+        tokenId: 'prepared',
+        tenantId: 'theme',
+        platform: 'web',
+        mode: 'light',
+        value: ['#123456'],
+        editRevision: 2,
+        paletteRef: '[additional.h130.500]',
+    };
+    const extra = { ...row, tokenId: 'extra' };
+    const extraIOS: TokenValue = { ...extra, platform: 'ios', mode: 'dark' };
+    const foreign = { ...row, tokenId: 'foreign' };
+    const values = [row, foreign, extra, extraIOS, { ...row, paletteRef: '[additional.h200.500]' }];
+    assert.deepEqual(paletteLinkedValues(palette, values, 'accent', '[additional.h130.500]'), [row, extra, extraIOS]);
+    assert.deepEqual(paletteLinkedValues(palette, values, 'status', '[additional.h130.500]'), [foreign]);
 });

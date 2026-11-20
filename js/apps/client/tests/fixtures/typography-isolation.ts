@@ -1,4 +1,4 @@
-﻿import { test as base, expect } from './colors.ts';
+import { test as base, expect } from './colors.ts';
 import { prepareTypographyData } from '../helpers/typography-data.ts';
 import type { TokenDefinition } from '../helpers/token-values.api.ts';
 import type { ThemeIdentity } from '../helpers/themes.api.ts';

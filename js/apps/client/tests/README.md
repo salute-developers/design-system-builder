@@ -53,7 +53,7 @@ Docker Client на3002 и backend не останавливаются.
 Связи палитры, наследование цветов и изоляция типографики (PowerShell):
 
 ```powershell
-npm.cmd run test:e2e -- --grep 'PLASMABLDR-(T615|T775|T591|T606|T590|T777|T783|T787|T698|T798):' --workers=1 --retries=0
+node scripts/e2e.mjs --grep 'PLASMABLDR-(T615|T775|T591|T606|T590|T777|T783|T787|T698|T798):' --workers=1 --retries=0
 ```
 
 Пять повторений новых сценариев, всего 50 выполнений:
@@ -62,8 +62,13 @@ npm.cmd run test:e2e -- --grep 'PLASMABLDR-(T615|T775|T591|T606|T590|T777|T783|T
 npm.cmd run test:e2e -- --grep 'PLASMABLDR-(T615|T775|T591|T606|T590|T777|T783|T787|T698|T798):' --repeat-each=5 --workers=1 --retries=0 --max-failures=0
 ```
 
-Для готового UI замените `test:e2e` на `test:e2e:external`.
-На macOS используйте `npm` вместо `npm.cmd`.
+Для готового UI добавьте `--external-ui`. Прямой Node entrypoint работает и в PowerShell,
+и на macOS, сохраняя символы `|` внутри фильтра.
+T775 проверяет наличие всех явно подготовленных ссылок и фактические зависимости
+Green #500 внутри Accent перед заменой источника. Дополнительные ссылки Accent
+учитываются без требования общего количества 36; одинаковые ссылки других групп
+не включаются в эту выборку.
+
 Новые кейсы: T615/T775/T591/T606/T590/T777/T783/T787/T698/T798.
 Подготовка использует основную учётную запись Owner; дополнительный участник нужен прежней второй волне.
 
@@ -155,7 +160,7 @@ API helpers нормализуют порядок каталога `palette.toke
 Регресс сравнения при перестановке ответа проверяется отдельно, без стенда:
 
 ```sh
-node --experimental-strip-types --test tests/helpers/api-read-order.test.ts
+node --experimental-strip-types --test tests/helpers/api-read-order.test.ts tests/helpers/project-role.test.ts
 ```
 
 ## План расширения
@@ -356,7 +361,11 @@ Owner готовит данные и выполняет cleanup; отдельн�
 Нужны DSB_E2E_USERNAME/PASSWORD и DSB_E2E_MEMBER_USERNAME/PASSWORD, а также
 DSB_E2E_ALLOW_MUTATIONS=true. Оба набора читаются из DSB_E2E_CREDENTIALS_FILE, если задан,
 иначе из .env.e2e.local. Реальная роль подтверждается API, чужое членство не переписывается.
-Проекты UI Roles editor/viewer переиспользуются; каждому сценарию редактора создаётся своя ДС.
+Проекты UI Roles editor/viewer переиспользуются. Если роль выделенного тестового участника
+изменилась, Owner восстанавливает её одним PATCH после свежего подтверждения владения
+проектом; затем member-сессия подтверждает реальный effectiveRole. Другие участники
+не изменяются. Member-настройки читаются один раз на тест через общую fixture.
+Каждому сценарию редактора создаётся своя ДС.
 
 Из js/apps/client, Windows PowerShell, только десять новых сценариев:
 

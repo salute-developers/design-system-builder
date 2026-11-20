@@ -30,7 +30,20 @@ export async function prepareRoleProject(
         await requireOwnerProject(environment.gatewayBaseURL, project.id, owner);
         const added = await authenticatedRequest(owner, url + '/members', 'POST', [201], { email: username, role });
         const identity: unknown = await added.json();
-        expect(identity, 'Добавлена именно тестовая учётная запись').toMatchObject({ userId: member.subject });
+        expect(identity, 'Добавлена именно тестовая учётная запись').toMatchObject({ userId: member.subject, role });
+    } else if (existing[0]!.role !== role) {
+        await requireOwnerProject(environment.gatewayBaseURL, project.id, owner);
+        const updated = await authenticatedRequest(
+            owner,
+            url + '/members/' + encodeURIComponent(member.subject),
+            'PATCH',
+            [200],
+            { role },
+        );
+        expect(await updated.json(), 'Восстановлена роль только тестового участника').toMatchObject({
+            userId: member.subject,
+            role,
+        });
     }
     const access = await authenticatedRequest(member, url, 'GET', [200]);
     expect(await access.json(), 'Реальные права браузерной сессии').toMatchObject({
