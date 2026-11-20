@@ -2,7 +2,6 @@
 
 ## Purpose
 Создание дизайн-системы с компонентами и токенами из шаблонов: первичное наполнение базовой версии без построчных триггеров редакций с однократной итоговой проверкой целостности, защиты окна наполнения и ранний отказ при занятом имени.
-
 ## Requirements
 ### Requirement: Первичное наполнение без построчных триггеров
 
@@ -11,7 +10,7 @@
 #### Scenario: Триггеры не вызываются при создании
 
 - **WHEN** в тестовой базе с `track_functions = 'pl'` создаётся дизайн-система
-- **THEN** счётчики вызовов в `pg_stat_user_functions` для `touch_design_system_draft_revision`, `track_subject_edit_revision`, `compact_subject_draft_revision`, `bump_design_system_draft_revision`, `collect_draft_invalidation_scope`, `clear_revision_integrity_checks`, `clear_palette_revision_integrity_checks`, `enforce_resolved_revision_unique`, `enforce_resolved_state_set_coherence` и `enforce_palette_revision_integrity` MUST NOT вырасти.
+- **THEN** счётчики вызовов в `pg_stat_user_functions` для `touch_design_system_draft_revision`, `track_subject_edit_revision`, `compact_subject_draft_revision`, `bump_design_system_draft_revision`, `collect_draft_invalidation_scope`, `clear_revision_integrity_checks`, `clear_palette_revision_integrity_checks`, `enforce_resolved_revision_unique`, `enforce_resolved_state_set_coherence`, `enforce_palette_revision_integrity` и `reject_baseline_seed_foreign_write` MUST NOT вырасти.
 
 #### Scenario: Состав новой дизайн-системы не меняется
 
@@ -47,7 +46,7 @@
 
 ### Requirement: Окно наполнения только для новой дизайн-системы
 
-Окно наполнения SHALL открываться только для дизайн-системы, вставленной в текущей транзакции и имеющей лишь базовую границу `0` без черновика. Пока окно открыто, создание черновика MUST отклоняться. Транзакция с незакрытым окном MUST NOT фиксироваться. После закрытия окна все записи редакций MUST проходить через прежние построчные триггеры.
+Окно наполнения SHALL открываться только для дизайн-системы, вставленной в текущей транзакции и имеющей лишь базовую границу `0` без черновика. Пока окно открыто, создание черновика MUST отклоняться; в таблицах `*_revisions`, кроме `design_system_revisions`, вставка редакции другой дизайн-системы или с `version_sequence_number`, отличным от `0`, MUST отклоняться, а удаление и изменение строк MUST отклоняться — с `SQLState` `P0001` и сообщением `baseline_seed_foreign_write`. Транзакция с незакрытым окном MUST NOT фиксироваться. После закрытия окна все записи редакций MUST проходить через прежние построчные триггеры.
 
 #### Scenario: Открытие окна для существующей дизайн-системы
 
@@ -59,6 +58,27 @@
 
 - **WHEN** при открытом окне наполнения создаётся граница со статусом `draft`
 - **THEN** запись MUST быть отклонена.
+
+#### Scenario: Запись в другую дизайн-систему внутри окна
+
+- **WHEN** при открытом окне наполнения вставляется редакция другой дизайн-системы
+- **THEN** запись MUST быть отклонена с `SQLState` `P0001` и сообщением `baseline_seed_foreign_write`
+- **AND** после отката MUST NOT остаться строк создаваемой дизайн-системы.
+
+#### Scenario: Запись в другую границу внутри окна
+
+- **WHEN** при открытом окне наполнения вставляется редакция целевой дизайн-системы с `version_sequence_number`, отличным от `0`
+- **THEN** запись MUST быть отклонена с `SQLState` `P0001` и сообщением `baseline_seed_foreign_write`.
+
+#### Scenario: Удаление редакции внутри окна
+
+- **WHEN** при открытом окне наполнения удаляется строка `*_revisions`
+- **THEN** удаление MUST быть отклонено с `SQLState` `P0001` и сообщением `baseline_seed_foreign_write`.
+
+#### Scenario: Изменение редакции внутри окна
+
+- **WHEN** при открытом окне наполнения изменяется строка `*_revisions`
+- **THEN** изменение MUST быть отклонено с `SQLState` `P0001` и сообщением `baseline_seed_foreign_write`.
 
 #### Scenario: Незакрытое окно
 
@@ -78,7 +98,7 @@
 
 ### Requirement: Ранний отказ при занятом имени
 
-Если имя занято другой дизайн-системой, создание SHALL отказывать до записи токенов и компонентов. Имя занято, если последняя по `version_sequence_number` редакция другой дизайн-системы не удалена и её имя совпадает с точностью до регистра; проверка глобальна по всем проектам. Ответ MUST быть прежним: `409` с телом `{"error":"constraint_conflict","code":"constraint_conflict"}`. Повтор запроса с тем же `Idempotency-Key` после успешного создания MUST получить сохранённый ответ `201`.
+Если имя занято другой дизайн-системой, создание SHALL отказывать до записи токенов и компонентов. Имя занято, если последняя по `version_sequence_number` редакция другой дизайн-системы не удалена и её имя совпадает точно, с учётом регистра; проверка глобальна по всем проектам. Ответ MUST быть прежним: `409` с телом `{"error":"constraint_conflict","code":"constraint_conflict"}`. Повтор запроса с тем же `Idempotency-Key` после успешного создания MUST получить сохранённый ответ `201`.
 
 #### Scenario: Имя уже занято
 
