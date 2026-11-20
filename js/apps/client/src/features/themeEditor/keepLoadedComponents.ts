@@ -23,6 +23,20 @@ export function keepUnchangedComponents(current: Config[] | null, next: Config[]
         if (!existing || existing.getConfigurations().length === 0) return item;
         if (existing.getConfigurationId() !== item.getConfigurationId()) return item;
 
-        return JSON.stringify(existing.getMeta()) === JSON.stringify(item.getMeta()) ? existing : item;
+        return contentKey(existing) === contentKey(item) ? existing : item;
     });
 }
+
+/**
+ * Содержимое компонента для сравнения: значения открытой конфигурации (`getMeta`), а также то, что меняют структурные
+ * операции и чего нет в `getMeta`: список конфигураций (дублирование, удаление, переименование), имена вариаций и
+ * пересечения. Без них экземпляр после структурной операции оставался прежним и показывал старый состав.
+ */
+const contentKey = (config: Config) =>
+    JSON.stringify({
+        meta: config.getMeta(),
+        configurations: config.getConfigurations(),
+        variations: config.getVariations().map((variation) => [variation.getID(), variation.getName()]),
+        catalog: [...config.getCatalogVariationNames()],
+        combinations: config.getCombinations(),
+    });

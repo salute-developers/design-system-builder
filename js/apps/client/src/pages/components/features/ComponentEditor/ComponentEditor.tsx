@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
-import { useComponentData } from '../../../../hooks';
+import { previewSelection, useComponentData } from '../../../../hooks';
 import { DesignSystem, Config, Theme } from '../../../../controllers';
 import { SegmentButtonItem } from '../../../../components';
 import { ComponentEditorPreview, type StoryArgs } from '../ComponentEditorPreview';
@@ -27,6 +27,8 @@ interface ComponentEditorProps {
     structure?: StructureAccess;
     /** Догрузка компонента по маршруту: нужна выбору стиля вложенного компонента. */
     onLoadComponent?: (route: string) => Promise<void>;
+    /** Только просмотр: значения свойств видны, но не правятся; выбор вариаций и превью доступны. */
+    readOnly?: boolean;
 }
 
 export const ComponentEditor = (props: ComponentEditorProps) => {
@@ -46,14 +48,22 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         () => modeList.find((item) => item.value === preview?.mode) ?? modeList[0],
     );
 
-    // INFO: Переход из «Доступности» цветовых токенов открывает вариацию и стиль пары. Эффект объявлен после
-    // `useComponentData` и применяется поверх значений по умолчанию, которые хук выставляет при загрузке.
+    // INFO: Переход из «Доступности» цветовых токенов выбирает только стиль пары: инспектор правит этот стиль. Эффект
+    // объявлен после `useComponentData` и применяется поверх пустого выбора, который хук выставляет при загрузке.
+    // Запрос перехода остаётся в `location.state`, поэтому он применяется один раз на компонент: перечитывание
+    // конфигурации после сохранения не сбрасывает выбор, сделанный уже после перехода.
+    const appliedPreview = useRef<{ preview: object; key: string }>();
     useEffect(() => {
         const target = config && preview ? resolveComponentPreview(config, preview) : undefined;
-        if (!target) {
+        if (!config || !preview || !target) {
             return;
         }
-        setSelection((current) => ({ ...current, [target.variationName]: target.styleID }));
+        const key = `${config.getPlatform()}:${config.getName()}`;
+        if (appliedPreview.current?.preview === preview && appliedPreview.current.key === key) {
+            return;
+        }
+        appliedPreview.current = { preview, key };
+        setSelection({ [target.variationName]: target.styleID });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, preview]);
     // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
@@ -76,6 +86,9 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         [setSelection],
     );
 
+    // Превью рисует невыбранные вариации стилями по умолчанию: выбор в «Variants» задаёт источник правки инспектора.
+    const previewArgs = useMemo(() => (config ? previewSelection(config, selection) : selection), [config, selection]);
+
     if (!config) {
         return null;
     }
@@ -85,13 +98,13 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
             <ComponentEditorPreview
                 theme={theme}
                 config={config}
-                args={selection}
+                args={previewArgs}
                 designSystem={designSystem}
                 relatedConfigs={relatedConfigs}
                 themeModeList={modeList}
                 themeMode={themeMode}
                 onUpdateThemeMode={setThemeMode}
-                title={combinationTitle(config, selection)}
+                title={combinationTitle(config, previewArgs)}
                 platforms={platforms}
                 onPlatformSelect={onPlatformSelect}
                 resolveStyleReference={resolveStyleReference}
@@ -110,6 +123,7 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 onConfigurationSelect={onConfigurationSelect}
                 structure={structure}
                 onLoadComponent={onLoadComponent}
+                readOnly={props.readOnly}
             />
         </Root>
     );

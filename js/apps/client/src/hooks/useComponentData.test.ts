@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import { Config } from '../controllers';
 import type { Meta } from '../controllers';
-import { getDefaultProps, keepSelection, useComponentData } from './useComponentData';
+import { getDefaultProps, keepSelection, previewSelection, useComponentData } from './useComponentData';
 
 const style = (id: string) => ({ id, name: id, intersections: null, props: [] });
 
@@ -88,7 +88,7 @@ describe('keepSelection', () => {
 });
 
 describe('useComponentData', () => {
-    it('selects the default styles once the component placeholder is replaced by the loaded model', () => {
+    it('starts with nothing selected and keeps it so once the placeholder is replaced by the loaded model', () => {
         // Пока компонент грузится, у модели есть вариации, но нет стилей.
         const placeholder = new Config({ ...meta('web', []), sources: { ...meta('web', []).sources, configs: [] } });
         const loaded = new Config(meta('web', [{ variationID: 'axis-size', styleID: 'm' }]));
@@ -99,7 +99,9 @@ describe('useComponentData', () => {
 
         rerender({ config: loaded });
 
-        expect(result.current[0]).toEqual({ size: 'm' });
+        // Ничего не выбрано: инспектор правит инвариант, превью рисует стили по умолчанию (previewSelection).
+        expect(result.current[0]).toEqual({});
+        expect(previewSelection(loaded, result.current[0])).toEqual({ size: 'm' });
     });
 
     it('keeps a style added in the editor selected after reload replaces its temporary ID with the server one', () => {

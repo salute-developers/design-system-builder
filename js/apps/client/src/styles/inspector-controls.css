@@ -23,6 +23,30 @@
         system-ui,
         sans-serif;
 }
+/* Подсказка подписи `<свойство> · <источник>`: сразу при наведении, без задержки нативного `title`. */
+.sdds-style-role-label[data-tooltip] {
+    position: relative;
+}
+.sdds-style-role-label[data-tooltip]:hover::after {
+    content: attr(data-tooltip);
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    z-index: 20;
+    max-width: 280px;
+    padding: 4px 8px;
+    border: 1px solid #474a51;
+    border-radius: 4px;
+    background: #1f2125;
+    color: #dce3ed;
+    font:
+        400 11px/14px Inter,
+        system-ui,
+        sans-serif;
+    white-space: nowrap;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgb(0 0 0 / 40%);
+}
 .sdds-style-role-label > b {
     min-width: 0;
     flex: 1;
@@ -31,6 +55,10 @@
     font-weight: 400;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* Значение унаследовано пересечением от стиля: подпись приглушена, источник — в подсказке. */
+.is-inherited > .component-variation-style-row .sdds-style-role-label > b {
+    color: #7f8a98;
 }
 .component-variation-property-value {
     position: relative;

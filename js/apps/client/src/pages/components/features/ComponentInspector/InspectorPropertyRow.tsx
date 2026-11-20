@@ -45,14 +45,41 @@ interface InspectorPropertyRowProps {
     onConfigUpdate: () => void;
     /** Запись значения пересечения (`null` — сброс); есть только у строк источника `combination`. */
     onCombinationChange?: (propertyId: string, value: string | null) => void;
+    /** Значение унаследовано пересечением от этого источника (`size: m`): без сброса, состояния — только чтение. */
+    inheritedFrom?: string;
 }
 
-/** Подпись набора состояний, как в прототипе: `pressed + hovered`. */
+/** Подпись набора состояний в порядке пунктов меню: `hovered + pressed`. */
 const stateLabel = (state: readonly string[]) =>
     [
         ...BINDING_STATES.filter((item) => state.includes(item)),
         ...state.filter((item) => !(BINDING_STATES as readonly string[]).includes(item)),
     ].join(' + ');
+
+/**
+ * Порядок строк состояний: одиночные раньше сочетаний, внутри — по пунктам меню (`hovered`, `pressed`, `focused`).
+ * Сервер не хранит порядок добавления, поэтому строки выводятся по этому правилу и не переставляются после перечитывания.
+ */
+const stateRank = (state: readonly string[]) => {
+    const rank = (item: string) => {
+        const index = (BINDING_STATES as readonly string[]).indexOf(item);
+        return index < 0 ? BINDING_STATES.length : index;
+    };
+    return [state.length, ...state.map(rank).sort((a, b) => a - b)];
+};
+
+export const compareStates = (a: readonly string[], b: readonly string[]) => {
+    const left = stateRank(a);
+    const right = stateRank(b);
+    for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
+        const diff = (left[index] ?? -1) - (right[index] ?? -1);
+        if (diff) return diff;
+    }
+    return stateKey(a).localeCompare(stateKey(b));
+};
+
+/** Сырой CSS сохраняется как введён; пустой ввод не записывается. */
+const rawValue = (raw: string) => (raw.trim() ? raw.trim() : null);
 
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
 
@@ -107,7 +134,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const label = humanizeName(prop.getName());
     const value = prop.getValue();
     const text = value === undefined || value === null ? '' : String(value);
-    const states = prop.getStates() ?? [];
+    const states = [...(prop.getStates() ?? [])].sort((a, b) => compareStates(a.state, b.state));
 
     const isCombination = source.kind === 'combination';
     const update = (next: string) => {
@@ -202,6 +229,8 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                     label={label}
                     value={text}
                     unit={type === 'dimension' ? 'px' : ''}
+                    // Значения ядра бывают CSS-выражениями (`calc(…)`, `var(…)`): их можно видеть и править.
+                    allowExpressions
                     icon={
                         /radius/i.test(prop.getName()) ? (
                             <span className="component-radius-icon" aria-hidden="true">
@@ -212,6 +241,10 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                     onCommit={update}
                 />
             );
+        }
+        if (type === 'value') {
+            // Сырой CSS ядра (`3rem`, `calc(var(--plasma-avatar-size) …)`): строка как есть, без единиц и приведения.
+            return <NumberControl label={label} value={text} unit="" parse={rawValue} onCommit={update} />;
         }
         if (type === 'shape') {
             return <TokenField label={label} value={text} options={tokens.shapes} mark="↔" onChange={update} />;
@@ -242,15 +275,45 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         );
     })();
 
+    const stateRows = () =>
+        states.map((state) => {
+            const key = stateKey(state.state);
+            const name = stateLabel(state.state);
+            return (
+                <div key={key} className="component-variation-state-row" data-state-name={key}>
+                    <span>{name}</span>
+                    {colorControl(
+                        String(state.value ?? ''),
+                        (next) => {
+                            config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
+                            onConfigUpdate();
+                        },
+                        <StateRemoveButton
+                            label={`${label} ${name}`}
+                            onRemove={() => {
+                                config.removeTokenState(id, key, variationID, styleID);
+                                onConfigUpdate();
+                            }}
+                        />,
+                        `${label} ${name}`,
+                    )}
+                </div>
+            );
+        });
+
     const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
-            className="component-variation-property-group-row"
+            className={`component-variation-property-group-row ${props.inheritedFrom ? 'is-inherited' : ''}`}
             data-property={prop.getName()}
             data-property-type={type}
         >
             <div className="component-variation-style-row">
-                <span className="sdds-style-role-label">
-                    <b title={`${label} · ${sourceLabel(source)}`}>{label}</b>
+                {/* Подсказка своя, а не `title`: нативная появляется с задержкой и не везде. */}
+                <span
+                    className="sdds-style-role-label"
+                    data-tooltip={`${label} · ${props.inheritedFrom ?? sourceLabel(source)}`}
+                >
+                    <b>{label}</b>
                 </span>
                 <div className="component-variation-property-value">
                     {controlNode}
@@ -259,31 +322,17 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             </div>
             {rows}
             {type === 'color' &&
-                !isCombination &&
-                states.map((state) => {
-                    const key = stateKey(state.state);
-                    const name = stateLabel(state.state);
-                    return (
-                        <div key={key} className="component-variation-state-row" data-state-name={key}>
-                            <span>{name}</span>
-                            {colorControl(
-                                String(state.value ?? ''),
-                                (next) => {
-                                    config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
-                                    onConfigUpdate();
-                                },
-                                <StateRemoveButton
-                                    label={`${label} ${name}`}
-                                    onRemove={() => {
-                                        config.removeTokenState(id, key, variationID, styleID);
-                                        onConfigUpdate();
-                                    }}
-                                />,
-                                `${label} ${name}`,
-                            )}
-                        </div>
-                    );
-                })}
+                (isCombination ? (
+                    // Состояния, унаследованные пересечением от стиля, видны, но не правятся: у пересечения нет записи
+                    // состояний.
+                    props.inheritedFrom && states.length > 0 ? (
+                        <fieldset className="component-inspector-readonly-rows" disabled>
+                            {stateRows()}
+                        </fieldset>
+                    ) : null
+                ) : (
+                    stateRows()
+                ))}
             {linkError && (
                 <p className="component-property-error" role="alert">
                     {linkError}

@@ -4,7 +4,7 @@ export { useHorizontalDraggable } from './useHorizontalDraggable';
 export { useDesignSystem } from './useDesignSystem';
 export { useForceRerender } from './useForceRerender';
 export { useSelectItemInMenu } from './useSelectItemInMenu';
-export { useComponentData } from './useComponentData';
+export { previewSelection, useComponentData } from './useComponentData';
 export { useOwnerProjectId, fetchOwnerProjectId } from './useOwnerProjectId';
 export { locateColorToken, locateLegacyToken, useAddressedToken } from './useAddressedToken';
 export { usePanelWidth } from './usePanelWidth';

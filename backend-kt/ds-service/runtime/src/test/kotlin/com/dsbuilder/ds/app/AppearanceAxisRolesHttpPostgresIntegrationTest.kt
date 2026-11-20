@@ -243,25 +243,27 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `the first axis created through the endpoint becomes the root`() = withService {
-        val ds = designSystem()
-        importConfig(ds, "default", config(root = null, scheme = null))
-        val appearance = appearanceId()
-        val component = query("SELECT id FROM components WHERE name = 'Button'")
-        val variation = id(
-            post(
-                "/api/design-systems/$ds/variations",
-                """{"componentId":"$component","name":"shape"}""",
-            ).bodyAsText(),
-        )
-        val created = post(
-            "/api/design-systems/$ds/appearance-variations",
-            """{"appearanceId":"$appearance","variationId":"$variation","position":0}""",
-        )
-        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-        assertEquals(setOf("shape"), axes(ds, appearance).rootNames())
-        assertTrue(created.bodyAsText().contains("\"isRoot\":true"))
-    }
+    fun `an axis created through the endpoint keeps the view root of a configuration imported without axes`() =
+        withService {
+            val ds = designSystem()
+            importConfig(ds, "default", config(root = null, scheme = null))
+            val appearance = appearanceId()
+            val component = query("SELECT id FROM components WHERE name = 'Button'")
+            val variation = id(
+                post(
+                    "/api/design-systems/$ds/variations",
+                    """{"componentId":"$component","name":"shape"}""",
+                ).bodyAsText(),
+            )
+            val created = post(
+                "/api/design-systems/$ds/appearance-variations",
+                """{"appearanceId":"$appearance","variationId":"$variation","position":1}""",
+            )
+            assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+            // Импорт без осей добавляет `view`, и она по правилу фолбэка становится корнем.
+            assertEquals(setOf("view"), axes(ds, appearance).rootNames())
+            assertTrue(created.bodyAsText().contains("\"isRoot\":false"))
+        }
 
     @Test
     fun `component configuration create repeats the saved result`() = withService {
@@ -275,13 +277,13 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
                 """{"componentId":"$component","name":"shape"}""",
             ).bodyAsText(),
         )
-        val body = """{"appearanceId":"$appearance","variationId":"$variation","position":0}"""
+        val body = """{"appearanceId":"$appearance","variationId":"$variation","position":1}"""
 
         val first = post("/api/design-systems/$ds/appearance-variations", body, idempotencyKey = "axis-create")
         val replay = post("/api/design-systems/$ds/appearance-variations", body, idempotencyKey = "axis-create")
         val mismatch = post(
             "/api/design-systems/$ds/appearance-variations",
-            """{"appearanceId":"$appearance","variationId":"$variation","position":1}""",
+            """{"appearanceId":"$appearance","variationId":"$variation","position":2}""",
             idempotencyKey = "axis-create",
         )
 
@@ -289,7 +291,8 @@ class AppearanceAxisRolesHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.Created, replay.status, replay.bodyAsText())
         assertEquals(first.bodyAsText(), replay.bodyAsText())
         assertEquals(HttpStatusCode.Conflict, mismatch.status, mismatch.bodyAsText())
-        assertEquals("1", query("SELECT count(*) FROM appearance_variations WHERE appearance_id = '$appearance'"))
+        // Вторая ось — `view`, которую импорт добавляет конфигурации без неё.
+        assertEquals("2", query("SELECT count(*) FROM appearance_variations WHERE appearance_id = '$appearance'"))
     }
 
     // ── fixtures ───────────────────────────────────────────────────────────────────────────────────

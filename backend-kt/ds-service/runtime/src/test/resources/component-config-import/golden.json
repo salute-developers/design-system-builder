@@ -66,7 +66,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -94,6 +99,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -269,7 +284,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -291,8 +306,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -302,7 +333,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -314,6 +350,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -392,7 +438,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -420,6 +471,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -595,7 +656,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -617,8 +678,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -628,7 +705,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -640,6 +722,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -707,7 +799,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -735,6 +832,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -910,7 +1017,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -932,8 +1039,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -943,7 +1066,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -955,6 +1083,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -1022,7 +1160,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1050,6 +1193,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -1225,7 +1378,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -1247,8 +1400,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -1258,7 +1427,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1270,6 +1444,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -1337,7 +1521,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1365,6 +1554,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -1540,7 +1739,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -1562,8 +1761,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -1573,7 +1788,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1585,6 +1805,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -1650,7 +1880,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1678,6 +1913,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -1826,7 +2071,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -1848,8 +2093,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -1859,7 +2120,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1871,6 +2137,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -1936,7 +2212,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -1964,6 +2245,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -2112,7 +2403,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -2134,8 +2425,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -2145,7 +2452,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2157,6 +2469,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -2222,7 +2544,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2250,6 +2577,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -2398,7 +2735,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -2420,8 +2757,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -2431,7 +2784,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2443,6 +2801,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -2500,7 +2868,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2528,6 +2901,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -2676,7 +3059,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -2698,15 +3081,31 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
                     "componentName": "card",
                     "styleName": "normalized",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -2722,8 +3121,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -2733,7 +3148,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2745,6 +3165,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
@@ -2802,7 +3232,12 @@
                                 ]
                             }
                         },
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -2830,6 +3265,16 @@
                                                 ]
                                             }
                                         }
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
                                     }
                                 ]
                             }
@@ -2978,7 +3423,7 @@
                     "componentName": "card",
                     "styleName": "card",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -3000,15 +3445,31 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
                     "componentName": "card",
                     "styleName": "normalized",
                     "config": {
-                        "rootVariationId": null,
+                        "rootVariationId": "view",
                         "colorSchemeVariationId": null,
                         "invariants": {
                             "gap": {
@@ -3024,8 +3485,24 @@
                                 ]
                             }
                         },
-                        "defaults": [],
-                        "variations": []
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
+                        "variations": [
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
+                                        "properties": {}
+                                    }
+                                ]
+                            }
+                        ]
                     }
                 },
                 {
@@ -3035,7 +3512,12 @@
                         "rootVariationId": "size",
                         "colorSchemeVariationId": null,
                         "invariants": {},
-                        "defaults": [],
+                        "defaults": [
+                            {
+                                "id": "view",
+                                "value": "default"
+                            }
+                        ],
                         "variations": [
                             {
                                 "id": "size",
@@ -3047,6 +3529,16 @@
                                     },
                                     {
                                         "name": "large",
+                                        "properties": {}
+                                    }
+                                ]
+                            },
+                            {
+                                "id": "view",
+                                "name": "view",
+                                "values": [
+                                    {
+                                        "name": "default",
                                         "properties": {}
                                     }
                                 ]
