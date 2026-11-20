@@ -2,8 +2,6 @@ package com.dsbuilder.app.data.aitools
 
 import com.dsbuilder.ai.chat.domain.ToolResult
 import com.dsbuilder.ds.core.application.DsFailure
-import com.dsbuilder.ds.core.application.DsResult
-import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.designsystems.application.ListDesignSystemTokensUseCase
 import com.dsbuilder.ds.designsystems.domain.DesignSystemId
 import com.dsbuilder.ds.designsystems.presentation.DesignSystemTokenSummaryResponse
@@ -81,19 +79,16 @@ private class TokenValuesGetChatTool(private val getValues: GetTokenValuesUseCas
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
         val id = arguments.uuid("tokenId") ?: return call.reject(INVALID_ID)
-        val tenantWire = arguments.text("tenantId")
-        val platformWire = arguments.text("platform")
-        val modeWire = arguments.text("mode")
-        val tenantId = tenantWire?.toUuid()
-        val platform = platformWire?.let(TokenPlatform::fromWire)
-        val mode = modeWire?.let(TokenMode::fromWire)
-        val invalid = tenantWire != null && tenantId == null ||
-            platformWire != null && platform == null ||
-            modeWire != null && mode == null
-        if (invalid) return call.reject(DsFailure.InvalidRequest("invalid_query"))
+        val filter = runCatching {
+            TokenValueFilter(
+                tenantId = arguments.text("tenantId")?.let(UUID::fromString),
+                platform = arguments.text("platform")?.let { requireNotNull(TokenPlatform.fromWire(it)) },
+                mode = arguments.text("mode")?.let { requireNotNull(TokenMode.fromWire(it)) },
+            )
+        }.getOrNull() ?: return call.reject(DsFailure.InvalidRequest("invalid_query"))
         return call.respond(
             { values -> Json.encodeToJsonElement(TOKEN_VALUES, values.map(TokenValueResponse::from)) },
-        ) { getValues.execute(call.readContext(), id, TokenValueFilter(tenantId, platform, mode)) }
+        ) { getValues.execute(call.readContext(), id, filter) }
     }
 }
 
@@ -166,54 +161,7 @@ private class TokenValueUpdateChatTool(private val update: UpdateTokenValueUseCa
 private fun encodeTokenValue(value: TokenValue): JsonElement =
     Json.encodeToJsonElement(TokenValueResponse.serializer(), TokenValueResponse.from(value))
 
-/**
- * Список с продолжением: тело маршрута в `items` и `nextCursor` из `X-DS-Next-Cursor`. [DsToolCall.respond] отдаёт
- * кодировщику только значение, поэтому успешный результат передаётся ему целиком.
- */
-private suspend fun <T> DsToolCall.respondPage(
-    serializer: kotlinx.serialization.KSerializer<T>,
-    block: suspend () -> DsResult<T>,
-): ToolResult = respond(
-    { success: DsResult.Success<T> ->
-        buildJsonObject {
-            put("items", Json.encodeToJsonElement(serializer, success.value))
-            success.readPage?.nextCursor?.let { put("nextCursor", it) }
-        }
-    },
-) {
-    when (val result = block()) {
-        is DsResult.Success -> DsResult.Success(result)
-        is DsResult.Failure -> result
-    }
-}
-
-/** Отказ без вызова use case, как ответ маршрута на некорректный запрос. */
-private suspend fun DsToolCall.reject(failure: DsFailure): ToolResult =
-    respond<Unit>({ JsonNull }) { DsResult.Failure(failure) }
-
-private fun <T, R> DsResult<T>.map(transform: (T) -> R): DsResult<R> = when (this) {
-    is DsResult.Success -> DsResult.Success(transform(value), mutationMetadata, readContext, readPage)
-    is DsResult.Failure -> this
-}
-
-/** Размер страницы и продолжение; `null` — недопустимые значения, как `INVALID_QUERY` маршрута. */
-private fun JsonObject.page(): ModelReadQuery? {
-    val limit = (this["limit"] as? JsonPrimitive)?.longOrNull ?: DEFAULT_LIMIT.toLong()
-    val cursor = text("cursor")
-    if (limit !in 1..MAX_LIMIT || cursor == "") return null
-    return ModelReadQuery(limit = limit.toInt(), cursor = cursor)
-}
-
-private fun JsonObject.text(name: String): String? =
-    (this[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
-
-private fun JsonObject.uuid(name: String): UUID? = text(name)?.toUuid()
-
-private fun String.toUuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
-
 private val TOKEN_TYPES = setOf("color", "gradient", "typography", "fontFamily", "spacing", "shape", "shadow")
 private val TOKEN_VALUES = ListSerializer(TokenValueResponse.serializer())
 private val INVALID_ID = DsFailure.InvalidRequest("invalid_id")
 private val INVALID_QUERY = DsFailure.InvalidRequest("INVALID_QUERY")
-private const val DEFAULT_LIMIT = 50
-private const val MAX_LIMIT = 200L

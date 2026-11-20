@@ -71,18 +71,19 @@ internal object ChatWire {
         )
     }
 
-    /** Вложенный объект; отсутствует или null — null, другой тип — `invalid_request`. */
-    private fun JsonObject.nested(name: String): JsonObject? = when (val value = get(name)) {
-        null, JsonNull -> null
-        is JsonObject -> value
-        else -> invalid()
-    }
+    /** Отсутствующее поле или null не задаёт значение; неверная форма — invalid_request. */
+    private fun <T : Any> JsonObject.optional(name: String, convert: (JsonElement) -> T?): T? =
+        when (val value = get(name)) {
+            null, JsonNull -> null
+            else -> convert(value) ?: invalid()
+        }
 
-    /** Идентификатор: отсутствует или null — null, не строка или не UUID — `invalid_request`. */
-    private fun JsonObject.optionalUuid(name: String): String? = when (val value = get(name)) {
-        null, JsonNull -> null
-        is JsonPrimitive -> value.takeIf { it.isString }?.content?.uuid() ?: invalid()
-        else -> invalid()
+    /** Вложенный объект; отсутствует или null — null, другой тип — invalid_request. */
+    private fun JsonObject.nested(name: String): JsonObject? = optional(name) { it as? JsonObject }
+
+    /** UUID из строки; неверный тип или формат — invalid_request. */
+    private fun JsonObject.optionalUuid(name: String): String? = optional(name) { value ->
+        (value as? JsonPrimitive)?.takeIf { it.isString }?.content?.uuid()
     }
 
     private fun JsonObject.optionalValueName(name: String): String? =
@@ -103,13 +104,8 @@ internal object ChatWire {
         )
     }
 
-    private fun role(value: String?): ChatRole = when (value) {
-        "user" -> ChatRole.USER
-        "assistant" -> ChatRole.ASSISTANT
-        "tool" -> ChatRole.TOOL
-        "interrupted" -> ChatRole.INTERRUPTED
-        else -> invalid()
-    }
+    private fun role(value: String?): ChatRole =
+        ChatRole.entries.firstOrNull { it.name.lowercase() == value } ?: invalid()
 
     private fun toolCall(call: JsonElement): ToolCall {
         val value = call as? JsonObject ?: invalid()

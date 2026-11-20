@@ -42,10 +42,10 @@ private class ComponentsListChatTool(private val list: ListDesignSystemComponent
     override val name = "components_list"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val name = arguments.componentText("name")
-        val query = arguments.componentText("query")
+        val name = arguments.text("name")
+        val query = arguments.text("query")
         if (name != null && query != null) return call.invalidArgument("INVALID_QUERY")
-        val read = ModelReadQuery(name = name, query = query, platform = arguments.componentText("platform"))
+        val read = ModelReadQuery(name = name, query = query, platform = arguments.text("platform"))
         return call.respond(
             { value ->
                 encodeComponentResponse(
@@ -64,9 +64,9 @@ private class ComponentConfigurationsListChatTool(
     override val name = "component_configurations_list"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val componentId = arguments.componentText("componentId").componentUuid()
+        val componentId = arguments.text("componentId").toUuid()
             ?: return call.invalidArgument("invalid_component_id")
-        val cursor = arguments.componentText("cursor")
+        val cursor = arguments.text("cursor")
         if (cursor == "") return call.invalidArgument("INVALID_QUERY")
         val limit = arguments.componentLong("limit")?.coerceIn(0L, Int.MAX_VALUE.toLong())?.toInt() ?: DEFAULT_LIMIT
         return call.respond(
@@ -89,7 +89,7 @@ private class ComponentVariationsChatTool(private val axes: ListAppearanceVariat
     override val name = "component_variations_get"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         return call.respond(
             { value ->
                 encodeComponentResponse(
@@ -112,8 +112,8 @@ private class ComponentPropertiesChatTool(
     override val name = "component_properties_get"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("componentId").componentUuid() ?: return call.invalidArgument("invalid_id")
-        val full = when (arguments.componentText("detail")) {
+        val id = arguments.text("componentId").toUuid() ?: return call.invalidArgument("invalid_id")
+        val full = when (arguments.text("detail")) {
             null, "compact" -> false
             "full" -> true
             else -> return call.invalidArgument("invalid_detail")
@@ -146,7 +146,7 @@ private class ComponentEditorChatTool(private val model: GetAppearanceEditorMode
     override val name = "component_editor_get"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         return call.respond(
             { value ->
                 encodeComponentResponse(
@@ -163,7 +163,7 @@ private class ComponentConfigChatTool(private val resolved: GetResolvedComponent
     override val name = "component_config_get"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         val valueIds = arguments.selectedValueIds() ?: return call.invalidArgument("invalid_selected_value_id")
         return call.respond(
             { value ->
@@ -185,7 +185,7 @@ private class ComponentTokensChatTool(private val references: GetComponentTokenR
     override val name = "component_tokens_get"
 
     override suspend fun run(arguments: JsonObject, call: DsToolCall): ToolResult {
-        val id = arguments.componentText("appearanceId").componentUuid() ?: return call.invalidArgument("invalid_id")
+        val id = arguments.text("appearanceId").toUuid() ?: return call.invalidArgument("invalid_id")
         val valueIds = arguments.selectedValueIds() ?: return call.invalidArgument("invalid_selected_value_id")
         return call.respond(
             { value ->
@@ -201,6 +201,6 @@ private class ComponentTokensChatTool(private val references: GetComponentTokenR
 /** Выбранные значения осей; `null` — если хотя бы один ID не UUID, как у маршрута. */
 private fun JsonObject.selectedValueIds(): List<UUID>? {
     val raw = componentTexts("selectedValueIds") ?: return null
-    val ids = raw.map { it.componentUuid() }
+    val ids = raw.map { it.toUuid() }
     return ids.takeIf { values -> values.none { it == null } }?.filterNotNull()
 }

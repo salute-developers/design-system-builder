@@ -2,6 +2,8 @@ package com.dsbuilder.ai.chat.di
 
 import com.dsbuilder.ai.chat.application.AgentToolbox
 import com.dsbuilder.ai.chat.application.ChatAccessRefresher
+import com.dsbuilder.ai.chat.application.ChatAssistant
+import com.dsbuilder.ai.chat.application.ChatAssistantStatus
 import com.dsbuilder.ai.chat.application.ChatToolExecutor
 import com.dsbuilder.ai.chat.application.ChatTurnScope
 import com.dsbuilder.ai.chat.application.DesignSystemOwnership
@@ -39,16 +41,22 @@ class AiAssistant internal constructor(
     /** Настройки, с которыми собрана подсистема. */
     val configuration: AiAssistantConfiguration,
     /** Проверки формы запроса. */
-    val validate: ValidateChatTurnUseCase,
+    override val validate: ValidateChatTurnUseCase,
     /** Запуск хода. */
-    val start: StartChatTurnUseCase,
+    override val start: StartChatTurnUseCase,
     /** Хранилище ходов для чтения событий и остановки. */
-    val turns: TurnStore,
+    override val turns: TurnStore,
     /** Область ходов; закрывается при остановке монолита. */
     val turnScope: ChatTurnScope,
     private val drainToolCalls: suspend (Duration) -> Unit,
     private val clients: List<HttpClient>,
-) : AutoCloseable {
+) : ChatAssistant, AutoCloseable {
+    override val status = ChatAssistantStatus(
+        configuration.provider?.wireValue,
+        configuration.model,
+        configuration.limits?.messageMaxChars,
+    )
+
     /** Перестаёт принимать ходы и ждёт начатые вызовы инструментов не дольше [grace]. */
     suspend fun shutdown(grace: Duration) {
         val started = kotlin.time.TimeSource.Monotonic.markNow()

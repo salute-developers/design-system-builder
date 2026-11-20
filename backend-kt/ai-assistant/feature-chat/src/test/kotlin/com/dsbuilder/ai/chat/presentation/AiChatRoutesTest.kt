@@ -143,7 +143,13 @@ class AiChatRoutesTest {
                 client.get("/api/projects/project-1/ai/status") { trusted() }.bodyAsText(),
             ).jsonObject
             assertFalse("minTokenLifetimeSeconds" in status)
+            assertEquals("openai-compatible", status.getValue("provider").jsonPrimitive.content)
             assertEquals("glm-4.5-flash", status.getValue("model").jsonPrimitive.content)
+            assertEquals(
+                configuration.limits?.messageMaxChars.toString(),
+                status.getValue("messageMaxChars").jsonPrimitive.content,
+            )
+            assertEquals(setOf("enabled", "provider", "model", "messageMaxChars"), status.keys)
             assertFalse("k" == status["apiKey"]?.jsonPrimitive?.content)
         }
     }

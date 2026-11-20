@@ -69,7 +69,11 @@ class JournalProjectionHttpPostgresIntegrationTest {
                 val root = "/api/design-systems/$owner"
                 val summaryPath = "$root/changes/summary"
                 val marksPath = "$root/changes/token-ids?tenantId=$tenant"
-                val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray.take(9)
+                val values = api.get("$root/tenants/$tenant/token-values?types=color").jsonArray
+                    // Hex записывается только в литералы: paletteRef/sourceValue скрывают ссылку и её прозрачность.
+                    .filterNot { "paletteRef" in it.jsonObject || "sourceValue" in it.jsonObject }
+                    .take(9)
+                assertEquals(9, values.size)
                 val initialSummary = api.get(summaryPath)
                 val initialMarks = api.get(marksPath)
                 val version = item.jsonObject["versionId"]?.jsonPrimitive?.content

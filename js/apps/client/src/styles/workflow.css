@@ -547,6 +547,7 @@
 }
 .settings-content[data-active-section='general'] #settings-general,
 .ps-content[data-active-section='general'] #settings-general,
+.ps-content[data-active-section='user-general'] #settings-user-general,
 .settings-content[data-active-section='members'] #settings-members,
 .ps-content[data-active-section='members'] #settings-members,
 .settings-content[data-active-section='lifecycle'] #settings-lifecycle,
@@ -4302,4 +4303,10 @@ button:disabled {
     border: 0;
     background: #166dc4;
     color: #f3f3f3;
+}
+
+
+.project-settings #settings-user-general.ps-user-general {
+    width: 100%;
+    max-width: none;
 }

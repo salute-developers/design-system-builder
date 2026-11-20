@@ -1,4 +1,5 @@
 import { API_GATEWAY_URL } from '../api/constants';
+import { authService } from '../api/authService';
 
 type Decision = 'granted' | 'denied' | 'withdrawn';
 type Policy = { version: string; sha256: string; text: string };
@@ -27,27 +28,34 @@ type Saved = {
         policy_sha256?: string;
     };
 };
-type State = { allowed: boolean; choice?: Decision; policy?: Policy; busy: boolean; error: boolean };
+type State = { allowed: boolean; choice?: Decision; policy?: Policy; busy: boolean; error: boolean; saving?: Decision };
 
 type ConsentLock = <T>(operation: () => T) => Promise<T>;
 
 /** Записи между вкладками сериализуются; сеть всегда выполняется вне блокировки. */
 export const createAnalyticsConsent = (
     storage: Storage,
-    storageKey: string,
+    storageKey: string | (() => string | undefined),
     request: typeof fetch,
     synchronize: ConsentLock = async (operation) => operation(),
 ) => {
     let state: State = { allowed: false, busy: false, error: false };
-    let started = false;
+    let startup: Promise<void> | undefined;
     let generation = 0;
+    const resolveStorageKey = () => (typeof storageKey === 'string' ? storageKey : storageKey());
+    let activeStorageKey = typeof storageKey === 'string' ? storageKey : undefined;
+    const isCurrent = (ticket: number) => ticket === generation && activeStorageKey === resolveStorageKey();
+    const requireStorageKey = () => {
+        if (!activeStorageKey) throw new Error('Missing consent account scope');
+        return activeStorageKey;
+    };
     const listeners = new Set<() => void>();
     const publish = (patch: Partial<State>) => {
         state = { ...state, ...patch };
         listeners.forEach((listener) => listener());
     };
-    const read = (): Saved | undefined => {
-        const value = JSON.parse(storage.getItem(storageKey) || 'null');
+    const read = (key = requireStorageKey()): Saved | undefined => {
+        const value = JSON.parse(storage.getItem(key) || 'null');
         if (!value) return undefined;
         const valid = [
             /^[a-f0-9]{64}$/.test(value.key),
@@ -64,14 +72,17 @@ export const createAnalyticsConsent = (
         revision: 0,
     });
     const same = (left: Saved | undefined, right: Saved | undefined) => JSON.stringify(left) === JSON.stringify(right);
-    const write = (saved: Saved) => {
-        storage.setItem(storageKey, JSON.stringify(saved));
+    const write = (saved: Saved, key = requireStorageKey()) => {
+        storage.setItem(key, JSON.stringify(saved));
         return saved;
     };
-    const load = () => synchronize(() => read() || write(create()));
+    const load = () => {
+        const key = requireStorageKey();
+        return synchronize(() => read(key) || write(create(), key));
+    };
     const commit = <T>(expected: Saved, ticket: number, operation: () => T) =>
         synchronize(() => {
-            if (ticket !== generation || !same(read(), expected)) return undefined;
+            if (!isCurrent(ticket) || !same(read(), expected)) return undefined;
             return operation();
         });
     const api = (saved: Saved, body?: object) => {
@@ -103,9 +114,9 @@ export const createAnalyticsConsent = (
         try {
             await operation();
         } catch {
-            if (ticket === generation) publish({ error: true, allowed: false });
+            if (isCurrent(ticket)) publish({ error: true, allowed: false });
         } finally {
-            if (finishBusy && ticket === generation) publish({ busy: false });
+            if (finishBusy && isCurrent(ticket)) publish({ busy: false, saving: undefined });
         }
     };
     const apply = (saved: Saved, response: Response, ticket: number, record: boolean) =>
@@ -127,12 +138,12 @@ export const createAnalyticsConsent = (
         });
     const sync = async (saved: Saved, ticket: number) => {
         const pending = saved.pending;
-        if (!pending) return;
+        if (!pending || !isCurrent(ticket)) return;
         let response = await api(saved, pending);
         if (response.status === 409) {
-            if (ticket !== generation) return;
+            if (!isCurrent(ticket)) return;
             const current = await fetchState(saved);
-            if (ticket !== generation) return;
+            if (!isCurrent(ticket)) return;
             const updated: Saved = { ...saved, revision: current.current.revision };
             if (pending.decision === 'granted') {
                 delete updated.pending;
@@ -157,11 +168,36 @@ export const createAnalyticsConsent = (
     };
     const review = async (ticket: number) => {
         const saved = await load();
+        if (!isCurrent(ticket)) return;
         const response = await fetchState(saved);
         await commit(saved, ticket, () => {
             write({ ...saved, revision: response.current.revision });
-            publish({ policy: response.policy });
+            publish({
+                policy: response.policy,
+                allowed: !saved.pending && saved.decision === 'granted' && response.current.analytics_allowed,
+            });
         });
+    };
+    const start = () => {
+        if (startup) return startup;
+        const ticket = generation;
+        startup = perform(
+            ticket,
+            async () => {
+                activeStorageKey = resolveStorageKey();
+                const saved = await load();
+                if (!isCurrent(ticket)) return;
+                publish({ choice: saved.decision });
+                if (saved.pending) {
+                    await sync(saved, ticket);
+                    return;
+                }
+                if (['denied', 'withdrawn'].includes(saved.decision ?? '')) return;
+                await apply(saved, await fetchState(saved), ticket, false);
+            },
+            false,
+        );
+        return startup;
     };
     return {
         subscribe(listener: () => void) {
@@ -171,30 +207,11 @@ export const createAnalyticsConsent = (
             };
         },
         getSnapshot: () => state,
-        async start() {
-            if (started) return;
-            started = true;
-            const ticket = generation;
-            await perform(
-                ticket,
-                async () => {
-                    const saved = await load();
-                    if (ticket !== generation) return;
-                    publish({ choice: saved.decision });
-                    if (saved.pending) {
-                        await sync(saved, ticket);
-                        return;
-                    }
-                    if (['denied', 'withdrawn'].includes(saved.decision ?? '')) return;
-                    await apply(saved, await fetchState(saved), ticket, false);
-                },
-                false,
-            );
-        },
+        start,
         async choose(decision: Decision) {
             const ticket = ++generation;
             const displayed = state.policy;
-            publish({ allowed: false, choice: decision, busy: true, error: false });
+            publish({ allowed: false, choice: decision, busy: true, error: false, saving: decision });
             await perform(ticket, async () => {
                 if (decision === 'granted' && !displayed) {
                     await review(ticket);
@@ -204,7 +221,7 @@ export const createAnalyticsConsent = (
                 let expected = read();
                 if (decision === 'granted' && expected?.pending && expected.pending.decision !== 'granted') {
                     const resolved = await sync(expected, ticket);
-                    if (!resolved || ticket !== generation) return;
+                    if (!resolved || !isCurrent(ticket)) return;
                     expected = resolved;
                     if (displayed!.version !== state.policy?.version || displayed!.sha256 !== state.policy?.sha256) {
                         publish({ choice: undefined });
@@ -212,7 +229,7 @@ export const createAnalyticsConsent = (
                     }
                 }
                 const saved = await synchronize(() => {
-                    if (ticket !== generation) return undefined;
+                    if (!isCurrent(ticket)) return undefined;
                     const latest = read();
                     if (decision === 'granted' && !same(latest, expected)) return undefined;
                     const current = latest || create();
@@ -235,15 +252,30 @@ export const createAnalyticsConsent = (
             });
         },
         async review() {
-            if (state.policy) return;
             const ticket = generation;
+            const retry = state.error;
+            await start();
+            if (!isCurrent(ticket) || state.policy || state.saving || (state.error && !retry)) return;
             publish({ busy: true, error: false });
             await perform(ticket, () => review(ticket));
+        },
+        stop() {
+            ++generation;
+            startup = undefined;
+            activeStorageKey = undefined;
+            publish({
+                allowed: false,
+                choice: undefined,
+                policy: undefined,
+                busy: false,
+                error: false,
+                saving: undefined,
+            });
         },
         changed() {
             ++generation;
             try {
-                publish({ allowed: false, choice: read()?.decision, busy: false });
+                publish({ allowed: false, choice: read()?.decision, busy: false, saving: undefined });
             } catch {
                 publish({ allowed: false, error: true });
             }
@@ -256,13 +288,23 @@ export const analyticsConsentEnabled =
     Boolean(navigator.locks) &&
     Number.isSafeInteger(Number(import.meta.env.VITE_METRICA_COUNTER_ID)) &&
     Number(import.meta.env.VITE_METRICA_COUNTER_ID) > 0;
-export const consentStorageKey = `dsbuilder.analytics-consent:${import.meta.env.MODE}:${API_GATEWAY_URL}:${import.meta.env.VITE_METRICA_COUNTER_ID}`;
+const consentStorageKey = `dsbuilder.analytics-consent:${import.meta.env.MODE}:${API_GATEWAY_URL}:${import.meta.env.VITE_METRICA_COUNTER_ID}`;
+try {
+    window.localStorage.removeItem(consentStorageKey);
+} catch {
+    // Недоступное хранилище не мешает загрузке клиента; сбор требует проверки согласия.
+}
+/** Выбор изолирован для аккаунта, браузера и окружения; прежняя общая запись не используется. */
+export const getConsentStorageKey = () => {
+    const accountId = authService.getCurrentUser()?.id;
+    return accountId ? `${consentStorageKey}:user:${encodeURIComponent(accountId)}` : undefined;
+};
 export const analyticsConsent = createAnalyticsConsent(
     {
         getItem: (key) => window.localStorage.getItem(key),
         setItem: (key, value) => window.localStorage.setItem(key, value),
     } as Storage,
-    consentStorageKey,
+    getConsentStorageKey,
     (...args) => fetch(...args),
-    (operation) => navigator.locks.request(consentStorageKey, operation),
+    (operation) => navigator.locks.request(getConsentStorageKey() || consentStorageKey, operation),
 );

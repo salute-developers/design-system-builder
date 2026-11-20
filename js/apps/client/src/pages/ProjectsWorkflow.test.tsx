@@ -820,6 +820,7 @@ describe('project workflow', () => {
             createdAt: '',
         });
         at('/settings', <UserSettingsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Personal Access Token', exact: true }));
         expect(await screen.findByText('CI')).toBeInTheDocument();
         expect(screen.getByText('projects:read')).toHaveClass('ps-scope-chip');
         expect(screen.getByText('projects:read').parentElement).toHaveClass('ps-scope-flow');
@@ -889,6 +890,7 @@ describe('project workflow', () => {
             createdAt: '',
         });
         at('/settings', <UserSettingsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Personal Access Token', exact: true }));
         expect(await screen.findByText('Maintainer CI')).toBeInTheDocument();
         expect(screen.queryByText('Опасная зона')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Создать ключ' }));
