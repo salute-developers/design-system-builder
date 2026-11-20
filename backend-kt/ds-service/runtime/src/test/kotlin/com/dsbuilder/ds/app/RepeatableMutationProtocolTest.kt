@@ -14,6 +14,7 @@ import io.ktor.server.response.header
 import io.ktor.server.response.respondText
 import io.ktor.server.routing.route
 import io.ktor.server.routing.routing
+import io.ktor.server.testing.testApplication
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
@@ -21,7 +22,7 @@ import kotlin.test.assertTrue
 /** Проверяет границы транспортного протокола без базы данных. */
 class RepeatableMutationProtocolTest {
     @Test
-    fun `only mutation methods configure keyed commands`() = integrationTestApplication {
+    fun `only mutation methods configure keyed commands`() = testApplication {
         application {
             routing {
                 route("/probe") {
@@ -55,7 +56,7 @@ class RepeatableMutationProtocolTest {
     }
 
     @Test
-    fun `legacy results request reconciliation and large replay metadata is bounded`() = integrationTestApplication {
+    fun `legacy results request reconciliation and large replay metadata is bounded`() = testApplication {
         val metadata = (1..100).joinToString(",", "[", "]") { """{"entityId":"$it","path":"${"x".repeat(80)}"}""" }
         application {
             routing {
