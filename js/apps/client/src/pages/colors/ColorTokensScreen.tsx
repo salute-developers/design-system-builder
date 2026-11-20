@@ -34,8 +34,10 @@ import {
     viewForPlatform,
     contextSubgroup,
     parseMemberName,
+    stateRowId,
     tokenId,
     type ColorContext,
+    type ColorState,
     type ColorFieldValue,
     type ColorTokenContext,
     type ColorTokenView,
@@ -82,6 +84,7 @@ const SHOW_ACCESSIBILITY = false;
 
 const PANELS_KEY = 'ds_color_tokens_panels';
 const COLLAPSED_KEY = 'ds_color_tokens_collapsed';
+const EXPANDED_KEY = 'ds_color_tokens_expanded';
 
 const readStorage = <T,>(key: string, fallback: T): T => {
     try {
@@ -112,9 +115,18 @@ const ADDRESS_CONTEXT_LABELS = {
 } as const;
 const ADDRESS_MODE_LABELS: Record<string, string> = { dark: 'Dark', light: 'Light' };
 
-const definitionRowId = (definition: TokenDefinitionDto) => {
+/** Ключ строки дерева определения: токен или его состояние. */
+const definitionRowId = (definition: Pick<TokenDefinitionDto, 'name'>) => {
     const parsed = parseMemberName(definition.name);
-    return parsed ? `${parsed.group}.${parsed.name}` : null;
+    if (!parsed) return null;
+    const key = { group: parsed.group, name: parsed.name };
+    return parsed.state ? stateRowId(key, parsed.state) : tokenId(key);
+};
+
+/** Определение адреса строки дерева: член подгруппы `default`, иначе любой член строки. */
+const addressDefinition = (definitions: TokenDefinitionDto[], rowId: string) => {
+    const matching = definitions.filter((definition) => definitionRowId(definition) === rowId);
+    return matching.find((definition) => definition.name.includes('.default.')) ?? matching[0];
 };
 
 const invalidFieldOf = (error: ColorTokenOperationError | null, definitions: TokenDefinitions): PickerTarget | null => {
@@ -220,6 +232,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [hideDisabled, setHideDisabled] = useHideDisabled();
     const [platform, setPlatform] = useTokenPlatform();
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
+    const [expandedTokens, setExpandedTokens] = useState<Record<string, boolean>>(() => readStorage(EXPANDED_KEY, {}));
     const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
     const selectionKey = `${context.projectId}:${context.designSystemId}:${context.tenantId}`;
@@ -270,7 +283,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         () => buildTree(groups, views, { query: '', sort, issuesOnly: false }).flatMap(treeTokens)[0] ?? null,
         [groups, views, sort],
     );
-    const selected = views.find((view) => view.id === selectedId) ?? firstToken ?? views[0] ?? null;
+    // Строки дерева: токены и их состояния.
+    const rows = useMemo(() => views.flatMap((view) => [view, ...(view.states ?? [])]), [views]);
+    const selected = rows.find((view) => view.id === selectedId) ?? firstToken ?? views[0] ?? null;
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
     const requestedTokenId = searchParams.get('tokenId');
@@ -296,16 +311,18 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             return;
         }
         if (appliedAddress.current === `${requestedTokenId ?? 'palette'}:${requested}`) return;
-        const parsed = parseMemberName(requested);
-        const rowId = parsed && `${parsed.group}.${parsed.name}`;
-        const match = views.find((view) => view.id === rowId);
+        const rowId = definitionRowId({ name: requested.replace(/^(light|dark)\./, '') });
+        const match = rows.find((view) => view.id === rowId);
         if (match) {
             appliedAddress.current = `${requestedTokenId ?? 'palette'}:${requested}`;
             setSelectedId(match.id);
+            // Состояние из адреса видно в дереве: его токен раскрывается.
+            if (match.state) setExpandedTokens((current) => ({ ...current, [tokenId(match.key)]: true }));
         }
-    }, [requested, requestedTokenId, requestedDefinition?.type, views]);
+    }, [requested, requestedTokenId, requestedDefinition?.type, rows]);
 
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
+    useEffect(() => writeStorage(EXPANDED_KEY, expandedTokens), [expandedTokens]);
     useEffect(() => setPicker(null), [selected?.id, platform]);
 
     const refreshPalette = useCallback(async () => {
@@ -324,7 +341,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
 
     const [addressPending, setAddressPending] = useState<string | null>(null);
     useEffect(() => {
-        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === addressPending);
+        if (!addressPending) return;
+        const definition = addressDefinition(props.tokenDefinitions, addressPending);
         if (!definition) return;
         setAddressPending(null);
         setSearchParams(
@@ -340,7 +358,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
         // Выбор сохраняет адрес в маршруте: переключатель тем открывает тот же токен в другой теме.
-        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+        const definition = addressDefinition(props.tokenDefinitions, view.id);
         if (definition?.id !== (requestedTokenId ?? undefined)) {
             const next = new URLSearchParams(searchParams);
             if (definition) next.set('tokenId', definition.id);
@@ -500,15 +518,30 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         }
     };
 
-    /** Удаление токена после подтверждения: ошибка остаётся в окне. */
+    /** Добавление состояния из меню «+» строки токена: новое состояние открывается в инспекторе. */
+    const addState = async (view: ColorTokenView, state: ColorState) => {
+        try {
+            await editor.addState(view, state);
+        } catch (error) {
+            throw operationError(error);
+        }
+        const id = stateRowId(view.key, state);
+        setSelectedId(id);
+        setAddressPending(id);
+        rerender();
+    };
+
+    /** Удаление токена или состояния после подтверждения: ошибка остаётся в окне. */
     const remove = async (view: ColorTokenView) => {
         if (removing) return;
         setRemoving(true);
         setDeleting((current) => current && { ...current, busy: true, error: null });
         try {
-            await editor.remove(view);
+            if (view.state) await editor.removeState(view);
+            else await editor.remove(view);
             setDeleting(null);
-            setSelectedId(null);
+            // После удаления состояния открывается его токен.
+            setSelectedId(view.state ? tokenId(view.key) : null);
             clearDeletedTokenAddress([view]);
             rerender();
         } catch (error) {
@@ -600,8 +633,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     })();
     const pickerTokenName =
         selected && pickerField
-            ? `${pickerField.mode}.${selected.key.group}.${pickerField.context ? contextSubgroup(selected.key.group, pickerField.context) : 'default'}.${selected.key.name}`
+            ? `${pickerField.mode}.${selected.key.group}.${pickerField.context ? contextSubgroup(selected.key.group, pickerField.context) : 'default'}.${selected.key.name}${selected.state ? `-${selected.state}` : ''}`
             : '';
+    // Определения выбранной строки: у токена — без состояний, у состояния — только его члены.
+    const selectedMembers = selected
+        ? editor.family(selected).filter(([name]) => (parseMemberName(name)?.state ?? undefined) === selected.state)
+        : [];
 
     return (
         <div
@@ -645,6 +682,10 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     onDeleteToken={(view) => requestDelete(view)}
                     onMoveToken={(view, groupId, position) => void moveToken(view, groupId, position)}
                     onMoveGroup={(group, parentId, position) => void moveGroup(group, parentId, position)}
+                    expandedTokens={expandedTokens}
+                    onToggleToken={(id) => setExpandedTokens((current) => ({ ...current, [id]: !current[id] }))}
+                    onAddState={addState}
+                    onDeleteState={(state) => requestDelete(state)}
                 />
                 <header className="editor-toolbar">
                     <div className="preview-toolbar">
@@ -823,10 +864,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                 !editor.family(selected).some(([name]) => props.changedTokenNames?.has(name))
                             }
                             addressLabel={addressLabel}
+                            onStateFormula={(formula) => edit(() => editor.setStateFormula(selected, formula))}
                         />
                     )}
                     {selected && !selected.incomplete && (
-                        <ColorOtherThemes context={context} family={editor.family(selected)} />
+                        <ColorOtherThemes context={context} family={selectedMembers} />
                     )}
                 </aside>
                 <main className="preview-canvas">
@@ -839,7 +881,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onOpenComponent={openComponent}
                         />
                     ) : (
-                        <ColorTokenBoard tree={board} selectedId={selected?.id ?? null} onSelect={select} />
+                        <ColorTokenBoard
+                            tree={board}
+                            // Борд показывает карточки токенов: у выбранного состояния подсвечивается его токен.
+                            selectedId={selected ? tokenId(selected.key) : null}
+                            onSelect={select}
+                        />
                     )}
                 </main>
                 {selected && picker && pickerValue && !readOnly && (
@@ -876,8 +923,11 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 <DeleteTokenDialog
                     displayName={deleting.group?.label ?? deleting.view?.displayName ?? ''}
                     group={deleting.group ? { tokens: deleting.tokens.length } : null}
+                    state={Boolean(deleting.view?.state)}
                     components={[
-                        ...new Set(deleting.tokens.flatMap((view) => componentsUsingToken(components, view.key))),
+                        ...new Set(
+                            deleting.tokens.flatMap((view) => componentsUsingToken(components, view.key, view.state)),
+                        ),
                     ]}
                     busy={deleting.busy}
                     error={deleting.error}

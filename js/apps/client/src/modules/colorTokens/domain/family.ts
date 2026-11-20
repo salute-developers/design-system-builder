@@ -7,8 +7,25 @@ export const COLOR_STATES: readonly ColorState[] = ['hover', 'active', 'brightne
 /** Состояния, которые редактор создаёт у нового токена; `-brightness` есть только у части токенов сидов. */
 export const CREATED_STATES: readonly ColorState[] = ['hover', 'active'];
 
-/** Группы, у которых редактор пересчитывает состояния `-hover` и `-active`. */
+/** Группы, у которых редактор пересчитывает состояния `-hover`, `-active` и `-brightness` формулой. */
 export const STATEFUL_GROUPS = new Set(['text', 'surface', 'outline', 'data']);
+
+/** Названия состояний в дереве и меню «Добавить состояние». */
+export const STATE_LABELS: Record<ColorState, string> = { hover: 'Hover', active: 'Active', brightness: 'Brightness' };
+
+/** Есть ли формула редактора у состояний токена группы [group]: у `text`, `surface`, `outline` и `data`. */
+export const hasStateFormula = (group: string) => STATEFUL_GROUPS.has(group);
+
+/** Ключ строки дерева состояния: `text.accent#hover`. */
+export const stateRowId = (key: ColorTokenKey, state: ColorState) => `${tokenId(key)}#${state}`;
+
+/** Токен и состояние по ключу строки дерева: `text.accent#hover` или `text.accent`. */
+export const parseRowId = (id: string): { key: ColorTokenKey; state: ColorState | null } | null => {
+    const [token, state = null] = id.split('#');
+    const key = keyOfId(token);
+    if (!key || (state !== null && !COLOR_STATES.includes(state as ColorState))) return null;
+    return { key, state: state as ColorState | null };
+};
 
 const MODES = new Set<string>(COLOR_MODES);
 

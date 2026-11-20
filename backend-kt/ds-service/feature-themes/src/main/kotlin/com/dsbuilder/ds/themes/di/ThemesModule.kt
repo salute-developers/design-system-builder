@@ -19,6 +19,7 @@ import com.dsbuilder.ds.themes.application.TenantRepository
 import com.dsbuilder.ds.themes.application.TenantTokenValueCopier
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.AddColorTokenStateUseCase
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRevertListener
@@ -26,6 +27,7 @@ import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueReadPolicy
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueWritePolicy
 import com.dsbuilder.ds.themes.application.colortokens.CreateColorTokenUseCase
+import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenStateUseCase
 import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.MoveColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValuesUseCase
@@ -167,7 +169,9 @@ val themesModule = module {
     factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get(), get()) }
     factory { DeleteColorTokenUseCase(get(), get(), get()) }
     factory { MoveColorTokenUseCase(get(), get(), get(), get()) }
-    factory { ColorTokenUseCases(get(), get(), get(), get()) }
+    factory { AddColorTokenStateUseCase(get(), get(), get(), get(), get()) }
+    factory { DeleteColorTokenStateUseCase(get(), get(), get()) }
+    factory { ColorTokenUseCases(get(), get(), get(), get(), get(), get()) }
     factory { ListTokenGroupsUseCase(get(), get(), get()) }
     factory { CreateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }

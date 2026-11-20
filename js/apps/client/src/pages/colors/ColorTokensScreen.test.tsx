@@ -46,6 +46,12 @@ let invalidTokens: string[] = [];
 let disabledTokens: string[] = [];
 /** Тип семейства на сервере. */
 let familyType = 'color';
+/** Состояния токена `textAccent`: определения `text.<подгруппа>.accent-<состояние>`. */
+let accentStates: string[] = [];
+/** Значения состояний с признаком `detached` у подгруппы `default`. */
+let manualStates: string[] = [];
+/** Тема экрана: список тем дизайн-системы для добавления состояния. */
+let screenTenant = 'tenant-1';
 /** Значение `token-values` вместо значения по умолчанию: имя определения, платформа, режим. */
 let storedValue: (name: string, platform: string, mode: string) => Record<string, unknown> | undefined = () =>
     undefined;
@@ -62,8 +68,15 @@ const family = (name: string, groupId: string, position: number) =>
         position,
         publishedIn: published,
     }));
+const stateFamily = (state: string) =>
+    SUBGROUPS.map((subgroup, index) => ({
+        ...family('accent', 'g-accent', 0)[index],
+        id: `accent-${state}-${index}`,
+        name: `text.${subgroup}.accent-${state}`,
+    }));
 const definitions = () => [
     ...family('accent', 'g-accent', 0),
+    ...accentStates.flatMap(stateFamily),
     ...extraTokens.flatMap((token) => family(token.name, token.groupId, token.position)),
 ];
 
@@ -114,6 +127,9 @@ const reply =
                                 value: invalidTokens.includes(token.name.split('.')[2])
                                     ? 'not-a-color'
                                     : INHERITED[token.name.split('.')[1]][mode],
+                                ...(manualStates.some((state) => token.name === `text.default.accent-${state}`)
+                                    ? { detached: true }
+                                    : {}),
                                 ...storedValue(token.name, platform, mode),
                             })),
                         ),
@@ -122,6 +138,9 @@ const reply =
         if (url.endsWith('/design-system-components') || url.endsWith('/components') || url.endsWith('/appearances'))
             return { data: [] };
         if (url.endsWith('/design-systems/ds-1/versions')) return { data: [] };
+        // Темы дизайн-системы и значения токена по темам для добавления состояния.
+        if (url.endsWith('/design-systems/ds-1/tenants')) return { data: [{ id: screenTenant, name: 'tenant' }] };
+        if (url.endsWith('/design-systems/ds-1/token-values')) return { data: [] };
         if (url.endsWith('/palette'))
             return { data: { tenantId: 'tenant-1', editRevision: 3, groups: [], tokens: [], template: [], links: [] } };
         throw new Error(`Unexpected URL ${url}`);
@@ -140,6 +159,8 @@ const repository = {
     updateValues: vi.fn<ColorTokenRepository['updateValues']>(),
     delete: vi.fn<ColorTokenRepository['delete']>(),
     move: vi.fn<ColorTokenRepository['move']>(),
+    addState: vi.fn<ColorTokenRepository['addState']>(),
+    deleteState: vi.fn<ColorTokenRepository['deleteState']>(),
     describe: vi.fn<ColorTokenRepository['describe']>(),
 };
 
@@ -197,6 +218,7 @@ const renderScreen = async (
     const theme = designSystem.createThemeInstance({ includeExtraTokens: true });
     // Отдельная тема на каждый тест: сессии автосохранения хранятся по контексту темы.
     const screenContext = { ...loadContext, tenantId: `tenant-${++tenantSeq}` };
+    screenTenant = screenContext.tenantId;
     // Признаки своего значения платформы из прочитанного состояния, как при загрузке темы в `useDesignSystem`.
     observeTokenValueRevisions(screenContext, snapshot);
     let swapTheme: (change?: (theme: Theme) => void) => void = () => undefined;
@@ -256,6 +278,8 @@ beforeEach(() => {
     localStorage.clear();
     published = null;
     familyType = 'color';
+    accentStates = [];
+    manualStates = [];
     storedValue = () => undefined;
     post.mockImplementation(async () => ({ data: { components: [] } }));
     extraTokens = [];
@@ -268,6 +292,8 @@ beforeEach(() => {
     repository.delete.mockReset();
     repository.move.mockReset();
     repository.describe.mockReset();
+    repository.addState.mockReset();
+    repository.deleteState.mockReset();
     groupRepository.create.mockReset();
     groupRepository.update.mockReset();
     groupRepository.remove.mockReset();
@@ -1230,6 +1256,163 @@ describe('ColorTokensScreen', () => {
         // Вкладка «Доступность» пока скрыта по решению команды.
         expect(screen.queryByRole('button', { name: 'Доступность' })).toBeNull();
         expect(repository.updateValues).not.toHaveBeenCalled();
+    });
+});
+
+describe('ColorTokensScreen: состояния токена', () => {
+    const formulaSwitch = () => within(inspector()).getByRole('switch', { name: 'По формуле' });
+    // У состояния имя не переименовывается: заголовок — текст, а не кнопка «Имя токена».
+    const headerTitle = () => inspector().querySelector('.tw-inspector-title') as HTMLElement;
+
+    it('стрелка раскрывает состояния, выбор открывает инспектор состояния и пишет адрес', async () => {
+        accentStates = ['hover', 'active'];
+        await renderScreen();
+        await screen.findByTestId('color-token-row-text.accent');
+        expect(screen.queryByTestId('color-token-row-text.accent#hover')).toBeNull();
+
+        fireEvent.click(screen.getByRole('button', { name: 'Показать состояния textAccent' }));
+        expect(screen.getByTestId('color-token-row-text.accent#hover')).toHaveTextContent('Hover');
+        expect(screen.getByTestId('color-token-row-text.accent#active')).toHaveTextContent('Active');
+        fireEvent.click(screen.getByTestId('color-token-row-text.accent#hover'));
+
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+        expect(formulaSwitch()).toBeChecked();
+        expect(within(inspector()).getByText('Значения считаются от значений токена')).toBeInTheDocument();
+        expect(screen.getByTestId('route-search')).toHaveTextContent('tokenId=accent-hover-0');
+        // Отключение и описание принадлежат токену: у состояния их нет.
+        expect(within(inspector()).queryByRole('button', { name: /Отключить токен/ })).toBeNull();
+        // Раскрытие запоминается.
+        expect(JSON.parse(localStorage.getItem('ds_color_tokens_expanded') ?? '{}')).toEqual({ 'text.accent': true });
+    });
+
+    it('адрес состояния открывает его и раскрывает токен', async () => {
+        accentStates = ['hover'];
+        await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-hover-0' });
+
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+        expect(screen.getByTestId('color-token-row-text.accent#hover')).toHaveClass('is-selected');
+    });
+
+    it('выключенная формула делает поля доступными и отправляет detached у значений Light и Dark', async () => {
+        accentStates = ['hover'];
+        repository.updateValues.mockResolvedValue({ editRevision: 4 });
+        await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-hover-0' });
+        await waitFor(() => expect(formulaSwitch()).toBeChecked());
+
+        fireEvent.click(formulaSwitch());
+
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        const hover = repository.updateValues.mock.calls[0][2].members.find(
+            (member) => member.tokenId === 'accent-hover-0',
+        );
+        expect(hover?.values.every((value) => value.detached === true)).toBe(true);
+        expect(formulaSwitch()).not.toBeChecked();
+        expect(within(inspector()).getByText('Значения заданы вручную')).toBeInTheDocument();
+    });
+
+    it('Brightness, как Hover и Active, считается по формуле', async () => {
+        accentStates = ['brightness'];
+        await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-brightness-0' });
+
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentBrightness'));
+        expect(formulaSwitch()).toBeChecked();
+        expect(formulaSwitch()).toBeEnabled();
+    });
+
+    it('ручное состояние сида показывается без формулы', async () => {
+        accentStates = ['hover'];
+        manualStates = ['hover'];
+        await renderScreen('maintainer', [], [], { entry: '/?tokenId=accent-hover-0' });
+
+        await waitFor(() => expect(formulaSwitch()).not.toBeChecked());
+        expect(formulaSwitch()).toBeEnabled();
+    });
+
+    it('меню «+» предлагает недостающие состояния и добавляет выбранное', async () => {
+        accentStates = ['hover'];
+        repository.addState.mockImplementation(async (_context, _tokenId, state, tenants) => ({
+            editRevision: 4,
+            value: {
+                type: 'color',
+                group: 'text',
+                name: 'accent',
+                members: tenants[0].members.map((member, index) => ({
+                    tokenId: `accent-${state}-${index}`,
+                    name: member.name,
+                })),
+            },
+        }));
+        await renderScreen();
+        await screen.findByTestId('color-token-row-text.accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние textAccent' }));
+        const menu = screen.getByRole('menu');
+        expect(
+            within(menu)
+                .getAllByRole('menuitem')
+                .map((item) => item.textContent),
+        ).toEqual(['Active', 'Brightness']);
+        fireEvent.click(within(menu).getByRole('menuitem', { name: 'Active' }));
+
+        await waitFor(() => expect(repository.addState).toHaveBeenCalledTimes(1));
+        const [, tokenId, state, tenants] = repository.addState.mock.calls[0];
+        expect([tokenId, state]).toEqual(['accent-0', 'active']);
+        expect(tenants[0].members.map((member) => member.name)).toEqual([
+            'text.default.accent-active',
+            'text.on-dark.accent-active',
+            'text.on-light.accent-active',
+            'text.inverse.accent-active',
+        ]);
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentActive'));
+        expect(screen.getByTestId('color-token-row-text.accent#active')).toBeInTheDocument();
+    });
+
+    it('показывает отказ добавления под строкой токена', async () => {
+        repository.addState.mockRejectedValue(new Error('Состояние уже есть'));
+        await renderScreen();
+        await screen.findByTestId('color-token-row-text.accent');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние textAccent' }));
+        fireEvent.click(within(screen.getByRole('menu')).getByRole('menuitem', { name: 'Hover' }));
+
+        expect(await screen.findByText('Состояние уже есть')).toBeInTheDocument();
+    });
+
+    it('удаляет состояние после подтверждения и открывает его токен', async () => {
+        accentStates = ['hover', 'active'];
+        repository.deleteState.mockResolvedValue({ editRevision: 4 });
+        await renderScreen('maintainer', [], [componentUsing('Button', 'text.default.accent')], {
+            entry: '/?tokenId=accent-hover-0',
+        });
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить состояние textAccentHover' }));
+        const dialog = screen.getByRole('dialog');
+        expect(dialog).toHaveTextContent('Удалить состояние?');
+        // Компонент ссылается на сам токен, а не на его Hover.
+        expect(dialog).toHaveTextContent('Состояние не используется в компонентах дизайн-системы.');
+        fireEvent.click(within(dialog).getByRole('button', { name: 'Удалить состояние' }));
+
+        await waitFor(() =>
+            expect(repository.deleteState).toHaveBeenCalledWith(expect.anything(), 'accent-0', 'hover', 3),
+        );
+        await waitFor(() => expect(screen.queryByTestId('color-token-row-text.accent#hover')).toBeNull());
+        expect(screen.getByTestId('color-token-row-text.accent#active')).toBeInTheDocument();
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccent'));
+    });
+
+    it('Editor не удаляет состояния, Viewer и опубликованная версия не добавляют их и не меняют формулу', async () => {
+        accentStates = ['hover'];
+        await renderScreen('editor', [], [], { entry: '/?tokenId=accent-hover-0' });
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+        expect(screen.getByRole('button', { name: 'Добавить состояние textAccent' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Удалить состояние textAccentHover' })).toBeNull();
+        cleanup();
+
+        await renderScreen('viewer', [], [], { entry: '/?tokenId=accent-hover-0' });
+        await waitFor(() => expect(headerTitle()).toHaveTextContent('textAccentHover'));
+        expect(screen.queryByRole('button', { name: /^Добавить состояние/ })).toBeNull();
+        expect(formulaSwitch()).toBeDisabled();
     });
 });
 

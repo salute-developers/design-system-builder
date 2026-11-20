@@ -9,9 +9,12 @@ import {
 } from '@salutejs/sdds-icons/16';
 
 import {
+    COLOR_STATES,
+    STATE_LABELS,
     byDisplayName,
     groupCode,
     treeTokens,
+    type ColorState,
     type ColorTokenView,
     type SaveStatus,
     type TokenGroupDto,
@@ -178,6 +181,12 @@ interface TreeProps {
     onDeleteToken: (view: ColorTokenView) => void;
     onMoveToken: (view: ColorTokenView, groupId: string, position: number) => void;
     onMoveGroup: (group: TokenGroupDto, parentId: string | null, position: number) => void;
+    /** Раскрытые строки токенов с состояниями: по умолчанию токен свёрнут. */
+    expandedTokens: Record<string, boolean>;
+    onToggleToken: (id: string) => void;
+    /** «Добавить состояние»: отказ бросает ошибку с текстом для строки. */
+    onAddState: (view: ColorTokenView, state: ColorState) => Promise<void>;
+    onDeleteState: (state: ColorTokenView) => void;
 }
 
 /** Служебный узел результатов поиска: как «Без группы», он не принимает перенос, а строки поиска не перетаскиваются. */
@@ -261,6 +270,19 @@ export const ColorTokenTree = (props: TreeProps) => {
         } finally {
             running.current = false;
             setBusy(false);
+        }
+    };
+
+    // Ошибка добавления состояния показывается под строкой токена.
+    const [stateFailure, setStateFailure] = useState<{ id: string; message: string } | null>(null);
+    const addState = async (token: ColorTokenView, state: ColorState) => {
+        setMenu(null);
+        setStateFailure(null);
+        try {
+            await props.onAddState(token, state);
+            if (!props.expandedTokens[token.id]) props.onToggleToken(token.id);
+        } catch (failure) {
+            setStateFailure({ id: token.id, message: errorText(failure) });
         }
     };
 
@@ -452,35 +474,110 @@ export const ColorTokenTree = (props: TreeProps) => {
                 </div>
             );
         }
+        const states = token.states ?? [];
+        const missing = COLOR_STATES.filter((state) => !states.some((item) => item.state === state));
+        // Найденный поиском токен показывает состояния сразу.
+        const open = states.length > 0 && (Boolean(found) || Boolean(props.expandedTokens[token.id]));
+        const menuId = `states:${token.id}`;
         return (
-            <div
-                key={token.id}
-                className={`token-row-wrap tw-tree-row ${dropArea(container.group.id)}`}
-                {...tokenTarget(container, token)}
-            >
-                {dropHint(token.id)}
+            <div key={token.id} className="ct-token-branch">
+                <div
+                    className={`token-row-wrap tw-tree-row ${dropArea(container.group.id)}`}
+                    {...tokenTarget(container, token)}
+                >
+                    {dropHint(token.id)}
+                    {states.length > 0 && (
+                        <button
+                            type="button"
+                            className="ct-state-toggle tw-tree-chevron"
+                            aria-label={`${open ? 'Свернуть' : 'Показать'} состояния ${token.displayName}`}
+                            aria-expanded={open}
+                            onClick={() => props.onToggleToken(token.id)}
+                        >
+                            {open ? <DisclosureDownOutline /> : <DisclosureRightOutline />}
+                        </button>
+                    )}
+                    <button
+                        type="button"
+                        className={`token-row tw-tree-item ${selectedId === token.id ? 'is-selected' : ''} ${token.enabled ? '' : 'is-disabled'}`}
+                        data-testid={`color-token-row-${token.id}`}
+                        draggable={editable && !found}
+                        onDragStart={(event) => {
+                            event.dataTransfer.setData('text/plain', token.id);
+                            setDragged({ kind: 'token', view: token });
+                        }}
+                        onDragEnd={endDrag}
+                        onClick={() => props.onSelect(token)}
+                        onDoubleClick={() => editable && startEditing({ kind: 'rename-token', id: token.id })}
+                    >
+                        {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
+                        <span className="tw-tree-item-label">{token.displayName}</span>
+                        {token.incomplete && <b className="ct-row-flag">Нет значений</b>}
+                        {!token.enabled && <DisabledFlag />}
+                        {save.state === 'error' && <b className="ct-row-flag is-error">Не сохранено</b>}
+                    </button>
+                    {((editable && missing.length > 0) || canDelete) && (
+                        <span className="tw-tree-row-actions">
+                            {editable && missing.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="tw-icon-button token-group-add"
+                                    title={`Добавить состояние ${token.displayName}`}
+                                    aria-label={`Добавить состояние ${token.displayName}`}
+                                    aria-expanded={menu === menuId}
+                                    onClick={() => setMenu((current) => (current === menuId ? null : menuId))}
+                                >
+                                    <PlusOutline />
+                                </button>
+                            )}
+                            {deleteButton(`Удалить токен ${token.displayName}`, () => props.onDeleteToken(token))}
+                        </span>
+                    )}
+                    {menu === menuId && (
+                        <div className="tw-menu token-group-menu" role="menu" ref={menuRef}>
+                            {missing.map((state) => (
+                                <button
+                                    key={state}
+                                    type="button"
+                                    role="menuitem"
+                                    className="tw-menu-item"
+                                    onClick={() => void addState(token, state)}
+                                >
+                                    {STATE_LABELS[state]}
+                                </button>
+                            ))}
+                        </div>
+                    )}
+                </div>
+                {stateFailure?.id === token.id && (
+                    <span className="token-tree-input-error" role="alert">
+                        {stateFailure.message}
+                    </span>
+                )}
+                {open && states.map((state) => stateRow(state))}
+            </div>
+        );
+    };
+
+    /** Строка состояния под токеном: без переименования и перетаскивания, имя и место следуют за токеном. */
+    const stateRow = (state: ColorTokenView) => {
+        const label = STATE_LABELS[state.state!];
+        const severity = state.issues.length ? 'is-error' : '';
+        return (
+            <div key={state.id} className="token-row-wrap tw-tree-row ct-state-row">
                 <button
                     type="button"
-                    className={`token-row tw-tree-item ${selectedId === token.id ? 'is-selected' : ''} ${token.enabled ? '' : 'is-disabled'}`}
-                    data-testid={`color-token-row-${token.id}`}
-                    draggable={editable && !found}
-                    onDragStart={(event) => {
-                        event.dataTransfer.setData('text/plain', token.id);
-                        setDragged({ kind: 'token', view: token });
-                    }}
-                    onDragEnd={endDrag}
-                    onClick={() => props.onSelect(token)}
-                    onDoubleClick={() => editable && startEditing({ kind: 'rename-token', id: token.id })}
+                    className={`token-row tw-tree-item ${selectedId === state.id ? 'is-selected' : ''}`}
+                    data-testid={`color-token-row-${state.id}`}
+                    onClick={() => props.onSelect(state)}
                 >
-                    {swatch(rowPreview(token.modes.light.resolved, token.modes.dark.resolved), severity)}
-                    <span className="tw-tree-item-label">{token.displayName}</span>
-                    {token.incomplete && <b className="ct-row-flag">Нет значений</b>}
-                    {!token.enabled && <DisabledFlag />}
-                    {save.state === 'error' && <b className="ct-row-flag is-error">Не сохранено</b>}
+                    {swatch(rowPreview(state.modes.light.resolved, state.modes.dark.resolved), severity)}
+                    <span className="tw-tree-item-label">{label}</span>
+                    {state.incomplete && <b className="ct-row-flag">Нет значений</b>}
                 </button>
                 {canDelete && (
                     <span className="tw-tree-row-actions">
-                        {deleteButton(`Удалить токен ${token.displayName}`, () => props.onDeleteToken(token))}
+                        {deleteButton(`Удалить состояние ${state.displayName}`, () => props.onDeleteState(state))}
                     </span>
                 )}
             </div>

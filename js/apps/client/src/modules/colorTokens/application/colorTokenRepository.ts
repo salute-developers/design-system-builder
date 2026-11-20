@@ -1,4 +1,4 @@
-import type { ColorMode, ColorTokenType } from '../domain';
+import type { ColorMode, ColorState, ColorTokenType } from '../domain';
 
 /** Подтверждение структуры только затронутого семейства и порядка его соседей. */
 export interface ColorTokenStructure {
@@ -56,6 +56,12 @@ export interface CreateColorTokenInput {
     position?: number | null;
 }
 
+/** Значения членов нового состояния в одной теме дизайн-системы. */
+export interface ColorTokenStateTenantValues {
+    tenantId: string;
+    members: Array<{ name: string; values: ColorTokenValueItem[] }>;
+}
+
 export interface MoveColorTokenInput {
     groupId: string;
     position: number;
@@ -100,6 +106,21 @@ export interface ColorTokenRepository {
         input: MoveColorTokenInput,
         editRevision: number,
     ): Promise<{ editRevision: number; value: ColorTokenFamilyDto; structure?: ColorTokenStructure }>;
+    /** Добавляет состояние семейству [tokenId] со значениями каждой темы дизайн-системы. */
+    addState(
+        context: ColorTokenContext,
+        tokenId: string,
+        state: ColorState,
+        tenants: ColorTokenStateTenantValues[],
+        editRevision: number,
+    ): Promise<{ editRevision: number; value: ColorTokenFamilyDto; structure?: ColorTokenStructure }>;
+    /** Удаляет состояние семейства [tokenId] во всех подгруппах и темах. */
+    deleteState(
+        context: ColorTokenContext,
+        tokenId: string,
+        state: ColorState,
+        editRevision: number,
+    ): Promise<{ editRevision: number; structure?: ColorTokenStructure }>;
     /** Меняет описание определения токена (`PATCH /tokens/{id}`); описание общее для дизайн-системы. */
     describe(context: ColorTokenContext, tokenId: string, description: string): Promise<void>;
 }

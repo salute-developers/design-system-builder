@@ -11,7 +11,7 @@ import type { ColorMode, ColorState, ColorTokenKey } from './types';
 
 export const NEW_TOKEN_MESSAGES = {
     name: 'Введите имя: латиница и цифры.',
-    state: 'Имя не может оканчиваться на -hover, -active или -brightness.',
+    state: 'Имя не может оканчиваться на -hover, -active или -brightness. Состояние добавляется кнопкой «+» у токена.',
     exists: (name: string) => `Имя ${name} уже занято.`,
 } as const;
 

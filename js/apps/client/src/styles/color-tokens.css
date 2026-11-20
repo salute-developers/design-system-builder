@@ -2647,3 +2647,81 @@
     border-radius: 50%;
     background: var(--tw-negative);
 }
+
+/*
+ * Состояния токена (`add-color-token-states`): стрелка раскрытия стоит в отступе строки токена слева от чипа, строки
+ * Hover, Active и Brightness — на шаг правее строки токена.
+ */
+.color-tokens-screen .ct-state-toggle {
+    position: absolute;
+    z-index: 2;
+    top: calc((var(--tw-row-height) - var(--tw-icon-size)) / 2);
+    left: calc(var(--tw-space-m) + var(--tw-space-xs) + var(--tw-tree-indent) - var(--tw-icon-size) - 2px);
+    display: inline-flex;
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--tw-text-secondary);
+    cursor: pointer;
+}
+
+.color-tokens-screen .tw-tree-nested .ct-state-toggle {
+    left: calc(var(--tw-space-m) + var(--tw-space-xs) + 2 * var(--tw-tree-indent) - var(--tw-icon-size) - 2px);
+}
+
+.color-tokens-screen .ct-state-toggle > svg {
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+}
+
+.color-tokens-screen .ct-state-toggle:focus-visible {
+    border-radius: var(--tw-radius-s);
+    outline: 1px solid var(--tw-accent);
+}
+
+.color-tokens-screen .tw-tree-branch .ct-state-row .tw-tree-item {
+    padding-left: calc(var(--tw-space-xs) + 2 * var(--tw-tree-indent));
+}
+
+.color-tokens-screen .tw-tree-branch .tw-tree-nested .ct-state-row .tw-tree-item {
+    padding-left: calc(var(--tw-space-xs) + 3 * var(--tw-tree-indent));
+}
+
+/* Переключатель «По формуле» инспектора состояния: поля панели свойств растягивают `input`, здесь он своего размера. */
+.color-tokens-screen .properties-panel .ct-state-formula {
+    gap: var(--tw-space-xs);
+    padding: var(--tw-space-m) var(--tw-space-l) calc(var(--tw-space-m) - 1px);
+}
+
+.color-tokens-screen .properties-panel .ct-formula-switch {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    width: auto;
+    color: var(--tw-text-primary);
+    font-size: 12px;
+    line-height: 16px;
+    cursor: pointer;
+}
+
+.color-tokens-screen .properties-panel .ct-formula-switch:has(input:disabled) {
+    color: var(--tw-text-secondary);
+    cursor: default;
+}
+
+.color-tokens-screen .properties-panel .ct-formula-switch > input {
+    flex: none;
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+    margin: 0;
+    accent-color: var(--tw-accent);
+}
+
+.color-tokens-screen .properties-panel .ct-formula-note {
+    margin: 0;
+    color: var(--tw-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+}

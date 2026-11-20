@@ -2,8 +2,16 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../../api/editorReads', () => ({ readEditor: vi.fn(), invalidateEditorReads: vi.fn() }));
 
+const reads = vi.hoisted(() => ({ themes: vi.fn(), values: vi.fn() }));
+vi.mock('../../modules/themes/data/themesApi', () => ({ themesApi: { list: reads.themes } }));
+vi.mock('../../api/tokenRepository', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('../../api/tokenRepository')>();
+    return { ...actual, tokenRepository: { ...actual.tokenRepository, loadValuesByTenant: reads.values } };
+});
+
 import { AndroidColor, ColorToken, IOSColor, Theme, WebColor } from '../../controllers';
 import {
+    ColorTokenOperationError,
     buildColorTokenViews,
     readPaint,
     type ColorTokenRepository,
@@ -15,6 +23,7 @@ import {
     adoptTheme,
     colorTokenSession,
     createColorTokenEditor,
+    isDetached,
     isOverridden,
     setColorTokenRepository,
     type ColorTokenSession,
@@ -35,6 +44,8 @@ const repository = {
     updateValues: vi.fn<ColorTokenRepository['updateValues']>(),
     delete: vi.fn<ColorTokenRepository['delete']>(),
     move: vi.fn<ColorTokenRepository['move']>(),
+    addState: vi.fn<ColorTokenRepository['addState']>(),
+    deleteState: vi.fn<ColorTokenRepository['deleteState']>(),
     describe: vi.fn<ColorTokenRepository['describe']>(),
 };
 
@@ -74,6 +85,7 @@ const viewOf = (session: ColorTokenSession): ColorTokenView =>
                     ios: isOverridden(session, item.getName(), 'ios'),
                     android: isOverridden(session, item.getName(), 'android'),
                 },
+                detached: isDetached(session, item.getName()),
             })),
         ),
         { resolve: (value) => value, placement: () => null, incomplete: new Set() },
@@ -211,5 +223,155 @@ describe('редактор цветовых токенов: вид значен�
         expect(theme.getTokens('color')).toHaveLength(0);
         expect(session.definitions.get('text.default.accent')?.type).toBe('gradient');
         expect(viewOf(session).id).toBe('text.accent');
+    });
+});
+
+const stateOf = (session: ColorTokenSession, state: 'hover' | 'active' | 'brightness') =>
+    viewOf(session).states!.find((item) => item.state === state)!;
+
+describe('редактор цветовых токенов: состояния', () => {
+    it('выключенная формула оставляет значения и не пересчитывает состояние при правке токена', () => {
+        const { session, editor } = setup();
+        const hover = value(session, 'light.text.default.accent-hover', 'web');
+        const active = value(session, 'light.text.default.accent-active', 'web');
+
+        editor.setStateFormula(stateOf(session, 'hover'), false);
+        expect(stateOf(session, 'hover').formula).toBe(false);
+        editor.setField(viewOf(session), 'light', '#3355AA');
+
+        expect(value(session, 'light.text.default.accent-hover', 'web')).toBe(hover);
+        expect(value(session, 'light.text.default.accent-active', 'web')).not.toBe(active);
+        expect(session.detachments.get('light.text.default.accent-hover')).toBe(true);
+        expect(session.detachments.get('dark.text.default.accent-hover')).toBe(true);
+    });
+
+    it('состояние по формуле не правится, ручное правится, включение формулы пересчитывает значения', () => {
+        const { session, editor } = setup();
+        const formula = value(session, 'light.text.default.accent-hover', 'web');
+        editor.setField(stateOf(session, 'hover'), 'light', '#000000');
+        expect(value(session, 'light.text.default.accent-hover', 'web')).toBe(formula);
+
+        editor.setStateFormula(stateOf(session, 'hover'), false);
+        editor.setField(stateOf(session, 'hover'), 'light', '#000000');
+        expect(value(session, 'light.text.default.accent-hover', 'web')).toBe('#000000');
+
+        editor.setField(viewOf(session), 'light', '#3355AA');
+        editor.setStateFormula(stateOf(session, 'hover'), true);
+        const recomputed = value(session, 'light.text.default.accent-hover', 'web');
+        expect(recomputed).not.toBe('#000000');
+        expect(recomputed).not.toBe('#3355AA');
+        expect(stateOf(session, 'hover').formula).toBe(true);
+        expect(session.detachments.get('light.text.default.accent-hover')).toBe(false);
+    });
+
+    it('ручная правка Dark состояния переходит в связанную подтему состояния, правка подтемы её отвязывает', () => {
+        const names = [...NAMES, 'text.on-dark.accent', 'text.on-dark.accent-hover'];
+        const { session, editor } = setup(names, (mode) => VALUES[mode]);
+        editor.setStateFormula(stateOf(session, 'hover'), false);
+
+        editor.setField(stateOf(session, 'hover'), 'dark', '#101010');
+        expect(value(session, 'light.text.on-dark.accent-hover', 'web')).toBe('#101010');
+        expect(value(session, 'dark.text.on-dark.accent-hover', 'web')).toBe('#101010');
+
+        editor.setField(stateOf(session, 'hover'), 'ondark-light', '#202020');
+        expect(session.detachments.get('light.text.on-dark.accent-hover')).toBe(true);
+        expect(stateOf(session, 'hover').contexts.ondark.linked).toBe(false);
+        expect(value(session, 'light.text.on-dark.accent', 'web')).toBe(VALUES.light);
+    });
+
+    it('Brightness считается своей формулой при правке токена, пока формулу не выключили', () => {
+        const { session, editor } = setup([...NAMES, 'text.default.accent-brightness']);
+        expect(stateOf(session, 'brightness')).toMatchObject({ formulaAvailable: true, formula: true });
+
+        editor.setField(viewOf(session), 'light', '#3355AA');
+        const brightness = value(session, 'light.text.default.accent-brightness', 'web');
+        expect([VALUES.light, '#3355AA', value(session, 'light.text.default.accent-hover', 'web')]).not.toContain(
+            brightness,
+        );
+
+        editor.setStateFormula(stateOf(session, 'brightness'), false);
+        editor.setField(viewOf(session), 'light', '#225599');
+        expect(value(session, 'light.text.default.accent-brightness', 'web')).toBe(brightness);
+    });
+
+    it('у группы без формулы состояние задаётся вручную, переключатель ничего не меняет', () => {
+        const names = ['background.default.primary', 'background.default.primary-hover'];
+        const { session, editor } = setup(names);
+        const hover = stateOf(session, 'hover');
+        expect(hover).toMatchObject({ formulaAvailable: false, formula: false });
+
+        editor.setStateFormula(hover, true);
+        expect(session.detachments.size).toBe(0);
+        editor.setField(hover, 'light', '#ABCDEF');
+        expect(value(session, 'light.background.default.primary-hover', 'web')).toBe('#ABCDEF');
+    });
+
+    it('добавление считает значения каждой темы от её токена и повторяется после смены списка тем', async () => {
+        const { session, editor, theme } = setup(['text.default.accent']);
+        reads.themes.mockResolvedValue([{ id: session.context.tenantId }, { id: 't-other' }]);
+        reads.values.mockResolvedValue(
+            new Map([
+                [
+                    't-other',
+                    (['light', 'dark'] as const).flatMap((mode) =>
+                        (['web', 'ios', 'android'] as const).map((platform) => ({
+                            id: `${platform}-${mode}`,
+                            tokenId: 'id-0',
+                            tenantId: 't-other',
+                            platform,
+                            mode,
+                            value: ['#336699'],
+                            editRevision: 1,
+                        })),
+                    ),
+                ],
+            ]),
+        );
+        repository.addState
+            .mockRejectedValueOnce(new ColorTokenOperationError('invalid', 'Темы', 'INVALID_TOKEN_FAMILY'))
+            .mockResolvedValueOnce({
+                editRevision: 0,
+                value: {
+                    type: 'color',
+                    group: 'text',
+                    name: 'accent',
+                    members: [
+                        { tokenId: 'id-0', name: 'text.default.accent' },
+                        { tokenId: 'id-hover', name: 'text.default.accent-hover' },
+                    ],
+                },
+            });
+
+        await editor.addState(viewOf(session), 'hover');
+
+        expect(reads.themes).toHaveBeenCalledTimes(2);
+        const tenants = repository.addState.mock.calls[1][3];
+        expect(tenants.map((item) => item.tenantId)).toEqual([session.context.tenantId, 't-other']);
+        const web = (tenantId: string) =>
+            tenants
+                .find((item) => item.tenantId === tenantId)!
+                .members[0].values.find((item) => item.platform === 'web' && item.mode === 'light');
+        expect(tenants[0].members[0].name).toBe('text.default.accent-hover');
+        expect(web(session.context.tenantId)?.value).not.toEqual(web('t-other')?.value);
+        expect(web('t-other')?.value).not.toEqual(['#336699']);
+        expect(web('t-other')?.detached).toBe(false);
+        expect(theme.getToken('light.text.default.accent-hover', 'color')?.getValue('web' as never)).toEqual(
+            (web(session.context.tenantId)?.value as string[])[0],
+        );
+        expect(session.definitions.get('text.default.accent-hover')?.id).toBe('id-hover');
+        expect(viewOf(session).states?.map((item) => item.state)).toEqual(['hover']);
+    });
+
+    it('удаление состояния убирает его определения, токен и другие состояния остаются', async () => {
+        repository.deleteState.mockResolvedValue({ editRevision: 0 });
+        const { session, editor, theme } = setup();
+
+        await editor.removeState(stateOf(session, 'hover'));
+
+        expect(repository.deleteState.mock.calls[0].slice(1, 3)).toEqual(['id-0', 'hover']);
+        expect(theme.getToken('light.text.default.accent-hover', 'color')).toBeUndefined();
+        expect(theme.getToken('light.text.default.accent-active', 'color')).toBeDefined();
+        expect(session.definitions.has('text.default.accent-hover')).toBe(false);
+        expect(viewOf(session).states?.map((item) => item.state)).toEqual(['active']);
     });
 });

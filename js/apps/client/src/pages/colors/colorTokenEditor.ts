@@ -10,6 +10,11 @@ import {
 import { authService } from '../../api/authService';
 import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { getAdditionalColorValues } from '../../actions/colors';
+import { storedTokenValue } from '../../api/confirmedTokenValues';
+import { normalizedColorValue } from '../../api/colorValue';
+import type { TenantTokenValueDto } from '../../api/editorContracts';
+import { tokenRepository } from '../../api/tokenRepository';
+import { themesApi } from '../../modules/themes/data/themesApi';
 import {
     AndroidColor,
     AndroidGradient,
@@ -24,6 +29,7 @@ import type { DesignSystem, Theme, Token } from '../../controllers';
 import {
     COLOR_CONTEXTS,
     COLOR_MODES,
+    COLOR_STATES,
     ColorTokenOperationError,
     NATIVE_PLATFORMS,
     camelTokenName,
@@ -37,6 +43,7 @@ import {
     familyUpdate,
     fieldsInheritingFrom,
     findColorToken,
+    hasStateFormula,
     inheritedMode,
     isColorString,
     keyOfId,
@@ -48,15 +55,19 @@ import {
     tokenId,
     valueKind,
     webLayers,
+    wireValue,
     withStopOpacity,
     writePaint,
     type ColorContext,
     type ColorMode,
+    type ColorState,
     type ColorTokenAutosave,
     type ColorTokenContext,
     type ColorTokenFamilyDto,
     type ColorTokenKey,
     type ColorTokenRepository,
+    type ColorTokenStateTenantValues,
+    type ColorTokenValueItem,
     type ColorTokenType,
     type ColorTokenView,
     type NativePlatform,
@@ -97,12 +108,15 @@ export const rgbHex = (value: string) => {
 
 const camel = camelTokenName;
 
+/** Место значения состояния в ответе `getAdditionalColorValues`. */
+const STATE_INDEX: Record<ColorState, number> = { active: 0, hover: 1, brightness: 2 };
+
 /** Значения состояний нового токена: тот же расчёт, что при правке существующего. */
 export const stateValue: StateValue = (value, group, subgroup, mode, state) => {
     // Состояния градиента получают то же значение.
-    if (state === 'brightness' || valueKind(webLayers(value)) === 'gradient') return value;
+    if (valueKind(webLayers(value)) === 'gradient') return value;
     const values = getAdditionalColorValues(value, mode, group, subgroup);
-    return values ? values[state === 'active' ? 0 : 1] : value;
+    return values ? values[STATE_INDEX[state]] : value;
 };
 
 /** Цвет стопа в HEX по палитре темы: для цвета шва Conic на Android и нового стопа. */
@@ -278,6 +292,8 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
             updateValues: (...args) => repository.updateValues(...args),
             delete: (...args) => repository.delete(...args),
             move: (...args) => repository.move(...args),
+            addState: (...args) => repository.addState(...args),
+            deleteState: (...args) => repository.deleteState(...args),
             describe: (...args) => repository.describe(...args),
         },
         context,
@@ -454,8 +470,10 @@ const captureUnsaved = (session: ColorTokenSession) => {
         const key = keyOfId(id);
         if (!key) continue;
         const edited = session.edited.get(id);
-        // Состояния `-hover` и `-active` пересчитываются из изменённого определения и накладываются вместе с ним.
-        const isEdited = (name: string) => !edited || edited.has(name.replace(/-(hover|active)$/, ''));
+        // Состояния пересчитываются из изменённого определения и накладываются вместе с ним; ручная правка
+        // состояния отмечает само состояние.
+        const isEdited = (name: string) =>
+            !edited || edited.has(name) || edited.has(name.replace(/-(hover|active|brightness)$/, ''));
         for (const token of familyTokens(theme, key)) {
             if (!isEdited(token.getName())) continue;
             overlay.set(token.getName(), {
@@ -554,15 +572,29 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             return members.length ? { tokenId: payload.tokenId, update: { members } } : null;
         });
 
-    const detach = (key: ColorTokenKey, mode: ColorMode, context: ColorContext) => {
-        const member = memberToken(key, mode, context);
+    const detach = (key: ColorTokenKey, mode: ColorMode, context: ColorContext, state: ColorState | null = null) => {
+        const member = memberToken(key, mode, context, state);
         if (member) session.detachments.set(member.getName(), true);
     };
 
-    const memberToken = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null) => {
+    /** Определение темы режима [mode] и подтемы [context] токена или его состояния [state]. */
+    const memberToken = (
+        key: ColorTokenKey,
+        mode: ColorMode,
+        context: ColorContext | null,
+        state: ColorState | null = null,
+    ) => {
         const subgroup = context ? contextSubgroup(key.group, context) : 'default';
-        return findColorToken(theme().theme, `${mode}.${key.group}.${subgroup}.${key.name}`);
+        return findColorToken(theme().theme, `${mode}.${key.group}.${subgroup}.${key.name}${state ? `-${state}` : ''}`);
     };
+
+    /**
+     * Состояние считается формулой: формула есть, и значения Light и Dark подгруппы `default` состояния не отмечены
+     * `detached`.
+     */
+    const stateFormula = (key: ColorTokenKey, state: ColorState) =>
+        hasStateFormula(key.group) &&
+        COLOR_MODES.every((mode) => !isDetached(session, `${mode}.${key.group}.default.${key.name}-${state}`));
 
     const markEdited = (key: ColorTokenKey, name: string) => {
         const id = tokenId(key);
@@ -597,10 +629,48 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
     };
 
     /**
-     * Значение определения и его состояния `-hover` и `-active`: у цвета состояние — расчёт редактора от значения
-     * платформы, у градиента — то же значение. Без новой web-основы состояние сохраняет своё web-значение, и
-     * платформы без своей строки строятся из него, а не из основного цвета. Признак своего значения у состояний —
-     * как у определения.
+     * Значение состояния [state] определения [token] по формуле: у цвета — расчёт редактора от значения платформы, у
+     * градиента — то же значение. Без новой web-основы ([webChanged]) состояние сохраняет своё web-значение, и
+     * платформы без своей строки строятся из него, а не из основного цвета. Признак своего значения — как у
+     * определения.
+     */
+    const recomputeState = (
+        token: Token,
+        paint: MemberPaint,
+        mode: ColorMode,
+        state: ColorState,
+        webChanged: boolean,
+    ) => {
+        const parsed = parseMemberName(token.getName());
+        const target = findColorToken(theme().theme, `${token.getName()}-${state}`);
+        if (!parsed || parsed.state || !target) return;
+        const index = STATE_INDEX[state];
+        // Без формулы состояния web-цвет состояния не пересчитывается.
+        const { web, ...own } = Object.fromEntries(
+            Object.entries<unknown>({ web: paint.web, ...paint.own }).map(([platform, value]) => {
+                const current = readPaint(value, platform as PaintPlatform);
+                if (current?.kind !== 'color') return [platform, value];
+                const values = getAdditionalColorValues(
+                    current.color,
+                    mode,
+                    parsed.group,
+                    parsed.subgroup,
+                    token.getName(),
+                );
+                // Без формулы своё значение состояния остаётся своим, как и его web-цвет.
+                return [
+                    platform,
+                    values ? values[index] : platform === 'web' ? undefined : target.getValue(platform as never),
+                ];
+            }),
+        );
+        const stateWeb = webChanged ? web : target.getValue('web' as never);
+        if (stateWeb === undefined) return;
+        applyPaint(target, { web: stateWeb, own });
+    };
+
+    /**
+     * Значение определения и его состояний, которые считаются формулой. Состояния с ручным значением не меняются.
      */
     const writeField = (key: ColorTokenKey, mode: ColorMode, token: Token | undefined, paint: MemberPaint) => {
         if (!token) return;
@@ -608,32 +678,56 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         const webChanged = JSON.stringify(token.getValue('web' as never)) !== JSON.stringify(paint.web);
         applyPaint(token, paint);
         const parsed = parseMemberName(token.getName());
-        if (!parsed) return;
-        (['active', 'hover'] as const).forEach((state, index) => {
-            const target = findColorToken(theme().theme, `${token.getName()}-${state}`);
-            if (!target) return;
-            // Без формулы состояния web-цвет состояния не пересчитывается.
-            const { web, ...own } = Object.fromEntries(
-                Object.entries<unknown>({ web: paint.web, ...paint.own }).map(([platform, value]) => {
-                    const current = readPaint(value, platform as PaintPlatform);
-                    if (current?.kind !== 'color') return [platform, value];
-                    const values = getAdditionalColorValues(
-                        current.color,
-                        mode,
-                        parsed.group,
-                        parsed.subgroup,
-                        token.getName(),
-                    );
-                    // Без формулы своё значение состояния остаётся своим, как и его web-цвет.
-                    return [
-                        platform,
-                        values ? values[index] : platform === 'web' ? undefined : target.getValue(platform as never),
-                    ];
-                }),
-            );
-            const stateWeb = webChanged ? web : target.getValue('web' as never);
-            if (stateWeb === undefined) return;
-            applyPaint(target, { web: stateWeb, own });
+        if (!parsed || parsed.state) return;
+        COLOR_STATES.forEach((state) => {
+            if (stateFormula(key, state)) recomputeState(token, paint, mode, state, webChanged);
+        });
+    };
+
+    /** Значение определения в теме без режима в форме экрана: ссылка палитры, иначе хранимое значение. */
+    const dtoValue = (value: TenantTokenValueDto, type: string) => {
+        if (value.paletteRef) return value.paletteRef;
+        const stored = storedTokenValue(type as never, value.sourceValue ?? value.value);
+        return type === 'color' ? normalizedColorValue(stored) : stored;
+    };
+
+    /**
+     * Значения члена состояния [state] по значениям члена токена [base] темы: формула для `-hover` и `-active` групп с
+     * формулой, иначе копия значений платформ с признаками своего значения.
+     */
+    const stateItems = (
+        member: string,
+        state: ColorState,
+        base: (mode: ColorMode) => {
+            web: unknown;
+            native: Record<NativePlatform, unknown>;
+            own: Record<NativePlatform, boolean>;
+        },
+    ): ColorTokenValueItem[] => {
+        const parsed = parseMemberName(member);
+        if (!parsed) return [];
+        const formula = hasStateFormula(parsed.group);
+        return COLOR_MODES.flatMap((mode) => {
+            const source = base(mode);
+            const derive = (value: unknown, platform: PaintPlatform) => {
+                const current = readPaint(value, platform);
+                if (!formula || current?.kind !== 'color') return value;
+                const values = getAdditionalColorValues(current.color, mode, parsed.group, parsed.subgroup, member);
+                return values ? values[STATE_INDEX[state]] : value;
+            };
+            const web = derive(source.web, 'web');
+            const natives = NATIVE_PLATFORMS.map((platform) => {
+                const value = source.own[platform]
+                    ? derive(source.native[platform], platform)
+                    : formula
+                      ? deriveNative(web, platform, stopResolver(`${mode}.${member}-${state}`))
+                      : source.native[platform];
+                return { platform, mode, paletteId: null, value: wireValue(value), overridden: source.own[platform] };
+            });
+            return [
+                { platform: 'web' as const, mode, paletteId: null, value: wireValue(web), overridden: false },
+                ...natives,
+            ].map((item) => ({ ...item, detached: false }));
         });
     };
 
@@ -646,18 +740,26 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
          */
         setValue(view: ColorTokenView, field: FieldId, platform: PaintPlatform, value: unknown) {
             const { context, mode } = parseField(field);
-            const token = memberToken(view.key, mode, context);
+            const state = view.state ?? null;
+            // Состояние по формуле правится только через значение токена.
+            if (state && stateFormula(view.key, state)) return;
+            const token = memberToken(view.key, mode, context, state);
             if (!token) return;
             // `undefined` у платформы — своего значения нет, оно строится из web.
             const { web, own } = paintOf(token);
             const next = platform === 'web' ? { web: value, own } : { web, own: { ...own, [platform]: value } };
             writeField(view.key, mode, token, next);
             // Ручная правка подтемы разрывает её связь с режимами явно, даже если значение совпало.
-            if (context) for (const item of COLOR_MODES) detach(view.key, item, context);
+            if (context) for (const item of COLOR_MODES) detach(view.key, item, context, state);
             if (!context)
                 for (const target of fieldsInheritingFrom(mode)) {
                     if (view.contexts[target.context].linked)
-                        writeField(view.key, target.mode, memberToken(view.key, target.mode, target.context), next);
+                        writeField(
+                            view.key,
+                            target.mode,
+                            memberToken(view.key, target.mode, target.context, state),
+                            next,
+                        );
                 }
             schedule(view.key);
         },
@@ -697,18 +799,194 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         /** Восстанавливает наследование подтемы от значений режимов вместе со своими значениями платформ. */
         /** Разрывает связь подтемы: значения остаются прежними, но дальше не меняются вслед за режимами. */
         unlink(view: ColorTokenView, context: ColorContext) {
-            for (const mode of COLOR_MODES) detach(view.key, mode, context);
+            for (const mode of COLOR_MODES) detach(view.key, mode, context, view.state ?? null);
             schedule(view.key);
         },
 
         relink(view: ColorTokenView, context: ColorContext) {
+            const state = view.state ?? null;
             for (const mode of COLOR_MODES) {
-                const member = memberToken(view.key, mode, context);
+                const member = memberToken(view.key, mode, context, state);
                 if (member) session.detachments.set(member.getName(), false);
-                const source = memberToken(view.key, inheritedMode(context, mode), null);
-                if (source) writeField(view.key, mode, memberToken(view.key, mode, context), paintOf(source));
+                const source = memberToken(view.key, inheritedMode(context, mode), null, state);
+                if (source) writeField(view.key, mode, member, paintOf(source));
             }
             schedule(view.key);
+        },
+
+        /**
+         * Переключатель «По формуле» состояния: выключение оставляет значения и отмечает значения подгруппы
+         * `default` `detached`; включение пересчитывает все значения формулой от токена и снимает `detached` у
+         * подгруппы `default` и подтем.
+         */
+        setStateFormula(view: ColorTokenView, formula: boolean) {
+            const state = view.state;
+            if (!state || !hasStateFormula(view.key.group)) return;
+            for (const mode of COLOR_MODES) {
+                const member = memberToken(view.key, mode, null, state);
+                if (member) session.detachments.set(member.getName(), !formula);
+            }
+            if (formula)
+                for (const context of [null, ...COLOR_CONTEXTS]) {
+                    for (const mode of COLOR_MODES) {
+                        const base = memberToken(view.key, mode, context);
+                        if (!base) continue;
+                        const member = memberToken(view.key, mode, context, state);
+                        if (context && member) session.detachments.set(member.getName(), false);
+                        if (member) markEdited(view.key, member.getName());
+                        recomputeState(base, paintOf(base), mode, state, true);
+                    }
+                }
+            schedule(view.key);
+        },
+
+        /**
+         * Добавляет состояние [state] токену: значения каждой темы дизайн-системы считаются от значений токена в этой
+         * теме (формулой или копией), у текущей темы — от значений экрана. После `INVALID_TOKEN_FAMILY` из-за
+         * изменившегося списка тем значения собираются заново и отправляются ещё раз.
+         */
+        async addState(view: ColorTokenView, state: ColorState): Promise<ColorTokenFamilyDto> {
+            const key = view.key;
+            const defaultId = session.definitions.get(`${key.group}.default.${key.name}`)?.id;
+            if (!defaultId) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            const members = [...session.definitions].filter(([name]) => {
+                const parsed = parseMemberName(name);
+                return parsed?.group === key.group && parsed.name === key.name && !parsed.state;
+            });
+            const { theme: current } = theme();
+            const fromTheme = (member: string) => (mode: ColorMode) => {
+                const token = findColorToken(current, `${mode}.${member}`);
+                const own = Object.fromEntries(
+                    NATIVE_PLATFORMS.map((platform) => [
+                        platform,
+                        isOverridden(session, `${mode}.${member}`, platform),
+                    ]),
+                ) as Record<NativePlatform, boolean>;
+                return {
+                    web: token?.getValue('web' as never),
+                    native: Object.fromEntries(
+                        NATIVE_PLATFORMS.map((platform) => [platform, token?.getValue(platform as never)]),
+                    ) as Record<NativePlatform, unknown>,
+                    own,
+                };
+            };
+            const fromValues =
+                (values: TenantTokenValueDto[], member: string, id: string, type: string) => (mode: ColorMode) => {
+                    const at = (platform: PaintPlatform) =>
+                        values.find(
+                            (value) => value.tokenId === id && value.platform === platform && value.mode === mode,
+                        );
+                    const web = at('web');
+                    // Тема без значений токена получает значения текущей темы.
+                    if (!web) return fromTheme(member)(mode);
+                    return {
+                        web: dtoValue(web, type),
+                        native: Object.fromEntries(
+                            NATIVE_PLATFORMS.map((platform) => {
+                                const value = at(platform);
+                                return [
+                                    platform,
+                                    value ? dtoValue(value, type) : deriveNative(dtoValue(web, type), platform),
+                                ];
+                            }),
+                        ) as Record<NativePlatform, unknown>,
+                        own: Object.fromEntries(
+                            NATIVE_PLATFORMS.map((platform) => [platform, at(platform)?.overridden === true]),
+                        ) as Record<NativePlatform, boolean>,
+                    };
+                };
+            const collect = async (): Promise<ColorTokenStateTenantValues[]> => {
+                const { projectId, designSystemId, tenantId } = session.context;
+                const [themes, values] = await Promise.all([
+                    themesApi.list(projectId, designSystemId),
+                    tokenRepository.loadValuesByTenant(
+                        session.context,
+                        members.map(([, definition]) => definition.id),
+                    ),
+                ]);
+                return themes.map((item) => ({
+                    tenantId: item.id,
+                    members: members.map(([name, definition]) => ({
+                        name: `${name}-${state}`,
+                        values: stateItems(
+                            name,
+                            state,
+                            item.id === tenantId
+                                ? fromTheme(name)
+                                : fromValues(values.get(item.id) ?? [], name, definition.id, definition.type),
+                        ),
+                    })),
+                }));
+            };
+            let confirmation: ColorTokenStructure | undefined;
+            let tenants = await collect();
+            const send = () =>
+                session.autosave.run((editRevision) =>
+                    repository.addState(session.context, defaultId, state, tenants, editRevision).then((result) => {
+                        confirmation = result.structure;
+                        return result;
+                    }),
+                );
+            let family: ColorTokenFamilyDto;
+            try {
+                family = await send();
+            } catch (error) {
+                if (!(error instanceof ColorTokenOperationError) || error.code !== 'INVALID_TOKEN_FAMILY') throw error;
+                tenants = await collect();
+                family = await send();
+            }
+            const own = tenants.find((item) => item.tenantId === session.context.tenantId);
+            const type: ColorTokenType = family.type ?? 'color';
+            for (const member of own?.members ?? []) {
+                const id = family.members.find((item) => item.name === member.name)?.tokenId;
+                if (id) session.definitions.set(member.name, { id, type });
+                for (const mode of COLOR_MODES) {
+                    const name = `${mode}.${member.name}`;
+                    const at = (platform: PaintPlatform) =>
+                        member.values.find((value) => value.platform === platform && value.mode === mode)?.value;
+                    const unwrap = (value: unknown) => (Array.isArray(value) && value.length === 1 ? value[0] : value);
+                    const token = new ColorToken(
+                        { name, tags: name.split('.'), displayName: name, enabled: true },
+                        {
+                            web: new WebColor(unwrap(at('web')) as never),
+                            ios: new IOSColor(unwrap(at('ios')) as never),
+                            android: new AndroidColor(unwrap(at('android')) as never),
+                        },
+                    );
+                    current.addToken(type, retyped(token, type) as never);
+                    for (const platform of NATIVE_PLATFORMS) {
+                        const overridden = member.values.find(
+                            (value) => value.platform === platform && value.mode === mode,
+                        )?.overridden;
+                        if (overridden) session.overrides.set(`${name}:${platform}`, true);
+                    }
+                }
+            }
+            await refreshStructure(session, false, confirmation).catch(() => notify(session));
+            return family;
+        },
+
+        /** Удаляет состояние токена во всех подгруппах и темах и убирает его определения из темы. */
+        async removeState(view: ColorTokenView) {
+            const state = view.state;
+            const defaultId = session.definitions.get(`${view.key.group}.default.${view.key.name}`)?.id;
+            if (!state || !defaultId)
+                throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            let confirmation: ColorTokenStructure | undefined;
+            await session.autosave.run((editRevision) =>
+                repository.deleteState(session.context, defaultId, state, editRevision).then((result) => {
+                    confirmation = result.structure;
+                    return { ...result, value: null };
+                }),
+            );
+            const { theme: current } = theme();
+            for (const token of familyTokens(current, view.key)) {
+                const parsed = parseMemberName(token.getName());
+                if (parsed?.state !== state) continue;
+                current.removeToken(token.getName(), token.getType() as ColorTokenType);
+                if (parsed.mode) session.definitions.delete(token.getName().slice(parsed.mode.length + 1));
+            }
+            await refreshStructure(session, false, confirmation).catch(() => notify(session));
         },
 
         resetContexts(view: ColorTokenView) {
