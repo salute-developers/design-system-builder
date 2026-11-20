@@ -88,6 +88,7 @@ export const useDesignSystem = (
     const [loadError, setLoadError] = useState<'forbidden' | 'not-found' | 'failed' | null>(null);
     const [reloadTrigger, setReloadTrigger] = useState<object>({});
     const [autosaveStatus, setAutosaveStatus] = useState<AutosaveStatus>('saved');
+    const [autosaveErrorMessage, setAutosaveErrorMessage] = useState<string>();
     const autosaveContextKey = designSystemProjectId
         ? [designSystemProjectId.projectId, designSystemProjectId.designSystemId, designSystemProjectId.tenantId].join(
               ':',
@@ -134,8 +135,9 @@ export const useDesignSystem = (
     useEffect(() => {
         if (typeof designSystemProjectId !== 'object' || designSystemProjectId.versionId) return;
         let observedSave: number | undefined;
-        return subscribeDraftAutosaveStatus(designSystemProjectId, (status, time) => {
+        return subscribeDraftAutosaveStatus(designSystemProjectId, (status, time, errorMessage) => {
             setAutosaveStatus(status);
+            setAutosaveErrorMessage(errorMessage);
             if (time !== undefined) {
                 setLastSave({ key: autosaveContextKey, time });
                 if (time !== observedSave) {
@@ -439,6 +441,7 @@ export const useDesignSystem = (
         }),
         reload,
         autosaveStatus,
+        autosaveErrorMessage: autosaveStatus === 'error' ? autosaveErrorMessage : undefined,
         lastSavedAt: lastSave?.key === autosaveContextKey ? lastSave.time : undefined,
         retryAutosave,
         refreshChanges,

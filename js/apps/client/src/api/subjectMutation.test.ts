@@ -53,7 +53,7 @@ describe('предметные операции и общий статус', () 
                 throw new Error('offline');
             }),
         ).rejects.toThrow('offline');
-        expect(listener).toHaveBeenLastCalledWith('saved', lastSaved);
+        expect(listener).toHaveBeenLastCalledWith('saved', lastSaved, undefined);
         unsubscribe();
     });
 

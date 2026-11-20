@@ -54,7 +54,7 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { isRetryableAutosaveError, isUnknownIconError } from '../../api/autosaveHttp';
+import { autosaveErrorMessage, isRetryableAutosaveError, isUnknownIconError } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
 import { runStructureOperation as runStructureOperationOnServer } from './features/ComponentStructure/runStructureOperation';
@@ -547,9 +547,9 @@ export const Components = () => {
                 reload();
             },
             retryable: isRetryableAutosaveError,
-            statusChanged: (status) => {
+            statusChanged: (status, error) => {
                 latestActivityStatus = status;
-                setActivity(!mounted && status === 'saved' ? null : status);
+                setActivity(!mounted && status === 'saved' ? null : status, autosaveErrorMessage(error));
             },
         });
         setActivity('saved');

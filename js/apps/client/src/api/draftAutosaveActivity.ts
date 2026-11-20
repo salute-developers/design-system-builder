@@ -3,6 +3,8 @@ import type { AutosaveStatus } from './tokenAutosaveQueue';
 import { authService } from './authService';
 
 const statuses = new Map<string, Map<string, AutosaveStatus>>();
+/** Причина ошибки очереди, понятная пользователю; есть только у очередей в статусе `error`. */
+const errorMessages = new Map<string, Map<string, string>>();
 const idleListeners = new Map<string, Set<() => void>>();
 const activityRevisions = new Map<string, number>();
 const savedAtByContext = new Map<string, number>();
@@ -24,9 +26,16 @@ const savedColorStructure = new Map<string, ConfirmedColorStructure | undefined>
 export const getDraftSaveColorStructure = (context: EditorContextKey) => savedColorStructure.get(contextKey(context));
 const savedTokenValues = new Map<string, ConfirmedTokenValues[] | undefined>();
 const savedTokenTypes = new Map<string, TokenDefinitionDto['type'][] | undefined>();
-const statusListeners = new Map<string, Set<(status: AutosaveStatus, savedAt?: number) => void>>();
+type StatusListener = (status: AutosaveStatus, savedAt?: number, errorMessage?: string) => void;
+const statusListeners = new Map<string, Set<StatusListener>>();
 let activityRevision = 0;
-type SourceOwner = { status: AutosaveStatus; detached: boolean; transferred: boolean; released: boolean };
+type SourceOwner = {
+    status: AutosaveStatus;
+    errorMessage?: string;
+    detached: boolean;
+    transferred: boolean;
+    released: boolean;
+};
 const sourceOwners = new Map<string, Map<string, Map<symbol, SourceOwner>>>();
 /** Повтор неудавшихся операций каждой очереди: индикатор редактора повторяет все очереди сразу. */
 const retryHandlers = new Map<string, Map<string, () => void>>();
@@ -36,6 +45,7 @@ authService.onSessionReset(() => {
     sourceOwners.clear();
     retryHandlers.clear();
     statuses.clear();
+    errorMessages.clear();
     idleListeners.clear();
     activityRevisions.clear();
     savedAtByContext.clear();
@@ -67,7 +77,7 @@ export const registerDraftAutosaveSource = (context: EditorContextKey, source: s
     const generation = sessionGeneration;
     const owner = Symbol(source);
     const state: SourceOwner = { status: 'saved', detached: false, transferred: false, released: false };
-    const update = (status: AutosaveStatus | null) => {
+    const update = (status: AutosaveStatus | null, errorMessage?: string) => {
         if (state.released || generation !== sessionGeneration) return;
         const sources = sourceOwners.get(key) ?? new Map<string, Map<symbol, SourceOwner>>();
         const owners = sources.get(source) ?? new Map<symbol, SourceOwner>();
@@ -76,6 +86,7 @@ export const registerDraftAutosaveSource = (context: EditorContextKey, source: s
             owners.delete(owner);
         } else {
             state.status = status;
+            state.errorMessage = status === 'error' ? errorMessage : undefined;
             owners.set(owner, state);
         }
         for (const [id, current] of owners) {
@@ -90,12 +101,14 @@ export const registerDraftAutosaveSource = (context: EditorContextKey, source: s
         else sourceOwners.delete(key);
         const values = [...owners.values()].map((current) => current.status);
         const aggregate = (['error', 'saving', 'pending'] as const).find((value) => values.includes(value)) ?? 'saved';
-        setDraftAutosaveActivity(context, source, owners.size ? aggregate : null);
+        const message = [...owners.values()].find((current) => current.status === 'error' && current.errorMessage)
+            ?.errorMessage;
+        setDraftAutosaveActivity(context, source, owners.size ? aggregate : null, message);
     };
     return Object.assign(update, {
         detach: () => {
             state.detached = true;
-            update(state.status);
+            update(state.status, state.errorMessage);
         },
         /** Вызывается только после восстановления сохранённой операции в новой очереди. */
         adoptFailed: () => {
@@ -103,7 +116,7 @@ export const registerDraftAutosaveSource = (context: EditorContextKey, source: s
             for (const current of sourceOwners.get(key)?.get(source)?.values() ?? []) {
                 if (current.detached) current.transferred = true;
             }
-            update(state.status);
+            update(state.status, state.errorMessage);
         },
     });
 };
@@ -118,8 +131,19 @@ const statusOf = (key: string): AutosaveStatus => {
     );
 };
 
+/** Причина ошибки первой очереди в статусе `error`, у которой она известна. */
+const errorMessageOf = (key: string) => {
+    const messages = errorMessages.get(key);
+    return [...(statuses.get(key)?.entries() ?? [])]
+        .filter(([, status]) => status === 'error')
+        .map(([source]) => messages?.get(source))
+        .find(Boolean);
+};
+
 const notifyStatus = (key: string) =>
-    statusListeners.get(key)?.forEach((listener) => listener(statusOf(key), savedAtByContext.get(key)));
+    statusListeners
+        .get(key)
+        ?.forEach((listener) => listener(statusOf(key), savedAtByContext.get(key), errorMessageOf(key)));
 
 export const getDraftAutosaveStatus = (context: EditorContextKey) => statusOf(contextKey(context));
 
@@ -147,15 +171,12 @@ export const recordDraftSave = (
 };
 
 /** Единый статус всех очередей открытого редактора. */
-export const subscribeDraftAutosaveStatus = (
-    context: EditorContextKey,
-    listener: (status: AutosaveStatus, savedAt?: number) => void,
-) => {
+export const subscribeDraftAutosaveStatus = (context: EditorContextKey, listener: StatusListener) => {
     const key = contextKey(context);
     const listeners = statusListeners.get(key) ?? new Set();
     listeners.add(listener);
     statusListeners.set(key, listeners);
-    listener(statusOf(key), savedAtByContext.get(key));
+    listener(statusOf(key), savedAtByContext.get(key), errorMessageOf(key));
     return () => {
         listeners.delete(listener);
         if (!listeners.size) statusListeners.delete(key);
@@ -168,9 +189,22 @@ export const isDraftAutosaveIdle = (context: EditorContextKey) => isIdle(context
 /** Позволяет обнаружить запись, полностью завершившуюся за время предметного чтения. */
 export const getDraftAutosaveRevision = (context: EditorContextKey) => activityRevisions.get(contextKey(context)) ?? 0;
 
-/** Обновляет состояние одной очереди и выпускает отложенное перечитывание после подтверждения всех операций. */
-export const setDraftAutosaveActivity = (context: EditorContextKey, source: string, status: AutosaveStatus | null) => {
+/**
+ * Обновляет состояние одной очереди и выпускает отложенное перечитывание после подтверждения всех операций.
+ * `errorMessage` — понятная пользователю причина ошибки; учитывается только со статусом `error`.
+ */
+export const setDraftAutosaveActivity = (
+    context: EditorContextKey,
+    source: string,
+    status: AutosaveStatus | null,
+    errorMessage?: string,
+) => {
     const key = contextKey(context);
+    const contextMessages = errorMessages.get(key) ?? new Map<string, string>();
+    if (status === 'error' && errorMessage) contextMessages.set(source, errorMessage);
+    else contextMessages.delete(source);
+    if (contextMessages.size) errorMessages.set(key, contextMessages);
+    else errorMessages.delete(key);
     const contextStatuses = statuses.get(key) ?? new Map<string, AutosaveStatus>();
     const previous = contextStatuses.get(source);
     const isActive = (value: AutosaveStatus | null | undefined) => value != null && value !== 'saved';

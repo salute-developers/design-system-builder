@@ -15,6 +15,8 @@ interface OperationGroup<T extends AutosaveOperation> {
     timer?: ReturnType<typeof setTimeout>;
     retryTimer?: ReturnType<typeof setTimeout>;
     failed: Map<string, T>;
+    /** Ошибка, с которой отклонена каждая неудавшаяся операция: её причина показывается пользователю. */
+    failureErrors: Map<string, unknown>;
     forceKeepalive?: boolean;
 }
 
@@ -22,7 +24,8 @@ interface TokenAutosaveQueueOptions<T extends AutosaveOperation, R> {
     send: (operation: T, keepalive: boolean) => Promise<R>;
     confirmed: (operation: T, result: R) => void;
     retryable: (error: unknown) => boolean;
-    statusChanged: (status: AutosaveStatus) => void;
+    /** `error` — ошибка первой неудавшейся операции, если статус `error`. */
+    statusChanged: (status: AutosaveStatus, error?: unknown) => void;
     debounceMs?: number;
     retryBaseMs?: number;
     retryMaxMs?: number;
@@ -69,6 +72,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
         if (!group) return;
         group.pending.delete(operationKey);
         group.failed.delete(operationKey);
+        group.failureErrors.delete(operationKey);
         if (group.retryPending?.operationKey === operationKey) group.retryPending = undefined;
         this.removeEmptyGroup(tokenKey, group);
         this.publishStatus();
@@ -91,13 +95,14 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
             if (group.failed.size === 0) return;
             const failed = [...group.failed.values()];
             group.failed.clear();
+            group.failureErrors.clear();
             group.retryPending = { ...failed[0], retryCount: 0 };
             if (!group.inFlight) void this.flush(tokenKey, false);
         });
     }
 
     private group(tokenKey: string): OperationGroup<T> {
-        const group = this.groups.get(tokenKey) ?? { pending: new Map(), failed: new Map() };
+        const group = this.groups.get(tokenKey) ?? { pending: new Map(), failed: new Map(), failureErrors: new Map() };
         this.groups.set(tokenKey, group);
         return group;
     }
@@ -144,6 +149,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
             if (this.disposed) return;
             this.options.confirmed(operation, result);
             group.failed.delete(operation.operationKey);
+            group.failureErrors.delete(operation.operationKey);
         } catch (error) {
             if (this.disposed) return;
             const retry = { ...operation, retryCount: operation.retryCount + 1 };
@@ -156,6 +162,7 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
                 }, delay);
             } else {
                 group.failed.set(retry.operationKey, retry);
+                group.failureErrors.set(retry.operationKey, error);
             }
         } finally {
             group.inFlight = undefined;
@@ -201,6 +208,10 @@ export class TokenAutosaveQueue<T extends AutosaveOperation, R> {
                 [1, 'saved'],
             ] as const
         ).find(([count]) => count > 0)?.[1] as AutosaveStatus;
-        this.options.statusChanged(status);
+        const failure =
+            status === 'error'
+                ? [...this.groups.values()].flatMap((group) => [...group.failureErrors.values()])[0]
+                : undefined;
+        this.options.statusChanged(status, failure);
     }
 }
