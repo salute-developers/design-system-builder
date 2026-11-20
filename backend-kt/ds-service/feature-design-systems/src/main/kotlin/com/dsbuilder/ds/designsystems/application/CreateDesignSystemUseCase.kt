@@ -1,8 +1,10 @@
 package com.dsbuilder.ds.designsystems.application
 
+import com.dsbuilder.ds.core.application.BaselineSeedScope
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DesignSystemTokenInitializer
 import com.dsbuilder.ds.core.application.DsAccessPolicy
+import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.IdempotentCreateExecutor
@@ -18,6 +20,7 @@ class CreateDesignSystemUseCase(
     private val versionBoundaries: VersionBoundaryRepository,
     private val tokenInitializer: DesignSystemTokenInitializer,
     private val componentInitializer: DesignSystemComponentInitializer,
+    private val baselineSeed: BaselineSeedScope,
     private val repeatedCreates: IdempotentCreateExecutor,
 ) {
     /** Performs the execute operation. */
@@ -38,12 +41,20 @@ class CreateDesignSystemUseCase(
                     {
                         repository.createOwned(context.projectId, command).also {
                             versionBoundaries.initializeBaseline(it)
+                            // Раскладка шаблонов идёт в окне наполнения: построчные триггеры редакций
+                            // не вызываются, целостность проверяется один раз при закрытии окна.
+                            baselineSeed.begin(it.id.value)
                             tokenInitializer.initialize(it.id.value)
                             componentInitializer.initialize(it.id.value)
+                            baselineSeed.verify(it.id.value)
                             versionBoundaries.initializeDraft(it.id)
                         }
                     },
                     { it.id.value },
+                    validateCreate = {
+                        // Занятое имя отклоняется до раскладки; повтор по ключу сюда не доходит.
+                        if (repository.isNameTaken(command.name)) DsFailure.Conflict("constraint_conflict") else null
+                    },
                 )
             }
         }
