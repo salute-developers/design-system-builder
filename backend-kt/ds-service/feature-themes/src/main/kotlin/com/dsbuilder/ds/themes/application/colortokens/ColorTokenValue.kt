@@ -19,4 +19,6 @@ data class ColorTokenValue(
     val baseRevision: Long? = null,
     /** Своё значение платформы iOS или Android, а не построенное клиентом из web; у web всегда `false`. */
     val overridden: Boolean = false,
+    /** Значение подтемы, связь которого со значениями режимов явно разорвана пользователем; `null` сохраняет текущий признак. */
+    val detached: Boolean? = null,
 )

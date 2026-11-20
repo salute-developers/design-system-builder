@@ -11,6 +11,8 @@ export class CreateThemePage {
     readonly backgroundInput: Locator;
     readonly textInput: Locator;
     readonly createButton: Locator;
+    /** Создание копии: в дизайн-системе с темами форма создаёт тему только копией. */
+    readonly copyButton: Locator;
     readonly cancelLink: Locator;
     readonly error: Locator;
     private readonly page: Page;
@@ -27,6 +29,7 @@ export class CreateThemePage {
         this.backgroundInput = main.getByRole('textbox', { name: 'Background', exact: true });
         this.textInput = main.getByRole('textbox', { name: 'Text', exact: true });
         this.createButton = main.getByRole('button', { name: 'Создать и открыть Theme', exact: true });
+        this.copyButton = main.getByRole('button', { name: 'Создать копию и открыть', exact: true });
         this.cancelLink = main.getByRole('link', { name: 'Отмена', exact: true });
         this.error = main.getByRole('alert');
     }

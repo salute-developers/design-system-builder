@@ -1,7 +1,14 @@
 import type { ColorTokenStructure } from '../../modules/colorTokens/application/colorTokenRepository';
 import { getDraftAutosaveRevision, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
-import { acceptTokenValueOverridden, observeSubjectAddresses, tokenValueOverridden } from '../../api/subjectRevisions';
+import {
+    acceptTokenValueDetached,
+    acceptTokenValueOverridden,
+    observeSubjectAddresses,
+    tokenValueDetached,
+    tokenValueOverridden,
+} from '../../api/subjectRevisions';
 import { authService } from '../../api/authService';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { getAdditionalColorValues } from '../../actions/colors';
 import {
     AndroidColor,
@@ -142,6 +149,8 @@ export interface ColorTokenSession {
      * режимом>:<платформа>` → признак. Подтверждённые признаки берутся из прочитанного состояния.
      */
     overrides: Map<string, boolean>;
+    /** Несохранённые признаки разорванной связи подтем по имени определения в теме. */
+    detachments: Map<string, boolean>;
     /** Группы и подгруппы токенов дизайн-системы. */
     groups: TokenGroupDto[];
     /** Место определения (имя без режима) в группах и признак публикации. */
@@ -182,13 +191,32 @@ const notify = (session: ColorTokenSession) => session.listeners.forEach((listen
  * Своё ли значение у платформы определения темы [themeName]: неподтверждённый признак экрана, иначе признак из
  * прочитанного или подтверждённого состояния.
  */
-export const isOverridden = (session: ColorTokenSession, themeName: string, platform: NativePlatform) => {
-    const local = session.overrides.get(`${themeName}:${platform}`);
+/**
+ * Признак значения определения в теме [themeName] (`dark.text.default.accent`): несохранённый выбор сессии [local],
+ * иначе признак прочитанного или подтверждённого значения [confirmed].
+ */
+const valueFlag = (
+    session: ColorTokenSession,
+    themeName: string,
+    local: boolean | undefined,
+    confirmed: (tokenId: string, mode: string) => boolean,
+) => {
     if (local !== undefined) return local;
     const [mode, ...member] = themeName.split('.');
     const definition = session.definitions.get(member.join('.'));
-    return definition ? tokenValueOverridden(session.context, definition.id, platform, mode) : false;
+    return definition ? confirmed(definition.id, mode) : false;
 };
+
+export const isOverridden = (session: ColorTokenSession, themeName: string, platform: NativePlatform) =>
+    valueFlag(session, themeName, session.overrides.get(`${themeName}:${platform}`), (id, mode) =>
+        tokenValueOverridden(session.context, id, platform, mode),
+    );
+
+/** Связь подтемы явно разорвана: несохранённый выбор сессии или признак `detached` прочитанного значения web. */
+export const isDetached = (session: ColorTokenSession, themeName: string) =>
+    valueFlag(session, themeName, session.detachments.get(themeName), (id, mode) =>
+        tokenValueDetached(session.context, id, 'web', mode),
+    );
 
 /** Значения платформ определения в классе своего типа: при смене типа семейства определение переносится. */
 const retyped = (token: Token, type: ColorTokenType): Token => {
@@ -237,6 +265,7 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
         loadedNames: new Set(),
         edited: new Map(),
         overrides: new Map(),
+        detachments: new Map(),
         groups: [],
         placements: new Map(),
         reload: () => undefined,
@@ -272,6 +301,10 @@ export const colorTokenSession = (context: ColorTokenContext): ColorTokenSession
                 member.values.forEach((value) => {
                     const name = names.get(member.tokenId);
                     if (name) confirmed.set(`${value.mode}.${name}:${value.platform}`, JSON.stringify(value.value));
+                    const detached = value.detached === true;
+                    acceptTokenValueDetached(context, member.tokenId, value.platform, value.mode, detached);
+                    if (name && session.detachments.get(`${value.mode}.${name}`) === detached)
+                        session.detachments.delete(`${value.mode}.${name}`);
                     if (value.platform === 'web') return;
                     const overridden = value.overridden === true;
                     acceptTokenValueOverridden(context, member.tokenId, value.platform, value.mode, overridden);
@@ -486,8 +519,12 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
     const schedule = (key: ColorTokenKey, restoreLegacy = false) =>
         session.autosave.schedule(tokenId(key), () => {
             if (!session.theme || session.context.versionId) return null;
-            const payload = familyUpdate(session.theme, key, session.definitions, (name, platform) =>
-                isOverridden(session, name, platform),
+            const payload = familyUpdate(
+                session.theme,
+                key,
+                session.definitions,
+                (name, platform) => isOverridden(session, name, platform),
+                (name) => isDetached(session, name),
             );
             if (!payload) return null;
             const names = new Map([...session.definitions].map(([name, definition]) => [definition.id, name]));
@@ -503,12 +540,24 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
                                 JSON.stringify(value.value) ||
                             (value.platform !== 'web' &&
                                 (value.overridden === true) !==
-                                    tokenValueOverridden(session.context, member.tokenId, value.platform, value.mode)),
+                                    tokenValueOverridden(
+                                        session.context,
+                                        member.tokenId,
+                                        value.platform,
+                                        value.mode,
+                                    )) ||
+                            (value.detached === true) !==
+                                tokenValueDetached(session.context, member.tokenId, value.platform, value.mode),
                     ),
                 }))
                 .filter((member) => member.values.length > 0);
             return members.length ? { tokenId: payload.tokenId, update: { members } } : null;
         });
+
+    const detach = (key: ColorTokenKey, mode: ColorMode, context: ColorContext) => {
+        const member = memberToken(key, mode, context);
+        if (member) session.detachments.set(member.getName(), true);
+    };
 
     const memberToken = (key: ColorTokenKey, mode: ColorMode, context: ColorContext | null) => {
         const subgroup = context ? contextSubgroup(key.group, context) : 'default';
@@ -603,6 +652,8 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             const { web, own } = paintOf(token);
             const next = platform === 'web' ? { web: value, own } : { web, own: { ...own, [platform]: value } };
             writeField(view.key, mode, token, next);
+            // Ручная правка подтемы разрывает её связь с режимами явно, даже если значение совпало.
+            if (context) for (const item of COLOR_MODES) detach(view.key, item, context);
             if (!context)
                 for (const target of fieldsInheritingFrom(mode)) {
                     if (view.contexts[target.context].linked)
@@ -623,18 +674,6 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         },
 
         /**
-         * Строка своего значения платформы: копия значения, построенного из web. Только у полей режимов: подтема
-         * получает строки платформ наследованием от режима.
-         */
-        addPlatform(view: ColorTokenView, field: FieldId, platform: NativePlatform) {
-            const { context, mode } = parseField(field);
-            const token = context ? undefined : memberToken(view.key, mode, null);
-            if (!token) return;
-            const web = token.getValue('web' as never);
-            this.setValue(view, field, platform, deriveNative(web, platform, stopResolver(token.getName())));
-        },
-
-        /**
          * «×» у строки платформы: значение снова строится из web. У связанной подтемы строка наследуется от режима и
          * убирается только у поля режима, поэтому вызов в обход интерфейса ничего не меняет.
          */
@@ -648,15 +687,24 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
         setOpacity(view: ColorTokenView, field: FieldId, percent: number, platform: PaintPlatform = 'web') {
             const { context, mode } = parseField(field);
             const base = context ? view.contexts[context].values[mode] : view.modes[mode];
-            const current = platform === 'web' ? base : base.platforms[platform];
+            // Без своего значения платформы прозрачность меняется у значения Web, из которого она строится.
+            const current = platform === 'web' ? base : (base.platforms[platform] ?? base);
             if (!current) return;
             const opacity = Math.max(0, Math.min(100, Math.round(percent))) / 100;
             this.setValue(view, field, platform, webValue(withStopOpacity(current.value, opacity)));
         },
 
         /** Восстанавливает наследование подтемы от значений режимов вместе со своими значениями платформ. */
+        /** Разрывает связь подтемы: значения остаются прежними, но дальше не меняются вслед за режимами. */
+        unlink(view: ColorTokenView, context: ColorContext) {
+            for (const mode of COLOR_MODES) detach(view.key, mode, context);
+            schedule(view.key);
+        },
+
         relink(view: ColorTokenView, context: ColorContext) {
             for (const mode of COLOR_MODES) {
+                const member = memberToken(view.key, mode, context);
+                if (member) session.detachments.set(member.getName(), false);
                 const source = memberToken(view.key, inheritedMode(context, mode), null);
                 if (source) writeField(view.key, mode, memberToken(view.key, mode, context), paintOf(source));
             }
@@ -821,6 +869,18 @@ export const createColorTokenEditor = (session: ColorTokenSession) => {
             if (!ids.length) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
             for (const id of ids) await repository.describe(session.context, id, description);
             familyTokens(theme().theme, view.key).forEach((token) => token.setDescription(description));
+            notify(session);
+        },
+
+        /**
+         * Включает или отключает токен: признак `enabled` меняется у всех определений семейства и сразу показывается в
+         * теме. Признак принадлежит определению, поэтому действует во всех темах.
+         */
+        async setEnabled(view: ColorTokenView, enabled: boolean) {
+            const ids = this.family(view).map(([, definition]) => definition.id);
+            if (!ids.length) throw new ColorTokenOperationError('not-found', 'Токен ещё не сохранён на сервере');
+            await saveTokenEnabled(session.context, ids, enabled, ['color', 'gradient']);
+            familyTokens(theme().theme, view.key).forEach((token) => token.setEnabled(enabled));
             notify(session);
         },
 

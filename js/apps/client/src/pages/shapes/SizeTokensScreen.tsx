@@ -1,6 +1,10 @@
-import { useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useReducer, useRef, useState, type CSSProperties } from 'react';
+import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
+import type { DimensionToken, NativePlatform } from '../../modules/sizeTokens/domain/types';
+import { OtherThemesSection, cssPx, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 
 import '../../styles/size-tokens.css';
 
@@ -46,7 +50,13 @@ import { DeleteSizeTokenDialog } from './ui/SizeTokenDialogs';
 import { SizeTokenInspector } from './ui/SizeTokenInspector';
 import { SizeTokensPlaceholder, SIZES_PANELS_KEY } from './ui/SizeTokensPlaceholder';
 import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
-import { usePanelWidths } from '../../components/tokenWorkspace';
+import {
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    type TokenPlatform,
+} from '../../components/tokenWorkspace';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -78,6 +88,40 @@ const writeCollapsed = (value: Partial<Record<SizeTokenKind, boolean>>) => {
     } catch {
         // Хранилище браузера недоступно: состояние разделов просто не запомнится.
     }
+};
+
+/** Значение размера для сравнения тем: px веба или «Full» у полного скругления. */
+const sizeLabel = (px: number | null) => (px === null ? 'Full' : `${px} px`);
+
+/** Блок «В других темах» размера: значение веба в px. */
+const SizeOtherThemes = ({ context, token }: { context: EditorContextKey; token: DimensionToken }) => {
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            const raw = webValue(values, token.tokenId, null);
+            const label = sizeLabel(cssPx(Array.isArray(raw) ? raw[0] : raw));
+            return [label];
+        },
+        [token.tokenId],
+    );
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={[token.tokenId]}
+            addressTokenId={token.tokenId}
+            columns={['Значение']}
+            describe={describe}
+        />
+    );
+};
+
+/** Токен с числами платформы предпросмотра для борда: своё или текущее значение iOS и Android, иначе Web. */
+const sizeTokenForPlatform = (token: SizeToken, platform: TokenPlatform): SizeToken => {
+    // У Web нет своих и построенных значений платформы: остаётся значение Web.
+    const key = platform as NativePlatform;
+    if (token.kind === 'shadow')
+        return { ...token, layers: (token.platforms[key] ?? token.native[key] ?? token).layers };
+    const native = token.fullRounding ? null : (token.platforms[key] ?? token.native[key]);
+    return { ...token, valuePx: native ?? token.valuePx };
 };
 
 /** Выбранный токен темы: экран размонтируется на время перезагрузки темы и должен вернуть выбор. */
@@ -129,7 +173,16 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
     const savedTokens = data?.tokens ?? [];
     const tokens = editor.tokens();
     const shown = editor.shownTokens();
-    const sections = buildSections(shown, query);
+    /** Признак `enabled` определения токена: из модели темы, как описание. */
+    const tokenEnabled = (token: SizeToken) =>
+        props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind])?.getEnabled?.() ?? true;
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const [platform, setPlatform] = useTokenPlatform();
+    // Дерево показывает числа платформы предпросмотра, как борд.
+    const sections = buildSections(
+        (hideDisabled ? shown.filter(tokenEnabled) : shown).map((token) => sizeTokenForPlatform(token, platform)),
+        query,
+    );
 
     // Адрес из журнала: `?tokenId` выбирает токен раздела; токена нет на выбранной границе — источник недоступен.
     const addressed = useAddressedToken(context, (name) =>
@@ -161,13 +214,16 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         : (savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens));
     const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
     const boardKind = selected?.kind ?? 'radius';
-    const board = buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? [];
+    // Борд показывает значения платформы предпросмотра: свои или построенные из Web числа iOS и Android.
+    const board = (buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? []).map((token) =>
+        sizeTokenForPlatform(token, platform),
+    );
 
     const select = (token: SizeToken) => {
         setSelectedId(token.tokenId);
         setPicked(true);
         setScrollTo(token.tokenId);
-        // Выбор сохраняет адрес в маршруте, если раздел открыт по адресу.
+        // Выбор сохраняет адрес в маршруте: переключатель тем открывает тот же токен в другой теме.
         appliedAddress.current = null;
         addressed.selectTokenName(token.name);
     };
@@ -190,6 +246,9 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
             if (first) {
                 setSelectedId(first.tokenId);
                 setPicked(true);
+                // Новый токен попадает в адрес, как при выборе: переключатель тем откроет его же.
+                appliedAddress.current = null;
+                addressed.selectTokenName(first.name);
             }
             setCreating(null);
         } catch (error) {
@@ -240,9 +299,19 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
 
     /** Описание токена хранит определение токена; модель темы держит его после загрузки темы. */
     const themeToken = (token: SizeToken) => props.theme.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind]);
+    const liveTheme = useRef(props.theme);
+    liveTheme.current = props.theme;
     const describe = async (token: SizeToken, description: string) => {
         await saveSizeTokenDescription(context, token.tokenId, description);
         themeToken(token)?.setDescription?.(description || undefined);
+        redraw();
+        props.rerender();
+    };
+
+    const setEnabled = async (token: SizeToken, enabled: boolean) => {
+        await saveTokenEnabled(context, [token.tokenId], enabled, ['shape', 'spacing', 'shadow']);
+        // Тема могла пересоздаться, пока шёл запрос: признак пишется в текущую, а не в тему момента щелчка.
+        liveTheme.current.getToken?.(token.name, THEME_TOKEN_TYPE[token.kind])?.setEnabled?.(enabled);
         redraw();
         props.rerender();
     };
@@ -289,8 +358,15 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     onCreate={(kind, name) => void create(kind, name)}
                     onCancelCreate={() => setCreating(null)}
                     onRename={readOnly ? undefined : (token, name) => editor.rename(token, name)}
+                    isDisabled={(token) => !tokenEnabled(token)}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                 />
                 <main className="preview-canvas">
+                    <header className="st-preview-header">
+                        <strong>Предпросмотр</strong>
+                        <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
+                    </header>
                     <SizeTokenBoard
                         kind={boardKind}
                         tokens={board}
@@ -312,7 +388,13 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                     )}
                     {selected && saved && (
                         <SizeTokenInspector
+                            otherThemes={
+                                saved.kind !== 'shadow' ? (
+                                    <SizeOtherThemes context={context} token={saved} />
+                                ) : undefined
+                            }
                             key={selected.tokenId}
+                            platform={platform}
                             token={selected}
                             saved={saved}
                             editable={!readOnly}
@@ -320,6 +402,8 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
                             canDelete={canDelete}
                             description={themeToken(selected)?.getDescription?.() ?? ''}
                             onDescribe={readOnly ? undefined : (value) => describe(selected, value)}
+                            enabled={tokenEnabled(selected)}
+                            onToggleEnabled={(enabled) => setEnabled(selected, enabled)}
                             onRename={readOnly ? undefined : (value) => editor.rename(selected, value)}
                             onReset={readOnly ? undefined : () => void tokenReset.reset(new Set([selected.tokenId]))}
                             resetDisabled={tokenReset.busy || !props.changedTokenNames?.has(selected.name)}

@@ -72,6 +72,7 @@ export const DesignSystemCard = ({
                 <CardMenu
                     label={system.name}
                     settingsTo={`/projects/${projectId}/design-systems/${system.id}/settings`}
+                    deleteTo={`/projects/${projectId}/design-systems/${system.id}/settings?section=danger`}
                     canDelete
                     actions={choose(
                         all(can(role, 'designSystems:export'), tenantCount > 0),

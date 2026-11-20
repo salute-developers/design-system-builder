@@ -31,6 +31,21 @@ describe('TreeHeader', () => {
         expect(onSearchOpen).toHaveBeenLastCalledWith(false);
     });
 
+    it('Escape в поле закрывает только поиск', () => {
+        const onQuery = vi.fn();
+        const onSearchOpen = vi.fn();
+        const outer = vi.fn();
+        render(
+            <div onKeyDown={outer}>
+                <TreeHeader searching query="h1" onQuery={onQuery} onSearchOpen={onSearchOpen} />
+            </div>,
+        );
+        fireEvent.keyDown(screen.getByRole('textbox', { name: 'Найти токен' }), { key: 'Escape' });
+        expect(onQuery).toHaveBeenLastCalledWith('');
+        expect(onSearchOpen).toHaveBeenLastCalledWith(false);
+        expect(outer).not.toHaveBeenCalled();
+    });
+
     it('показывает действия и при открытом поиске', () => {
         render(
             <TreeHeader

@@ -45,6 +45,8 @@ export interface TenantTokenValueDto {
     sourceValue?: unknown;
     /** Своё значение iOS или Android, а не построенное из web. */
     overridden?: boolean;
+    /** Связь значения подтемы с режимом явно разорвана пользователем. */
+    detached?: boolean;
     editRevision: number;
 }
 export type TenantTokenValueInputDto = Pick<
@@ -224,6 +226,8 @@ export interface ThemeEditorTokenSnapshot {
     tokenValueEntityIdsByKey?: Record<string, string>;
     /** Признак своего значения платформы по ключу `tokenValueKey`; отсутствующий ключ — `false`. */
     tokenValueOverriddenByKey?: Record<string, boolean>;
+    /** Явно отвязанные значения подтем по ключу `tokenValueKey`. */
+    tokenValueDetachedByKey?: Record<string, boolean>;
     publicationVersion: string;
     palette?: ThemePalette;
     paletteError?: Error;

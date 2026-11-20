@@ -77,6 +77,45 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         }
     }
 
+    override suspend fun copy(sourceTenantId: UUID, targetTenantId: UUID) {
+        // Шаблон берётся у исходной темы, а не из общей палитры: её шаблон мог быть снят с другой версии общей палитры.
+        val sourceTemplate = TenantPaletteTemplateTable.selectAll()
+            .where { TenantPaletteTemplateTable.tenantId eq sourceTenantId }
+            .orderBy(
+                TenantPaletteTemplateTable.type to SortOrder.ASC,
+                TenantPaletteTemplateTable.shade to SortOrder.ASC,
+            )
+            .orderBy(TenantPaletteTemplateTable.step)
+            .toList()
+        TenantPaletteTemplateTable.batchInsert(sourceTemplate, ignore = true) { row ->
+            this[TenantPaletteTemplateTable.tenantId] = targetTenantId
+            this[TenantPaletteTemplateTable.type] = row[TenantPaletteTemplateTable.type]
+            this[TenantPaletteTemplateTable.shade] = row[TenantPaletteTemplateTable.shade]
+            this[TenantPaletteTemplateTable.step] = row[TenantPaletteTemplateTable.step]
+            this[TenantPaletteTemplateTable.value] = row[TenantPaletteTemplateTable.value]
+        }
+        // Недостающие части (шаблон у исходной темы без палитры, системные группы) достраивает обычная инициализация.
+        initialize(targetTenantId)
+        val before = paletteState(targetTenantId)
+        val source = paletteState(sourceTenantId)
+        val ids = source.groups.associate { group ->
+            group.id to (group.systemKey?.let(before::systemGroupId) ?: UUID.randomUUID().toString())
+        }
+        val after = before.copy(
+            groups = source.groups.map { it.copy(id = ids.getValue(it.id)) },
+            ramps = source.ramps.map { it.copy(groupId = ids.getValue(it.groupId)) },
+            tokenGroups = source.tokenGroups.mapValues { (_, group) -> ids.getValue(group) },
+        )
+        save(targetTenantId, before, after)
+    }
+
+    private fun tokenGroups(tenantId: UUID): Map<String, String> = TenantPaletteTokenGroupsTable.selectAll()
+        .where { TenantPaletteTokenGroupsTable.tenantId eq tenantId }
+        .associate { row ->
+            val tokenId = row[TenantPaletteTokenGroupsTable.tokenId].toString()
+            tokenId to row[TenantPaletteTokenGroupsTable.groupId].toString()
+        }
+
     override suspend fun lock(projectId: ProjectId, tenantId: UUID, editRevision: Int): TenantPaletteLock {
         val tenant = currentTenantRows(projectId, tenantId = tenantId).singleOrNull()
             ?.takeIf { it[ThemeDesignSystemsTable.projectId] == projectId.value } ?: return TenantPaletteLock.NotFound
@@ -137,12 +176,7 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
         template = template(tenantId),
         groups = groups(tenantId),
         ramps = ramps(tenantId),
-        tokenGroups = TenantPaletteTokenGroupsTable.selectAll()
-            .where { TenantPaletteTokenGroupsTable.tenantId eq tenantId }
-            .associate { row ->
-                row[TenantPaletteTokenGroupsTable.tokenId].toString() to
-                    row[TenantPaletteTokenGroupsTable.groupId].toString()
-            },
+        tokenGroups = tokenGroups(tenantId),
     )
 
     private fun List<TenantTokenValue>.paletteTokens(types: Set<ThemeTokenType>): List<PaletteTokenRef> =
@@ -195,7 +229,14 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
                         ValuePaletteReferences.rewrite(value) { rewrite.rewrite(it, resolveHex) }.takeIf { it != value }
                     }
                 }
-                next?.let { ThemeValuePayload(null, it, row[ThemeTokenValueRevisionsTable.overridden]) }
+                next?.let {
+                    ThemeValuePayload(
+                        null,
+                        it,
+                        row[ThemeTokenValueRevisionsTable.overridden],
+                        row[ThemeTokenValueRevisionsTable.detached],
+                    )
+                }
             }
             payload?.let { row[ThemeTokenValuesTable.id] to it }
         }.toMap()
@@ -224,6 +265,7 @@ class ExposedTenantPaletteRepository : TenantPaletteRepository {
             row[ThemeTokenValueRevisionsTable.paletteId],
             next,
             row[ThemeTokenValueRevisionsTable.overridden],
+            row[ThemeTokenValueRevisionsTable.detached],
         )
     }
 

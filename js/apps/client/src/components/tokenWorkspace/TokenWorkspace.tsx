@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type InputHTMLAttributes, type ReactNode } from 'react';
 import { CloseOutline, RotateCcwOutline, SearchOutline } from '@salutejs/sdds-icons/16';
 
 interface TreeHeaderProps {
@@ -15,6 +15,10 @@ interface TreeHeaderProps {
     searchLabel?: string;
     onQuery: (query: string) => void;
     onSearchOpen: (open: boolean) => void;
+    /** Дополнительный класс шапки, например для шапки внутри всплывающего списка. */
+    className?: string;
+    /** Атрибуты поля поиска, например связь со списком, которым управляет поле. Escape поле обрабатывает само. */
+    searchInputProps?: Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onKeyDown'>;
 }
 
 /** Шапка дерева `Sidebar/CatalogHeader`: поле поиска встаёт на место заголовка и закрывается «Закрыть поиск». */
@@ -28,17 +32,27 @@ export const TreeHeader = ({
     searchLabel = 'Найти токен',
     onQuery,
     onSearchOpen,
+    className = '',
+    searchInputProps,
 }: TreeHeaderProps) => (
-    <div className={`tw-tree-header ${searching ? 'is-searching' : ''}`}>
+    <div className={`tw-tree-header ${searching ? 'is-searching' : ''} ${className}`}>
         {searching ? (
             <label className="tw-search-field">
                 <SearchOutline />
                 <input
+                    {...searchInputProps}
                     autoFocus
                     value={query}
                     placeholder={placeholder}
                     aria-label={searchLabel}
                     onChange={(event) => onQuery(event.target.value)}
+                    onKeyDown={(event) => {
+                        if (event.key !== 'Escape') return;
+                        // Escape закрывает только поиск: список или панель вокруг шапки остаются открытыми.
+                        event.stopPropagation();
+                        onQuery('');
+                        onSearchOpen(false);
+                    }}
                 />
             </label>
         ) : (
@@ -243,6 +257,28 @@ export const InspectorHeader = ({
     </header>
 );
 
+/**
+ * Раскрыта ли секция инспектора, с запоминанием в `localStorage` под [key]. По умолчанию и без хранилища (приватный
+ * режим, запрет) секция свёрнута.
+ */
+export const usePersistedOpen = (key: string) => {
+    const [open, setOpen] = useState(() => {
+        try {
+            return localStorage.getItem(key) === 'true';
+        } catch {
+            return false;
+        }
+    });
+    useEffect(() => {
+        try {
+            localStorage.setItem(key, String(open));
+        } catch {
+            // Состояние раскрытия — удобство, без хранилища оно не запоминается.
+        }
+    }, [key, open]);
+    return [open, setOpen] as const;
+};
+
 /** Заголовок секции `Panel/SectionHeader`: 12/16 600 в исходном регистре. */
 export const SectionHeader = ({ title, actions }: { title: ReactNode; actions?: ReactNode }) => (
     <div className="tw-section-header" role="heading" aria-level={3}>
@@ -320,6 +356,8 @@ interface ConfirmDeleteDialogProps {
     meta: ReactNode;
     children: ReactNode;
     confirmLabel: string;
+    /** Подпись отмены; по умолчанию «Не удалять». */
+    cancelLabel?: string;
     busy: boolean;
     /** Удаление ещё нельзя подтвердить, например не выбрана замена. */
     confirmDisabled?: boolean;
@@ -335,6 +373,7 @@ export const ConfirmDeleteDialog = ({
     meta,
     children,
     confirmLabel,
+    cancelLabel = 'Не удалять',
     busy,
     confirmDisabled = false,
     error,
@@ -361,7 +400,7 @@ export const ConfirmDeleteDialog = ({
                 </div>
                 <footer className="tw-dialog-actions">
                     <button type="button" className="tw-action-button is-secondary" autoFocus onClick={onCancel}>
-                        Не удалять
+                        {cancelLabel}
                     </button>
                     <button
                         type="button"

@@ -106,10 +106,19 @@ export const CardMenu = ({
     canDelete = false,
     extraAction,
     actions = [],
+    renameTo = settingsTo,
+    deleteTo = `${settingsTo}?section=delete`,
+    showSettings = true,
 }: {
     label: string;
     settingsTo: string;
     canDelete?: boolean;
+    /** Адрес «Переименовать»; по умолчанию — настройки. */
+    renameTo?: string;
+    /** Адрес «Удалить»; по умолчанию — раздел удаления настроек. */
+    deleteTo?: string;
+    /** Пункт «Настройки»; у темы его нет: темами управляет раздел «Темы» настроек дизайн-системы. */
+    showSettings?: boolean;
     extraAction?: { label: string; to: string; danger?: boolean };
     /** Действия без перехода; меню закрывается, если `onSelect` не вернул `false`. */
     actions?: Array<{ label: string; onSelect: () => Promise<boolean | void> | void; disabled?: boolean }>;
@@ -148,11 +157,15 @@ export const CardMenu = ({
             </button>
             {open && (
                 <div className="card-dropdown" role="menu">
-                    <Link role="menuitem" to={settingsTo}>
-                        Настройки
-                    </Link>
-                    <span role="separator" />
-                    <Link role="menuitem" to={settingsTo}>
+                    {showSettings && (
+                        <>
+                            <Link role="menuitem" to={settingsTo}>
+                                Настройки
+                            </Link>
+                            <span role="separator" />
+                        </>
+                    )}
+                    <Link role="menuitem" to={renameTo}>
                         Переименовать
                     </Link>
                     {extraAction && (
@@ -180,7 +193,7 @@ export const CardMenu = ({
                     {canDelete && (
                         <>
                             <span role="separator" />
-                            <Link className="danger-menu-item" role="menuitem" to={`${settingsTo}?section=delete`}>
+                            <Link className="danger-menu-item" role="menuitem" to={deleteTo}>
                                 Удалить
                             </Link>
                         </>

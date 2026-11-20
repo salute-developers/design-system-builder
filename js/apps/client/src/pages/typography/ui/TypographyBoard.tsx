@@ -8,6 +8,7 @@ import {
     styleLabel,
     styleTitle,
     styleVariant,
+    TYPOGRAPHY_VARIANTS,
     type TypographyFamily,
     type TypographyStyle,
     type TypographyVariant,
@@ -18,9 +19,9 @@ interface TypographyBoardProps {
     styles: TypographyStyle[];
     families: TypographyFamily[];
     selectedKey: string;
-    /** Начертание, выбранное в инспекторе: образцы рисуются его весом. */
+    /** Открытое начертание: каждое начертание стиля — своя строка борда. */
     variant: TypographyVariant;
-    onSelect: (key: string) => void;
+    onSelect: (key: string, variant: TypographyVariant) => void;
 }
 
 /** Минимальная высота строки борда по Figma. */
@@ -66,43 +67,44 @@ export const TypographyBoard = ({ styles, families, selectedKey, variant, onSele
                 </header>
                 {group.styles.length ? (
                     <div className="typography-board-list tw-board-rows">
-                        {group.styles.map((style) => {
-                            const weights = (['normal', 'medium', 'bold'] as const)
-                                .map((item) => style.variants[item]?.weight)
-                                .filter((weight) => weight !== undefined)
-                                .join('·');
-                            const size = formatNumber(style.sizePx);
-                            const lineHeight = formatNumber(style.lineHeightPx);
-                            return (
-                                <button
-                                    key={styleKey(style)}
-                                    type="button"
-                                    className={`typography-board-row ${styleKey(style) === selectedKey ? 'is-selected' : ''}`}
-                                    style={{ minHeight: `${rowHeight(style)}px` }}
-                                    aria-label={`${styleTitle(style)}, ${size} px, ${lineHeight} px line`}
-                                    aria-pressed={styleKey(style) === selectedKey}
-                                    onClick={() => onSelect(styleKey(style))}
-                                >
-                                    <span className="typography-board-meta tw-meta">
-                                        <strong>{styleLabel(style)}</strong>
-                                        <span>{size} px</span>
-                                        <span>строка {lineHeight} px</span>
-                                        <span>W {weights}</span>
-                                        <span>{fontNameOf(families, style.fontFamily)}</span>
-                                    </span>
-                                    <span className="typography-board-sample">
-                                        {/* `data-preview`: образец набирается шрифтом стиля, а не Inter оболочки. */}
-                                        <span
-                                            className="typography-visible-sample"
-                                            data-preview
-                                            style={sampleStyle(families, style, variant)}
-                                        >
-                                            {sampleText(style.group)}
+                        {group.styles.flatMap((style) =>
+                            TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => {
+                                const size = formatNumber(style.sizePx);
+                                const lineHeight = formatNumber(style.lineHeightPx);
+                                const selected = styleKey(style) === selectedKey && id === variant;
+                                return (
+                                    <button
+                                        key={`${styleKey(style)}.${id}`}
+                                        type="button"
+                                        className={`typography-board-row ${selected ? 'is-selected' : ''}`}
+                                        style={{ minHeight: `${rowHeight(style)}px` }}
+                                        aria-label={`${styleTitle(style)} ${label}, ${size} px, ${lineHeight} px line`}
+                                        aria-pressed={selected}
+                                        onClick={() => onSelect(styleKey(style), id)}
+                                    >
+                                        <span className="typography-board-meta tw-meta">
+                                            <strong>
+                                                {styleLabel(style)} {label}
+                                            </strong>
+                                            <span>{size} px</span>
+                                            <span>строка {lineHeight} px</span>
+                                            <span>W {style.variants[id]?.weight}</span>
+                                            <span>{fontNameOf(families, style.fontFamily)}</span>
                                         </span>
-                                    </span>
-                                </button>
-                            );
-                        })}
+                                        <span className="typography-board-sample">
+                                            {/* `data-preview`: образец набирается шрифтом стиля, а не Inter оболочки. */}
+                                            <span
+                                                className="typography-visible-sample"
+                                                data-preview
+                                                style={sampleStyle(families, style, id)}
+                                            >
+                                                {sampleText(style.group)}
+                                            </span>
+                                        </span>
+                                    </button>
+                                );
+                            }),
+                        )}
                     </div>
                 ) : (
                     <p className="typography-unconfigured is-board">{UNCONFIGURED_TEXT}</p>

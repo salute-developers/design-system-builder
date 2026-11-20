@@ -81,6 +81,7 @@ class ExposedSizeTokenRepository(
                     paths = if (before == null) setOf("/value", "/overridden") else paths,
                     baseRevision = baseRevisions[value.platform],
                     overridden = value.overridden,
+                    detached = before?.get(ThemeTokenValueRevisionsTable.detached) ?: false,
                 )
             }
         }
@@ -125,6 +126,7 @@ class ExposedSizeTokenRepository(
                         data = value.value,
                         paths = setOf("/"),
                         overridden = value.overridden,
+                        detached = false,
                     )
                 }
             }

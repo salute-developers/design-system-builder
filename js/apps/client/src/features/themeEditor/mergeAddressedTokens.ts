@@ -55,5 +55,9 @@ export function mergeAddressedTokens(
             previous.tokenValueOverriddenByKey ?? {},
             next.tokenValueOverriddenByKey ?? {},
         ),
+        tokenValueDetachedByKey: addresses(
+            previous.tokenValueDetachedByKey ?? {},
+            next.tokenValueDetachedByKey ?? {},
+        ),
     };
 }

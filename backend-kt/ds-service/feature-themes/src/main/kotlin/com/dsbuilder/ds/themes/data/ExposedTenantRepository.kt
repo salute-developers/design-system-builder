@@ -23,6 +23,7 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.UUIDColumnType
@@ -268,9 +269,9 @@ class ExposedTenantRepository : TenantRepository {
         if (validTokenCount != tokenIds.size.toLong()) return TenantTokenValuesSaveOutcome.ForeignToken
         val orderedValues = orderedTokenValues(command.values)
         val existingEntities = lockTokenValueEntities(id, orderedValues)
-        // Пакетная запись не передаёт признак своего значения платформы и сохраняет действующий.
-        val overridden = currentThemeTokenValueRows(designSystemId, setOf(id), tokenIds.toSet())
-            .associate { it[ThemeTokenValuesTable.id] to it[ThemeTokenValueRevisionsTable.overridden] }
+        // Пакетная запись не передаёт признаки своего значения платформы и отвязанной подтемы и сохраняет действующие.
+        val current = currentThemeTokenValueRows(designSystemId, setOf(id), tokenIds.toSet())
+            .associateBy { it[ThemeTokenValuesTable.id] }
         orderedValues.forEach { value ->
             val key = Triple(value.tokenId, value.platform, value.mode)
             val entity = existingEntities[key] ?: ThemeTokenValuesTable.insertReturning {
@@ -285,7 +286,8 @@ class ExposedTenantRepository : TenantRepository {
                 designSystemId = tenant[TenantsTable.designSystemId],
                 paletteId = value.paletteId,
                 value = value.value,
-                overridden = overridden[entity[ThemeTokenValuesTable.id]] ?: false,
+                overridden = current[entity[ThemeTokenValuesTable.id]].flag(ThemeTokenValueRevisionsTable.overridden),
+                detached = current[entity[ThemeTokenValuesTable.id]].flag(ThemeTokenValueRevisionsTable.detached),
                 deleted = false,
                 paths = setOf("/palette_id", "/value"),
                 baseRevision = value.baseRevision,
@@ -401,6 +403,7 @@ class ExposedTenantRepository : TenantRepository {
         value = row[ThemeTokenValueRevisionsTable.value],
         editRevision = editRevision,
         overridden = row[ThemeTokenValueRevisionsTable.overridden],
+        detached = row[ThemeTokenValueRevisionsTable.detached],
         createdAt = row[ThemeTokenValuesTable.createdAt],
         updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
     )
@@ -520,12 +523,17 @@ class ExposedTenantRepository : TenantRepository {
         }
     }
 
+    /** Признак действующей редакции значения; у значения без редакции — `false`. */
+    private fun ResultRow?.flag(column: Column<Boolean>): Boolean =
+        this?.get(column) ?: false
+
     private fun writeTokenValueRevision(current: ResultRow, deleted: Boolean) = writeTokenValueRevision(
         entityId = current[ThemeTokenValuesTable.id],
         designSystemId = current[ThemeTokenValuesTable.designSystemId],
         paletteId = current[ThemeTokenValueRevisionsTable.paletteId],
         value = current[ThemeTokenValueRevisionsTable.value],
         overridden = current[ThemeTokenValueRevisionsTable.overridden],
+        detached = current[ThemeTokenValueRevisionsTable.detached],
         deleted = deleted,
         paths = setOf("/deleted"),
         baseRevision = null,
@@ -537,6 +545,7 @@ class ExposedTenantRepository : TenantRepository {
         paletteId: UUID?,
         value: kotlinx.serialization.json.JsonElement?,
         overridden: Boolean,
+        detached: Boolean,
         deleted: Boolean,
         paths: Set<String>,
         baseRevision: Long?,
@@ -555,6 +564,7 @@ class ExposedTenantRepository : TenantRepository {
                 it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
                 it[ThemeTokenValueRevisionsTable.value] = value
                 it[ThemeTokenValueRevisionsTable.overridden] = overridden
+                it[ThemeTokenValueRevisionsTable.detached] = detached
                 it[ThemeTokenValueRevisionsTable.deleted] = deleted
             }
         }

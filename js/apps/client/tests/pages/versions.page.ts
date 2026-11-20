@@ -43,7 +43,7 @@ export class VersionsPage {
         this.editorButton = page.getByTestId('editor-nav-colors');
         this.editorVersionButton = page.getByRole('button', { name: 'Версия редактора', exact: true });
         this.editorDraftOption = page.getByRole('option', { name: 'Черновик', exact: true });
-        this.editorSettingsButton = page.getByRole('button', { name: 'Настройки темы', exact: true });
+        this.editorSettingsButton = page.getByRole('button', { name: 'Настройки дизайн-системы', exact: true });
         this.editorReady = page.getByRole('main').getByText('Text & Icons', { exact: true });
     }
 

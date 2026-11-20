@@ -39,9 +39,16 @@ export const normalizeThemeName = (name: string) => name.trim().replace(/\s+/g, 
 export const validateCustomThemePalette = (palette: PreviewPalette) =>
     palette.some((color) => !/^#[0-9A-Fa-f]{6}$/.test(color)) ? 'Введите цвета в формате #RRGGBB.' : '';
 
-export const validateThemeInput = (name: string, profile: ThemeProfile, palette: PreviewPalette) => {
+/** Ошибка нормализованного названия темы или пустая строка. */
+export const validateThemeName = (name: string) => {
     if (!name) return 'Введите название Theme.';
     if (name.length > 80) return 'Название Theme должно быть не длиннее 80 символов.';
+    return '';
+};
+
+export const validateThemeInput = (name: string, profile: ThemeProfile, palette: PreviewPalette) => {
+    const nameError = validateThemeName(name);
+    if (nameError) return nameError;
     if (profile === 'custom') return validateCustomThemePalette(palette);
     return '';
 };

@@ -7,7 +7,13 @@ import {
 } from '@salutejs/sdds-icons/16';
 import { useRef, useState } from 'react';
 
-import { PanelSkeleton, TreeEmpty, TreeHeader } from '../../../components/tokenWorkspace';
+import {
+    DisabledFlag,
+    HideDisabledButton,
+    PanelSkeleton,
+    TreeEmpty,
+    TreeHeader,
+} from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_SCREENS,
     formatNumber,
@@ -18,8 +24,10 @@ import {
     styleKey,
     styleLabel,
     styleTitle,
+    TYPOGRAPHY_VARIANTS,
     type TypographyScreen,
     type TypographyStyle,
+    type TypographyVariant,
 } from '../../../modules/typographyTokens';
 import { InlineInput } from '../../colors/ui/ColorTokenTree';
 import { InlineRename } from '../../colors/ui/InlineRename';
@@ -37,11 +45,13 @@ interface TypographyTreeProps {
     changedStyles: Set<string>;
     screen: TypographyScreen;
     selectedKey: string;
+    /** Открытое начертание: каждое начертание стиля — своя строка дерева. */
+    variant: TypographyVariant;
     query: string;
     searchOpen: boolean;
     collapsed: Record<string, boolean>;
     onScreen: (screen: TypographyScreen) => void;
-    onSelect: (key: string) => void;
+    onSelect: (key: string, variant: TypographyVariant) => void;
     onQuery: (query: string) => void;
     onSearchOpen: (open: boolean) => void;
     onToggle: (group: string) => void;
@@ -58,6 +68,11 @@ interface TypographyTreeProps {
     onCancelCreate?: () => void;
     onRename?: (style: TypographyStyle, size: string) => Promise<void>;
     onDelete?: (style: TypographyStyle) => void;
+    /** Стиль отключён (`enabled = false`): строка приглушена и отмечена «Отключён». */
+    isDisabled?: (style: TypographyStyle, variant: TypographyVariant) => boolean;
+    /** Фильтр «Скрыть отключённые токены». */
+    hideDisabled?: boolean;
+    onHideDisabled?: () => void;
     /** Новая группа из ввода; ошибка ввода бросается с текстом для поля. */
     onCreateGroup?: (name: string) => void;
     onRenameGroup?: (group: string, name: string) => Promise<void>;
@@ -73,36 +88,47 @@ export interface CreatingStyle {
 
 const errorText = (error: unknown) => (error instanceof Error ? error.message : String(error));
 
-/** Строка стиля `Builder/ListItem`: значок «Aa», название и «размер/высота строки». */
+/**
+ * Строка токена начертания `Builder/ListItem`: значок «Aa», «размер начертание» и «размер/высота строки · вес».
+ * Переименование и удаление относятся ко всему стилю: размер и высота строки у начертаний общие.
+ */
 const StyleRow = ({
     style,
+    variant,
     selected,
     changed,
+    disabled,
     onSelect,
     onRename,
     onDelete,
 }: {
     style: TypographyStyle;
+    variant: { id: TypographyVariant; label: string };
     selected: boolean;
     changed: boolean;
-    onSelect: (key: string) => void;
+    disabled: boolean;
+    onSelect: (key: string, variant: TypographyVariant) => void;
     onRename?: () => void;
     onDelete?: () => void;
 }) => (
     <div className="tw-tree-row">
         <button
             type="button"
-            className={`typography-token-row tw-tree-item ${selected ? 'is-selected' : ''}`}
+            className={`typography-token-row tw-tree-item ${selected ? 'is-selected' : ''} ${disabled ? 'is-disabled' : ''}`}
             aria-current={selected || undefined}
             data-style-key={styleKey(style)}
-            onClick={() => onSelect(styleKey(style))}
+            data-variant={variant.id}
+            onClick={() => onSelect(styleKey(style), variant.id)}
             onDoubleClick={onRename}
         >
             <TypographyOutline />
-            <span className="tw-tree-item-label">{styleLabel(style)}</span>
+            <span className="tw-tree-item-label">
+                {styleLabel(style)} {variant.label}
+            </span>
             {changed && <i className="tw-changed-indicator" aria-label="Есть изменения" />}
+            {disabled && <DisabledFlag />}
             <b className="tw-tree-item-value typography-row-value">
-                {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)}
+                {formatNumber(style.sizePx)}/{formatNumber(style.lineHeightPx)} · {style.variants[variant.id]?.weight}
             </b>
         </button>
         {onDelete && (
@@ -177,29 +203,40 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                     )}
                 </div>
             );
-        return (
+        // Удаление стиля одно на стиль — у первой строки: начертания удаляются вместе со стилем.
+        const disabled = (id: TypographyVariant) => Boolean(props.isDisabled?.(style, id));
+        return shownVariants(style).map((variant, index) => (
             <StyleRow
-                key={key}
+                key={`${key}.${variant.id}`}
                 style={style}
-                selected={key === selectedKey}
+                variant={variant}
+                selected={key === selectedKey && variant.id === props.variant}
                 changed={props.changedStyles.has(key)}
+                disabled={disabled(variant.id)}
                 onSelect={props.onSelect}
                 onRename={
                     props.editable && props.onRename ? () => setRenaming({ key, busy: false, error: null }) : undefined
                 }
-                onDelete={props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
+                onDelete={index === 0 && props.canDelete && props.onDelete ? () => props.onDelete?.(style) : undefined}
             />
-        );
+        ));
     };
+    /** Строки стиля: фильтр «Скрыть отключённые токены» убирает отключённые начертания. */
+    const shownVariants = (style: TypographyStyle) =>
+        TYPOGRAPHY_VARIANTS.filter(
+            ({ id }) => style.variants[id] && !(props.hideDisabled && props.isDisabled?.(style, id)),
+        );
     const body = () => {
         if (!styles) return props.loading ? <PanelSkeleton part="tree" /> : null;
         if (!styles.length) return <TreeEmpty>{SECTION_EMPTY_TEXT}</TreeEmpty>;
+        // Стиль без видимых строк скрыт целиком, чтобы не оставлять пустых групп.
+        const shown = styles.filter((style) => shownVariants(style).length);
         // Результат поиска — плоский список совпавших стилей без заголовков групп, как в Figma.
         if (search) {
-            const found = groupStyles(styles, search).flatMap((group) => group.styles);
+            const found = groupStyles(shown, search).flatMap((group) => group.styles);
             return found.length ? found.map(row) : <TreeEmpty />;
         }
-        const groups = screenGroups(styles);
+        const groups = screenGroups(shown);
         const pending = props.pendingGroup;
         if (pending && !groups.some((group) => group.id === pending))
             groups.push({ id: pending, label: groupLabel(pending), styles: [] });
@@ -208,7 +245,11 @@ export const TypographyTree = (props: TypographyTreeProps) => {
             const own = !isSystemGroup(group.id) && group.id !== pending;
             const renameKey = `group:${group.id}`;
             return (
-                <div key={group.id} className="typography-token-group" data-testid={`typography-group-${group.id}`}>
+                <div
+                    key={group.id}
+                    className="typography-token-group tw-tree-branch"
+                    data-testid={`typography-group-${group.id}`}
+                >
                     {renaming?.key === renameKey ? (
                         <div className="tw-tree-row">
                             <div className="typography-group-heading tw-tree-group is-renaming">
@@ -305,19 +346,22 @@ export const TypographyTree = (props: TypographyTreeProps) => {
                 onQuery={props.onQuery}
                 onSearchOpen={props.onSearchOpen}
                 actions={
-                    props.editable &&
-                    props.onCreateGroup &&
-                    !searching && (
-                        <button
-                            type="button"
-                            className="tw-icon-button"
-                            aria-label="Добавить группу"
-                            title="Добавить группу"
-                            onClick={() => setNewGroup({ error: null })}
-                        >
-                            <PlusOutline />
-                        </button>
-                    )
+                    <>
+                        {props.onHideDisabled && (
+                            <HideDisabledButton pressed={Boolean(props.hideDisabled)} onToggle={props.onHideDisabled} />
+                        )}
+                        {props.editable && props.onCreateGroup && !searching && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                aria-label="Добавить группу"
+                                title="Добавить группу"
+                                onClick={() => setNewGroup({ error: null })}
+                            >
+                                <PlusOutline />
+                            </button>
+                        )}
+                    </>
                 }
             />
             <div className="typography-screen-control" role="tablist" aria-label="Размер экрана">

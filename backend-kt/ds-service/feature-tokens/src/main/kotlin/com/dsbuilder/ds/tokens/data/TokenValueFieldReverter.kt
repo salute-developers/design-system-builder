@@ -38,14 +38,13 @@ internal fun revertTokenValueFields(
             (TokenRevisionsTable.versionSequenceNumber lessEq sequence)
     }.orderBy(TokenRevisionsTable.versionSequenceNumber, SortOrder.DESC).limit(1).singleOrNull()
         ?.get(TokenRevisionsTable.type)
-    // Признак своего значения платформы откатывается отдельным путём, параметры значения — путями под `/value`.
-    val overridden = if (OVERRIDDEN_PATH in paths) {
-        if (previous["overridden"] == current["overridden"]) return false
-        (previous["overridden"] as? JsonPrimitive)?.booleanOrNull ?: return false
-    } else {
-        revision[TokenValueRevisionsTable.overridden]
-    }
-    val valuePaths = paths - OVERRIDDEN_PATH
+    // Признаки своего значения платформы и отвязанной подтемы откатываются отдельными путями, параметры значения —
+    // путями под `/value`.
+    val overridden = revertedFlag(OVERRIDDEN_PATH, paths, previous, current, revision)
+        ?: return false
+    val detached = revertedFlag(DETACHED_PATH, paths, previous, current, revision)
+        ?: return false
+    val valuePaths = paths - FLAG_PATHS
     val restored = if (valuePaths.isEmpty()) {
         revision[TokenValueRevisionsTable.value] ?: JsonNull
     } else {
@@ -58,18 +57,38 @@ internal fun revertTokenValueFields(
     }
     val changedPaths = buildSet {
         if (valuePaths.isNotEmpty()) add("/value")
-        if (OVERRIDDEN_PATH in paths) add(OVERRIDDEN_PATH)
+        addAll(paths intersect FLAG_PATHS)
     }
-    replaceDraftRevision(versionId, entityId, revision, restored, overridden, changedPaths)
+    replaceDraftRevision(versionId, entityId, revision, restored, RevisionFlags(overridden, detached), changedPaths)
     return true
 }
+
+/**
+ * Признак по пути [path] после отката: прежний, если путь откатывается и признак менялся, иначе действующий из
+ * [revision]; `null` — путь откатывается, но признак не менялся или не разобран.
+ */
+private fun revertedFlag(
+    path: String,
+    paths: Set<String>,
+    previous: JsonObject,
+    current: JsonObject,
+    revision: ResultRow,
+): Boolean? {
+    val field = path.removePrefix("/")
+    if (path !in paths) return revision[FLAG_COLUMNS.getValue(path)]
+    if (previous[field] == current[field]) return null
+    return (previous[field] as? JsonPrimitive)?.booleanOrNull
+}
+
+/** Признаки предметной редакции значения, которые откатываются отдельными путями. */
+private data class RevisionFlags(val overridden: Boolean, val detached: Boolean)
 
 private fun replaceDraftRevision(
     versionId: UUID,
     entityId: UUID,
     revision: ResultRow,
     restored: JsonElement,
-    overridden: Boolean,
+    flags: RevisionFlags,
     paths: Set<String>,
 ) {
     TokenValueRevisionsTable.deleteWhere {
@@ -84,10 +103,17 @@ private fun replaceDraftRevision(
             it[versionSequenceNumber] = revision[TokenValueRevisionsTable.versionSequenceNumber]
             it[paletteId] = revision[TokenValueRevisionsTable.paletteId]
             it[value] = restored.takeUnless { value -> value == JsonNull }
-            it[TokenValueRevisionsTable.overridden] = overridden
+            it[TokenValueRevisionsTable.overridden] = flags.overridden
+            it[TokenValueRevisionsTable.detached] = flags.detached
             it[deleted] = false
         }
     }
 }
 
 private const val OVERRIDDEN_PATH = "/overridden"
+private const val DETACHED_PATH = "/detached"
+private val FLAG_COLUMNS = mapOf(
+    OVERRIDDEN_PATH to TokenValueRevisionsTable.overridden,
+    DETACHED_PATH to TokenValueRevisionsTable.detached,
+)
+private val FLAG_PATHS = FLAG_COLUMNS.keys

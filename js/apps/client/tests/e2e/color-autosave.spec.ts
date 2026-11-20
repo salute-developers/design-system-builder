@@ -10,6 +10,8 @@ test(
         await colors.token('textAccent').click();
         await expect(colors.light).toHaveValue('171717');
         await expect(colors.dark).toHaveValue('F5F5F5');
+        // Секция «Подтемы» свёрнута по умолчанию: подтемы меняются по связи с режимами.
+        await colors.inspector.getByRole('button', { name: /^Подтемы/ }).click();
         await expect(colors.inspector.getByRole('button', { name: 'Связь с Modes включена', exact: true })).toHaveCount(
             3,
         );

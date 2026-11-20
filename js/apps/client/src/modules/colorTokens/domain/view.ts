@@ -1,5 +1,5 @@
 import type { PaletteRampRef } from '../../palette';
-import { colorField, emptyField, sameValue, type PaletteColorResolver } from './field';
+import { colorField, emptyField, type PaletteColorResolver } from './field';
 import { COLOR_CONTEXTS, COLOR_MODES, contextSubgroup, inheritedMode, parseMemberName, tokenId } from './family';
 import { NATIVE_PLATFORMS, type NativePlatform } from './nativeGradient';
 import { validateColorValue } from './validation';
@@ -25,6 +25,8 @@ export interface ThemeTokenSource {
     android?: unknown;
     /** Свои значения платформ: `true` — значение задано отдельно, а не построено из web. */
     overridden?: Partial<Record<NativePlatform, boolean>>;
+    /** Связь подтемы с режимом явно разорвана: такая подтема не связана, даже если значения совпадают. */
+    detached?: boolean;
 }
 
 export interface ViewDeps {
@@ -83,8 +85,10 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
                 const values = Object.fromEntries(
                     COLOR_MODES.map((mode) => [mode, field(mode, subgroup) ?? modes[inheritedMode(context, mode)]]),
                 ) as Record<ColorMode, ColorFieldValue>;
-                const linked = COLOR_MODES.every((mode) =>
-                    sameValue(values[mode], modes[inheritedMode(context, mode)]),
+                // Связь хранится только признаком `detached`: подтема связана, пока её не отвязали явно, даже если
+                // значения сида отличаются от режимов. Правка Light или Dark переносит в неё значения режима.
+                const linked = COLOR_MODES.every(
+                    (mode) => !byName.get(`${mode}.${key.group}.${subgroup}.${key.name}`)?.detached,
                 );
                 return [context, { linked, values }];
             }),
@@ -129,4 +133,26 @@ export const buildColorTokenViews = (tokens: ThemeTokenSource[], deps: ViewDeps)
         };
         return view;
     });
+};
+
+/**
+ * Строка токена для платформы предпросмотра: поля режимов и подтем берут своё значение iOS или Android, а без него
+ * остаются значением Web, из которого платформа строится.
+ */
+export const viewForPlatform = (view: ColorTokenView, platform: NativePlatform | 'web'): ColorTokenView => {
+    const at = (field: ColorFieldValue): ColorFieldValue => {
+        // У Web своих значений нет: поле остаётся значением Web.
+        const own = field.platforms[platform as NativePlatform];
+        return own ? { ...own, platforms: field.platforms } : field;
+    };
+    return {
+        ...view,
+        modes: { light: at(view.modes.light), dark: at(view.modes.dark) },
+        contexts: Object.fromEntries(
+            Object.entries(view.contexts).map(([context, item]) => [
+                context,
+                { ...item, values: { light: at(item.values.light), dark: at(item.values.dark) } },
+            ]),
+        ) as ColorTokenView['contexts'],
+    };
 };

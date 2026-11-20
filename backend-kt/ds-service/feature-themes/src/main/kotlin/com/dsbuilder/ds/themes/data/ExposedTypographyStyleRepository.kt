@@ -112,6 +112,7 @@ class ExposedTypographyStyleRepository(
                 palette = row?.get(ThemeTokenValueRevisionsTable.paletteId),
                 data = write.value,
                 overridden = row?.get(ThemeTokenValueRevisionsTable.overridden) ?: false,
+                detached = row?.get(ThemeTokenValueRevisionsTable.detached) ?: false,
                 paths = setOf("/value"),
                 baseRevision = write.baseRevision,
             )
@@ -163,6 +164,7 @@ class ExposedTypographyStyleRepository(
                         },
                         paths = setOf("/"),
                         overridden = row[ThemeTokenValueRevisionsTable.overridden],
+                        detached = row[ThemeTokenValueRevisionsTable.detached],
                     )
                 }
             name to entity

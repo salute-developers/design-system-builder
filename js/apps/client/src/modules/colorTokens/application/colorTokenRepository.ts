@@ -37,6 +37,8 @@ export interface ColorTokenValueItem {
     baseRevision?: number;
     /** Своё значение `ios` или `android`, а не построенное из web; у web всегда `false`. */
     overridden?: boolean;
+    /** Связь значения подтемы с режимом явно разорвана. */
+    detached?: boolean;
 }
 
 export interface CreateColorTokenInput {

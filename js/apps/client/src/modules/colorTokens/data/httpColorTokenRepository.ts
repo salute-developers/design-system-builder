@@ -37,6 +37,11 @@ const confirmedValues = (
                         .find((member) => member.tokenId === id)
                         ?.values.find((item) => item.platform === value.platform && item.mode === value.mode)
                         ?.overridden,
+                detached:
+                    value.detached ??
+                    update?.members
+                        .find((member) => member.tokenId === id)
+                        ?.values.find((item) => item.platform === value.platform && item.mode === value.mode)?.detached,
             })),
     }));
 };

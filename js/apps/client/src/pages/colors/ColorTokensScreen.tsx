@@ -1,15 +1,23 @@
 import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
+import { OtherThemesSection, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 
-import { PanelSkeleton, usePanelWidths, WorkspaceLoadError } from '../../components/tokenWorkspace';
+import {
+    PanelSkeleton,
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    WorkspaceLoadError,
+} from '../../components/tokenWorkspace';
 
 import '../../styles/color-tokens.css';
 
 import type { TokenDefinitionDto } from '../../api/themeEditorRepository';
-import type { DraftRefreshChange } from '../../api/editorContracts';
+import type { DraftRefreshChange, EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
 import type { Config, DesignSystem, Theme } from '../../controllers';
 import {
     buildTree,
@@ -23,6 +31,7 @@ import {
     legacyDraftFamilies,
     componentStyleSources,
     componentsUsingToken,
+    viewForPlatform,
     contextSubgroup,
     parseMemberName,
     tokenId,
@@ -31,11 +40,13 @@ import {
     type ColorTokenContext,
     type ColorTokenView,
     type ContrastPair,
+    type NativePlatform,
     type TokenGroupDto,
     type TokenDefinitions,
     type TreeSort,
 } from '../../modules/colorTokens';
 import { ColorTokenOperationError } from '../../modules/colorTokens';
+import { otherThemeColorCell } from './ui/otherThemeColorCell';
 import { groupRampName, resolveTokenGroupId, type ThemePalette } from '../../modules/palette';
 import { restorePaletteColor } from '../../palette/activePalette';
 import { paletteRepository } from '../../palette/paletteSession';
@@ -161,6 +172,37 @@ export const ColorTokensState = ({ error = false, onRetry }: { error?: boolean; 
     </div>
 );
 
+/** Блок «В других темах» цветового токена: Light и Dark основного значения в каждой теме. */
+const ColorOtherThemes = ({
+    context,
+    family,
+}: {
+    context: EditorContextKey;
+    family: Array<[string, { id: string }]>;
+}) => {
+    const main = family.find(([name]) => name.includes('.default.'))?.[1] ?? family[0]?.[1];
+    const ids = family.map(([, definition]) => definition.id);
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            return [
+                otherThemeColorCell(webValue(values, main?.id ?? '', 'light')),
+                otherThemeColorCell(webValue(values, main?.id ?? '', 'dark')),
+            ];
+        },
+        [main?.id, ids.join(',')],
+    );
+    if (!main) return null;
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={[main.id]}
+            addressTokenId={main.id}
+            columns={['Light', 'Dark']}
+            describe={describe}
+        />
+    );
+};
+
 /** Экран Color Tokens темы по ветке `editorTab === 'colors'` функции `editor` прототипа. */
 export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const { context, designSystem, theme, components, palette, setPalette, rerender } = props;
@@ -176,6 +218,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [query, setQuery] = useState('');
     const [searchOpen, setSearchOpen] = useState(false);
     const [issuesOnly, setIssuesOnly] = useState(false);
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const [platform, setPlatform] = useTokenPlatform();
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readStorage(COLLAPSED_KEY, {}));
     const { panels, separator } = usePanelWidths(PANELS_KEY);
     const [workspace, setWorkspace] = useState<'overview' | 'accessibility'>('overview');
@@ -207,13 +251,20 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     const [legacyBusy, setLegacyBusy] = useState(false);
     const [notice, setNotice] = useState<string | null>(null);
 
+    // Дерево и борд показывают значения платформы предпросмотра: своё значение iOS или Android, иначе значение Web.
+    const platformViews = useMemo(() => views.map((view) => viewForPlatform(view, platform)), [views, platform]);
     const tree = useMemo(
-        () => buildTree(groups, views, { query, sort, issuesOnly }),
-        [groups, views, query, sort, issuesOnly],
+        () =>
+            buildTree(groups, hideDisabled ? platformViews.filter((view) => view.enabled) : platformViews, {
+                query,
+                sort,
+                issuesOnly,
+            }),
+        [groups, platformViews, query, sort, issuesOnly, hideDisabled],
     );
     const board = useMemo(
-        () => buildTree(groups, views, { query: '', sort: 'source', issuesOnly: false }),
-        [groups, views],
+        () => buildTree(groups, platformViews, { query: '', sort: 'source', issuesOnly: false }),
+        [groups, platformViews],
     );
     // Без явного выбора — первый токен дерева без поиска и фильтра: ввод в поиск не меняет выбранный токен.
     const firstToken = useMemo(
@@ -256,7 +307,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
     }, [requested, requestedTokenId, requestedDefinition?.type, views]);
 
     useEffect(() => writeStorage(COLLAPSED_KEY, collapsed), [collapsed]);
-    useEffect(() => setPicker(null), [selected?.id]);
+    useEffect(() => setPicker(null), [selected?.id, platform]);
 
     const refreshPalette = useCallback(async () => {
         if (!setPalette) return;
@@ -272,10 +323,26 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         rerender();
     };
 
+    const [addressPending, setAddressPending] = useState<string | null>(null);
+    useEffect(() => {
+        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === addressPending);
+        if (!definition) return;
+        setAddressPending(null);
+        setSearchParams(
+            (current) => {
+                const next = new URLSearchParams(current);
+                next.set('tokenId', definition.id);
+                return next;
+            },
+            { replace: true },
+        );
+    }, [addressPending, props.tokenDefinitions]);
+
     const select = (view: ColorTokenView) => {
         setSelectedId(view.id);
-        if (requestedTokenId) {
-            const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+        // Выбор сохраняет адрес в маршруте: переключатель тем открывает тот же токен в другой теме.
+        const definition = props.tokenDefinitions.find((token) => definitionRowId(token) === view.id);
+        if (definition?.id !== (requestedTokenId ?? undefined)) {
             const next = new URLSearchParams(searchParams);
             if (definition) next.set('tokenId', definition.id);
             else next.delete('tokenId');
@@ -334,6 +401,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
             throw operationError(error, parsed.name);
         }
         setSelectedId(tokenId(key));
+        // Адрес нового токена появится, когда придут его определения: переключатель тем откроет его же.
+        setAddressPending(tokenId(key));
         if (requestedTokenId) {
             const next = new URLSearchParams(searchParams);
             next.delete('tokenId');
@@ -508,13 +577,17 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                 ? selected.contexts[pickerField.context].values[pickerField.mode]
                 : selected.modes[pickerField.mode]
             : null;
-    const pickerValue =
-        picker && pickerBase ? (picker.platform === 'web' ? pickerBase : pickerBase.platforms[picker.platform]) : null;
+    // У Web своих значений платформы нет: поле Web и платформа без своего значения показывают значение Web.
+    const pickerValue = pickerBase && (pickerBase.platforms[picker?.platform as NativePlatform] ?? pickerBase);
     /** Пояснения выбора цвета: своё значение платформы и начальный угол Conic на Android. */
     const pickerNotes = (() => {
         if (!picker || !pickerBase || !pickerValue) return [];
         if (picker.platform !== 'web')
-            return [`своё значение: правки меняют только ${PLATFORM_LABELS[picker.platform]}`];
+            return [
+                pickerBase.platforms[picker.platform]
+                    ? `своё значение: правки меняют только ${PLATFORM_LABELS[picker.platform]}`
+                    : `строится из Web: правка станет своим значением ${PLATFORM_LABELS[picker.platform]}`,
+            ];
         const paint = pickerValue.paint;
         if (paint?.kind === 'gradient' && paint.model.type === 'conic' && !pickerBase.platforms.android)
             return [
@@ -548,6 +621,8 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                     query={query}
                     searchOpen={searchOpen}
                     issuesOnly={issuesOnly}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                     collapsed={collapsed}
                     editable={!readOnly}
                     canDelete={canDelete}
@@ -592,6 +667,7 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                                 </button>
                             )}
                         </div>
+                        <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
                     </div>
                     {(saveError || session.conflict) && (
                         <div className="ct-toolbar-error" role="alert" data-testid="color-tokens-save-error">
@@ -710,20 +786,26 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             onOpacity={(target, percent) =>
                                 edit(() => editor.setOpacity(selected, target.field, percent, target.platform))
                             }
-                            onAddPlatform={(field, platform) =>
-                                edit(() => editor.addPlatform(selected, field, platform))
-                            }
                             onRemovePlatform={(field, platform) => {
                                 if (picker?.field === field && picker.platform === platform) setPicker(null);
                                 edit(() => editor.removePlatform(selected, field, platform));
                             }}
+                            platform={platform}
                             onRelink={(context: ColorContext) => edit(() => editor.relink(selected, context))}
+                            onUnlink={(context: ColorContext) => edit(() => editor.unlink(selected, context))}
                             onResetContexts={() => edit(() => editor.resetContexts(selected))}
                             onDelete={() => requestDelete(selected)}
                             onFill={() => edit(() => editor.fill(selected, groupDefaults(selected.key.group)))}
                             onRetry={() => editor.retry(selected.id)}
                             onRename={(label) => renameToken(selected, label)}
                             onDescribe={(description) => describeToken(selected, description)}
+                            // Конфигурации компонентов в «Цветах» загружены не все: полного списка использований
+                            // нет, поэтому отключение всегда спрашивает подтверждение.
+                            components={null}
+                            onToggleEnabled={async (enabled) => {
+                                await editor.setEnabled(selected, enabled);
+                                rerender();
+                            }}
                             onReset={
                                 readOnly
                                     ? undefined
@@ -739,6 +821,9 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             }
                             addressLabel={addressLabel}
                         />
+                    )}
+                    {selected && !selected.incomplete && (
+                        <ColorOtherThemes context={context} family={editor.family(selected)} />
                     )}
                 </aside>
                 <main className="preview-canvas">

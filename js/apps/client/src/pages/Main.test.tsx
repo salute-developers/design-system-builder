@@ -1,4 +1,4 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Suspense, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom';
@@ -135,7 +135,7 @@ describe('Theme editor shell', () => {
             </MemoryRouter>,
         );
         const rail = screen.getByTestId('editor-rail');
-        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки дизайн-системы' }));
         expect(screen.queryByTestId('previous-section')).not.toBeInTheDocument();
         expect(screen.getByRole('status', { name: 'Открываем раздел' })).toBeInTheDocument();
         expect(screen.getByTestId('editor-rail')).toBe(rail);
@@ -155,7 +155,7 @@ describe('Theme editor shell', () => {
         ['components/Button', 'Компоненты'],
         ['changes', 'Журнал изменений'],
         ['versions', 'Версии'],
-    ])('shows the section for %s and preserves the version in the theme breadcrumb', (section, label) => {
+    ])('shows the section for %s and the theme switcher in the theme breadcrumb', (section, label) => {
         render(
             <MemoryRouter
                 initialEntries={[
@@ -174,9 +174,10 @@ describe('Theme editor shell', () => {
         );
         const breadcrumbs = screen.getByRole('navigation', { name: 'Навигация темы' });
         expect(breadcrumbs.querySelector('[aria-current="page"]')).toHaveTextContent(label);
-        expect(screen.getByRole('link', { name: 'Brand' })).toHaveAttribute(
-            'href',
-            '/projects/project-1/design-systems/ds-1/themes/theme-1/colors?versionId=published-1',
+        // Крошка темы — переключатель тем: версию и раздел сохраняет переход (см. ThemeSwitcher.test.tsx).
+        expect(within(breadcrumbs).getByRole('button', { name: 'Тема Brand. Переключить тему' })).toHaveAttribute(
+            'aria-haspopup',
+            'listbox',
         );
     });
 
@@ -207,14 +208,14 @@ describe('Theme editor shell', () => {
         expect(breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1"]')).toHaveTextContent(
             'System',
         );
-        expect(screen.getByRole('button', { name: 'Настройки темы' })).toHaveClass('builder-rail-button');
+        expect(screen.getByRole('button', { name: 'Настройки дизайн-системы' })).toHaveClass('builder-rail-button');
         expect(screen.getByTestId('editor-nav-colors')).toBeInTheDocument();
         expect(view.container.querySelector('[data-testid="editor-nav-overview"]')).not.toBeInTheDocument();
         expect(screen.getAllByText('Цветовые токены').length).toBeGreaterThan(0);
         const rail = screen.getByTestId('editor-rail');
-        fireEvent.click(screen.getByRole('button', { name: 'Настройки темы' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Настройки дизайн-системы' }));
         expect(screen.getByTestId('editor-rail')).toBe(rail);
-        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Настройки темы');
+        expect(breadcrumbs.textContent).toBe('Platform/System/Brand/Настройки дизайн-системы');
         expect(screen.getByText('Параметры темы')).toBeInTheDocument();
     });
 
@@ -239,7 +240,7 @@ describe('Theme editor shell', () => {
         expect(loading.closest('header')).toBeNull();
         expect(screen.queryByRole('navigation', { name: 'Навигация темы' })).not.toBeInTheDocument();
         expect(screen.queryByText(/Загружаем Theme/)).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'Настройки темы' })).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Настройки дизайн-системы' })).toBeInTheDocument();
     });
 
     it.each(['colors', 'palette'])(

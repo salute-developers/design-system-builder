@@ -112,6 +112,7 @@ private fun List<ColorTokenValueItem>.toValues(): List<ColorTokenValue>? = map {
         value = item.value,
         baseRevision = item.baseRevision,
         overridden = item.overridden,
+        detached = item.detached,
     )
 }
 

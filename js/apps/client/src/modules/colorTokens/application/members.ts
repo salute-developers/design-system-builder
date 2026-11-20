@@ -8,6 +8,8 @@ export type TokenDefinitions = Map<string, { id: string; type: string }>;
 
 /** Признак своего значения платформы определения темы (имя с режимом). */
 export type OverriddenLookup = (themeName: string, platform: Exclude<ColorPlatform, 'web'>) => boolean;
+/** Явно разорванная связь подтемы по имени определения в теме (`dark.text.on-dark.accent`). */
+export type DetachedLookup = (themeName: string) => boolean;
 
 const PLATFORMS: readonly ColorPlatform[] = ['web', 'ios', 'android'];
 const TOKEN_TYPES = ['color', 'gradient'] as const;
@@ -40,7 +42,11 @@ const membersByName = (theme: Pick<Theme, 'getTokens'>, key: ColorTokenKey) => {
     );
 };
 
-const memberValues = (modes: Record<ColorMode, Token>, overridden?: OverriddenLookup): ColorTokenValueItem[] =>
+const memberValues = (
+    modes: Record<ColorMode, Token>,
+    overridden?: OverriddenLookup,
+    detached?: DetachedLookup,
+): ColorTokenValueItem[] =>
     COLOR_MODES.flatMap((mode) =>
         PLATFORMS.map((platform) => ({
             platform,
@@ -48,6 +54,7 @@ const memberValues = (modes: Record<ColorMode, Token>, overridden?: OverriddenLo
             paletteId: null,
             value: wireValue(modes[mode].getValue(platform as never)),
             ...(overridden ? { overridden: platform !== 'web' && overridden(modes[mode].getName(), platform) } : {}),
+            ...(detached ? { detached: detached(modes[mode].getName()) } : {}),
         })),
     );
 
@@ -67,10 +74,11 @@ export const familyUpdate = (
     key: ColorTokenKey,
     definitions: TokenDefinitions,
     overridden: OverriddenLookup = () => false,
+    detached: DetachedLookup = () => false,
 ): PendingUpdate | null => {
     const members = membersByName(theme, key).flatMap(({ name, modes }) => {
         const definition = definitions.get(name);
-        return definition ? [{ tokenId: definition.id, values: memberValues(modes, overridden) }] : [];
+        return definition ? [{ tokenId: definition.id, values: memberValues(modes, overridden, detached) }] : [];
     });
     const defaultId = definitions.get(`${key.group}.default.${key.name}`)?.id ?? members[0]?.tokenId;
     return defaultId && members.length ? { tokenId: defaultId, update: { members } } : null;

@@ -35,6 +35,7 @@ internal fun readTenantValueProjection(
             ThemeTokenValuesTable.platform, ThemeTokenValuesTable.mode, ThemeTokenValuesTable.createdAt,
             ThemeTokenValueRevisionsTable.paletteId, ThemeTokenValueRevisionsTable.value,
             ThemeTokenValueRevisionsTable.overridden, ThemeTokenValueRevisionsTable.updatedAt,
+            ThemeTokenValueRevisionsTable.detached,
         ),
     )
     var predicate = (ThemeTokenValuesTable.designSystemId eq owner) and
@@ -50,7 +51,7 @@ internal fun readTenantValueProjection(
             tenantId = row.getObject(3, UUID::class.java), platform = row.getString(4), mode = row.getString(5),
             createdAt = row.getTimestamp(6).toInstant(), paletteId = row.getObject(7, UUID::class.java),
             value = row.getString(8)?.let(Json::parseToJsonElement), overridden = row.getBoolean(9),
-            updatedAt = row.getTimestamp(10).toInstant(), editRevision = 0,
+            updatedAt = row.getTimestamp(10).toInstant(), detached = row.getBoolean(11), editRevision = 0,
             tokenName = token.first, tokenType = token.second,
         )
     }

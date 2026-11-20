@@ -132,9 +132,10 @@ test(
         const systemURL = systems.systemURL(createdSystem.id);
         await createTheme.open(systemURL);
         await createTheme.nameInput.fill('theme a');
+        // В дизайн-системе уже есть тема, поэтому новая создаётся копией через маршрут дублирования.
         const response = await pendingMutation.run(
-            (response) => isApiResponse(response, themesApi.createURL, 'POST'),
-            () => createTheme.createButton.click(),
+            (response) => isApiResponse(response, themesApi.detailURL(initialTheme.id) + '/duplicates', 'POST'),
+            () => createTheme.copyButton.click(),
             'Проверка дубликата темы',
         );
         expect(response.status()).toBe(409);

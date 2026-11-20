@@ -30,6 +30,8 @@ data class TenantTokenValue(
     val paletteRef: String? = null,
     /** Своё значение платформы iOS или Android, а не построенное клиентом из web. */
     val overridden: Boolean = false,
+    /** Значение подтемы, связь которого со значениями режимов явно разорвана пользователем. */
+    val detached: Boolean = false,
     /** Хранимое значение, если [valueJson] отдаётся в другой форме: со ссылками, раскрытыми в HEX, или слоем. */
     val sourceValue: JsonElement? = null,
     /** Тип токена на выбранной границе версии; задаёт форму сплошных значений платформ. */

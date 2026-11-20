@@ -53,7 +53,14 @@ fun Route.tokenValueRoutes(
                 call.request.queryParameters["versionId"],
             )
                 ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = list.execute(context)) {
+            val tokenNames = call.request.queryParameters["tokenIds"]?.split(',')
+            val parsed = tokenNames.orEmpty().map { it.trim().tokenValueUuid() }
+            val tokenIds = parsed.filterNotNull().toSet()
+            // Повтор идентификатора допустим; нечисловое значение или больше [MAX_TOKEN_IDS] токенов — нет.
+            if (null in parsed || tokenIds.size > MAX_TOKEN_IDS) {
+                return@get call.respondFailure(DsFailure.InvalidRequest("invalid_token_ids"))
+            }
+            when (val result = list.execute(context, tokenIds)) {
                 is DsResult.Success -> call.respondSuccess(result, result.value.map(TokenValueResponse::from))
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
@@ -188,3 +195,6 @@ private fun UpdateTokenValueRequest.toCommand(payload: JsonObject): UpdateTokenV
 }
 
 private fun String.tokenValueUuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()
+
+/** Предел `tokenIds` одного чтения значений: сравнение тем запрашивает токены одного стиля или цвета. */
+private const val MAX_TOKEN_IDS = 20

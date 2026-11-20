@@ -83,6 +83,7 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
                 row[ThemeTokenValueCreationBaselinesTable.paletteId],
                 row[ThemeTokenValueCreationBaselinesTable.value],
                 row[ThemeTokenValueCreationBaselinesTable.overridden],
+                row[ThemeTokenValueCreationBaselinesTable.detached],
             )
         }
     }
@@ -105,9 +106,10 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
                 "palette_id" to baseline.paletteId.json(),
                 "value" to (baseline.value ?: JsonNull),
                 "overridden" to JsonPrimitive(baseline.overridden),
+                "detached" to JsonPrimitive(baseline.detached),
             ),
         )
-        val changedPaths = setOf("palette_id", "value", "overridden")
+        val changedPaths = setOf("palette_id", "value", "overridden", "detached")
             .filterTo(linkedSetOf()) { field -> previous[field] != current[field] }
             .mapTo(linkedSetOf()) { field -> "/$field" }
         candidate.takeIf { changedPaths.isNotEmpty() }?.copy(
@@ -118,7 +120,12 @@ private fun visibleThemeChanges(versionId: UUID, candidates: List<DraftChangeCan
 
 private fun UUID?.json(): JsonElement = this?.let { JsonPrimitive(it.toString()) } ?: JsonNull
 
-private data class InitialTokenValue(val paletteId: UUID?, val value: JsonElement?, val overridden: Boolean)
+private data class InitialTokenValue(
+    val paletteId: UUID?,
+    val value: JsonElement?,
+    val overridden: Boolean,
+    val detached: Boolean,
+)
 
 /** Обработчик журнала темы ([TENANT_ENTITY_TYPE]) с пересчётом типа семейств [familyTypes] после отката. */
 internal fun tenantDraftChangeHandler(familyTypes: ColorTokenFamilyTypeSync): DraftChangeHandler {

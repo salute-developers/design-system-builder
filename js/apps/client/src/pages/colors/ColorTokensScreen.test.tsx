@@ -34,6 +34,7 @@ import { observeTokenValueRevisions, subjectBaseRevision } from '../../api/subje
 import type { ThemePalette } from '../../modules/palette';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { ColorTokensScreen } from './ColorTokensScreen';
+import * as tokenEnabled from '../../api/tokenEnabled';
 
 const SUBGROUPS = ['default', 'on-dark', 'on-light', 'inverse'];
 let published: string | null = null;
@@ -41,6 +42,8 @@ let published: string | null = null;
 let extraTokens: { name: string; groupId: string; position: number }[] = [];
 /** Токены, значения которых не проходят проверку: их показывает фильтр «Только токены с ошибками». */
 let invalidTokens: string[] = [];
+/** Отключённые токены: у всех определений семейства `enabled = false`. */
+let disabledTokens: string[] = [];
 /** Тип семейства на сервере. */
 let familyType = 'color';
 /** Значение `token-values` вместо значения по умолчанию: имя определения, платформа, режим. */
@@ -54,7 +57,7 @@ const family = (name: string, groupId: string, position: number) =>
         type: familyType,
         displayName: null,
         description: null,
-        enabled: true,
+        enabled: !disabledTokens.includes(name),
         groupId,
         position,
         publishedIn: published,
@@ -246,6 +249,9 @@ const commitLight = (value: string) => {
     fireEvent.keyDown(field, { key: 'Enter' });
 };
 
+/** Раскрывает секцию «Подтемы» инспектора: по умолчанию она свёрнута. */
+const openSubthemes = () => fireEvent.click(within(inspector()).getByRole('button', { name: /^Подтемы/ }));
+
 beforeEach(() => {
     localStorage.clear();
     published = null;
@@ -254,6 +260,7 @@ beforeEach(() => {
     post.mockImplementation(async () => ({ data: { components: [] } }));
     extraTokens = [];
     invalidTokens = [];
+    disabledTokens = [];
     groupState = [...GROUPS];
     definitionState = definitions();
     repository.create.mockReset();
@@ -358,7 +365,80 @@ describe('ColorTokensScreen', () => {
         await renderScreen();
         expect(screen.getByTestId('color-token-row-text.accent')).toHaveTextContent('textAccent');
         expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[0]).toHaveValue('118833');
+        openSubthemes();
         expect(screen.getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(3);
+    });
+
+    it('отключённый токен приглушён в дереве и отмечен в инспекторе', async () => {
+        disabledTokens = ['accent'];
+        await renderScreen();
+
+        const row = screen.getByTestId('color-token-row-text.accent');
+        expect(row).toHaveClass('is-disabled');
+        expect(within(row).getByRole('img', { name: 'Отключён' })).toBeInTheDocument();
+        expect(within(inspector()).getByRole('button', { name: 'Включить токен' })).toBeInTheDocument();
+        expect(within(inspector()).queryByRole('button', { name: 'Отключить токен' })).not.toBeInTheDocument();
+    });
+
+    it('«Отключить токен» отключает все определения семейства и сразу отмечает строку', async () => {
+        const save = vi.spyOn(tokenEnabled, 'saveTokenEnabled').mockResolvedValue();
+        await renderScreen();
+
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Отключить токен' }));
+        // Полного списка использований в «Цветах» нет: подтверждение спрашивается всегда.
+        expect(screen.getByRole('dialog', { name: 'Отключить токен?' })).toHaveTextContent(
+            'Токен может использоваться в компонентах',
+        );
+        expect(save).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Отключить' }));
+
+        await waitFor(() =>
+            expect(save).toHaveBeenCalledWith(
+                expect.anything(),
+                ['accent-0', 'accent-1', 'accent-2', 'accent-3'],
+                false,
+                ['color', 'gradient'],
+            ),
+        );
+        await waitFor(() =>
+            expect(
+                within(screen.getByTestId('color-token-row-text.accent')).getByRole('img', { name: 'Отключён' }),
+            ).toBeInTheDocument(),
+        );
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Включить токен' }));
+        await waitFor(() =>
+            expect(save).toHaveBeenLastCalledWith(expect.anything(), expect.any(Array), true, ['color', 'gradient']),
+        );
+        await waitFor(() =>
+            expect(
+                within(screen.getByTestId('color-token-row-text.accent')).queryByRole('img', { name: 'Отключён' }),
+            ).toBeNull(),
+        );
+    });
+
+    it('секция «Подтемы» свёрнута по умолчанию и запоминает раскрытие', async () => {
+        await renderScreen();
+        const toggle = within(inspector()).getByRole('button', { name: 'Подтемы' });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+        expect(screen.queryByRole('button', { name: 'Связь с Modes включена' })).not.toBeInTheDocument();
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })).toHaveLength(1);
+        expect(within(inspector()).getByRole('button', { name: 'Сбросить подтемы' })).toBeInTheDocument();
+
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' }).length).toBeGreaterThan(1);
+        expect(localStorage.getItem('dsb.inspector.subthemes.open')).toBe('true');
+    });
+
+    it('свёрнутая секция «Подтемы» отмечает ошибку значения подтемы', async () => {
+        storedValue = (name, platform, mode) =>
+            name === 'text.on-dark.accent' && platform === 'web' && mode === 'light'
+                ? { value: 'not-a-color' }
+                : undefined;
+        await renderScreen();
+
+        expect(within(inspector()).getByRole('img', { name: 'Есть ошибка в подтемах' })).toBeInTheDocument();
+        expect(within(inspector()).getByRole('button', { name: /^Подтемы/ })).toHaveAttribute('aria-expanded', 'false');
     });
 
     it('автоматически сохраняет правку значения одной операцией над токеном', async () => {
@@ -437,11 +517,32 @@ describe('ColorTokensScreen', () => {
         );
     });
 
+    it('ошибка сохранения подтемы раскрывает свёрнутую секцию «Подтемы»', async () => {
+        repository.updateValues.mockRejectedValueOnce(
+            new ColorTokenOperationError('invalid', 'Неверный цвет', 'INVALID_TOKEN_VALUE', 'accent-1:web:light'),
+        );
+        await renderScreen();
+        const toggle = within(inspector()).getByRole('button', { name: /^Подтемы/ });
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+
+        commitLight('#123456');
+
+        await waitFor(() => expect(toggle).toHaveAttribute('aria-expanded', 'true'));
+        expect(localStorage.getItem('dsb.inspector.subthemes.open')).not.toBe('true');
+        expect(within(inspector()).getAllByRole('textbox', { name: 'Light' })[1]).toHaveAttribute(
+            'aria-invalid',
+            'true',
+        );
+        fireEvent.click(toggle);
+        expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    });
+
     it('указывает поле и подтему при ошибке сохранения значения OnDark', async () => {
         repository.updateValues.mockRejectedValueOnce(
             new ColorTokenOperationError('invalid', 'Неверный цвет', 'INVALID_TOKEN_VALUE', 'accent-1:web:light'),
         );
         await renderScreen();
+        openSubthemes();
 
         const fields = within(inspector()).getAllByRole('textbox', { name: 'Light' });
         fireEvent.change(fields[1], { target: { value: '#123456' } });
@@ -1176,6 +1277,12 @@ const lastUpdate = () => {
             ?.values.find((value) => value.platform === platform && value.mode === mode);
 };
 
+/** Платформа предпросмотра выбирается меню в шапке рабочей области. */
+const choosePlatform = (label: 'Web' | 'iOS' | 'Android') => {
+    fireEvent.click(screen.getByRole('button', { name: /^Платформа: / }));
+    fireEvent.click(screen.getByRole('menuitemradio', { name: label }));
+};
+
 const openPicker = (name: string) => {
     fireEvent.click(within(inspector()).getAllByRole('button', { name: `Выбор цвета: ${name}` })[0]);
     return screen.getByRole('dialog', { name: /^Color picker/ });
@@ -1372,75 +1479,68 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(field('Dark')).toHaveValue('Линейный · 45°');
     });
 
-    it('строка iOS: «+» добавляет своё значение, правка web её не перестраивает, «×» убирает', async () => {
+    it('платформа iOS: правка значения делает его своим, правка Web его не перестраивает, «×» возвращает к Web', async () => {
         repository.updateValues.mockResolvedValue({ editRevision: 0, type: 'color' });
         await renderScreen();
+        openSubthemes();
+        choosePlatform('iOS');
 
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'iOS' }));
-
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
+        // Без своего значения iOS поле показывает значение Web и правится без «+»: правка становится своим значением.
         expect(field('Light, iOS')).toHaveValue('118833');
-        // Добавление строки не открывает выбор цвета: он открывается щелчком по строке платформы.
-        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
+        expect(field('Light, iOS')).toBeEnabled();
+        expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
+        expect(within(inspector()).queryByRole('button', { name: 'Убрать своё значение iOS: Light' })).toBeNull();
+        fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
+        fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
+        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
+        // OnLight наследует Light вместе со своим значением платформы; у связанной подтемы нет «×».
+        expect(lastUpdate()('accent-2', 'ios', 'light')).toMatchObject({ overridden: true });
+        expect(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })).toHaveLength(1);
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Light, iOS' })[0]);
         const picker = screen.getByRole('dialog', { name: /^Color picker: .*, iOS$/ });
         expect(within(picker).getByText('своё значение: правки меняют только iOS')).toBeInTheDocument();
-        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
-        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#118833'], overridden: true });
-        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
-        // OnLight наследует Light вместе со строкой платформы; у подтем «+» нет, строка в них только унаследована.
-        expect(lastUpdate()('accent-2', 'ios', 'light')).toMatchObject({ overridden: true });
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(1);
-        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })).toHaveLength(1);
-        expect(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })).toHaveLength(1);
-        // Связанные подтемы показывают унаследованную строку без «×»: убрать её можно только у режима.
-        expect(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })).toHaveLength(1);
+        // Образец строки дерева показывает цвет выбранной платформы, как борд.
+        const rowSwatch = () =>
+            (screen.getByTestId('color-token-row-text.accent').querySelector('.token-color-preview') as HTMLElement)
+                .style.cssText;
+        expect(rowSwatch()).toMatch(/445566|rgb\(68, 85, 102\)/i);
 
-        fireEvent.change(field('Light, iOS'), { target: { value: '#445566' } });
-        fireEvent.keyDown(field('Light, iOS'), { key: 'Enter' });
-        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
-        expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#445566'], overridden: true });
-        expect(lastUpdate()('accent-0', 'web', 'light')).toBeUndefined();
+        choosePlatform('Web');
+        expect(rowSwatch()).not.toMatch(/445566|rgb\(68, 85, 102\)/i);
         expect(field('Light')).toHaveValue('118833');
-
         commitLight('#123456');
-        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(3));
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
         expect(lastUpdate()('accent-0', 'web', 'light')?.value).toEqual(['#123456']);
         expect(lastUpdate()('accent-0', 'android', 'light')).toMatchObject({ value: ['#123456'], overridden: false });
         expect(lastUpdate()('accent-0', 'ios', 'light')).toBeUndefined();
+
+        choosePlatform('iOS');
         expect(field('Light, iOS')).toHaveValue('445566');
-
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
-        expect(
-            within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0],
-        ).toBeDisabled();
-
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Убрать своё значение iOS: Light' })[0]);
-        expect(within(inspector()).queryAllByRole('textbox', { name: 'Light, iOS' })).toHaveLength(0);
         await waitFor(() =>
             expect(lastUpdate()('accent-0', 'ios', 'light')).toMatchObject({ value: ['#123456'], overridden: false }),
         );
+        expect(field('Light, iOS')).toHaveValue('123456');
     });
 
-    it('своё значение Android у Conic — без начального угла', async () => {
+    it('выбор цвета Android у Conic — без начального угла', async () => {
         familyType = 'gradient';
         storedValue = (name, platform, mode) =>
             name === 'text.default.accent' && mode === 'dark' && platform === 'web'
                 ? { value: ['conic-gradient(from 30deg at 50% 50%, #1A9E32 0%, #FFFFFF 100%)'] }
                 : undefined;
         await renderScreen();
+        choosePlatform('Android');
 
-        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Dark' })[0]);
-        fireEvent.click(screen.getByRole('menuitem', { name: 'Android' }));
-        expect(screen.queryByRole('dialog', { name: /^Color picker:/ })).toBeNull();
         fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark, Android' })[0]);
 
         const picker = screen.getByRole('dialog', { name: /^Color picker: .*, Android$/ });
         expect(within(picker).getByRole('group', { name: 'Центр градиента' })).toBeInTheDocument();
         expect(within(picker).queryByRole('slider', { name: 'Начальный угол' })).toBeNull();
-        expect(field('Dark, Android')).toHaveValue('Конический · 0°');
+        // Без своего значения поле показывает Web, из которого строится Android; угол Android задаётся выбором цвета.
+        expect(field('Dark, Android')).toHaveValue('Конический · 30°');
     });
 
     it('переименовывает токен на месте в заголовке инспектора', async () => {
@@ -1501,7 +1601,7 @@ describe('ColorTokensScreen: градиенты', () => {
         expect(picker.style.top).toBe('8px');
     });
 
-    it('в опубликованной версии показывает градиент и строки платформ без «+», «×» и выбора цвета', async () => {
+    it('в опубликованной версии показывает градиент и значения платформы без «+», «×» и выбора цвета', async () => {
         darkGradient();
         const gradientStored = storedValue;
         storedValue = (name, platform, mode) =>
@@ -1511,11 +1611,11 @@ describe('ColorTokensScreen: градиенты', () => {
         await renderScreen('maintainer', [], [], { versionId: 'version-1' });
 
         expect(field('Dark')).toHaveValue('Линейный · 45°');
+        choosePlatform('iOS');
         expect(field('Light, iOS')).toHaveValue('445566');
-        expect(within(inspector()).getAllByText('↳ iOS').length).toBeGreaterThan(0);
         expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
         expect(within(inspector()).queryByRole('button', { name: /^Убрать своё значение/ })).toBeNull();
-        expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark' })[0]).toBeDisabled();
+        expect(within(inspector()).getAllByRole('button', { name: 'Выбор цвета: Dark, iOS' })[0]).toBeDisabled();
         expect(screen.queryByRole('dialog', { name: /^Color picker/ })).toBeNull();
     });
 });
@@ -1588,12 +1688,13 @@ describe('ColorTokensScreen: вёрстка по Figma', () => {
         expect(tokenReset.reset.mock.calls[0][0].size).toBeGreaterThan(0);
     });
 
-    it('«+» своего значения платформы видна у полей режимов без наведения', async () => {
+    it('у полей платформы нет «+», кнопка платформы — только иконка', async () => {
         await renderScreen();
         await waitFor(() => expect(inspectorTitle()).toHaveTextContent('textAccent'));
-        const add = within(inspector()).getAllByRole('button', { name: 'Своё значение платформы: Light' })[0];
-        expect(add).toHaveClass('tw-icon-button');
-        expect(add).toBeVisible();
+        choosePlatform('iOS');
+        expect(within(inspector()).queryByRole('button', { name: /^Своё значение платформы/ })).toBeNull();
+        const trigger = screen.getByRole('button', { name: 'Платформа: iOS' });
+        expect(trigger.querySelectorAll('svg')).toHaveLength(1);
     });
 
     it('выбор цвета без неработающих значков: формат Hex / RGB / HSL и копирование HEX', async () => {
@@ -1626,5 +1727,37 @@ describe('ColorTokensScreen: вёрстка по Figma', () => {
         expect(within(picker).getByText('Точки градиента')).toBeInTheDocument();
         expect(within(picker).getByRole('textbox', { name: 'Прозрачность стопа 1' })).toHaveValue('100');
         expect(within(picker).getByRole('button', { name: 'Цвет стопа 2: FFFFFF' })).toHaveTextContent(/^FFFFFF$/);
+    });
+});
+
+describe('ColorTokensScreen: связь подтем', () => {
+    it('связь разрывается кнопкой без смены значений и восстанавливается обратно', async () => {
+        repository.updateValues.mockResolvedValue({ editRevision: 1, type: 'color' });
+        await renderScreen();
+        openSubthemes();
+
+        fireEvent.click(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })[0]);
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(1));
+        expect(lastUpdate()('accent-1', 'web', 'light')).toMatchObject({ detached: true });
+        expect(lastUpdate()('accent-1', 'web', 'dark')).toMatchObject({ detached: true });
+        await waitFor(() =>
+            expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes отключена' })).toHaveLength(1),
+        );
+
+        fireEvent.click(within(inspector()).getByRole('button', { name: 'Связь с Modes отключена' }));
+        await waitFor(() => expect(repository.updateValues).toHaveBeenCalledTimes(2));
+        expect(lastUpdate()('accent-1', 'web', 'light')).toMatchObject({ detached: false });
+        await waitFor(() =>
+            expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(3),
+        );
+    });
+
+    it('подтема с признаком detached отвязана, даже если значения совпадают с режимами', async () => {
+        storedValue = (name) => (name === 'text.on-dark.accent' ? { detached: true } : undefined);
+        await renderScreen();
+        openSubthemes();
+
+        expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes отключена' })).toHaveLength(1);
+        expect(within(inspector()).getAllByRole('button', { name: 'Связь с Modes включена' })).toHaveLength(2);
     });
 });
