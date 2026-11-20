@@ -23,7 +23,7 @@ public class GenerateDesignSystemUseCase internal constructor(
      * @param command параметры запуска.
      * @param onPlan вызывается до запуска инструмента, чтобы presentation напечатала, что и чем запускается.
      */
-    public fun execute(
+    public suspend fun execute(
         command: GenerateDesignSystemCommand,
         onPlan: (PlatformRunPlan) -> Unit = {},
     ): PlatformRunResult =

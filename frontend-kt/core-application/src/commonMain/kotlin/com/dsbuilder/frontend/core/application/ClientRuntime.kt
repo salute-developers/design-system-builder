@@ -48,7 +48,7 @@ public data class ClientRuntime(
 )
 
 private object UnavailableProcessRunner : ProcessRunner {
-    override fun run(request: ProcessRequest) =
+    override suspend fun run(request: ProcessRequest) =
         throw ProcessLaunchException(
             "External process execution is not configured for this client runtime.",
         )

@@ -12,7 +12,6 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder components fetch`.
@@ -29,8 +28,8 @@ internal class ComponentsFetchCliCommand(
 
     private val designSystem: String? by option("--design-system")
 
-    override fun runOperation() {
-        val result = runBlocking {
+    override suspend fun runOperation() {
+        val result = run {
             fetchComponentsUseCase.execute(
                 FetchComponentsCommand(
                     destination = ComponentDestination(directory = to),

@@ -11,6 +11,7 @@ import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -23,7 +24,7 @@ import kotlin.test.assertTrue
  */
 class PlatformCommandsCliTest {
     @Test
-    fun rootHelpListsToolchain() {
+    fun rootHelpListsToolchain() = runTest {
         val result = cli().execute(listOf("--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -31,7 +32,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun themeHelpListsGenerate() {
+    fun themeHelpListsGenerate() = runTest {
         val result = cli().execute(listOf("theme", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -39,7 +40,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun componentsHelpListsGenerate() {
+    fun componentsHelpListsGenerate() = runTest {
         val result = cli().execute(listOf("components", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -47,7 +48,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun generateHelpListsPlatformOutputAndTool() {
+    fun generateHelpListsPlatformOutputAndTool() = runTest {
         listOf(listOf("theme", "generate", "--help"), listOf("components", "generate", "--help")).forEach { args ->
             val result = cli().execute(args)
 
@@ -58,7 +59,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun docsGenerateHelpOffersReadyTreeAndAggregationSwitch() {
+    fun docsGenerateHelpOffersReadyTreeAndAggregationSwitch() = runTest {
         val result = cli().execute(listOf("docs", "generate", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -67,7 +68,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun initHelpOffersPlatform() {
+    fun initHelpOffersPlatform() = runTest {
         val result = cli().execute(listOf("init", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -75,7 +76,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun unknownPlatformIsRejectedByTheOptionItself() {
+    fun unknownPlatformIsRejectedByTheOptionItself() = runTest {
         val fileSystem = RecordingFileSystem()
 
         val result = cli(fileSystem).execute(listOf("theme", "generate", "--platform", "ios"))
@@ -86,7 +87,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun generateWithoutInstalledToolFailsWithoutRunningAnything() {
+    fun generateWithoutInstalledToolFailsWithoutRunningAnything() = runTest {
         val fileSystem = RecordingFileSystem(
             files = mapOf(
                 "/repo/.sdds/config.json" to CONFIG_JSON,
@@ -111,7 +112,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun dsHelpListsFetchAndGenerate() {
+    fun dsHelpListsFetchAndGenerate() = runTest {
         val root = cli().execute(listOf("--help"))
         val ds = cli().execute(listOf("ds", "--help"))
 
@@ -120,7 +121,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun dsGenerateRunsTheWebDesignSystemScriptOnce() {
+    fun dsGenerateRunsTheWebDesignSystemScriptOnce() = runTest {
         val fileSystem = RecordingFileSystem(
             files = mapOf(
                 "/repo/.sdds/config.json" to CONFIG_JSON.replace("swiftui", "react"),
@@ -149,7 +150,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun dsGenerateForSwiftUiRunsThemeThenComponentsGeneration() {
+    fun dsGenerateForSwiftUiRunsThemeThenComponentsGeneration() = runTest {
         val fileSystem = RecordingFileSystem(
             files = mapOf(
                 "/repo/.sdds/config.json" to CONFIG_JSON,
@@ -178,14 +179,14 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun compositionRootRegistersTheIosDelegateForSwiftUiOnly() {
+    fun compositionRootRegistersTheIosDelegateForSwiftUiOnly() = runTest {
         val registry = cli().platformDelegateRegistry()
 
         assertEquals(ToolchainId("ios"), registry.forPlatform(TargetPlatform.SWIFT_UI)?.toolchain)
     }
 
     @Test
-    fun compositionRootRegistersTheAndroidDelegateForComposeAndAndroidView() {
+    fun compositionRootRegistersTheAndroidDelegateForComposeAndAndroidView() = runTest {
         val registry = cli().platformDelegateRegistry()
 
         assertEquals(
@@ -197,14 +198,14 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun compositionRootRegistersTheWebDelegateForReact() {
+    fun compositionRootRegistersTheWebDelegateForReact() = runTest {
         val registry = cli().platformDelegateRegistry()
 
         assertEquals(ToolchainId("web"), registry.forPlatform(TargetPlatform.REACT)?.toolchain)
     }
 
     @Test
-    fun compositionRootRegistersTheIosAndWebInstallers() {
+    fun compositionRootRegistersTheIosAndWebInstallers() = runTest {
         val registry = cli().toolchainInstallerRegistry()
 
         assertEquals(listOf(ToolchainId("ios"), ToolchainId("web")), registry.all.map { it.toolchain })
@@ -212,7 +213,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainInstallWebInstallsTheGeneratorIntoTheUserDirectory() {
+    fun toolchainInstallWebInstallsTheGeneratorIntoTheUserDirectory() = runTest {
         val generator = "/home/me/.dsbuilder/toolchains/web/bin/dsbuilder-web-generator"
         val fileSystem = RecordingFileSystem(files = mapOf("/usr/bin/npm" to "", generator to ""))
         val started = mutableListOf<ProcessRequest>()
@@ -242,7 +243,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainInstallRefusesAToolchainItCannotInstall() {
+    fun toolchainInstallRefusesAToolchainItCannotInstall() = runTest {
         val result = cli().execute(listOf("toolchain", "install", "android"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -250,7 +251,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainListShowsWhatTheClientCanDrive() {
+    fun toolchainListShowsWhatTheClientCanDrive() = runTest {
         val result = cli().execute(listOf("toolchain", "list"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -260,7 +261,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainDoctorFailsWhenTheToolIsNotInstalled() {
+    fun toolchainDoctorFailsWhenTheToolIsNotInstalled() = runTest {
         val result = cli().execute(listOf("toolchain", "doctor"))
 
         // Непригодный инструмент — ненулевой код: в CI это единственный сигнал.
@@ -270,7 +271,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainDoctorChecksOnlyTheWebToolchainForReact() {
+    fun toolchainDoctorChecksOnlyTheWebToolchainForReact() = runTest {
         val result = cli().execute(listOf("toolchain", "doctor", "--platform", "react"))
 
         // Каталог web-генератора не задан: отказ приходит от doctor'а делегата и подсказывает, как его задать.
@@ -280,7 +281,7 @@ class PlatformCommandsCliTest {
     }
 
     @Test
-    fun toolchainDoctorChecksOnlyTheAndroidToolchainForCompose() {
+    fun toolchainDoctorChecksOnlyTheAndroidToolchainForCompose() = runTest {
         val result = cli().execute(listOf("toolchain", "doctor", "--platform", "compose"))
 
         // Инструмент недоступен в тестовом окружении (нет реального gradlew), но toolchain для

@@ -25,7 +25,7 @@ public class PlatformCapabilityRunner internal constructor(
      * успела напечатать, что и чем запускается.
      */
     @Suppress("ReturnCount")
-    public fun execute(
+    public suspend fun execute(
         command: PlatformRunCommand,
         onPlan: (PlatformRunPlan) -> Unit = {},
     ): PlatformRunResult {

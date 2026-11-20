@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.cli
 
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
@@ -18,7 +19,7 @@ private const val PROCESS_TIMEOUT_SECONDS = 10L
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class McpCliLauncherContractTest {
     @Test
-    fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() {
+    fun mcpServeRespondsToInitializeAndToolsListOverSubprocessStdio() = runTest {
         val process = startUnauthenticatedServer()
         try {
             val stdin = process.outputStream.bufferedWriter()

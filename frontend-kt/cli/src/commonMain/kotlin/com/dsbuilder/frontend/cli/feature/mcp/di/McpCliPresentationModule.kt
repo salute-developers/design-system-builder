@@ -7,9 +7,9 @@ import com.dsbuilder.frontend.feature.components.application.ComponentReadUseCas
 import com.dsbuilder.frontend.feature.docs.application.DocsReadUseCases
 import com.dsbuilder.frontend.feature.ds.application.ReadDesignSystemModelUseCase
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Creates the presentation module for `dsbuilder mcp`.

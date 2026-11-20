@@ -18,10 +18,12 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.Url
 import io.ktor.http.contentType
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlin.coroutines.coroutineContext
 import kotlin.io.encoding.Base64
 import kotlin.uuid.ExperimentalUuidApi
 import kotlin.uuid.Uuid
@@ -150,7 +152,10 @@ internal class CliConsentSession(
                     withTimeout(1000) { choose(if (answer) "granted" else "denied", question.second, question.first) }
                 }
             }
-        } catch (_: Exception) { confirmed = null }
+        } catch (_: Exception) {
+            coroutineContext.ensureActive()
+            confirmed = null
+        }
     }
 
     private suspend fun inspectSavedChoice(canPrompt: Boolean): Pair<SavedConsent, ConsentResponseDto>? {
@@ -185,6 +190,7 @@ internal class CliConsentSession(
             confirmed = withTimeout(1000) { file.read()?.takeIf { it == expected } }
             confirmed != null
         } catch (_: Exception) {
+            coroutineContext.ensureActive()
             confirmed = null
             false
         }
@@ -207,7 +213,10 @@ internal class CliConsentSession(
                 answer -> "Выбор сохранён; сбор отключён окружением."
                 else -> "Аналитика отключена."
             }
-        } catch (_: Exception) { "Не удалось подтвердить выбор. Аналитика отключена; повторите analytics enable." }
+        } catch (_: Exception) {
+            coroutineContext.ensureActive()
+            "Не удалось подтвердить выбор. Аналитика отключена; повторите analytics enable."
+        }
     }
 
     override suspend fun disable(): String {
@@ -219,9 +228,13 @@ internal class CliConsentSession(
                     pending = ConsentDecisionDto(Uuid.random().toString(), "withdrawn", previous.revision),
                 )
             }
-            try { withTimeout(1000) { sync(saved) } } catch (_: Exception) { /* Локальный запрет уже сохранён. */ }
+            try { withTimeout(1000) { sync(saved) } } catch (_: Exception) {
+                coroutineContext.ensureActive()
+                /* Локальный запрет уже сохранён. */
+            }
             "Аналитика отключена."
         } catch (_: Exception) {
+            coroutineContext.ensureActive()
             "Аналитика отключена в этом процессе; не удалось сохранить отзыв. " +
                 "Повторите analytics disable."
         }
@@ -233,7 +246,10 @@ internal class CliConsentSession(
             "denied", "withdrawn" -> "Аналитика отключена."
             else -> "Разрешение не предоставлено. Аналитика отключена."
         }
-    } catch (_: Exception) { "Выбор недоступен. Аналитика отключена." }
+    } catch (_: Exception) {
+        coroutineContext.ensureActive()
+        "Выбор недоступен. Аналитика отключена."
+    }
 
     private suspend fun choose(
         decision: String,

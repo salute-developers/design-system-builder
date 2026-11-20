@@ -1,5 +1,6 @@
 [versions]
 koin = "4.1.1"
+jna = "5.17.0"
 kotlin = "2.2.21"
 ktor = "3.3.0"
 logback = "1.4.14"
@@ -29,6 +30,8 @@ postgres_jdbc_version = "42.7.3"
 
 
 [libraries]
+jna = { module = "net.java.dev.jna:jna", version.ref = "jna" }
+jna-platform = { module = "net.java.dev.jna:jna-platform", version.ref = "jna" }
 clikt = { module = "com.github.ajalt.clikt:clikt", version.ref = "clikt" }
 mordant = { module = "com.github.ajalt.mordant:mordant", version.ref = "mordant" }
 

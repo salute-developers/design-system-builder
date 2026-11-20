@@ -14,6 +14,7 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -36,7 +37,7 @@ class PreviewPluginPublishCliCommandTest {
         apiUrl?.let { addAll(listOf("--api-url", it)) }
     }
 
-    private fun run(args: List<String>, env: Map<String, String> = emptyMap()) = DsBuilderCli(
+    private suspend fun run(args: List<String>, env: Map<String, String> = emptyMap()) = DsBuilderCli(
         ClientRuntime(
             fileSystem = EmptyFileSystem(),
             environmentReader = EnvironmentReader { name ->
@@ -61,7 +62,7 @@ class PreviewPluginPublishCliCommandTest {
     ).execute(args)
 
     @Test
-    fun theClientSecretCannotBeACommandLineArgument() {
+    fun theClientSecretCannotBeACommandLineArgument() = runTest {
         listOf(
             base() + listOf("--client-secret", "top-secret"),
             base() + "--client-secret=top-secret",
@@ -76,7 +77,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun platformAndFromAreRequired() {
+    fun platformAndFromAreRequired() = runTest {
         val withoutFrom =
             run(listOf("preview-plugin", "publish", "--platform", "compose", "--api-url", "http://backend"))
         val withoutPlatform =
@@ -90,7 +91,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun onlyComposeAndReactAreSupported() {
+    fun onlyComposeAndReactAreSupported() = runTest {
         val result = run(base(platform = "swiftui"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -99,7 +100,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun reactReadsTheWebArchiveBeforeAnyRequest() {
+    fun reactReadsTheWebArchiveBeforeAnyRequest() = runTest {
         val result = run(base(platform = "react", from = "/work/preview-web-plugin.zip"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -108,7 +109,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun withoutAnExplicitApiUrlNothingIsSent() {
+    fun withoutAnExplicitApiUrlNothingIsSent() = runTest {
         val result = run(base(apiUrl = null))
 
         assertEquals(1, result.exitCode, result.output)
@@ -117,7 +118,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun aMissingArchiveNamesThePathAndSendsNothing() {
+    fun aMissingArchiveNamesThePathAndSendsNothing() = runTest {
         val result = run(base(from = "/work/missing.zip"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -126,7 +127,7 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
-    fun theCommandIsListedAndDocumentsBothWaysToSignIn() {
+    fun theCommandIsListedAndDocumentsBothWaysToSignIn() = runTest {
         val group = run(listOf("preview-plugin", "--help"))
         val publish = run(listOf("preview-plugin", "publish", "--help"))
 

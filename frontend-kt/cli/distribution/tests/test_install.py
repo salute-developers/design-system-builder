@@ -93,6 +93,20 @@ class InstallTest(unittest.TestCase):
             self.assertNotEqual(0, result.returncode, result.stdout + result.stderr)
         return result
 
+    def test_network_accepts_node_metadata_without_selecting_node(self):
+        metadata = json.loads((self.version_dir / 'release.json').read_bytes())
+        metadata['node'] = {'fileName': 'dsbuilder-cli-node.tgz',
+                            'packageName': '@sddsjs/design-system-builder-cli', 'minNodeVersion': '22',
+                            'version': '1.2.3', 'sha256': 'f' * 64}
+        for location in [self.version_dir, self.webroot / 'releases/latest/download']:
+            (location / 'release.json').write_bytes(release.json_bytes(metadata))
+        with (self.version_dir / 'SHA256SUMS').open('a') as sums:
+            sums.write(('f' * 64) + '  dsbuilder-cli-node.tgz\n')
+        self.run_install('--target', 'jvm')
+        metadata['node']['version'] = '9.9.9'
+        (self.webroot / 'releases/latest/download/release.json').write_bytes(release.json_bytes(metadata))
+        self.run_install('--target', 'jvm', success=False)
+
     def test_network_latest_explicit_repeat_and_unrelated_files(self):
         self.run_install('--target', 'jvm')
         installation = Path(self.env['DSBUILDER_INSTALL_DIR'])

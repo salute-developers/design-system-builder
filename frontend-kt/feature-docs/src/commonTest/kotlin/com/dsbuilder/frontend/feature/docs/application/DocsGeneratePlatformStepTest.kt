@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.feature.docs.domain.DocsValidationEngine
 import com.dsbuilder.frontend.feature.docs.domain.Manifest
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
 import com.dsbuilder.frontend.feature.docs.domain.Structure
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -13,7 +14,7 @@ import kotlin.test.assertTrue
 
 class DocsGeneratePlatformStepTest {
     @Test
-    fun platformStepBuildsTheTreeWhenDocsDirIsNotGiven() {
+    fun platformStepBuildsTheTreeWhenDocsDirIsNotGiven() = runTest {
         val aggregator = RecordingAggregator(
             DocsAggregationResult.Aggregated(docsDir = "/repo/.sdds/temp/docs", toolchain = "ios"),
         )
@@ -28,7 +29,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun explicitDocsDirKeepsTheReadyTreeAndSkipsThePlatformStep() {
+    fun explicitDocsDirKeepsTheReadyTreeAndSkipsThePlatformStep() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, configuredPlatforms = listOf(TargetPlatform.SWIFT_UI))
 
@@ -43,7 +44,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun noAggregateFlagKeepsTheDefaultTree() {
+    fun noAggregateFlagKeepsTheDefaultTree() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, configuredPlatforms = listOf(TargetPlatform.SWIFT_UI))
 
@@ -56,7 +57,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun platformWithoutToolchainFallsBackToTheDefaultTree() {
+    fun platformWithoutToolchainFallsBackToTheDefaultTree() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, configuredPlatforms = emptyList())
 
@@ -69,7 +70,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun failedPlatformStepStopsBeforeBuildingThePackage() {
+    fun failedPlatformStepStopsBeforeBuildingThePackage() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Failed("Toolchain 'ios' failed with exit code 1."))
         val fileSystem = RecordingDocsFileSystem()
         val useCase = useCase(aggregator, listOf(TargetPlatform.SWIFT_UI), fileSystem)
@@ -82,7 +83,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun platformIsTakenFromProjectConfigWhenTheOptionIsAbsent() {
+    fun platformIsTakenFromProjectConfigWhenTheOptionIsAbsent() = runTest {
         val aggregator = RecordingAggregator(
             DocsAggregationResult.Aggregated(docsDir = "/repo/.sdds/temp/docs", toolchain = "android"),
         )
@@ -98,7 +99,7 @@ class DocsGeneratePlatformStepTest {
      * compose-пакет, и проекты, не объявившие платформу, должны продолжать работать так же.
      */
     @Test
-    fun projectWithoutDeclaredPlatformKeepsTheHistoricalComposeDefault() {
+    fun projectWithoutDeclaredPlatformKeepsTheHistoricalComposeDefault() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, configuredPlatforms = emptyList())
 
@@ -113,7 +114,7 @@ class DocsGeneratePlatformStepTest {
      * даёт молча собранный compose-пакет с `designSystem.id = unknown`.
      */
     @Test
-    fun brokenProjectConfigStopsGenerationInsteadOfFallingBackToCompose() {
+    fun brokenProjectConfigStopsGenerationInsteadOfFallingBackToCompose() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val fileSystem = RecordingDocsFileSystem()
         val useCase = useCase(
@@ -133,7 +134,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun projectWithoutConfigKeepsTheHistoricalComposeDefault() {
+    fun projectWithoutConfigKeepsTheHistoricalComposeDefault() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, DocsPlatformsRead.NotInitialized)
 
@@ -144,7 +145,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun severalConfiguredPlatformsRequireAnExplicitChoice() {
+    fun severalConfiguredPlatformsRequireAnExplicitChoice() = runTest {
         val useCase = useCase(
             RecordingAggregator(DocsAggregationResult.Skipped),
             configuredPlatforms = listOf(TargetPlatform.SWIFT_UI, TargetPlatform.COMPOSE),
@@ -157,7 +158,7 @@ class DocsGeneratePlatformStepTest {
     }
 
     @Test
-    fun designPlatformHasNoToolchainAndUsesTheReadyTree() {
+    fun designPlatformHasNoToolchainAndUsesTheReadyTree() = runTest {
         val aggregator = RecordingAggregator(DocsAggregationResult.Skipped)
         val useCase = useCase(aggregator, configuredPlatforms = emptyList())
 
@@ -215,7 +216,7 @@ private class RecordingAggregator(
 ) : DocsPlatformAggregator {
     val requests: MutableList<Pair<TargetPlatform, String?>> = mutableListOf()
 
-    override fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult {
+    override suspend fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult {
         requests += platform to toolOverride
         return result
     }

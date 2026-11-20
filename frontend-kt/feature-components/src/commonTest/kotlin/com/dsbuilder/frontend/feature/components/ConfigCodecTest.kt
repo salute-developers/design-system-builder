@@ -13,8 +13,12 @@ import com.dsbuilder.frontend.feature.components.domain.codec.NativeConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.NativeProperty
 import com.dsbuilder.frontend.feature.components.domain.codec.resolveColorSchemeAxis
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -46,7 +50,22 @@ class ConfigCodecTest {
             val reserialized = json.encodeToString(NativeConfig.serializer(), config)
             val again = json.decodeFromString(NativeConfig.serializer(), reserialized)
 
-            assertEquals(config, again, "${entry.designSystem}/${entry.fileName} не переживает пересериализацию")
+            // JS JSON.stringify normalizes integral numbers (16.0 -> 16); compare numeric values.
+            assertEquals(
+                semanticNumbers(json.encodeToJsonElement(NativeConfig.serializer(), config)),
+                semanticNumbers(json.encodeToJsonElement(NativeConfig.serializer(), again)),
+                "${entry.designSystem}/${entry.fileName} не переживает пересериализацию",
+            )
+        }
+    }
+
+    private fun semanticNumbers(element: JsonElement): JsonElement = when (element) {
+        is JsonObject -> JsonObject(element.mapValues { semanticNumbers(it.value) })
+        is JsonArray -> JsonArray(element.map(::semanticNumbers))
+        is JsonPrimitive -> if (!element.isString && element.doubleOrNull != null) {
+            JsonPrimitive(element.doubleOrNull)
+        } else {
+            element
         }
     }
 

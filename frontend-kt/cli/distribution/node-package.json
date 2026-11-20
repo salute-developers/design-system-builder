@@ -1,0 +1,5 @@
+{
+  "fileName": "dsbuilder-cli-node.tgz",
+  "packageName": "@sddsjs/design-system-builder-cli",
+  "minNodeVersion": "22"
+}

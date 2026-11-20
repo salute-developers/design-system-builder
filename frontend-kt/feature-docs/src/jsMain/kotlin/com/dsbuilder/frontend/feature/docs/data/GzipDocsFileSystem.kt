@@ -11,6 +11,12 @@ internal actual class GzipDocsFileSystem actual constructor(
     }
 
     actual override fun createTarGzArchive(sourceDir: String, tarGzPath: String) {
-        error("Documentation archive generation is not supported in the JavaScript MCP runtime.")
+        val tar = okio.Buffer()
+        DocsTarWriter(fileSystem).write(sourceDir, tar, tarGzPath)
+        val bytes = tar.readByteArray()
+        val buffer: dynamic = js("Buffer").alloc(bytes.size)
+        bytes.forEachIndexed { index, byte -> buffer[index] = byte.toInt() and 255 }
+        val compressed: dynamic = js("require('zlib')").gzipSync(buffer)
+        fileSystem.writeBytes(tarGzPath, ByteArray(compressed.length as Int) { (compressed[it] as Int).toByte() })
     }
 }

@@ -4,9 +4,9 @@ import com.dsbuilder.frontend.cli.CLI_ANALYTICS_OPERATIONS
 import com.dsbuilder.frontend.cli.CliAnalyticsSession
 import com.dsbuilder.frontend.cli.recordSafely
 import com.github.ajalt.clikt.core.Abort
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.CliktError
 import kotlinx.coroutines.CancellationException
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /** Наблюдение после успешного разбора аргументов, ровно один раз на конечную команду. */
 internal abstract class AnalyticsCliCommand(name: String, private val operation: String) : CliktCommand(name = name) {
@@ -14,7 +14,7 @@ internal abstract class AnalyticsCliCommand(name: String, private val operation:
     protected fun markAnalyticsCancelled() { userCancelled = true }
 
     @Suppress("TooGenericExceptionCaught")
-    final override fun run() {
+    final override suspend fun run() {
         currentContext.findObject<CliAnalyticsSession>()?.prepare(consentPrompt())
         userCancelled = false
         var outcome = "success"
@@ -38,5 +38,5 @@ internal abstract class AnalyticsCliCommand(name: String, private val operation:
             }
         }
     }
-    protected abstract fun runOperation()
+    protected abstract suspend fun runOperation()
 }

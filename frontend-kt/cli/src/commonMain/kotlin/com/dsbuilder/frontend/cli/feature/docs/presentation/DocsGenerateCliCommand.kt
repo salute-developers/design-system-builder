@@ -38,7 +38,7 @@ internal class DocsGenerateCliCommand(
     private val tool: String? by option("--tool")
         .help("Path to the platform tool used by the aggregation step.")
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val result = generateUseCase.execute(
             DocsGenerateCommand(
                 docsDir = docsDir,

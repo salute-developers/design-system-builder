@@ -7,7 +7,6 @@ import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusUseCa
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder status`.
@@ -19,8 +18,8 @@ internal class StatusCliCommand(
 
     private val designSystem: String? by option("--design-system")
 
-    override fun runOperation() {
-        val result = runBlocking {
+    override suspend fun runOperation() {
+        val result = run {
             checkProjectStatusUseCase.execute(
                 CheckProjectStatusCommand(
                     apiKeyOverride = apiKey,

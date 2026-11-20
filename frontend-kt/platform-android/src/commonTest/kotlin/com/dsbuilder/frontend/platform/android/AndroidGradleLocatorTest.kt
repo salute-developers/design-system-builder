@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.platform.android
 
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -8,42 +9,42 @@ import kotlin.test.assertNull
 
 class AndroidGradleLocatorTest {
     @Test
-    fun findsGradlewInTheWorkspaceDirectoryItself() {
+    fun findsGradlewInTheWorkspaceDirectoryItself() = runTest {
         val locator = locator(existing = setOf("/repo/theme-module/gradlew"))
 
         assertEquals("/repo/theme-module/gradlew", locator.locate("/repo/theme-module", null))
     }
 
     @Test
-    fun ascendsUntilItFindsGradlew() {
+    fun ascendsUntilItFindsGradlew() = runTest {
         val locator = locator(existing = setOf("/repo/gradlew"))
 
         assertEquals("/repo/gradlew", locator.locate("/repo/tokens/theme-module", null))
     }
 
     @Test
-    fun findsWindowsWrapperAtDriveRoot() {
+    fun findsWindowsWrapperAtDriveRoot() = runTest {
         val locator = locator(existing = setOf("C:\\gradlew.bat"))
 
         assertEquals("C:\\gradlew.bat", locator.locate("C:\\work\\project", null))
     }
 
     @Test
-    fun nothingFoundWhenNoAncestorHasGradlew() {
+    fun nothingFoundWhenNoAncestorHasGradlew() = runTest {
         val locator = locator(existing = emptySet())
 
         assertNull(locator.locate("/repo/tokens/theme-module", null))
     }
 
     @Test
-    fun overrideWinsWithoutSearching() {
+    fun overrideWinsWithoutSearching() = runTest {
         val locator = locator(existing = setOf("/repo/gradlew", "/custom/gradlew"))
 
         assertEquals("/custom/gradlew", locator.locate("/repo/tokens/theme-module", "/custom/gradlew"))
     }
 
     @Test
-    fun missingOverrideIsNotSilentlyReplacedByAscendingSearch() {
+    fun missingOverrideIsNotSilentlyReplacedByAscendingSearch() = runTest {
         val locator = locator(existing = setOf("/repo/gradlew"))
 
         assertNull(locator.locate("/repo/tokens/theme-module", "/custom/gradlew"))

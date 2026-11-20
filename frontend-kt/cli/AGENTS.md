@@ -45,7 +45,7 @@ cli/
 
 Ни один файл в `:cli` не должен содержать use case, domain-модель или data-адаптер для фичи — это сигнал, что код положен не в тот модуль.
 
-Исключение по форме, но не по смыслу: `feature/mcp/presentation` содержит только Clikt-команду `dsbuilder mcp serve` и wiring к `:mcp-server-core`. Сами MCP tools, DTO и SDK bridge живут в `:mcp-server-core`; Node/npm launcher живёт в `:mcp-node`.
+Исключение по форме, но не по смыслу: `feature/mcp/presentation` содержит только Clikt-команду `dsbuilder mcp serve` и wiring к `:mcp-server-core`. Сами MCP tools, DTO и SDK bridge живут в `:mcp-server-core`; отдельный Node/npm MCP launcher живёт в `:mcp-node`, полный Node CLI — в `:cli/jsMain`. Оба используют `:runtime-node`.
 
 ## Presentation-слой
 
@@ -73,8 +73,8 @@ CLI output должен быть предсказуемым и тестируе�
 - напечатать stdout/stderr;
 - завершиться с корректным exit code.
 
-`actual fun defaultClientRuntime()` в `Jvm/MacosClientRuntime.kt` — единственное место в `:cli`, где допустимо писать платформенный код (JVM `java.io.File`, macOS POSIX cinterop): здесь создаются конкретные `WorkspaceFileSystem`, `EnvironmentReader` и `AuthenticatedHttpClientFactory` для текущей платформы. Будущие `:mcp`/`:desktop` реализуют свой аналог этого файла, а не переиспользуют `:cli`'s.
-`ClientRuntime.close` должен закрывать общий HTTP client при завершении долгоживущих команд, включая `mcp serve`.
+`actual fun defaultClientRuntime()` и соседние платформенные адаптеры в `jvmMain`/`macosMain`/`mingwX64Main`/`jsMain` собирают `WorkspaceFileSystem`, `EnvironmentReader` и `AuthenticatedHttpClientFactory`. Общая Node-инфраструктура реализуется в `:runtime-node`; Node composition root CLI добавляет свою политику согласия/аналитики. Будущие `:mcp`/`:desktop` реализуют свой аналог этого файла, а не переиспользуют `:cli`'s.
+`DsBuilderCli` владеет временем жизни переданного runtime и закрывает его ровно один раз при завершении, ошибке и отмене, включая `mcp serve`. Команды не закрывают runtime самостоятельно.
 
 `DsBuilderCli.kt` — composition root: собирает `coreApplicationModule` и Koin-модули всех фич (`*ApplicationModule` + `*CliPresentationModule`) в один граф и резолвит `RootCliCommand`. Бизнес-логика фичей не должна жить в composition root.
 
@@ -108,7 +108,7 @@ CLI output должен быть предсказуемым и тестируе�
   во всех командах;
 - argv-билдер и обработка exit code каждого делегата тестируются фейком `ProcessRunner` (это
   `fun interface`, поэтому фейк — лямбда); оркестрация use case'ов — фейком `PlatformDelegate`;
-- реальные `ProcessRunner` (`jvmMain` — `ProcessBuilder`, `macosMain` — `NSTask`) покрыты тестами,
+- реальные `ProcessRunner` (`jvmMain` — `ProcessBuilder`, `macosMain` — `posix_spawn` через cinterop с собственной группой процессов) покрыты тестами,
   запускающими `/bin/sh`, в `jvmTest` и `macosTest`.
 
 ## Build-system и convention plugins
@@ -122,3 +122,16 @@ CLI output должен быть предсказуемым и тестируе�
 - Тест use case'а, domain-модели или adapter'а фичи в изоляции живёт в `commonTest` соответствующего `feature-<name>` модуля, а не здесь — см. [`../AGENTS.md`](../AGENTS.md).
 - baseline CLI behavior (help/version/error handling) должен оставаться deterministic и не требовать backend services, Docker, credentials или private URLs.
 - Launcher contract test для `dsbuilder mcp serve` живёт в platform test source set и проверяет `initialize`/`tools/list`, отсутствие help text на stdout и отсутствие secrets.
+
+## Асинхронное выполнение
+
+Общее дерево использует `SuspendingCliktCommand`; `DsBuilderCli.execute/executeInteractive`,
+`ProcessRunner.run`, `PlatformDelegate.doctor/run` и `ToolchainInstaller.install` являются `suspend`.
+`runBlocking` допустим только в JVM/native entrypoint. Node ожидает общую корутину через цикл событий
+и устанавливает `process.exitCode`, позволяя завершить вывод. Отмена распространяется к процессу;
+`CancellationException` нельзя преобразовывать в обычную ошибку инструмента или подавлять аналитикой.
+Общие тесты возвращают `runTest`, платформенные тесты реальных процессов используют реальное время.
+
+Пакет полного CLI — `@sddsjs/design-system-builder-cli`, команда `dsbuilder`. Существующий workflow
+`publish-cli-release.yml` публикует web-генератор и затем Node CLI из одного CLI-тега, сохраняя
+самостоятельную версию генератора. Реальная публикация требует отдельного запроса разработчика.

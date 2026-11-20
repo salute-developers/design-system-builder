@@ -86,6 +86,11 @@ val generateAnalyticsConfig by tasks.registering {
 }
 
 kotlin {
+    js(IR) {
+        nodejs()
+        binaries.executable()
+        useCommonJs()
+    }
     jvm {
         binaries {
             executable {
@@ -101,6 +106,9 @@ kotlin {
     val windowsTarget = mingwX64()
 
     macosTargets.forEach { target ->
+        target.compilations.getByName("main").cinterops.create("macosProcess") {
+            defFile(project.file("src/nativeInterop/cinterop/macosProcess.def"))
+        }
         target.binaries {
             executable {
                 baseName = "dsbuilder"
@@ -114,6 +122,10 @@ kotlin {
             baseName = "dsbuilder"
             entryPoint = "com.dsbuilder.frontend.cli.main"
         }
+    }
+
+    windowsTarget.compilations.getByName("main").cinterops.create("windowsInterrupt") {
+        defFile(project.file("src/nativeInterop/cinterop/windowsInterrupt.def"))
     }
 
     windowsTarget.compilations.getByName("main").cinterops.create("windowsSecurity") {
@@ -148,7 +160,7 @@ kotlin {
             implementation(projects.mcpServerCore)
             implementation(projects.platformAndroid)
             implementation(projects.platformWeb)
-            implementation(libs.clikt)
+            api(libs.clikt)
             // InitSelectionMenu публично принимает Terminal для инъекции терминала.
             api(libs.mordant)
             implementation(libs.koin.core)
@@ -159,10 +171,18 @@ kotlin {
         }
 
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
             implementation(libs.ktor.client.mock)
         }
 
+        jsMain.dependencies {
+            implementation(projects.runtimeNode)
+            implementation(libs.ktor.client.js)
+        }
+
         jvmMain.dependencies {
+            implementation(libs.jna)
+            implementation(libs.jna.platform)
             implementation(libs.ktor.client.cio)
         }
 
@@ -350,4 +370,76 @@ val distributionS3Test by tasks.registering(Exec::class) {
     description = "Verifies the two fixed S3 installer keys against isolated MinIO (requires Docker)."
     workingDir(layout.projectDirectory.dir("distribution"))
     commandLine("python3", "tests/run_s3_integration.py")
+}
+
+// Готовый JS-пакет: потребителю не нужны исходники Kotlin или Gradle.
+val nodeNpmDirectory = layout.buildDirectory.dir("npm-package")
+val nodeArchive = layout.buildDirectory.file("distributions/dsbuilder-cli-node.tgz")
+val nodePackageTool = layout.projectDirectory.file("distribution/node-package.cjs")
+val nodeRuntimeManifest = rootProject.layout.buildDirectory.file("js/packages/design-system-builder-frontend-cli/package.json")
+
+val packageCliNodeNpm by tasks.registering(Sync::class) {
+    group = "distribution"
+    description = "Assembles the public Node.js dsbuilder CLI package."
+    dependsOn("jsProductionExecutableCompileSync", "jsPackageJson")
+    inputs.property("cliVersion", cliVersion)
+    inputs.file(nodeRuntimeManifest)
+    into(nodeNpmDirectory)
+    from(layout.buildDirectory.dir("compileSync/js/main/productionExecutable/kotlin")) {
+        include("*.js")
+        into("dist/kotlin")
+    }
+    from(layout.projectDirectory.file("USAGE.md")) { rename { "README.md" } }
+    from(layout.projectDirectory.file("LICENSE"))
+    doLast {
+        val directory = nodeNpmDirectory.get().asFile
+        val bin = directory.resolve("bin/dsbuilder.js")
+        bin.parentFile.mkdirs()
+        bin.writeText("#!/usr/bin/env node\nrequire('../dist/kotlin/design-system-builder-frontend-cli.js');\n")
+        bin.setExecutable(true)
+        val runtime = groovy.json.JsonSlurper().parse(nodeRuntimeManifest.get().asFile) as Map<*, *>
+        val manifest = mapOf(
+            "name" to "@sddsjs/design-system-builder-cli",
+            "version" to cliVersion.get(),
+            "description" to "DS Builder CLI for Node.js",
+            "license" to "UNLICENSED",
+            "type" to "commonjs",
+            "bin" to mapOf("dsbuilder" to "bin/dsbuilder.js"),
+            "engines" to mapOf("node" to ">=22"),
+            "publishConfig" to mapOf("access" to "public"),
+            "files" to listOf("bin", "dist", "README.md", "LICENSE"),
+            "dependencies" to (runtime["dependencies"] ?: emptyMap<String, String>()),
+        )
+        directory.resolve("package.json").writeText(groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(manifest)) + "\n")
+    }
+}
+
+val verifyCliNodeNpmPublication by tasks.registering(Exec::class) {
+    group = "verification"
+    dependsOn(packageCliNodeNpm)
+    commandLine("node", nodePackageTool.asFile, "verify", nodeNpmDirectory.get().asFile, cliVersion.get())
+}
+
+val packCliNodeNpm by tasks.registering(Exec::class) {
+    group = "distribution"
+    dependsOn(verifyCliNodeNpmPublication)
+    inputs.dir(nodeNpmDirectory)
+    inputs.file(nodePackageTool)
+    outputs.file(nodeArchive)
+    commandLine("node", nodePackageTool.asFile, "pack", nodeNpmDirectory.get().asFile, nodeArchive.get().asFile.parentFile)
+}
+
+val npmPackCliNodeSmoke by tasks.registering(Exec::class) {
+    group = "verification"
+    dependsOn(packCliNodeNpm)
+    commandLine("node", nodePackageTool.asFile, "smoke", nodeArchive.get().asFile)
+}
+
+tasks.named("check") { dependsOn(npmPackCliNodeSmoke) }
+
+val npmPublicationSmoke by tasks.registering(Exec::class) {
+    group = "verification"
+    workingDir(layout.projectDirectory.dir("distribution"))
+    environment("PYTHONDONTWRITEBYTECODE", "1")
+    commandLine("python3", "-m", "unittest", "discover", "-s", "tests", "-p", "test_npm_release.py", "-v")
 }

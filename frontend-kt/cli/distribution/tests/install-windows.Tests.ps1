@@ -84,7 +84,9 @@ try {
     foreach ($target in @('macos-arm64', 'macos-x64', 'windows-x64', 'jvm')) {
         $artifacts[$target] = [ordered]@{file="dsbuilder-cli-$target.zip"; sha256=$hash}
     }
-    $manifest = [ordered]@{schemaVersion=1; version='1.2.3'; iosCliReleaseTag='release-14-10-2026'; artifacts=$artifacts} | ConvertTo-Json -Depth 5 -Compress
+    $manifest = [ordered]@{schemaVersion=1; version='1.2.3'; iosCliReleaseTag='release-14-10-2026'; artifacts=$artifacts;
+        node=[ordered]@{fileName='dsbuilder-cli-node.tgz'; packageName='@sddsjs/design-system-builder-cli';
+            minNodeVersion='22'; version='1.2.3'; sha256=('f' * 64)}} | ConvertTo-Json -Depth 5 -Compress
     $latest = Join-Path $web 'releases/latest/download'
     New-Item -ItemType Directory -Path $latest -Force | Out-Null
     [IO.File]::WriteAllText((Join-Path $latest 'release.json'), $manifest)
@@ -109,6 +111,11 @@ try {
     $bootstrap = Join-Path $distribution 'bootstrap/install.ps1'
     & $bootstrap -WithoutWeb
     & $bootstrap -Version 1.2.3 -WithoutWeb
+    $legacy = $manifest | ConvertFrom-Json
+    $legacy.PSObject.Properties.Remove('node')
+    [IO.File]::WriteAllText((Join-Path $latest 'release.json'), ($legacy | ConvertTo-Json -Depth 5 -Compress))
+    & $bootstrap -WithoutWeb
+    [IO.File]::WriteAllText((Join-Path $latest 'release.json'), $manifest)
     $normalBase = $env:CLI_RELEASE_BASE_URL
     $env:CLI_RELEASE_BASE_URL = "$normalBase/redirect"
     $requestsLog = Join-Path $web 'requests.log'

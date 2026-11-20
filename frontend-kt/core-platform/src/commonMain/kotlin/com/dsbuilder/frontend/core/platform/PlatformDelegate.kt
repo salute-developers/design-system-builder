@@ -30,7 +30,7 @@ public interface PlatformDelegate {
      * @param toolOverride абсолютный путь инструмента из `--tool`. Проверять нужно именно его:
      * иначе команда с явным путём отказала бы из-за отсутствия инструмента в стандартных местах.
      */
-    public fun doctor(workspace: WorkspacePaths, toolOverride: String? = null): ToolchainStatus
+    public suspend fun doctor(workspace: WorkspacePaths, toolOverride: String? = null): ToolchainStatus
 
     /**
      * Запускает инструмент и ждёт завершения.
@@ -39,5 +39,5 @@ public interface PlatformDelegate {
      *
      * @param invocation что запустить и с какими путями.
      */
-    public fun run(invocation: DelegateInvocation): DelegateResult
+    public suspend fun run(invocation: DelegateInvocation): DelegateResult
 }

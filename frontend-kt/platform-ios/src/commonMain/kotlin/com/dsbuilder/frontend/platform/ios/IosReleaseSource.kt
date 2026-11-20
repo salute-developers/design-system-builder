@@ -28,7 +28,7 @@ internal class IosReleaseSource(
     /**
      * Возвращает релиз: последний опубликованный либо помеченный тегом [version].
      */
-    fun resolve(version: String?): ReleaseRead {
+    suspend fun resolve(version: String?): ReleaseRead {
         val path = if (version == null) "releases/latest" else "releases/tags/$version"
         val url = "https://api.github.com/repos/$IOS_RELEASE_REPOSITORY/$path"
 
@@ -68,7 +68,7 @@ internal class IosReleaseSource(
         return ReleaseRead.Found(version = tag, downloadUrl = downloadUrl)
     }
 
-    private fun fetch(url: String): FetchRead {
+    private suspend fun fetch(url: String): FetchRead {
         val result = try {
             processRunner.run(
                 ProcessRequest(

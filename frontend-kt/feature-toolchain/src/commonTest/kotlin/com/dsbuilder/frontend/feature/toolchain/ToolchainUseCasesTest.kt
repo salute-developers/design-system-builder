@@ -20,6 +20,7 @@ import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsComm
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsResult
 import com.dsbuilder.frontend.feature.toolchain.application.DoctorToolchainsUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.ListToolchainsUseCase
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -41,12 +42,12 @@ class ToolchainUseCasesTest {
     )
 
     @Test
-    fun listReportsNothingWhenNoToolchainIsRegistered() {
+    fun listReportsNothingWhenNoToolchainIsRegistered() = runTest {
         assertTrue(ListToolchainsUseCase(PlatformDelegateRegistry(emptyList())).execute().isEmpty())
     }
 
     @Test
-    fun listKeepsRegistrationOrderAndSortsPlatformsAndCapabilities() {
+    fun listKeepsRegistrationOrderAndSortsPlatformsAndCapabilities() = runTest {
         val summaries = ListToolchainsUseCase(PlatformDelegateRegistry(listOf(ios, android))).execute()
 
         assertEquals(listOf(ToolchainId("ios"), ToolchainId("android")), summaries.map { it.toolchain })
@@ -56,7 +57,7 @@ class ToolchainUseCasesTest {
     }
 
     @Test
-    fun doctorChecksEveryToolchainAgainstTheProjectWorkspace() {
+    fun doctorChecksEveryToolchainAgainstTheProjectWorkspace() = runTest {
         val result = doctorUseCase(listOf(ios, android)).execute(DoctorToolchainsCommand())
 
         val checked = assertIs<DoctorToolchainsResult.Checked>(result)
@@ -68,7 +69,7 @@ class ToolchainUseCasesTest {
     }
 
     @Test
-    fun doctorWithPlatformChecksOnlyItsToolchain() {
+    fun doctorWithPlatformChecksOnlyItsToolchain() = runTest {
         val result = doctorUseCase(listOf(ios, android))
             .execute(DoctorToolchainsCommand(platform = TargetPlatform.COMPOSE))
 
@@ -78,7 +79,7 @@ class ToolchainUseCasesTest {
     }
 
     @Test
-    fun doctorChecksTheToolFromTheOption() {
+    fun doctorChecksTheToolFromTheOption() = runTest {
         val result = doctorUseCase(listOf(ios))
             .execute(DoctorToolchainsCommand(toolOverride = "tools/dsbuilder-ios"))
 
@@ -87,14 +88,14 @@ class ToolchainUseCasesTest {
     }
 
     @Test
-    fun doctorRejectsPlatformWithoutToolchain() {
+    fun doctorRejectsPlatformWithoutToolchain() = runTest {
         val result = doctorUseCase(listOf(ios)).execute(DoctorToolchainsCommand(platform = TargetPlatform.REACT))
 
         assertTrue(assertIs<DoctorToolchainsResult.Failed>(result).message.contains("react"))
     }
 
     @Test
-    fun doctorFallsBackToWorkingDirectoryWithoutProject() {
+    fun doctorFallsBackToWorkingDirectoryWithoutProject() = runTest {
         val useCase = DoctorToolchainsUseCase(
             registry = PlatformDelegateRegistry(listOf(ios)),
             projectContextReader = { ProjectContextReadResult.Failed("Error: Project is not initialized.") },
@@ -130,12 +131,12 @@ private class StubDelegate(
 ) : PlatformDelegate {
     val doctorCalls: MutableList<Pair<WorkspacePaths, String?>> = mutableListOf()
 
-    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+    override suspend fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         doctorCalls += workspace to toolOverride
         return status
     }
 
-    override fun run(invocation: DelegateInvocation): DelegateResult = DelegateResult.Completed("done")
+    override suspend fun run(invocation: DelegateInvocation): DelegateResult = DelegateResult.Completed("done")
 }
 
 private class FakeWorkspaceFileSystem : WorkspaceFileSystem {

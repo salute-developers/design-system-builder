@@ -11,6 +11,7 @@ import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -21,7 +22,7 @@ class AndroidGradleDelegateTest {
     private val gradlewPath = "/repo/gradlew"
 
     @Test
-    fun servesComposeAndAndroidViewWithThemeComponentsAndDocs() {
+    fun servesComposeAndAndroidViewWithThemeComponentsAndDocs() = runTest {
         val delegate = delegate()
 
         assertEquals(ToolchainId("android"), delegate.toolchain)
@@ -33,7 +34,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun designSystemRunsThemeAndComponentsTasksInOneGradleCall() {
+    fun designSystemRunsThemeAndComponentsTasksInOneGradleCall() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -51,7 +52,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun docsAggregatePicksTheGradleTaskByPlatform() {
+    fun docsAggregatePicksTheGradleTaskByPlatform() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -69,7 +70,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun themeRunPicksTheGradleTaskByPlatform() {
+    fun themeRunPicksTheGradleTaskByPlatform() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -84,7 +85,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun componentsRunPicksTheGradleTaskByPlatform() {
+    fun componentsRunPicksTheGradleTaskByPlatform() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -96,7 +97,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun passthroughReachesTheTool() {
+    fun passthroughReachesTheTool() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -111,7 +112,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun outputIsUnsupportedAndNothingIsStarted() {
+    fun outputIsUnsupportedAndNothingIsStarted() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -125,7 +126,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun toolOverrideWins() {
+    fun toolOverrideWins() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -135,7 +136,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun nonZeroExitKeepsTheCode() {
+    fun nonZeroExitKeepsTheCode() = runTest {
         val delegate = delegate(runner = { ProcessResult(exitCode = 2, output = "") })
 
         val failure = assertIs<DelegateResult.Failed>(
@@ -146,7 +147,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun missingGradlewIsReportedWithAscendingHint() {
+    fun missingGradlewIsReportedWithAscendingHint() = runTest {
         val delegate = delegate(existing = emptySet())
 
         val result = delegate.run(invocation(Capability.THEME, TargetPlatform.COMPOSE))
@@ -157,7 +158,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun launchFailureIsReportedAsMissingToolchain() {
+    fun launchFailureIsReportedAsMissingToolchain() = runTest {
         val delegate = delegate(runner = { throw ProcessLaunchException("permission denied") })
 
         val result = delegate.run(invocation(Capability.THEME, TargetPlatform.COMPOSE))
@@ -166,7 +167,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun doctorReadyWhenComposeThemeTaskExists() {
+    fun doctorReadyWhenComposeThemeTaskExists() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -189,7 +190,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun doctorFallsBackToViewTaskWhenComposeIsNotConfigured() {
+    fun doctorFallsBackToViewTaskWhenComposeIsNotConfigured() = runTest {
         val delegate = delegate(
             runner = { request ->
                 val task = request.args.last()
@@ -201,7 +202,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun doctorReportsMissingWhenNeitherThemeTaskExists() {
+    fun doctorReportsMissingWhenNeitherThemeTaskExists() = runTest {
         val delegate = delegate(runner = { ProcessResult(exitCode = 1, output = "") })
 
         val status = assertIs<ToolchainStatus.Missing>(delegate.doctor(workspace))
@@ -211,7 +212,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun doctorReportsMissingGradlew() {
+    fun doctorReportsMissingGradlew() = runTest {
         val delegate = delegate(existing = emptySet())
 
         assertIs<ToolchainStatus.Missing>(delegate.doctor(workspace))
@@ -221,7 +222,7 @@ class AndroidGradleDelegateTest {
      * Регрессия: `--tool` должен проверяться именно тот `gradlew`, который потом запустится.
      */
     @Test
-    fun doctorChecksTheToolFromTheOption() {
+    fun doctorChecksTheToolFromTheOption() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -237,7 +238,7 @@ class AndroidGradleDelegateTest {
     }
 
     @Test
-    fun missingToolFromTheOptionIsReportedWithThatPath() {
+    fun missingToolFromTheOptionIsReportedWithThatPath() = runTest {
         val delegate = delegate(existing = emptySet())
 
         val status =

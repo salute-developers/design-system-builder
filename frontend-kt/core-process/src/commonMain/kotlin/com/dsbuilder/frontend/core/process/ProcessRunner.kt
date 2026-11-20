@@ -15,7 +15,7 @@ public fun interface ProcessRunner {
      * @return exit code и захваченный вывод.
      * @throws ProcessLaunchException если процесс не удалось запустить (нет файла, нет прав).
      */
-    public fun run(request: ProcessRequest): ProcessResult
+    public suspend fun run(request: ProcessRequest): ProcessResult
 }
 
 /**

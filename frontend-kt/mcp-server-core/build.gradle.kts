@@ -63,12 +63,3 @@ kotlin {
         windowsTarget.compilations.getByName("main").defaultSourceSet.dependsOn(sdkMain)
     }
 }
-
-tasks.matching {
-    it.name == "jsTest" ||
-        it.name == "jsNodeTest" ||
-        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
-        it.name == "jsTestTestDevelopmentExecutableCompileSync"
-}.configureEach {
-    enabled = false
-}

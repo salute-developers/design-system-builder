@@ -11,6 +11,7 @@ import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -21,7 +22,7 @@ class IosCliDelegateTest {
     private val toolPath = "/tools/dsbuilder-ios"
 
     @Test
-    fun servesSwiftUiWithEveryCapability() {
+    fun servesSwiftUiWithEveryCapability() = runTest {
         val delegate = delegate()
 
         assertEquals(ToolchainId("ios"), delegate.toolchain)
@@ -33,7 +34,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun designSystemRunsThemeThenComponentsGeneration() {
+    fun designSystemRunsThemeThenComponentsGeneration() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -50,7 +51,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun designSystemStopsAfterFailedThemeGeneration() {
+    fun designSystemStopsAfterFailedThemeGeneration() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -66,7 +67,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun themeRunPassesSddsAndWorkspace() {
+    fun themeRunPassesSddsAndWorkspace() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -82,7 +83,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun docsRunAggregatesTheTree() {
+    fun docsRunAggregatesTheTree() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -95,7 +96,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun outputAndPassthroughReachTheTool() {
+    fun outputAndPassthroughReachTheTool() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -127,7 +128,7 @@ class IosCliDelegateTest {
      * `generateComposeComponents` на Android, а не вместе с темой.
      */
     @Test
-    fun componentsRunUsesItsOwnCommand() {
+    fun componentsRunUsesItsOwnCommand() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -148,7 +149,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun toolOverrideWins() {
+    fun toolOverrideWins() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -158,7 +159,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun nonZeroExitKeepsTheCode() {
+    fun nonZeroExitKeepsTheCode() = runTest {
         val delegate = delegate(runner = { ProcessResult(exitCode = 2, output = "") })
 
         val failure = assertIs<DelegateResult.Failed>(delegate.run(invocation(Capability.THEME)))
@@ -167,7 +168,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun missingToolIsReportedWithCheckedLocations() {
+    fun missingToolIsReportedWithCheckedLocations() = runTest {
         val delegate = delegate(environment = emptyMap(), existing = emptySet())
 
         val result = delegate.run(invocation(Capability.THEME))
@@ -179,7 +180,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun launchFailureIsReportedAsMissingToolchain() {
+    fun launchFailureIsReportedAsMissingToolchain() = runTest {
         val delegate = delegate(runner = { throw ProcessLaunchException("permission denied") })
 
         val result = delegate.run(invocation(Capability.THEME))
@@ -188,7 +189,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun doctorReportsVersionWithoutGenerating() {
+    fun doctorReportsVersionWithoutGenerating() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -207,7 +208,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun doctorReportsMissingToolAndFailedVersion() {
+    fun doctorReportsMissingToolAndFailedVersion() = runTest {
         val missing = delegate(environment = emptyMap(), existing = emptySet()).doctor(workspace)
         val failing = delegate(runner = { ProcessResult(exitCode = 127, output = "") }).doctor(workspace)
 
@@ -220,7 +221,7 @@ class IosCliDelegateTest {
      * иначе doctor подтверждает штатную сборку, а работает подменённая.
      */
     @Test
-    fun doctorChecksTheToolFromTheOption() {
+    fun doctorChecksTheToolFromTheOption() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -236,7 +237,7 @@ class IosCliDelegateTest {
     }
 
     @Test
-    fun missingToolFromTheOptionIsReportedWithThatPath() {
+    fun missingToolFromTheOptionIsReportedWithThatPath() = runTest {
         val delegate = delegate(existing = emptySet())
 
         val status =

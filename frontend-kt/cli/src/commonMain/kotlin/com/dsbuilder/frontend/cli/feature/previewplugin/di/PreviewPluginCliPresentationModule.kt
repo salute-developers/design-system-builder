@@ -3,9 +3,9 @@ package com.dsbuilder.frontend.cli.feature.previewplugin.di
 import com.dsbuilder.frontend.cli.feature.previewplugin.presentation.PreviewPluginCliCommand
 import com.dsbuilder.frontend.cli.feature.previewplugin.presentation.PreviewPluginPublishCliCommand
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Создает Koin module для presentation-слоя команды `preview-plugin` в `:cli`.

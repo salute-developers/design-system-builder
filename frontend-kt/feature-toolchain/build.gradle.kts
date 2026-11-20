@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
 }
 
 kotlin {
@@ -18,6 +18,7 @@ kotlin {
         }
 
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
             implementation(projects.coreApplication)
             implementation(libs.okio)
         }

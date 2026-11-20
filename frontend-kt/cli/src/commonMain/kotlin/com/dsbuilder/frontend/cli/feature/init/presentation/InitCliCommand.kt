@@ -19,7 +19,6 @@ import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /** Последовательный выбор проекта, системы и платформ либо совместимый явный режим. */
 internal class InitCliCommand(
@@ -35,7 +34,7 @@ internal class InitCliCommand(
     private val platforms: List<TargetPlatform> by option("--platform").targetPlatform().multiple()
         .help("Target platform of the project; repeat the option for several platforms.")
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val directory = fileSystem.currentWorkingDirectory()
         initProjectUseCase.checkTarget(directory)?.let { fail(it) }
         val interactive = projectId == null || designSystemId == null
@@ -46,7 +45,7 @@ internal class InitCliCommand(
             )
             fail("Error: interactive selection is unavailable; provide ${missing.joinToString(" and ")}.")
         }
-        val (project, system) = if (interactive) runBlocking { discover() } else projectId!! to designSystemId!!
+        val (project, system) = if (interactive) run { discover() } else projectId!! to designSystemId!!
         val selectedPlatforms = platformsFor(interactive)
         val credential = InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
         when (
@@ -99,6 +98,8 @@ internal class InitCliCommand(
             menu.select(terminal, title, choices)
         } catch (_: UnsupportedOperationException) {
             fail("Error: interactive selection is unavailable; provide --project-id and --design-system-id.")
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (_: IllegalStateException) {
             selectionCancelled()
         }
@@ -115,6 +116,8 @@ internal class InitCliCommand(
             menu.selectMultiple(terminal, "Выберите платформы (можно пропустить)", choices)
         } catch (_: UnsupportedOperationException) {
             fail("Error: interactive platform selection is unavailable; provide --platform.")
+        } catch (cancelled: kotlinx.coroutines.CancellationException) {
+            throw cancelled
         } catch (_: IllegalStateException) {
             selectionCancelled()
         } ?: selectionCancelled()
