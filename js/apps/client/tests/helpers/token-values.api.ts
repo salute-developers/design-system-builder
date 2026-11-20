@@ -65,6 +65,10 @@ export class TokenValuesApi {
         ).href;
     }
 
+    sizeViewURL(themeId: string): string {
+        return new URL(`tenants/${encodeURIComponent(themeId)}/size-tokens`, this.root).href;
+    }
+
     typographyStyleURL(themeId: string, tokenId: string): string {
         return new URL(
             `tenants/${encodeURIComponent(themeId)}/typography-styles/${encodeURIComponent(tokenId)}`,
