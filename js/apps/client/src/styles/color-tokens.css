@@ -2551,7 +2551,11 @@
     border-radius: 3px;
 }
 
+/* Длинное имя цвета палитры обрезается многоточием и не наезжает на прозрачность; полное — в подсказке. */
 .color-tokens-screen .cp-stop-color-field span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
     white-space: nowrap;
 }
 
