@@ -7,7 +7,7 @@ import { isDebugMode } from '../utils/debugMode';
 import { PreviewPayloadInput, PreviewComponentDescription, PreviewFailureDetails, PreviewPluginPlatform } from './types';
 import type { LoadedComposePreviewManifest } from './types';
 import { ComposeFailureDetails } from './ComposeFailureDetails';
-import { FailureState, FailureStateText, FailureStateTitle, FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
+import { FailureState, FailureStateCard, FailureStateText, FailureStateTitle, FrameRoot, PreviewIframe, Status } from './ComposePreviewFrame.styles';
 
 export interface ComposePreviewFrameProps {
     pluginUrl: string;
@@ -307,8 +307,10 @@ export const ComposePreviewFrame = ({
                     <Status role="alert">{failureMessage}</Status>
                 ) : (
                     <FailureState role="alert">
-                        <FailureStateTitle>Не удалось построить превью</FailureStateTitle>
-                        <FailureStateText>{failureMessage}</FailureStateText>
+                        <FailureStateCard>
+                            <FailureStateTitle>Не удалось построить превью</FailureStateTitle>
+                            <FailureStateText>{failureMessage}</FailureStateText>
+                        </FailureStateCard>
                     </FailureState>
                 ))}
             {isDebugMode() && cause && <ComposeFailureDetails details={cause} />}

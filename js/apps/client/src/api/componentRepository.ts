@@ -26,7 +26,7 @@ import type {
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
-import { isUnknownIconError } from './autosaveHttp';
+import { AutosaveRejection, isUnknownIconError } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
@@ -831,11 +831,12 @@ export const componentRepository = {
                             );
                             acceptMetadata(response.headers);
                         } catch (error) {
-                            const message = isAxiosError(error)
-                                ? // ds-service кладёт код отказа в поле `error`; `code` — прежняя форма ответа.
-                                  styleReferenceErrorMessage(error.response?.data?.error ?? error.response?.data?.code)
-                                : undefined;
-                            throw message ? Object.assign(error as Error, { message }) : error;
+                            // ds-service кладёт код отказа в поле `error`, `code` — прежняя форма ответа. Проверяются
+                            // оба: общий `error` не должен перекрыть конкретный `code`.
+                            const data = isAxiosError(error) ? error.response?.data : undefined;
+                            const message =
+                                styleReferenceErrorMessage(data?.error) ?? styleReferenceErrorMessage(data?.code);
+                            throw message ? new AutosaveRejection(message, error) : error;
                         }
                         return;
                     }

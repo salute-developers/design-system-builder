@@ -31,20 +31,33 @@ export const Status = styled.div`
     font-size: 0.75rem;
 `;
 
-/** Отказ без успешного кадра: причина занимает область превью вместо пустого холста плагина. */
+/**
+ * Отказ без успешного кадра: причина по центру области превью вместо пустого холста плагина. Фон области задаёт
+ * тема дизайн-системы (светлый или тёмный), поэтому область прозрачна, а причина — в полупрозрачной тёмной
+ * карточке, как у `Status` и `FailureDetailsRoot`: она читается на любом фоне.
+ */
 export const FailureState = styled.div`
     position: absolute;
     inset: 0;
     z-index: 1;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 0.5rem;
     padding: 1.5rem;
+    pointer-events: none;
+`;
+
+export const FailureStateCard = styled.div`
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    max-width: min(32rem, 100%);
+    padding: 1rem 1.25rem;
+    border-radius: 0.75rem;
     text-align: center;
     color: #ffffff;
-    background: #1e1f22;
+    background: rgb(0 0 0 / 70%);
+    pointer-events: auto;
 `;
 
 export const FailureStateTitle = styled.div`
@@ -53,7 +66,6 @@ export const FailureStateTitle = styled.div`
 `;
 
 export const FailureStateText = styled.div`
-    max-width: 32rem;
     font-size: 0.75rem;
     line-height: 1rem;
     color: rgb(255 255 255 / 72%);

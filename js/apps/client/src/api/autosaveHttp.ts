@@ -5,11 +5,22 @@ export const isRetryableAutosaveError = (error: unknown) =>
     isAxiosError(error) && (!error.response || error.response.status >= 500);
 
 /**
- * Причина отказа сохранения для пользователя: русское сообщение ошибки, которое подготовил репозиторий (например,
- * отказ проверки ссылки на стиль). Технические английские тексты не показываются.
+ * Отказ сохранения с причиной, понятной пользователю (например, отказ проверки ссылки на стиль). Индикатор
+ * автосохранения показывает текст только таких ошибок; `source` — исходная ошибка запроса.
  */
+export class AutosaveRejection extends Error {
+    readonly source: unknown;
+
+    constructor(message: string, source?: unknown) {
+        super(message);
+        this.name = 'AutosaveRejection';
+        this.source = source;
+    }
+}
+
+/** Причина отказа сохранения для пользователя; у прочих ошибок её нет. */
 export const autosaveErrorMessage = (error: unknown): string | undefined =>
-    error instanceof Error && /[А-Яа-яЁё]/.test(error.message) ? error.message : undefined;
+    error instanceof AutosaveRejection ? error.message : undefined;
 
 /** Сервис отклонил значение иконки, которого нет в каталоге (`400 unknown_icon`). */
 export const isUnknownIconError = (error: unknown) =>
