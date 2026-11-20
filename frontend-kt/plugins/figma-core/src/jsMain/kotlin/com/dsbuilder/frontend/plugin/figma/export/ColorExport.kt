@@ -56,7 +56,11 @@ private data class PaletteSlot(val groupId: String, val type: String, val shade:
  * Цвета темы в структуре образца: `00. Palette`, `01. Theme` со ссылками на палитру и `02. SubTheme` со ссылками
  * на тему. Имена берутся из подписей групп токенов, поэтому новые группы попадают в Figma без изменения кода.
  */
-internal class ColorExport(source: JsonObject, private val platform: String = WEB) {
+internal class ColorExport(
+    source: JsonObject,
+    private val platform: String = WEB,
+    private val bindGradientStops: Boolean = true,
+) {
     private val tokens = source["tokens"].arr().mapNotNull { it.obj() }
     private val allValues = source["values"].arr().mapNotNull { it.obj() }
     private val webValues = allValues.filter { it.str("platform") == WEB }.groupBy { it.str("tokenId") }
@@ -74,6 +78,7 @@ internal class ColorExport(source: JsonObject, private val platform: String = WE
     private val skipped = mutableListOf<PlanSkip>()
     private val notes = mutableListOf<PlanSkip>()
     private var disabled = 0
+    private var gradientPairs = 0
 
     fun build(): ColorExportResult {
         val paletteCollection = paletteCollection()
@@ -84,7 +89,7 @@ internal class ColorExport(source: JsonObject, private val platform: String = WE
         candidates().forEach { token ->
             val owner = usedNames[token.themeName]
             if (owner != null) {
-                skipped += PlanSkip(token.name, "имя Figma ${token.themeName} уже занято токеном $owner")
+                skipped += PlanSkip(token.name, "имя переменной ${token.themeName} уже занято токеном $owner")
                 return@forEach
             }
             val modes = modeValues(token.id)
@@ -106,6 +111,12 @@ internal class ColorExport(source: JsonObject, private val platform: String = WE
             }
             // Имя занимает только экспортированный токен: пропущенный не отнимает его у следующего.
             if (added) usedNames[token.themeName] = token.name
+        }
+        if (gradientPairs > 0) {
+            notes += PlanSkip(
+                "Стили градиентов",
+                "описаны парой стилей Light и Dark: $gradientPairs. Редактор не привязывает стопы к переменным",
+            )
         }
         return ColorExportResult(
             palette = paletteCollection,
@@ -268,19 +279,26 @@ internal class ColorExport(source: JsonObject, private val platform: String = WE
         val mismatch = gradientMismatch(light, dark)
         if (mismatch != null) {
             notes += PlanSkip(token.name, "градиент описан парой стилей Light и Dark: $mismatch")
-            return GradientExport(
-                styles = THEME_MODES.map { mode ->
-                    PlanPaintStyle(
-                        key = "gradient:${token.id}:${mode.key}",
-                        name = "${mode.name}/${token.themeName}",
-                        paints = paints.getValue(mode.key).filterNotNull(),
-                    )
-                },
-                variables = emptyList(),
-            )
+            return gradientPair(token, paints)
+        }
+        if (!bindGradientStops) {
+            gradientPairs += 1
+            return gradientPair(token, paints)
         }
         return boundGradient(token, light, dark)
     }
+
+    /** Пара стилей `Light/…` и `Dark/…` со значениями своего режима, без переменных стопов. */
+    private fun gradientPair(token: ThemeToken, paints: Map<String, List<PlanPaint?>>) = GradientExport(
+        styles = THEME_MODES.map { mode ->
+            PlanPaintStyle(
+                key = "gradient:${token.id}:${mode.key}",
+                name = "${mode.name}/${token.themeName}",
+                paints = paints.getValue(mode.key).filterNotNull(),
+            )
+        },
+        variables = emptyList(),
+    )
 
     private fun boundGradient(token: ThemeToken, light: List<PlanPaint>, dark: List<PlanPaint>): GradientExport {
         val variables = mutableListOf<PlanVariable>()

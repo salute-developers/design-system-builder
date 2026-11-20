@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 
 import type { PluginBridge } from './bridge';
 import { ApiError, type PluginCore } from './core/pluginCore';
+import type { ExportEditor } from '../shared/editor';
+import { EditorContext } from './editor';
 import { Browser } from './screens/Browser';
 import { LoginScreen } from './screens/LoginScreen';
 
@@ -17,6 +19,19 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
     const [state, setState] = useState<AppState>('restoring');
     const [attempt, setAttempt] = useState(0);
     const [failure, setFailure] = useState('');
+    const [editor, setEditor] = useState<ExportEditor | null>(null);
+    const [editorFailure, setEditorFailure] = useState<string>();
+    const [editorAttempt, setEditorAttempt] = useState(0);
+
+    // Редактор нужен только экспорту: остальное окно не ждёт ответа, а отказ показывается у кнопки экспорта.
+    useEffect(() => {
+        setEditorFailure(undefined);
+        bridge
+            .editor()
+            .then(setEditor, (error: unknown) =>
+                setEditorFailure(error instanceof Error ? error.message : String(error)),
+            );
+    }, [bridge, editorAttempt]);
 
     const fail = (error: unknown) => {
         setFailure(failureText(error));
@@ -66,12 +81,16 @@ export const App = ({ bridge, core }: { bridge: PluginBridge; core: PluginCore }
             />
         );
     return (
-        <Browser
-            api={core.api}
-            storage={bridge}
-            applyExport={bridge.applyExport}
-            packZip={bridge.packZip}
-            onSignOut={signOut}
-        />
+        <EditorContext.Provider
+            value={{ editor, failure: editorFailure, retry: () => setEditorAttempt((value) => value + 1) }}
+        >
+            <Browser
+                api={core.api}
+                storage={bridge}
+                applyExport={bridge.applyExport}
+                packZip={bridge.packZip}
+                onSignOut={signOut}
+            />
+        </EditorContext.Provider>
     );
 };
