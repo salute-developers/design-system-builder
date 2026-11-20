@@ -24,4 +24,7 @@ interface DesignSystemRepository {
 
     /** Performs the deleteowned operation. */
     suspend fun deleteOwned(projectId: ProjectId, id: DesignSystemId): Boolean
+
+    /** Занято ли [name] другой неудалённой дизайн-системой — по тому же правилу, что и проверка базы. */
+    suspend fun isNameTaken(name: String): Boolean
 }
