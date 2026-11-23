@@ -3,9 +3,9 @@ package com.dsbuilder.frontend.cli
 import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
@@ -22,6 +22,17 @@ import kotlin.test.assertTrue
 class JvmWindowsProcessRunnerTest {
     private val runner = defaultClientRuntime().processRunner
 
+    private val childScript = "const fs=require('fs');fs.writeFileSync(process.argv[2],String(process.pid));" +
+        "process.stdout.write('ready');let n=0;" +
+        "const tick=()=>fs.writeFileSync(process.argv[1],String(++n));tick();setInterval(tick,20)"
+
+    private val parentScript =
+        "const fs=require('fs');fs.writeFileSync(process.argv[1],String(process.pid));" +
+            "const child=require('child_process').spawn(process.execPath,['-e',process.argv[2],process.argv[3]," +
+            "process.argv[4]],{stdio:'inherit'});child.unref();" +
+            "child.on('error',e=>{console.error(e);process.exit(1)});" +
+            "setInterval(()=>{if(fs.existsSync(process.argv[3]))process.exit(0)},10)"
+
     @Test
     fun cancellationAfterParentExitStopsOwnedWindowsDescendant() = runTest {
         assumeTrue(com.sun.jna.Platform.isWindows())
@@ -31,16 +42,11 @@ class JvmWindowsProcessRunnerTest {
             val parent = File(directory, "parent")
             val child = File(directory, "child")
             val heartbeat = File(directory, "heartbeat")
-            val childCode = "const fs=require('fs');fs.writeFileSync(process.argv[2],String(process.pid));" +
-                "let n=0;const tick=()=>fs.writeFileSync(process.argv[1],String(++n));tick();setInterval(tick,20)"
-            val parentCode = "require('fs').writeFileSync(process.argv[1],String(process.pid));" +
-                "require('child_process').spawn(process.execPath,['-e',process.argv[2],process.argv[3]," +
-                "process.argv[4]],{stdio:'inherit'}).unref();process.exit(0)"
-            val operation = launch {
+            val operation = async {
                 runner.run(
                     ProcessRequest(
                         node,
-                        listOf("-e", parentCode, parent.path, childCode, heartbeat.path, child.path),
+                        listOf("-e", parentScript, parent.path, childScript, heartbeat.path, child.path),
                         directory.path,
                         inheritStdio = false,
                     ),
@@ -50,7 +56,12 @@ class JvmWindowsProcessRunnerTest {
             var phase = "waiting for descendant heartbeat"
             try {
                 withTimeout(15000) {
-                    while (!child.exists() || child.readText().isBlank() || !heartbeat.exists()) delay(10)
+                    while (!child.exists() || child.readText().isBlank() || !heartbeat.exists()) {
+                        if (operation.isCompleted) {
+                            error("Tool finished before descendant readiness: ${operation.await()}")
+                        }
+                        delay(10)
+                    }
                     pid = child.readText().trim().toLong()
                     val parentPid = parent.readText().trim().toLong()
                     phase = "waiting for parent $parentPid to exit (descendant $pid)"

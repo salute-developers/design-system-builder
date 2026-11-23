@@ -189,6 +189,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'CLI help failed' }
           $version = & $binary --version
           if ($LASTEXITCODE -ne 0 -or $version -ne "dsbuilder version $($env:CLI_RELEASE_TAG.Substring(5))") { throw 'CLI version mismatch' }
+          python release-tools/tests/windows_console_smoke.py $binary
+          if ($LASTEXITCODE -ne 0) { throw 'CLI console cancellation failed' }
 
   node-smoke:
     needs: build

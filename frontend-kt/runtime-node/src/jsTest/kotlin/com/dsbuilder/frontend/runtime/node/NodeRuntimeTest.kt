@@ -22,6 +22,17 @@ class NodeRuntimeTest {
     private val os: dynamic = js("require('os')")
     private val process: dynamic = js("process")
 
+    private val childScript = "const fs=require('fs');fs.writeFileSync(process.argv[2],String(process.pid));" +
+        "process.stdout.write('ready');let n=0;" +
+        "const tick=()=>fs.writeFileSync(process.argv[1],String(++n));tick();setInterval(tick,20)"
+
+    private val parentScript =
+        "const fs=require('fs');fs.writeFileSync(process.argv[1],String(process.pid));" +
+            "const child=require('child_process').spawn(process.execPath,['-e',process.argv[2],process.argv[3]," +
+            "process.argv[4]],{stdio:'inherit'});child.unref();" +
+            "child.on('error',e=>{console.error(e);process.exit(1)});" +
+            "setInterval(()=>{if(fs.existsSync(process.argv[3]))process.exit(0)},10)"
+
     @Test
     fun binaryWritesAndSinkPreserveEveryByte() {
         val directory = fs.mkdtempSync(os.tmpdir() + "/dsbuilder-node-") as String
@@ -184,18 +195,20 @@ class NodeRuntimeTest {
             val parentPid = "$directory/parent"
             val childPid = "$directory/child"
             val heartbeat = "$directory/heartbeat"
-            val childCode = "const fs=require('fs');fs.writeFileSync(process.argv[2],String(process.pid));" +
-                "let n=0;const tick=()=>fs.writeFileSync(process.argv[1],String(++n));tick();setInterval(tick,20)"
-            val parentCode = "require('fs').writeFileSync(process.argv[1],String(process.pid));" +
-                "require('child_process').spawn(process.execPath,['-e',process.argv[2],process.argv[3]," +
-                "process.argv[4]],{stdio:'inherit'}).unref();process.exit(0)"
-            val operation = launch {
-                NodeProcessRunner.run(request(parentCode, listOf(parentPid, childCode, heartbeat, childPid)))
+            val operation = async {
+                NodeProcessRunner.run(
+                    request(parentScript, listOf(parentPid, childScript, heartbeat, childPid)),
+                )
             }
             var pid: Int? = null
             try {
                 kotlinx.coroutines.withTimeout(10000) {
-                    while (!(fs.existsSync(childPid) as Boolean) || !(fs.existsSync(heartbeat) as Boolean)) delay(10)
+                    while (!(fs.existsSync(childPid) as Boolean) || !(fs.existsSync(heartbeat) as Boolean)) {
+                        if (operation.isCompleted) {
+                            error("Tool finished before descendant readiness: ${operation.await()}")
+                        }
+                        delay(10)
+                    }
                     pid = (fs.readFileSync(childPid, "utf8") as String).trim().toInt()
                     val parent = (fs.readFileSync(parentPid, "utf8") as String).trim().toInt()
                     while (runCatching { process.kill(parent, 0) }.isSuccess) delay(10)
