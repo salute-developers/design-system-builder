@@ -372,7 +372,7 @@ function resolveStateId(name: string, states: ComponentStateOption[]): string | 
 
 ## Модель данных и контракты
 
-- Миграция `V22__property_state_support.sql` (`V21` занял `dev`; PR #167 при перенумерации займёт следующие
+- Миграция `V23__property_state_support.sql` (`V21` и `V22` занял `dev`; PR #167 при перенумерации займёт следующие
   свободные номера). Содержимое:
   - `ALTER TABLE properties ADD COLUMN state_combinations boolean NULL`;
   - `CREATE TABLE property_supported_states (property_id uuid NOT NULL REFERENCES properties ON DELETE CASCADE,
@@ -447,7 +447,7 @@ function resolveStateId(name: string, states: ComponentStateOption[]): string | 
 flowchart TD
     A["Контур на origin/dev: --reset, плагины Compose и web, демо-ДС"] --> B["Добавить состояния цвету в редакторе"]
     B --> C["Снимок: export конфигураций, editor-bundle, сгенерированный web-пакет"]
-    C --> D["Пересобрать контур на ветке без --reset: V22 на заполненной базе"]
+    C --> D["Пересобрать контур на ветке без --reset: V23 на заполненной базе"]
     D --> E["Сравнить с снимком до переимпорта: признак null, поведение прежнее"]
     E --> F["Переопубликовать плагины и import-api новым CLI"]
     F --> G["Сравнить export и генерацию со снимком, проверить признаки в БД"]
@@ -458,7 +458,7 @@ flowchart TD
 1. Поднять контур на `origin/dev` (`./setup-local.sh --reset` с `--components-package`), добавить в редакторе
    состояния цветовым свойствам. Снять снимок: `POST …/component-config/export` всех компонентов обеих платформ,
    `editor-bundle` нескольких компонентов, сгенерированный web-пакет.
-2. Пересобрать контур на ветке без `--reset`. Ожидание: Flyway применил `V22`, `/health` готов, `flyway: true`.
+2. Пересобрать контур на ветке без `--reset`. Ожидание: Flyway применил `V23`, `/health` готов, `flyway: true`.
 3. До переимпорта: `state_combinations` у всех свойств `NULL`, `property_supported_states` пуста; export и генерация
    побайтно совпадают со снимком; редактор ведёт себя по прежнему правилу; e2e-набор проходит.
 4. Сначала опубликовать плагин Compose с прежней метой (без поля): `stateSupportChanged = 0`. Затем собрать мету
@@ -543,7 +543,7 @@ flowchart TD
 
 ### Откат
 
-На базе с применённой `V22` запускается ds-service из `origin/dev`. Flyway по умолчанию пропускает применённые
+На базе с применённой `V23` запускается ds-service из `origin/dev`. Flyway по умолчанию пропускает применённые
 миграции из будущего (`ignoreMigrationPatterns = *:future`), а `ExistingDatabaseAdopter` проверяет отпечаток схемы
 только при отсутствии истории Flyway, поэтому старт ожидается успешным; это проверяется на контуре, а не
 предполагается. Миграция добавляет nullable-столбец без значения по умолчанию и пустую таблицу: в PostgreSQL это

@@ -39,7 +39,7 @@ function subject(responses: Promise<Response>[] = []) {
 
 function browserWrite(result: Promise<Response | null>): Request {
     return {
-        url: () => 'http://localhost:8080/api/projects/own-project/ds/tenants/own-theme/token-values',
+        url: () => 'http://localhost:8080/api/projects/own-project/design-systems/own-system/tenants/own-theme/token-values',
         method: () => 'PUT',
         response: () => result,
     } as Request;

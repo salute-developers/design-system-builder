@@ -52,7 +52,12 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         val tokenType = tokenType(projectId, systemAdmin, designSystemId, command.tokenId)
         checkType(propertyType, tokenType ?: command.type ?: propertyType)
         val stateSetId = EditorSupport.resolveStateSet(states, scope.stateIds)
-        val existing = find(appearanceId, scope, stateSetId)
+        val match = find(appearanceId, scope, stateSetId)
+        // Совпадение имён могло найти прежнюю строку с состоянием чужого компонента.
+        if (match != null && match.second != stateSetId) {
+            PropertyStateSetGuard.requireAllowedSet(scope.propertyId, match.second)
+        }
+        val existing = match?.first
         IconValueGuard.check(scope.propertyId, command.tokenId, command.value, existing?.let(::storedValue))
         val reference = referenceOf(projectId, systemAdmin, appearance, propertyType, command, existing?.let(::source))
         val literal = (reference?.text ?: command.value).takeIf { command.tokenId == null }
@@ -75,7 +80,7 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         val componentId = appearance[ComponentAppearancesTable.componentId]
         val scope = scope(appearanceId, componentId, command)
         val stateSetId = EditorSupport.resolveStateSet(states, scope.stateIds)
-        val existing = find(appearanceId, scope, stateSetId) ?: return false
+        val existing = find(appearanceId, scope, stateSetId)?.first ?: return false
         remove(designSystemId, existing)
         return true
     }
@@ -208,13 +213,13 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
     // ---- поиск, создание, обновление -------------------------------------------------------------------------
 
     /** Строка области в том же состоянии: наборы сравниваются по именам, а не по идентификатору (см. «тени»). */
-    private fun find(appearanceId: UUID, scope: Scope, stateSetId: UUID): Row? {
+    private fun find(appearanceId: UUID, scope: Scope, stateSetId: UUID): Pair<Row, UUID>? {
         val rows = rowsOf(appearanceId, scope)
         // Обычный случай — тот же набор: без чтения наборов и состояний.
-        rows.firstOrNull { it.second == stateSetId }?.let { return it.first }
+        rows.firstOrNull { it.second == stateSetId }?.let { return it }
         val keys = EditorSupport.stateKeys(rows.map { it.second } + stateSetId)
         val wanted = keys[stateSetId]
-        return rows.firstOrNull { keys[it.second] == wanted }?.first
+        return rows.firstOrNull { keys[it.second] == wanted }
     }
 
     /** Строки значений свойства в области с их наборами состояний. */

@@ -69,7 +69,7 @@
 ## Влияние
 
 - `backend-kt/ds-service`:
-  - Flyway-миграция `V22`: столбец `properties.state_combinations` и таблица `property_supported_states`;
+  - Flyway-миграция `V23`: столбец `properties.state_combinations` и таблица `property_supported_states`;
   - `PropertiesTable`, `ComponentPropertySummary`/`ComponentPropertySummaryResponse`;
   - импорт API-меты: `ImportApiMetaRequest`, `ImportApiMeta`, `ExposedApiMetaRepository`, `ImportApiMetaResponse`;
   - `editor-bundle`;

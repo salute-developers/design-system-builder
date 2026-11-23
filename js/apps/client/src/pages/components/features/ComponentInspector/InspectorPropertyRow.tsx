@@ -233,6 +233,13 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     ): ReactNode => {
         if (type === 'color') return colorControl(current, onChange, actions, name, onClear);
         const node = (() => {
+            if (isStyleReference) {
+                return (
+                    <div className="component-style-reference">
+                        <InspectorStyleReference config={config} label={name} value={current} onChange={onChange} />
+                    </div>
+                );
+            }
             if ((type === 'float' || type === 'dimension') && isOpacity(prop)) {
                 return <OpacityControl label={name} value={current} onCommit={onChange} />;
             }
@@ -292,8 +299,6 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             </>
         );
     };
-
-    const control = controlFor(text, update, bindingActions, label, clear, isSet ? removeValue : undefined);
 
     const stateRows = () =>
         states.map((state) => {
@@ -380,9 +385,17 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     if (isStyleReference) {
         return (
             <InspectorStyleReference config={config} label={label} value={text} onChange={update}>
-                {({ target, variations }) => layout(target, variations)}
+                {({ target, variations }) =>
+                    layout(
+                        <>
+                            {target}
+                            {bindingActions}
+                        </>,
+                        variations,
+                    )
+                }
             </InspectorStyleReference>
         );
     }
-    return layout(control);
+    return layout(controlFor(text, update, bindingActions, label, clear, isSet ? removeValue : undefined));
 };

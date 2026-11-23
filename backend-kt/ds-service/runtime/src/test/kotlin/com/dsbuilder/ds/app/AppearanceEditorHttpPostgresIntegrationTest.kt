@@ -573,6 +573,32 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("#000", stateful.single().string("value"))
     }
 
+    @Test
+    fun `a name based write cannot update a legacy row with a foreign state`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val shadow = query(
+            "INSERT INTO states (component_id, name) VALUES ('${fixture.component}', 'disabled') RETURNING id",
+        )
+        val path = "/api/design-systems/${fixture.ds}/invariant-property-values"
+        val created = post(
+            path,
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(shadow)}"}""",
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        // Прежний клиент выбирал состояние по имени среди всех компонентов. Воспроизводим такую строку.
+        execute("UPDATE states SET component_id = '$child' WHERE id = '$shadow'")
+
+        val response = setValue(fixture.appearance, fill, emptyList(), value = "#000", states = listOf("disabled"))
+        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
+        assertEquals("state_not_in_component", code(response))
+        val stored = propertyValues(fixture.appearance).single { it.string("propertyId") == fill }
+        assertEquals("#fff", stored.string("value"))
+        assertEquals(HttpStatusCode.OK, delete("$path/${id(created.bodyAsText())}").status)
+    }
+
     private fun commonState(name: String) =
         query("SELECT id FROM states WHERE component_id IS NULL AND name = '$name'")
 
