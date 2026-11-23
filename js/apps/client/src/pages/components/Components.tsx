@@ -55,7 +55,12 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { autosaveErrorMessage, isRetryableAutosaveError, isUnknownIconError } from '../../api/autosaveHttp';
+import {
+    autosaveErrorMessage,
+    isRetryableAutosaveError,
+    isStateRejection,
+    isUnknownIconError,
+} from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
 import { runStructureOperation as runStructureOperationOnServer } from './features/ComponentStructure/runStructureOperation';
@@ -153,6 +158,7 @@ export const Components = () => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [unknownIconNotice, setUnknownIconNotice] = useState(false);
+    const [stateNotice, setStateNotice] = useState<string>();
     const [catalog, setCatalog] = useState<ComponentCatalogEntry[]>();
     const [templates, setTemplates] = useState<ComponentTemplateEntry[]>([]);
     const [catalogBusy, setCatalogBusy] = useState(false);
@@ -521,11 +527,13 @@ export const Components = () => {
                         },
                     )
                     .catch((error: unknown) => {
-                        if (!isUnknownIconError(error)) throw error;
-                        // Иконки нет в каталоге: возвращаем прежнее значение и сообщаем об этом.
+                        if (!isUnknownIconError(error) && !isStateRejection(error)) throw error;
+                        // Иконки нет в каталоге или признак свойства не допускает набор состояний: повтор не поможет,
+                        // поэтому правка отбрасывается, прежнее значение возвращается перечитыванием, причина видна.
                         queue.discard(operation.tokenKey, operation.operationKey);
                         removeStoredValue(requestKey);
-                        if (mounted) setUnknownIconNotice(true);
+                        if (mounted && isStateRejection(error)) setStateNotice(error.message);
+                        else if (mounted) setUnknownIconNotice(true);
                         reload();
                         return readRevisions();
                     });
@@ -830,6 +838,14 @@ export const Components = () => {
                                 <div role="alert">
                                     Иконка не найдена в каталоге, прежнее значение восстановлено.{' '}
                                     <button type="button" onClick={() => setUnknownIconNotice(false)}>
+                                        Закрыть
+                                    </button>
+                                </div>
+                            )}
+                            {stateNotice && (
+                                <div role="alert">
+                                    {stateNotice}, прежнее значение восстановлено.{' '}
+                                    <button type="button" onClick={() => setStateNotice(undefined)}>
                                         Закрыть
                                     </button>
                                 </div>

@@ -529,6 +529,28 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `variation values check the state set on create and edit`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        val path = "/api/design-systems/${fixture.ds}/variation-property-values"
+        fun body(stateSet: String) = """{"propertyId":"$fill","styleId":"$styleA",""" +
+            """"appearanceId":"${fixture.appearance}","value":"#fff","stateSetId":"$stateSet"}"""
+        declareSupport(fill, combinations = false, "hovered")
+
+        val created = post(path, body(stateSet(commonState("hovered"))))
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals("states_not_supported", code(post(path, body(stateSet(commonState("pressed"))))))
+
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val foreign = query("INSERT INTO states (component_id, name) VALUES ('$child', 'collapsed') RETURNING id")
+        assertEquals("state_not_in_component", code(post(path, body(stateSet(foreign)))))
+
+        declareSupport(fill, combinations = false)
+        assertEquals("states_not_supported", code(patch("$path/${id(created.bodyAsText())}", """{"value":"#000"}""")))
+    }
+
+    @Test
     fun `a value stored in a shadow of a common state is found and edited by the common name`() = withService {
         val fixture = fixture()
         val fill = property("fill", "color")

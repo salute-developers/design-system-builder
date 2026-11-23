@@ -4,6 +4,7 @@ import com.dsbuilder.ds.components.domain.ComponentPropertySummary
 import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import com.dsbuilder.ds.components.domain.StateNames
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -14,6 +15,7 @@ import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.batchInsert
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
@@ -82,14 +84,47 @@ internal object PropertyStateSupportStore {
         }
     }
 
+    /**
+     * Переводит списки признака с «теней» общих состояний [names] на сами общие состояния. Новое общее состояние
+     * делает «тенью» одноимённое собственное состояние компонента, на которое уже ссылаются признаки; без перевода
+     * такие идентификаторы не попадают в бандл (он «тени» не отдаёт), и редактор терял бы состояние до переимпорта.
+     */
+    fun moveSupportOffShadows(names: Collection<String>) {
+        val keys = names.mapTo(hashSetOf(), StateNames::canonical)
+        if (keys.isEmpty()) return
+        val states = scopedStates(null, all = true).filter { StateNames.canonical(it.scope.name) in keys }
+        // Первое по порядку создания, как в StateNames.resolve.
+        val common = states.filter { it.scope.componentId == null }
+            .groupBy { StateNames.canonical(it.scope.name) }.mapValues { (_, same) -> same.first().id }
+        val shadows = states.filter { it.scope.componentId != null }
+            .mapNotNull { state -> common[StateNames.canonical(state.scope.name)]?.let { state.id to it } }
+            .toMap()
+        shadows.keys.chunked(CHUNK_SIZE).forEach { part ->
+            val rows = PropertySupportedStatesTable.selectAll()
+                .where { PropertySupportedStatesTable.stateId inList part }
+                .map { row ->
+                    row[PropertySupportedStatesTable.propertyId] to
+                        shadows.getValue(row[PropertySupportedStatesTable.stateId])
+                }
+            PropertySupportedStatesTable.batchInsert(rows, ignore = true, shouldReturnGeneratedValues = false) {
+                this[PropertySupportedStatesTable.propertyId] = it.first
+                this[PropertySupportedStatesTable.stateId] = it.second
+            }
+            PropertySupportedStatesTable.deleteWhere { PropertySupportedStatesTable.stateId inList part }
+        }
+    }
+
     /** Состояния, которые видит компонент [componentId]: общие и собственные. */
-    fun scopedStates(componentId: UUID?): List<ScopedState> =
+    fun scopedStates(componentId: UUID?, all: Boolean = false): List<ScopedState> =
         ComponentStatesTable
             .select(ComponentStatesTable.id, ComponentStatesTable.componentId, ComponentStatesTable.name)
             .where {
-                componentId?.let {
-                    ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId eq it)
-                } ?: ComponentStatesTable.componentId.isNull()
+                when {
+                    all -> Op.TRUE
+                    componentId != null ->
+                        ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId eq componentId)
+                    else -> ComponentStatesTable.componentId.isNull()
+                }
             }
             .orderBy(ComponentStatesTable.createdAt to SortOrder.ASC, ComponentStatesTable.id to SortOrder.ASC)
             .map {

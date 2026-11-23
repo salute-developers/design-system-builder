@@ -291,10 +291,13 @@ class HttpApiMetaRemoteSourceTest {
             ),
             interactionStates = listOf("pressed"),
         )
-        import(manifest = manifest, onPost = { _, requestBody ->
-            body = requestBody
-            AuthenticatedHttpResult.Success(REPORT)
-        })
+        import(
+            manifest = manifest,
+            onPost = { _, requestBody ->
+                body = requestBody
+                AuthenticatedHttpResult.Success(REPORT)
+            },
+        )
 
         val request = Json.parseToJsonElement(body).jsonObject
         assertEquals(
@@ -311,10 +314,12 @@ class HttpApiMetaRemoteSourceTest {
         assertEquals("true", support.getValue("combinations").jsonPrimitive.content)
         assertTrue("stateSupport" !in legacy, legacy.toString())
 
-        import(onPost = { _, requestBody ->
-            body = requestBody
-            AuthenticatedHttpResult.Success(REPORT)
-        })
+        import(
+            onPost = { _, requestBody ->
+                body = requestBody
+                AuthenticatedHttpResult.Success(REPORT)
+            },
+        )
         assertTrue("interactionStates" !in Json.parseToJsonElement(body).jsonObject, body)
     }
 

@@ -26,7 +26,7 @@ import type {
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
-import { AutosaveRejection, isUnknownIconError } from './autosaveHttp';
+import { AutosaveRejection, isStateRejection, isUnknownIconError, stateRejection } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
@@ -804,7 +804,7 @@ export const componentRepository = {
                 )
             ).data.id;
         };
-        let rejectedIcon: unknown;
+        let deferredRejection: unknown;
         await applySequentially(
             changes.filter(
                 (item): item is Extract<ComponentChange, { kind: 'property' }> & { action: 'upsert' } =>
@@ -894,10 +894,11 @@ export const componentRepository = {
                     );
                     acceptMetadata(response.headers);
                 } catch (error) {
-                    // Иконки нет в каталоге: остальные правки того же окна автосохранения всё равно записываются, а
-                    // отказ поднимается после них, чтобы редактор вернул прежнее значение иконки.
-                    if (!isUnknownIconError(error)) throw error;
-                    rejectedIcon ??= error;
+                    // Иконки нет в каталоге или признак свойства не допускает набор состояний: остальные правки окна
+                    // всё равно записываются, а отказ поднимается после них, чтобы редактор вернул прежнее значение.
+                    const rejection = stateRejection(error);
+                    if (!isUnknownIconError(error) && !isStateRejection(rejection)) throw error;
+                    deferredRejection ??= rejection;
                 }
             },
         );
@@ -922,7 +923,7 @@ export const componentRepository = {
                 acceptMetadata(deleted.headers);
             },
         );
-        if (rejectedIcon) throw rejectedIcon;
+        if (deferredRejection) throw deferredRejection;
         return revisions;
     },
 };

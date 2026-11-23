@@ -2,6 +2,7 @@ package com.dsbuilder.ds.app
 
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -320,8 +321,17 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         ).report()
         assertEquals(1, count("states WHERE component_id IS NOT NULL AND name = 'checked'"))
         assertEquals(1, count("states WHERE component_id IS NULL AND name = 'checked'"))
+        // Новое общее состояние сразу забирает признак у «тени»: бандл «тени» не отдаёт, и список не должен на неё
+        // ссылаться до переимпорта Compose.
+        assertEquals(
+            0,
+            count(
+                "property_supported_states ps JOIN states s ON s.id = ps.state_id WHERE s.component_id IS NOT NULL " +
+                    "AND EXISTS (SELECT 1 FROM states c WHERE c.component_id IS NULL AND c.name = s.name)",
+            ),
+        )
 
-        assertEquals(1, importMeta(compose).report().ints("stateSupportChanged").single())
+        assertEquals(0, importMeta(compose).report().ints("stateSupportChanged").single())
         assertEquals(
             "true,true",
             query(
@@ -331,6 +341,49 @@ class ApiMetaImportHttpPostgresIntegrationTest {
             ),
         )
     }
+
+    @Test
+    fun `a common state created in the catalog takes the state support off its shadows`() = withService {
+        importMeta(
+            metaWithStates(
+                "",
+                """[{"name":"Card","states":["collapsed"],"properties":[
+                    {"name":"fill","type":"color","platformNames":["fill"],
+                     "stateSupport":{"states":["collapsed"],"combinations":false}}]}]""",
+            ),
+        ).report()
+        val created = service.builder.client.post("/api/design-systems/catalog/states") {
+            actor(administrator = true)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"collapsed"}""")
+        }
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertTrue(supportOnCommonOnly("fill"))
+
+        // Переименование общего состояния в имя «тени» тоже переводит список.
+        importMeta(
+            metaWithStates(
+                "",
+                """[{"name":"Card","states":["expanded"],"properties":[
+                    {"name":"stroke","type":"color","platformNames":["stroke"],
+                     "stateSupport":{"states":["expanded"],"combinations":false}}]}]""",
+            ),
+        ).report()
+        val hovered = query("SELECT id FROM states WHERE component_id IS NULL AND name = 'hovered'")
+        val renamed = service.builder.client.patch("/api/design-systems/catalog/states/$hovered") {
+            actor(administrator = true)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"expanded"}""")
+        }
+        assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
+        assertTrue(supportOnCommonOnly("stroke"))
+    }
+
+    private fun supportOnCommonOnly(property: String) = "true" == query(
+        "SELECT bool_and(s.component_id IS NULL)::text FROM property_supported_states ps " +
+            "JOIN states s ON s.id = ps.state_id JOIN properties p ON p.id = ps.property_id " +
+            "WHERE p.name = '$property'",
+    )
 
     @Test
     fun `a malformed state support is rejected`() = withService {

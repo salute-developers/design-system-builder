@@ -7,6 +7,7 @@ import com.dsbuilder.ds.components.domain.ApiMetaAlias
 import com.dsbuilder.ds.components.domain.ApiMetaImportReport
 import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import com.dsbuilder.ds.components.domain.StateNames
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -74,12 +75,15 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
     private fun ensureCommonStates(names: List<String>, counters: Counters) {
         val known = ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }
             .mapTo(hashSetOf()) { StateNames.canonical(it[ComponentStatesTable.name]) }
-        names.distinctBy(StateNames::canonical).filter { StateNames.canonical(it) !in known }.forEach { state ->
-            counters.createdStates += ComponentStatesTable.insertIgnore {
+        val missing = names.distinctBy(StateNames::canonical).filter { StateNames.canonical(it) !in known }
+        val created = missing.filter { state ->
+            ComponentStatesTable.insertIgnore {
                 it[ComponentStatesTable.componentId] = null
                 it[name] = state
-            }.insertedCount
+            }.insertedCount > 0
         }
+        counters.createdStates += created.size
+        PropertyStateSupportStore.moveSupportOffShadows(created)
     }
 
     /**
@@ -96,12 +100,13 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         val scopeIds = componentIds.values.toList()
         val states = ComponentStatesTable.selectAll().where {
             ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId inList scopeIds)
-        }.map {
+        }.orderBy(ComponentStatesTable.createdAt to SortOrder.ASC, ComponentStatesTable.id to SortOrder.ASC).map {
             PropertyStateSupportStore.ScopedState(
                 it[ComponentStatesTable.id],
                 StateNames.Scoped(it[ComponentStatesTable.componentId], it[ComponentStatesTable.name]),
             )
         }
+        val index = StateIndex(states)
         val after = existingProperties(scopeIds)
         val current = PropertyStateSupportStore.load(after.values.map(StoredProperty::id))
         val changed = LinkedHashMap<UUID, PropertyStateSupport>()
@@ -111,13 +116,11 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
                 val support = property.stateSupport ?: return@property
                 // Отклонённого свойства (неизвестный тип) в базе нет.
                 val stored = after[componentId to property.name] ?: return@property
-                val resolved = support.states.map { name ->
-                    name to StateNames.resolve(name, componentId, states, PropertyStateSupportStore.ScopedState::scope)
-                }
+                val resolved = support.states.map { name -> name to index.resolve(name, componentId) }
                 resolved.filter { it.second == null }.forEach { (name, _) ->
                     counters.unresolvedStates += "${component.name}.${property.name}: $name"
                 }
-                val stateIds = resolved.mapNotNull { it.second?.id }.distinct()
+                val stateIds = resolved.mapNotNull { it.second }.distinct()
                 val wanted = PropertyStateSupport(stateIds, support.combinations)
                 if (current[stored.id]?.sameAs(wanted) == true) return@property
                 changed[stored.id] = wanted
@@ -332,6 +335,23 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
             }
             MergedComponent(name, merged.values.toList(), states.getValue(name).distinct())
         }
+    }
+
+    /** Индекс состояний по каноническому имени: то же правило, что [StateNames.resolve], без прохода по списку. */
+    private class StateIndex(states: List<PropertyStateSupportStore.ScopedState>) {
+        private val common = HashMap<String, UUID>()
+        private val own = HashMap<Pair<UUID, String>, UUID>()
+
+        init {
+            states.forEach { state ->
+                val key = StateNames.canonical(state.scope.name)
+                val owner = state.scope.componentId
+                if (owner == null) common.putIfAbsent(key, state.id) else own.putIfAbsent(owner to key, state.id)
+            }
+        }
+
+        fun resolve(name: String, componentId: UUID): UUID? =
+            StateNames.canonical(name).let { key -> common[key] ?: own[componentId to key] }
     }
 
     private fun PropertyStateSupport.sameAs(other: PropertyStateSupport) =
