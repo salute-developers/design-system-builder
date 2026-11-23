@@ -129,6 +129,31 @@ class NpmReleaseTest(unittest.TestCase):
             self.publish(archive, 'cli')
         self.assertEqual([npm_release.PACKAGES['cli']], self.server.writes)
 
+    def test_success_waits_for_cached_metadata_to_refresh(self):
+        archive = self.archive('cli', '1.2.3')
+        metadata = npm_release.metadata
+        stale = {'versions': {}, 'dist-tags': {}}
+        reads = 0
+
+        def cached(registry, name):
+            nonlocal reads
+            reads += 1
+            return stale if reads < 4 else metadata(registry, name)
+
+        with patch.object(npm_release, 'metadata', side_effect=cached), patch.object(npm_release.time, 'sleep') as sleep:
+            self.publish(archive, 'cli')
+        self.assertEqual(4, reads)
+        self.assertEqual([1, 2], [call.args[0] for call in sleep.call_args_list])
+        self.assertEqual([npm_release.PACKAGES['cli']], self.server.writes)
+
+    def test_success_with_permanently_stale_metadata_fails_after_bounded_retries(self):
+        archive = self.archive('cli', '1.2.3')
+        with patch.object(npm_release, 'metadata', return_value={'versions': {}}), \
+                patch.object(npm_release.time, 'sleep') as sleep, self.assertRaisesRegex(RuntimeError, 'not confirmed'):
+            self.publish(archive, 'cli')
+        self.assertEqual(6, sleep.call_count)
+        self.assertEqual([npm_release.PACKAGES['cli']], self.server.writes)
+
     def test_partial_failure_can_resume_without_republishing_generator(self):
         generator = self.archive('generator', '0.2.0')
         cli = self.archive('cli', '1.2.3')

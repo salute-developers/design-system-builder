@@ -17,6 +17,7 @@ public fun createNodeClientRuntime(
 ): ClientRuntime {
     val httpClient = HttpClient(Js)
     return ClientRuntime(
+        supportsIosToolchain = nodeProcess.platform == "darwin",
         processRunner = NodeProcessRunner,
         fileSystem = NodeWorkspaceFileSystem,
         environmentReader = EnvironmentReader { name -> nodeProcess.env[name] as? String },

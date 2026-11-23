@@ -48,8 +48,7 @@ internal object NodeWorkspaceFileSystem : WorkspaceFileSystem {
 
     override fun readBytes(path: String): ByteArray {
         val buffer = nodeFs.readFileSync(path)
-        val size = buffer.length as Int
-        return ByteArray(size) { index -> (buffer[index] as Int).toByte() }
+        return nodeBytes(buffer)
     }
 
     override fun writeText(path: String, text: String) {
@@ -57,8 +56,7 @@ internal object NodeWorkspaceFileSystem : WorkspaceFileSystem {
     }
 
     override fun writeBytes(path: String, bytes: ByteArray) {
-        val buffer: dynamic = js("Buffer").alloc(bytes.size)
-        bytes.forEachIndexed { index, byte -> buffer[index] = byte.toInt() and 255 }
+        val buffer = nodeBuffer(bytes)
         nodeFs.writeFileSync(path, buffer)
     }
 
@@ -71,8 +69,7 @@ internal object NodeWorkspaceFileSystem : WorkspaceFileSystem {
                 var remaining = byteCount
                 while (remaining > 0) {
                     val bytes = source.readByteArray(minOf(remaining, 8192))
-                    val buffer: dynamic = js("Buffer").alloc(bytes.size)
-                    bytes.forEachIndexed { index, byte -> buffer[index] = byte.toInt() and 255 }
+                    val buffer = nodeBuffer(bytes)
                     var offset = 0
                     while (offset < bytes.size) {
                         val written = nodeFs.writeSync(fd, buffer, offset, bytes.size - offset) as Int

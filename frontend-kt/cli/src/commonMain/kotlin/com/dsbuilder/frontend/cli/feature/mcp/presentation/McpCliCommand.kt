@@ -59,33 +59,31 @@ internal class McpServeCliCommand(
 
     override suspend fun run() {
         currentContext.findObject<CliAnalyticsSession>()?.prepare()
-        run {
-            var operations: Set<String> = emptySet()
-            val core = DsBuilderMcpServerCore(
-                config = McpServerConfig(apiUrlOverride = null, workspace = workspace),
-                projectStatusReader = CheckProjectStatusMcpReader(checkProjectStatusUseCase),
-                docsReadUseCases = docsReadUseCases,
-                componentReadUseCases = componentReadUseCases,
-                modelReadUseCase = modelReadUseCase,
-                listProjectsUseCase = listProjectsUseCase,
-                listDesignSystemsUseCase = listDesignSystemsUseCase,
-                discoverVersionsUseCase = discoverVersionsUseCase,
-                editTokenUseCase = editTokenUseCase,
-                editThemeUseCase = editThemeUseCase,
-                readTokenEditDataUseCase = readTokenEditDataUseCase,
-                editComponentUseCase = editComponentUseCase,
-                toolObserver = { operation, outcome ->
-                    currentContext.findObject<CliAnalyticsSession>()?.record(
-                        "mcp",
-                        operations,
-                        operation,
-                        outcome,
-                    )
-                },
-            )
-            operations = core.tools().map { it.name }.toSet()
-            core.serveStandardIo()
-        }
+        var operations: Set<String> = emptySet()
+        val core = DsBuilderMcpServerCore(
+            config = McpServerConfig(apiUrlOverride = null, workspace = workspace),
+            projectStatusReader = CheckProjectStatusMcpReader(checkProjectStatusUseCase),
+            docsReadUseCases = docsReadUseCases,
+            componentReadUseCases = componentReadUseCases,
+            modelReadUseCase = modelReadUseCase,
+            listProjectsUseCase = listProjectsUseCase,
+            listDesignSystemsUseCase = listDesignSystemsUseCase,
+            discoverVersionsUseCase = discoverVersionsUseCase,
+            editTokenUseCase = editTokenUseCase,
+            editThemeUseCase = editThemeUseCase,
+            readTokenEditDataUseCase = readTokenEditDataUseCase,
+            editComponentUseCase = editComponentUseCase,
+            toolObserver = { operation, outcome ->
+                currentContext.findObject<CliAnalyticsSession>()?.record(
+                    "mcp",
+                    operations,
+                    operation,
+                    outcome,
+                )
+            },
+        )
+        operations = core.tools().map { it.name }.toSet()
+        core.serveStandardIo()
     }
 
     override fun help(context: Context): String = "Serve DS Builder MCP tools over stdio."

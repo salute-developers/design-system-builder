@@ -19,6 +19,7 @@ internal fun capturePosixProcess(request: JvmProcessRequest, directory: Path): I
             .redirectErrorStream(true)
             .redirectOutput(fifo.toFile())
         val process = builder.start()
+        JvmProcessProtocol.write(directory, "started", "")
         Files.newOutputStream(directory.resolve("output")).use { output ->
             drainPosixOutput(fd, process, output)
         }

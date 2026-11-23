@@ -6,9 +6,15 @@ import okio.BufferedSink
 /** Записывает общий формат ustar независимо от платформенного сжатия. */
 internal class DocsTarWriter(private val fileSystem: WorkspaceFileSystem) {
     fun write(sourceDir: String, sink: BufferedSink, excludedPath: String) {
+        prepare(sourceDir, excludedPath)(sink)
+    }
+
+    /** Проверяет исходники до открытия выходного архива. */
+    fun prepare(sourceDir: String, excludedPath: String): (BufferedSink) -> Unit {
         val root = fileSystem.absolutePath(sourceDir.trimEnd('/', '\\'))
         require(fileSystem.isDirectory(root)) { "Source dir is not a directory: $root" }
-        writeTar(sink, root, collectEntries(root, fileSystem.absolutePath(excludedPath)))
+        val entries = collectEntries(root, fileSystem.absolutePath(excludedPath))
+        return { sink -> writeTar(sink, root, entries) }
     }
 
     private fun collectEntries(root: String, excludedPath: String): List<TarEntry> {
@@ -47,7 +53,7 @@ internal class DocsTarWriter(private val fileSystem: WorkspaceFileSystem) {
 
     private fun writeHeader(sink: okio.BufferedSink, name: String, size: Long, isDir: Boolean) {
         require(name.isNotEmpty()) { "Tar entry name must not be empty" }
-        require(size < (1L shl 37)) { "File too large for ustar size field: $size bytes" }
+        require(size < (1L shl 33)) { "File too large for ustar size field: $size bytes" }
         val nameBytes = name.encodeToByteArray()
         val (prefixBytes, tailBytes) = if (nameBytes.size <= 100) {
             ByteArray(0) to nameBytes
@@ -89,7 +95,8 @@ internal class DocsTarWriter(private val fileSystem: WorkspaceFileSystem) {
     }
 
     private fun writeOctal(buf: ByteArray, offset: Int, length: Int, value: String) {
-        val bytes = value.padStart(length - 1, '0').take(length - 1).encodeToByteArray()
+        require(value.length < length) { "Value does not fit the ustar field" }
+        val bytes = value.padStart(length - 1, '0').encodeToByteArray()
         bytes.copyInto(buf, offset, 0, bytes.size)
         buf[offset + length - 1] = 0
     }

@@ -76,13 +76,25 @@ internal class WindowsProcessOwner private constructor(private val directory: St
         private val SUPERVISOR = """
             const fs = require('fs'), cp = require('child_process'), path = require('path');
             const directory = process.argv[1], deadline = Date.now() + 10000;
+            const requestPath = path.join(directory, 'request.json');
+            let request;
+            try { request = JSON.parse(fs.readFileSync(requestPath, 'utf8')); }
+            catch (_) {
+                fs.writeFileSync(path.join(directory, 'error'), 'cannot read launch request', {mode:384});
+                process.exitCode = 126;
+            } finally { fs.rmSync(requestPath, {force:true}); }
+            if (!request) process.exit(126);
             const timer = setInterval(() => {
                 if (!fs.existsSync(path.join(directory, 'go'))) {
-                    if (Date.now() > deadline) { clearInterval(timer); process.exitCode = 126; }
+                    if (Date.now() > deadline) {
+                        clearInterval(timer);
+                        fs.writeFileSync(path.join(directory, 'error'), 'handshake timeout', {mode:384});
+                        fs.rmSync(path.join(directory, 'request.json'), {force:true});
+                        process.exitCode = 126;
+                    }
                     return;
                 }
                 clearInterval(timer);
-                const request = JSON.parse(fs.readFileSync(path.join(directory, 'request.json'), 'utf8'));
                 let failed = false;
                 const failure = error => {
                     failed = true;

@@ -25,7 +25,11 @@ internal object NodeProcessRunner : ProcessRunner {
     private fun start(request: ProcessRequest, windows: Boolean): NodeStartedProcess {
         val options: dynamic = js("({})")
         options.cwd = request.workingDirectory
-        options.stdio = if (request.inheritStdio) "inherit" else arrayOf("ignore", "pipe", "pipe")
+        options.stdio = if (request.inheritStdio) {
+            arrayOf("ignore", "inherit", "inherit")
+        } else {
+            arrayOf("ignore", "pipe", "pipe")
+        }
         options.detached = !windows
         options.env = nodeProcessEnvironment(nodeProcess.env, request.environment, windows)
         val batch = windows && (request.executable.endsWith(".cmd", true) || request.executable.endsWith(".bat", true))
@@ -67,11 +71,7 @@ internal object NodeProcessRunner : ProcessRunner {
         val child = started.child
         val completed = CompletableDeferred<ProcessResult>()
         val closed = CompletableDeferred<Unit>()
-        val chunks: dynamic = js("[]")
-        val data: (dynamic) -> Unit = { chunk ->
-            chunks.push(chunk)
-            Unit
-        }
+        val output = NodeProcessOutput()
         val failure: (dynamic) -> Unit = { error ->
             completed.completeExceptionally(
                 ProcessLaunchException("Cannot start process $executable: ${error.message}"),
@@ -81,10 +81,10 @@ internal object NodeProcessRunner : ProcessRunner {
         val close: (dynamic, dynamic) -> Unit = { code, signal ->
             val signals: dynamic = js("require('os').constants.signals")
             val exitCode = if (code != null) code as Int else 128 + ((signals[signal] as? Int) ?: 0)
-            val output = if (inheritStdio) "" else js("Buffer").concat(chunks).toString("utf8") as String
+            val captured = if (inheritStdio) "" else output.text()
             val launchFailure = started.owner?.failure()
             if (launchFailure == null) {
-                completed.complete(ProcessResult(exitCode, output))
+                completed.complete(ProcessResult(exitCode, captured))
             } else {
                 completed.completeExceptionally(
                     ProcessLaunchException("Cannot start process $executable: $launchFailure"),
@@ -96,8 +96,8 @@ internal object NodeProcessRunner : ProcessRunner {
         child.on("error", failure)
         child.on("close", close)
         if (!inheritStdio) {
-            child.stdout.on("data", data)
-            child.stderr.on("data", data)
+            child.stdout.on("data", output.stdout)
+            child.stderr.on("data", output.stderr)
         }
         try {
             return completed.await()
@@ -109,8 +109,8 @@ internal object NodeProcessRunner : ProcessRunner {
                     child.removeListener("error", failure)
                     child.removeListener("close", close)
                     if (!inheritStdio) {
-                        child.stdout.removeListener("data", data)
-                        child.stderr.removeListener("data", data)
+                        child.stdout.removeListener("data", output.stdout)
+                        child.stderr.removeListener("data", output.stderr)
                         child.stdout.destroy()
                         child.stderr.destroy()
                     }
@@ -145,4 +145,20 @@ internal object NodeProcessRunner : ProcessRunner {
             if (error.asDynamic().code != "ESRCH") child.kill(signal)
         }
     }
+}
+
+/** Each stream may split UTF-8 characters at different byte boundaries. */
+private class NodeProcessOutput {
+    private val chunks: dynamic = js("[]")
+    private val outDecoder: dynamic = js("new (require('string_decoder').StringDecoder)('utf8')")
+    private val errDecoder: dynamic = js("new (require('string_decoder').StringDecoder)('utf8')")
+    val stdout: (dynamic) -> Unit = { chunk ->
+        chunks.push(outDecoder.write(chunk))
+        Unit
+    }
+    val stderr: (dynamic) -> Unit = { chunk ->
+        chunks.push(errDecoder.write(chunk))
+        Unit
+    }
+    fun text(): String = (chunks.join("") as String) + (outDecoder.end() as String) + (errDecoder.end() as String)
 }

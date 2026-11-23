@@ -291,13 +291,29 @@ class PlatformCommandsCliTest {
         assertTrue(result.output.contains("Status: missing"), result.output)
     }
 
+    @Test
+    fun hostsWithoutIosRegisterOnlyAndroidAndWeb() = runTest {
+        val client = cli(supportsIos = false)
+        assertNull(client.platformDelegateRegistry().forPlatform(TargetPlatform.SWIFT_UI))
+        assertEquals(
+            setOf(ToolchainId("android"), ToolchainId("web")),
+            client.platformDelegateRegistry().all.map { it.toolchain }.toSet(),
+        )
+        assertEquals(listOf(ToolchainId("web")), client.toolchainInstallerRegistry().all.map { it.toolchain })
+        val result = client.execute(listOf("toolchain", "list"))
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(!result.output.contains("Toolchain: ios"), result.output)
+    }
+
     private fun cli(
         fileSystem: WorkspaceFileSystem = RecordingFileSystem(),
         processRunner: ProcessRunner = ProcessRunner { ProcessResult(exitCode = 0, output = "") },
         environment: Map<String, String> = emptyMap(),
+        supportsIos: Boolean = true,
     ) = DsBuilderCli(
         ClientRuntime(
             fileSystem = fileSystem,
+            supportsIosToolchain = supportsIos,
             environmentReader = EnvironmentReader { name ->
                 if (name == "DSBUILDER_ANALYTICS_DISABLED") "1" else environment[name]
             },

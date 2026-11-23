@@ -47,20 +47,28 @@ class JvmWindowsProcessRunnerTest {
                 )
             }
             var pid: Long? = null
+            var phase = "waiting for descendant heartbeat"
             try {
                 withTimeout(15000) {
                     while (!child.exists() || child.readText().isBlank() || !heartbeat.exists()) delay(10)
                     pid = child.readText().trim().toLong()
                     val parentPid = parent.readText().trim().toLong()
+                    phase = "waiting for parent $parentPid to exit (descendant $pid)"
                     while (ProcessHandle.of(parentPid).map { it.isAlive }.orElse(false)) delay(10)
                 }
                 assertTrue(operation.isActive)
+                phase = "cancelling the owned descendant $pid"
                 withTimeout(7000) { operation.cancelAndJoin() }
                 delay(100)
                 val stopped = heartbeat.readText()
                 delay(100)
                 assertEquals(stopped, heartbeat.readText())
                 assertTrue(!ProcessHandle.of(requireNotNull(pid)).map { it.isAlive }.orElse(false))
+            } catch (error: kotlinx.coroutines.TimeoutCancellationException) {
+                throw AssertionError(
+                    "Windows ownership test timed out: $phase; operation active=${operation.isActive}",
+                    error,
+                )
             } finally {
                 operation.cancelAndJoin()
                 pid?.let { ProcessHandle.of(it).ifPresent { process -> process.destroyForcibly() } }

@@ -10,18 +10,26 @@ public fun main() {
     val process: dynamic = js("process")
     val args = (process.argv as Array<String>).drop(2)
     val scope = MainScope()
-    val cancel: () -> Unit = { scope.cancel("Interrupted") }
-    process.on("SIGINT", cancel)
+    var interrupted: Int? = null
+    val handlers = mapOf("SIGINT" to 130, "SIGTERM" to 143, "SIGHUP" to 129).mapValues { (_, code) ->
+        val handler: () -> Unit = {
+            if (interrupted != null) process.exit(code)
+            interrupted = code
+            scope.cancel("Interrupted")
+        }
+        handler
+    }
+    handlers.forEach { (signal, handler) -> process.on(signal, handler) }
     scope.launch {
         try {
             process.exitCode = DsBuilderCli().executeInteractive(args)
         } catch (_: CancellationException) {
-            process.exitCode = 130
+            process.exitCode = interrupted ?: 130
         } catch (error: Throwable) {
             process.stderr.write("${error.message ?: "CLI failed"}\n")
             process.exitCode = 1
         } finally {
-            process.removeListener("SIGINT", cancel)
+            handlers.forEach { (signal, handler) -> process.removeListener(signal, handler) }
             scope.cancel()
         }
     }

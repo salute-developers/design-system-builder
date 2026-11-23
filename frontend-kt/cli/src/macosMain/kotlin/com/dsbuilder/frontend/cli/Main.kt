@@ -5,6 +5,7 @@ package com.dsbuilder.frontend.cli
 import com.dsbuilder.frontend.cli.macosprocess.dsb_begin_interrupt
 import com.dsbuilder.frontend.cli.macosprocess.dsb_end_interrupt
 import com.dsbuilder.frontend.cli.macosprocess.dsb_take_interrupt
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
@@ -20,7 +21,7 @@ public fun main(args: Array<String>) {
         runBlocking {
             check(dsb_begin_interrupt() == 0) { "Cannot install CLI interrupt handler" }
             val command = async { DsBuilderCli().executeInteractive(args.toList()) }
-            val interrupts = launch {
+            val interrupts = launch(Dispatchers.Default) {
                 while (isActive) {
                     if (dsb_take_interrupt() != 0) {
                         command.cancel()

@@ -25,6 +25,7 @@ internal object JvmProcessRunner : ProcessRunner {
         var owner: JvmProcessOwner? = null
         var process: Process? = null
         var completed = false
+        var launched = false
         var failure: Throwable? = null
         try {
             val environment = jvmProcessEnvironment(
@@ -42,6 +43,7 @@ internal object JvmProcessRunner : ProcessRunner {
             owner.attach(process.pid())
             coroutineContext.ensureActive()
             JvmProcessProtocol.write(directory, "go", "")
+            launched = true
             awaitMarker(directory, "exit", process, startup = false)
             val exit = Files.readString(directory.resolve("exit")).toInt()
             val output = if (request.inheritStdio) {
@@ -59,7 +61,11 @@ internal object JvmProcessRunner : ProcessRunner {
             failure = cancelled
             throw cancelled
         } catch (error: Exception) {
-            val wrapped = ProcessLaunchException("Cannot run process ${request.executable}: ${error.message}", error)
+            val wrapped = if (!launched || !Files.exists(directory.resolve("started"))) {
+                ProcessLaunchException("Cannot start process ${request.executable}: ${error.message}", error)
+            } else {
+                IllegalStateException("Cannot monitor process ${request.executable}: ${error.message}", error)
+            }
             failure = wrapped
             throw wrapped
         } finally {

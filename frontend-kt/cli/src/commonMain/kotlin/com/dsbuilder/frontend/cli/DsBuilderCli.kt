@@ -149,7 +149,7 @@ public class DsBuilderCli(
                 toolchainCliPresentationModule(),
                 cliModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin
 
         return koin.get()
@@ -167,7 +167,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 platformDelegatesModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin.get()
 
     /**
@@ -179,7 +179,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 platformDelegatesModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin.get()
 }
 

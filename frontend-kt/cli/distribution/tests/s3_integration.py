@@ -9,7 +9,7 @@ import time
 import urllib.error
 import urllib.request
 
-from test_release import DIST, make_archive, release
+from test_release import DIST, make_archive, make_node_archive, release
 
 
 def main():
@@ -44,6 +44,7 @@ def main():
         directory = Path(temporary)
         for target in release.TARGETS:
             make_archive(directory, target)
+        make_node_archive(directory)
         release.prepare(directory, '1.2.3', DIST / 'bootstrap')
         original_put = store.put
         writes = []

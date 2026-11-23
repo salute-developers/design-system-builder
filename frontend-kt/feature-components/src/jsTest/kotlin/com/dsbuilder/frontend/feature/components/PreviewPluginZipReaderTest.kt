@@ -44,6 +44,16 @@ class PreviewPluginZipReaderTest {
         assertIs<PreviewPluginZipRead.Failed>(PreviewPluginZipReader().read(path))
     }
 
+    @Test
+    fun distinguishesMissingFilesFromCorruptArchives() = withDirectory { directory ->
+        val path = "$directory/missing.zip"
+        val missing = assertIs<PreviewPluginZipRead.Failed>(PreviewPluginZipReader().read(path))
+        assertTrue(missing.message.contains("cannot read $path"), missing.message)
+        fs.writeFileSync(path, "broken")
+        val corrupt = assertIs<PreviewPluginZipRead.Failed>(PreviewPluginZipReader().read(path))
+        assertTrue(corrupt.message.contains("not a readable zip archive"), corrupt.message)
+    }
+
     private fun toBytes(bytes: dynamic) = ByteArray(bytes.length as Int) { (bytes[it] as Int).toByte() }
 
     private fun withDirectory(action: (String) -> Unit) {

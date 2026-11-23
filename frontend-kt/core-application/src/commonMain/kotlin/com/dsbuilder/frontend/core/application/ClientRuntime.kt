@@ -45,6 +45,8 @@ public data class ClientRuntime(
     public val pkcePlatform: PkcePlatform =
         UnavailablePkcePlatform,
     public val analyticsConsent: com.dsbuilder.frontend.core.analytics.AnalyticsConsent? = null,
+    /** Доступность iOS toolchain на хосте; фейковый runtime может проверять обе конфигурации. */
+    public val supportsIosToolchain: Boolean = true,
 )
 
 private object UnavailableProcessRunner : ProcessRunner {

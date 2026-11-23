@@ -78,6 +78,27 @@ class GzipDocsFileSystemTest {
     }
 
     @Test
+    fun invalidSourcesPreserveTheExistingArchive() = withTempDirectory { root ->
+        val source = root / "docs"
+        FileSystem.SYSTEM.createDirectories(source)
+        write(source / "data.txt", "original")
+        val output = root / "bundle.tar.gz"
+        val workspace = TestWorkspaceFileSystem(root.toString())
+        GzipDocsFileSystem(workspace).createTarGzArchive(source.toString(), output.toString())
+        val original = FileSystem.SYSTEM.read(output) { readByteArray() }
+        assertFailsWith<IllegalArgumentException> {
+            GzipDocsFileSystem(workspace).createTarGzArchive((root / "missing").toString(), output.toString())
+        }
+        val unreadable = object : com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem by workspace {
+            override fun readBytes(path: String): ByteArray = error("unreadable source")
+        }
+        assertFailsWith<IllegalStateException> {
+            GzipDocsFileSystem(unreadable).createTarGzArchive(source.toString(), output.toString())
+        }
+        kotlin.test.assertContentEquals(original, FileSystem.SYSTEM.read(output) { readByteArray() })
+    }
+
+    @Test
     fun createTarGzArchiveHandlesLongUstarPathViaPrefix() {
         withTempDirectory { tempRoot ->
             val deepDir = tempRoot / "docs" / "assets" / "screenshots"

@@ -14,12 +14,12 @@ internal object JvmProcessSupervisor {
         val directory = Path.of(args.single())
         try {
             if (!Platform.isWindows()) check(ProcessPosixApi.libc.setsid() > 0) { "Cannot create process session" }
+            val request = JvmProcessProtocol.readRequest(directory)
             JvmProcessProtocol.write(directory, "ready", "")
             awaitMarker(directory.resolve("go"))
-            val request = JvmProcessProtocol.readRequest(directory)
             val code = when {
                 Platform.isWindows() -> runWindowsProcess(request, directory)
-                request.inheritStdio -> inherited(request)
+                request.inheritStdio -> inherited(request, directory)
                 else -> capturePosixProcess(request, directory)
             }
             JvmProcessProtocol.write(directory, "exit", code.toString())
@@ -31,7 +31,12 @@ internal object JvmProcessSupervisor {
         }
     }
 
-    private fun inherited(request: JvmProcessRequest): Int = builder(request).inheritIO().start().waitFor()
+    private fun inherited(request: JvmProcessRequest, directory: Path): Int {
+        val process = builder(request).inheritIO()
+            .redirectInput(ProcessBuilder.Redirect.from(java.io.File("/dev/null"))).start()
+        JvmProcessProtocol.write(directory, "started", "")
+        return process.waitFor()
+    }
 
     internal fun builder(request: JvmProcessRequest): ProcessBuilder =
         ProcessBuilder(listOf(request.executable) + request.args).also {

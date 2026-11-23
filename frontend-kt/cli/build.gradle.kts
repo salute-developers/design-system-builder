@@ -435,7 +435,7 @@ val npmPackCliNodeSmoke by tasks.registering(Exec::class) {
     commandLine("node", nodePackageTool.asFile, "smoke", nodeArchive.get().asFile)
 }
 
-tasks.named("check") { dependsOn(npmPackCliNodeSmoke) }
+rootProject.tasks.named("verifyFull") { dependsOn(npmPackCliNodeSmoke) }
 
 val npmPublicationSmoke by tasks.registering(Exec::class) {
     group = "verification"

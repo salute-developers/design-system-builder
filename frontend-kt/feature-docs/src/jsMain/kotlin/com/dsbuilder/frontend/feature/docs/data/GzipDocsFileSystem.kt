@@ -14,9 +14,11 @@ internal actual class GzipDocsFileSystem actual constructor(
         val tar = okio.Buffer()
         DocsTarWriter(fileSystem).write(sourceDir, tar, tarGzPath)
         val bytes = tar.readByteArray()
-        val buffer: dynamic = js("Buffer").alloc(bytes.size)
-        bytes.forEachIndexed { index, byte -> buffer[index] = byte.toInt() and 255 }
+        val buffer: dynamic = js("Buffer.from(bytes.buffer, bytes.byteOffset, bytes.length)")
         val compressed: dynamic = js("require('zlib')").gzipSync(buffer)
-        fileSystem.writeBytes(tarGzPath, ByteArray(compressed.length as Int) { (compressed[it] as Int).toByte() })
+        fileSystem.writeBytes(
+            tarGzPath,
+            js("new Int8Array(compressed.buffer, compressed.byteOffset, compressed.length)").unsafeCast<ByteArray>(),
+        )
     }
 }

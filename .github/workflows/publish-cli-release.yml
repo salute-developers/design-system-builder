@@ -219,17 +219,17 @@ jobs:
     runs-on: ubuntu-22.04
     permissions:
       contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - name: Use release tools from the selected tag
+        run: cp -R frontend-kt/cli/distribution release-tools
       - uses: actions/download-artifact@v4
         with:
           name: cli-distributions
           path: distributions
-      - uses: actions/download-artifact@v4
-        with:
-          name: cli-release-tools
-          path: release-tools
       - uses: actions/download-artifact@v4
         with:
           name: cli-npm-generator
@@ -244,6 +244,8 @@ jobs:
           python3 release-tools/npm_release.py preflight --kind generator --archive npm-artifacts/dsbuilder-web-generator.tgz --tag "$CLI_RELEASE_TAG"
           python3 release-tools/npm_release.py preflight --kind cli --archive distributions/dsbuilder-cli-node.tgz --tag "$CLI_RELEASE_TAG"
       - name: Prepare and verify GitHub draft or existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
           python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
@@ -263,10 +265,18 @@ jobs:
           export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/anonymous.npmrc"
           unset NODE_AUTH_TOKEN NPM_TOKEN
           generator_version=$(python3 release-tools/npm_release.py version --kind generator --archive npm-artifacts/dsbuilder-web-generator.tgz --tag "$CLI_RELEASE_TAG")
-          npm install --global --prefix "$prefix" --ignore-scripts --no-audit --no-fund "@sddsjs/design-system-builder-generator@$generator_version" "@sddsjs/design-system-builder-cli@${CLI_RELEASE_TAG#cli-v}"
+          for attempt in 1 2 3 4 5 6; do
+            if npm install --global --prefix "$prefix" --ignore-scripts --no-audit --no-fund "@sddsjs/design-system-builder-generator@$generator_version" "@sddsjs/design-system-builder-cli@${CLI_RELEASE_TAG#cli-v}"; then
+              break
+            fi
+            if [ "$attempt" = 6 ]; then exit 1; fi
+            sleep "$((2 ** attempt))"
+          done
           "$prefix/bin/dsbuilder" --version
           "$prefix/bin/dsbuilder" --help
           "$prefix/bin/dsbuilder-web-generator" --version
           node release-tools/node-package.cjs generator-smoke "$prefix/bin/dsbuilder-web-generator"
       - name: Publish the verified release and advance Latest when newer
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

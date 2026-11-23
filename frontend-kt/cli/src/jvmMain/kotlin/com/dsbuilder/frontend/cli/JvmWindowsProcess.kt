@@ -13,6 +13,7 @@ internal fun runWindowsProcess(request: JvmProcessRequest, directory: Path): Int
     JvmWindowsIo.open(request.inheritStdio).use { io ->
         val process = startWindowsProcess(request, io.startup())
         try {
+            JvmProcessProtocol.write(directory, "started", "")
             io.childStarted()
             val pipe = io.pipe
             return if (pipe != null) {

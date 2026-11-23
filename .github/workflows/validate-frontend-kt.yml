@@ -130,3 +130,10 @@ jobs:
         shell: bash
         working-directory: frontend-kt
         run: ./gradlew :runtime-node:jsNodeTest :cli:jsNodeTest :cli:npmPackCliNodeSmoke :cli:npmPublicationSmoke
+      - name: Upload process test reports
+        if: always() && runner.os == 'Windows'
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-process-reports-node-${{ matrix.node }}
+          path: frontend-kt/cli/build/test-results/
+          if-no-files-found: ignore

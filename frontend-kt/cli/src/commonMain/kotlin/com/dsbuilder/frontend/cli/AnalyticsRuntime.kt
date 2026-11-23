@@ -35,7 +35,7 @@ internal class CliAnalyticsSession(
     )
     private val closed = MutableStateFlow(false)
     suspend fun prepare(prompt: ((String) -> Boolean?)? = null) {
-        recordSafely { run { consent?.prepare(prompt) } }
+        recordSafely { consent?.prepare(prompt) }
     }
     suspend fun record(
         channel: String,
@@ -44,7 +44,7 @@ internal class CliAnalyticsSession(
         outcome: String,
     ) {
         if (closed.value) return
-        if (requireConsent && run { consent?.allowed() != true }) return
+        if (requireConsent && consent?.allowed() != true) return
         val holder = clients.getValue(channel)
         val analytics = holder.value ?: factory(channel, operations).let { candidate ->
             if (holder.compareAndSet(null, candidate)) {
@@ -65,7 +65,7 @@ internal class CliAnalyticsSession(
         if (!closed.compareAndSet(false, true)) return
         for (analytics in clients.values.mapNotNull { it.value }) {
             recordSafely {
-                run { analytics.flush(1500) }
+                analytics.flush(1500)
             }
             recordSafely { analytics.close() }
         }

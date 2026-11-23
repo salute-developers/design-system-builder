@@ -59,6 +59,10 @@ internal object JvmProcessProtocol {
     fun writeRequest(directory: Path, request: JvmProcessRequest) =
         write(directory, "request", Json.encodeToString(JvmProcessRequest.serializer(), request))
 
-    fun readRequest(directory: Path): JvmProcessRequest =
-        Json.decodeFromString(JvmProcessRequest.serializer(), Files.readString(directory.resolve("request")))
+    fun readRequest(directory: Path): JvmProcessRequest {
+        val path = directory.resolve("request")
+        return try {
+            Json.decodeFromString(JvmProcessRequest.serializer(), Files.readString(path))
+        } finally { Files.deleteIfExists(path) }
+    }
 }

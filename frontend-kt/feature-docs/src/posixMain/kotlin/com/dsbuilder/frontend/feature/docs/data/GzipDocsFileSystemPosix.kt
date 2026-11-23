@@ -15,8 +15,9 @@ internal actual class GzipDocsFileSystem actual constructor(
     }
 
     actual override fun createTarGzArchive(sourceDir: String, tarGzPath: String) {
+        val writeTar = DocsTarWriter(fileSystem).prepare(sourceDir, tarGzPath)
         fileSystem.sink(fileSystem.absolutePath(tarGzPath)).gzip().buffer().use { sink ->
-            DocsTarWriter(fileSystem).write(sourceDir, sink, tarGzPath)
+            writeTar(sink)
         }
     }
 }

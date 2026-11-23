@@ -10,6 +10,8 @@ import re
 import subprocess
 import tarfile
 import tempfile
+import time
+import sys
 from urllib.error import HTTPError
 from urllib.parse import quote, urlsplit
 from urllib.request import urlopen
@@ -109,14 +111,30 @@ def publish(archive, kind, tag, registry):
             result = subprocess.run(npm_command([
                 'publish', str(Path(archive).resolve()), '--access', 'public', '--ignore-scripts',
                 '--tag', 'latest', '--registry', registry, '--userconfig', str(config),
-            ]), capture_output=True, timeout=180, check=False)
+            ]), capture_output=True, text=True, timeout=180, check=False)
             exit_code = result.returncode
+            if exit_code:
+                diagnostic = (result.stderr or result.stdout or '').strip()
+                diagnostic = diagnostic.replace(os.environ['NODE_AUTH_TOKEN'], '[redacted]')
+                print(diagnostic[-4000:], file=sys.stderr)
         except subprocess.TimeoutExpired:
             # npm can time out after the registry has already accepted the archive.
             exit_code = 'timeout'
     # A lost response can follow a successful write. Verify the exact immutable archive.
-    state = publication_state(archive, kind, tag, registry)
-    if not state[3]:
+    confirmed = False
+    delays = (0, 1, 2, 4, 8, 15, 30) if exit_code in (0, 'timeout') else (0,)
+    for delay in delays:
+        if delay:
+            time.sleep(delay)
+        try:
+            confirmed = publication_state(archive, kind, tag, registry)[3]
+        except (OSError, RuntimeError):
+            if delay == delays[-1]:
+                raise
+            continue
+        if confirmed:
+            break
+    if not confirmed:
         raise RuntimeError(f'npm publication was not confirmed: {name}@{version} (exit {exit_code})')
     print(f'Verified npm publication: {name}@{version} ({integrity})')
 

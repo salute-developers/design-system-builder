@@ -51,6 +51,31 @@ class NodeRuntimeTest {
     }
 
     @Test
+    fun decodesSplitUtf8IndependentlyForEachStream() = runTest {
+        val result = NodeProcessRunner.run(
+            request(
+                "const b=Buffer.from('Я');process.stdout.write(b.subarray(0,1));" +
+                    "setTimeout(()=>{process.stderr.write('stderr');" +
+                    "setTimeout(()=>process.stdout.write(b.subarray(1)),30)},30)",
+            ),
+        )
+        assertEquals(0, result.exitCode)
+        assertTrue(result.output.contains("Я"), result.output)
+        assertTrue(result.output.contains("stderr"), result.output)
+        assertTrue(!result.output.contains('�'), result.output)
+    }
+
+    @Test
+    fun binaryViewsRespectBufferOffsets() {
+        val buffer: dynamic = js("Buffer.from([99,0,128,255,77]).subarray(1,4)")
+        val bytes = nodeBytes(buffer)
+        assertContentEquals(byteArrayOf(0, -128, -1), bytes)
+        val view = nodeBuffer(bytes)
+        assertEquals(3, view.length as Int)
+        assertEquals(255, view[2] as Int)
+    }
+
+    @Test
     fun missingExecutableIsALaunchFailure() = runTest {
         assertFailsWith<ProcessLaunchException> {
             NodeProcessRunner.run(
