@@ -31,7 +31,7 @@ internal class ComponentsGenerateCliCommand(
     private val passthrough: List<String> by argument("[-- <tool args>]")
         .multiple()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val result = generateComponentsUseCase.execute(
             GenerateComponentsCommand(
                 platform = platform,

@@ -17,7 +17,7 @@ public class InstallToolchainUseCase internal constructor(
     /**
      * Ставит запрошенный toolchain и делает его текущим.
      */
-    public fun execute(command: InstallToolchainCommand): InstallToolchainResult {
+    public suspend fun execute(command: InstallToolchainCommand): InstallToolchainResult {
         val toolchain = try {
             ToolchainId(command.toolchain)
         } catch (error: IllegalArgumentException) {

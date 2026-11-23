@@ -38,7 +38,7 @@ public class DoctorToolchainsUseCase internal constructor(
     /**
      * Проверяет один toolchain (если задана платформа) либо все зарегистрированные.
      */
-    public fun execute(command: DoctorToolchainsCommand): DoctorToolchainsResult {
+    public suspend fun execute(command: DoctorToolchainsCommand): DoctorToolchainsResult {
         val delegates = when (val platform = command.platform) {
             null -> registry.all
             else -> listOf(

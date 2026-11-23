@@ -2,7 +2,8 @@ package com.dsbuilder.frontend.core.auth
 
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
-import kotlin.random.Random
+import kotlin.uuid.ExperimentalUuidApi
+import kotlin.uuid.Uuid
 
 /** Filesystem/process operations for a recoverable, cross-launcher session lock. */
 public interface CredentialLockPlatform {
@@ -56,9 +57,11 @@ public class ProcessCredentialStoreLock(
     }
 
     // Like a resource's use/finally, cleanup must preserve any block failure, including cancellation.
+    @OptIn(ExperimentalUuidApi::class)
     @Suppress("TooGenericExceptionCaught")
     override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {
-        val nonce = Random.nextLong().toULong().toString(16) + Random.nextLong().toULong().toString(16)
+        // Native Random.Default uses separate atomic load/store operations and can repeat under contention.
+        val nonce = Uuid.random().toHexString()
         val owner = "owner-${platform.processId}-$nonce"
         val held = "$lockPath/held"
         val candidate = "$lockPath/pending-$nonce"

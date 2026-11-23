@@ -4,12 +4,13 @@ import com.dsbuilder.frontend.core.analytics.Analytics
 import com.dsbuilder.frontend.core.analytics.AnalyticsEvent
 import com.dsbuilder.frontend.core.analytics.AnalyticsFlushResult
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
 
 class ConfiguredAnalyticsTest {
-    @Test fun ciDisablesBothChannelsEvenForAnEnabledBuild() {
+    @Test fun ciDisablesBothChannelsEvenForAnEnabledBuild() = runTest {
         for (ci in listOf("true", "TRUE", "1")) {
             val factory = defaultAnalyticsSession(
                 EnvironmentReader { name -> if (name == "CI") ci else null },
@@ -21,13 +22,13 @@ class ConfiguredAnalyticsTest {
         }
     }
 
-    @Test fun clientEventContainsOnlyOperationAndOutcome() {
+    @Test fun clientEventContainsOnlyOperationAndOutcome() = runTest {
         val event = operationEvent("cli", "status", "failure")
         assertEquals(setOf("operation", "outcome"), event.properties.keys)
         assertEquals("cli_operation_finished", event.name)
     }
 
-    @Test fun channelsChooseTheirOwnTokenAndOneCounter() {
+    @Test fun channelsChooseTheirOwnTokenAndOneCounter() = runTest {
         val tokens = mutableMapOf<String, String>()
         val events = mutableListOf<AnalyticsEvent>()
         val permission = object : com.dsbuilder.frontend.core.analytics.AnalyticsConsent {
@@ -61,7 +62,7 @@ class ConfiguredAnalyticsTest {
         }
     }
 
-    @Test fun optOutPrecedesPlatformFactoryAndStorage() {
+    @Test fun optOutPrecedesPlatformFactoryAndStorage() = runTest {
         for (disabled in listOf("DSBUILDER_ANALYTICS_DISABLED", "DO_NOT_TRACK")) {
             val factory =
                 defaultAnalyticsSession(

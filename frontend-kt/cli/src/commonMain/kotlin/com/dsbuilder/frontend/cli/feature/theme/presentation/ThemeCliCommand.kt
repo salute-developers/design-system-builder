@@ -1,8 +1,8 @@
 package com.dsbuilder.frontend.cli.feature.theme.presentation
 
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.subcommands
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Command group `theme`.
@@ -18,5 +18,5 @@ internal class ThemeCliCommand(
 
     override fun help(context: Context): String = "Manage design system themes."
 
-    override fun run(): Unit = Unit
+    override suspend fun run(): Unit = Unit
 }

@@ -108,7 +108,8 @@ internal class MordantInitSelectionMenu(private val environment: EnvironmentRead
         while (true) {
             val event = input.readKey()
             when {
-                event.isCtrlC || (event.ctrl && event.key == "d") -> return null
+                event.isCtrlC -> throw kotlinx.coroutines.CancellationException("Selection cancelled")
+                event.ctrl && event.key == "d" -> return null
                 event.key == "Enter" -> return choices.filter { it.id in selected }.map { it.id }
                 event.key == " " || event.key == "Space" -> {
                     val id = choices[cursor.index].id
@@ -129,7 +130,8 @@ internal class MordantInitSelectionMenu(private val environment: EnvironmentRead
         while (true) {
             val event = input.readKey()
             when {
-                event.isCtrlC || (event.ctrl && event.key == "d") -> return null
+                event.isCtrlC -> throw kotlinx.coroutines.CancellationException("Selection cancelled")
+                event.ctrl && event.key == "d" -> return null
                 event.key == "Enter" -> return choices[state.index].id
                 else -> {
                     state.move(event.key)

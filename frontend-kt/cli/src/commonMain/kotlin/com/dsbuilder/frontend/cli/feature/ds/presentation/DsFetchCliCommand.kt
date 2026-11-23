@@ -16,7 +16,6 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder ds fetch`: `theme fetch`, затем `components fetch`.
@@ -41,8 +40,8 @@ internal class DsFetchCliCommand(
     private val to: String? by option("--to")
         .help("Directory of the component package; required with a design-system link without local config.")
 
-    override fun runOperation() {
-        val themes = runBlocking {
+    override suspend fun runOperation() {
+        val themes = run {
             fetchThemesUseCase.execute(
                 FetchThemesCommand(
                     apiKeyOverride = apiKey,
@@ -60,7 +59,7 @@ internal class DsFetchCliCommand(
             }
         }
 
-        val components = runBlocking {
+        val components = run {
             fetchComponentsUseCase.execute(
                 FetchComponentsCommand(
                     destination = ComponentDestination(directory = to),

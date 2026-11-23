@@ -1,11 +1,10 @@
 package com.dsbuilder.frontend.cli.presentation
 
 import com.dsbuilder.frontend.core.analytics.AnalyticsConsent
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.mordant.terminal.prompt
-import kotlinx.coroutines.runBlocking
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /** Явное управление общим выбором CLI/MCP без продуктовых просмотров. */
 internal class AnalyticsSettingsCliCommand(consent: AnalyticsConsent?) : CliktCommand(name = "analytics") {
@@ -16,19 +15,19 @@ internal class AnalyticsSettingsCliCommand(consent: AnalyticsConsent?) : CliktCo
             ConsentAction("status", consent),
         )
     }
-    override fun run() = Unit
+    override suspend fun run() = Unit
 }
 
 private class ConsentAction(private val action: String, private val consent: AnalyticsConsent?) : CliktCommand(
     name = action,
 ) {
-    override fun run() {
+    override suspend fun run() {
         val configured = consent ?: return echo("Аналитика не настроена.")
-        val message = runBlocking {
+        val message = run {
             when (action) {
                 "enable" -> {
                     val question = consentPrompt()
-                        ?: return@runBlocking "Для разрешения аналитики нужен интерактивный терминал."
+                        ?: return@run "Для разрешения аналитики нужен интерактивный терминал."
                     configured.enable(question)
                 }
                 "disable" -> configured.disable()

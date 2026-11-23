@@ -16,7 +16,6 @@ import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder components import-api`.
@@ -44,13 +43,13 @@ internal class ComponentsImportApiCliCommand(
     private val strict: Boolean by option("--strict").flag()
         .help("Exit with code 1 when the backend rejects any property.")
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         if (apply && dryRun) {
             throw UsageError("Options --apply and --dry-run cannot be used together.")
         }
         val typeMap = parseTypeMap(mapType)
 
-        val result = runBlocking {
+        val result = run {
             importApiMetaUseCase.execute(
                 ImportApiMetaCommand(
                     platform = platform,

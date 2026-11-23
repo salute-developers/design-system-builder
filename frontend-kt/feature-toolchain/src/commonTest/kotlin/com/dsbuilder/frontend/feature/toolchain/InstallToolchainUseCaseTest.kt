@@ -8,6 +8,7 @@ import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
 import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainCommand
 import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainResult
 import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainUseCase
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -15,7 +16,7 @@ import kotlin.test.assertTrue
 
 class InstallToolchainUseCaseTest {
     @Test
-    fun installedToolchainIsReportedWithVersionAndPath() {
+    fun installedToolchainIsReportedWithVersionAndPath() = runTest {
         val installer = StubInstaller(ToolchainId("ios"))
         val useCase = InstallToolchainUseCase(ToolchainInstallerRegistry(listOf(installer)))
 
@@ -28,7 +29,7 @@ class InstallToolchainUseCaseTest {
     }
 
     @Test
-    fun optionsReachTheInstallerUnchanged() {
+    fun optionsReachTheInstallerUnchanged() = runTest {
         val installer = StubInstaller(ToolchainId("ios"))
         val useCase = InstallToolchainUseCase(ToolchainInstallerRegistry(listOf(installer)))
 
@@ -43,7 +44,7 @@ class InstallToolchainUseCaseTest {
     }
 
     @Test
-    fun toolchainWithoutInstallerIsRefusedListingWhatCanBeInstalled() {
+    fun toolchainWithoutInstallerIsRefusedListingWhatCanBeInstalled() = runTest {
         val useCase = InstallToolchainUseCase(ToolchainInstallerRegistry(listOf(StubInstaller(ToolchainId("ios")))))
 
         val result = useCase.execute(InstallToolchainCommand(toolchain = "android"))
@@ -54,7 +55,7 @@ class InstallToolchainUseCaseTest {
 
     /** Аргумент приходит от пользователя, поэтому нечитаемый id объясняется, а не падает исключением. */
     @Test
-    fun malformedToolchainIdIsExplained() {
+    fun malformedToolchainIdIsExplained() = runTest {
         val useCase = InstallToolchainUseCase(ToolchainInstallerRegistry(listOf(StubInstaller(ToolchainId("ios")))))
 
         val result = useCase.execute(InstallToolchainCommand(toolchain = "iOS!"))
@@ -63,7 +64,7 @@ class InstallToolchainUseCaseTest {
     }
 
     @Test
-    fun installerFailureIsPassedThrough() {
+    fun installerFailureIsPassedThrough() = runTest {
         val installer = StubInstaller(
             ToolchainId("ios"),
             result = ToolchainInstallResult.Failed("Cannot download the release: no network."),
@@ -79,7 +80,7 @@ class InstallToolchainUseCaseTest {
     }
 
     @Test
-    fun clientWithoutInstallersSaysSoInsteadOfNamingNothing() {
+    fun clientWithoutInstallersSaysSoInsteadOfNamingNothing() = runTest {
         val useCase = InstallToolchainUseCase(ToolchainInstallerRegistry(emptyList()))
 
         val result = useCase.execute(InstallToolchainCommand(toolchain = "ios"))
@@ -97,7 +98,7 @@ private class StubInstaller(
 ) : ToolchainInstaller {
     val requests: MutableList<ToolchainInstallRequest> = mutableListOf()
 
-    override fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
+    override suspend fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
         requests += request
         return result
     }

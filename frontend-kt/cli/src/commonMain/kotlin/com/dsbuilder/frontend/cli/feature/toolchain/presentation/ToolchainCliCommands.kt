@@ -13,7 +13,6 @@ import com.dsbuilder.frontend.feature.toolchain.application.InstallToolchainUseC
 import com.dsbuilder.frontend.feature.toolchain.application.ListToolchainsUseCase
 import com.dsbuilder.frontend.feature.toolchain.application.ToolchainDoctorEntry
 import com.dsbuilder.frontend.feature.toolchain.application.ToolchainSummary
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.subcommands
@@ -21,6 +20,7 @@ import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.arguments.help
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Command group `toolchain`.
@@ -36,7 +36,7 @@ internal class ToolchainCliCommand(
 
     override fun help(context: Context): String = "Inspect platform toolchains available to this CLI."
 
-    override fun run(): Unit = Unit
+    override suspend fun run(): Unit = Unit
 }
 
 /**
@@ -45,7 +45,7 @@ internal class ToolchainCliCommand(
 internal class ToolchainListCliCommand(
     private val listToolchainsUseCase: ListToolchainsUseCase,
 ) : AnalyticsCliCommand(name = "list", operation = "toolchain list") {
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val toolchains = listToolchainsUseCase.execute()
         if (toolchains.isEmpty()) {
             echo("No platform toolchains are registered.")
@@ -70,7 +70,7 @@ internal class ToolchainDoctorCliCommand(
     private val tool: String? by option("--tool")
         .help("Check this tool instead of the ones found by toolchain discovery.")
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val command = DoctorToolchainsCommand(platform = platform, toolOverride = tool)
         when (val result = doctorToolchainsUseCase.execute(command)) {
             is DoctorToolchainsResult.Checked -> echoChecked(result)
@@ -115,7 +115,7 @@ internal class ToolchainInstallCliCommand(
     private val from: String? by option("--from")
         .help("Install this archive (path or URL) instead of resolving a release.")
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val command = InstallToolchainCommand(toolchain = toolchain, version = version, archive = from)
         when (val result = installToolchainUseCase.execute(command)) {
             is InstallToolchainResult.Installed -> {

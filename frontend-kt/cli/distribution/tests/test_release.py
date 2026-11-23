@@ -3,6 +3,7 @@ from io import BytesIO
 import json
 from pathlib import Path
 import tempfile
+import tarfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
@@ -41,6 +42,19 @@ def make_archive(directory, target, binary=b'#!/bin/sh\necho fixture\n', ios_tag
     return path
 
 
+def make_node_archive(directory, version='1.2.3'):
+    manifest = {'name': '@sddsjs/design-system-builder-cli', 'version': version,
+                'bin': {'dsbuilder': 'bin/dsbuilder.js'}, 'engines': {'node': '>=22'},
+                'publishConfig': {'access': 'public'}}
+    files = {'package.json': json.dumps(manifest).encode(), 'bin/dsbuilder.js': b'fixture',
+             'dist/kotlin/design-system-builder-frontend-cli.js': b'fixture', 'README.md': b'fixture', 'LICENSE': b'fixture'}
+    with tarfile.open(directory / 'dsbuilder-cli-node.tgz', 'w:gz') as archive:
+        for name, data in files.items():
+            entry = tarfile.TarInfo('package/' + name)
+            entry.size = len(data)
+            archive.addfile(entry, BytesIO(data))
+
+
 class MemoryStore:
     def __init__(self):
         self.data = {}
@@ -64,8 +78,42 @@ class ReleaseTest(unittest.TestCase):
         self.directory = Path(self.temporary.name)
         for target in release.TARGETS:
             make_archive(self.directory, target)
+        make_node_archive(self.directory)
         release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
         self.store = MemoryStore()
+
+    def test_new_release_requires_node_archive_and_immutable_metadata(self):
+        remote = self.remote()
+        release.prepare_github(remote, self.directory)
+        manifest = json.loads(remote.data['release.json'])
+        manifest.pop('node')
+        remote.data['release.json'] = release.json_bytes(manifest)
+        with self.assertRaises(ValueError):
+            release.verified_remote_release(remote, '1.2.3')
+        release.prepare_github(self.remote(), self.directory)
+        archive = self.directory / 'dsbuilder-cli-node.tgz'
+        archive.unlink()
+        with self.assertRaises(FileNotFoundError):
+            release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+
+    def test_legacy_source_without_node_descriptor_preserves_old_contract(self):
+        with patch.object(release, 'node_descriptor', return_value=None):
+            release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
+            self.assertNotIn('node', json.loads((self.directory / 'release.json').read_bytes()))
+            self.assertEqual(8, len(release.release_files(self.directory)))
+            remote = self.remote()
+            release.prepare_github(remote, self.directory)
+            remote.publish(True)
+            previous = dict(remote.data)
+            remote.writes.clear()
+            release.prepare_github(remote, self.directory)
+            self.assertEqual(previous, remote.data)
+            self.assertEqual([], remote.writes)
+
+    def test_node_package_version_must_match_tag(self):
+        make_node_archive(self.directory, '9.9.9')
+        with self.assertRaises(ValueError):
+            release.prepare(self.directory, '1.2.3', DIST / 'bootstrap')
 
     def test_tag_validation(self):
         self.assertEqual('1.2.3', release.tag_version('cli-v1.2.3'))
@@ -84,7 +132,7 @@ class ReleaseTest(unittest.TestCase):
 
     def test_release_includes_both_rendered_installers(self):
         files = release.release_files(self.directory)
-        self.assertEqual(8, len(files))
+        self.assertEqual(9, len(files))
         remote = self.remote()
         release.prepare_github(remote, self.directory)
         for name in release.INSTALLERS:
@@ -236,6 +284,7 @@ class ReleaseTest(unittest.TestCase):
         older = self.remote()
         release.prepare_github(older, self.directory)
         newer = self.remote('1.10.0')
+        make_node_archive(self.directory, '1.10.0')
         release.prepare(self.directory, '1.10.0', DIST / 'bootstrap')
         release.prepare_github(newer, self.directory)
         newer.publish(True)

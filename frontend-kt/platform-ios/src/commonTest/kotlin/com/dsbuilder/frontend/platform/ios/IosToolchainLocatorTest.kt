@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.platform.ios
 
 import com.dsbuilder.frontend.core.auth.EnvironmentReader
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -12,7 +13,7 @@ class IosToolchainLocatorTest {
     private val managed = "/home/me/.dsbuilder/toolchains/ios/current"
 
     @Test
-    fun overrideWinsOverEverything() {
+    fun overrideWinsOverEverything() = runTest {
         val locator = locator(
             environment = mapOf(IOS_TOOL_ENV to "/env/dsbuilder-ios"),
             existing = setOf("/override/dsbuilder-ios", "/env/dsbuilder-ios"),
@@ -22,7 +23,7 @@ class IosToolchainLocatorTest {
     }
 
     @Test
-    fun missingOverrideIsNotSilentlyReplaced() {
+    fun missingOverrideIsNotSilentlyReplaced() = runTest {
         val locator = locator(
             environment = mapOf(IOS_TOOL_ENV to "/env/dsbuilder-ios"),
             existing = setOf("/env/dsbuilder-ios"),
@@ -32,7 +33,7 @@ class IosToolchainLocatorTest {
     }
 
     @Test
-    fun environmentWinsOverManagedInstallAndPath() {
+    fun environmentWinsOverManagedInstallAndPath() = runTest {
         val locator = locator(
             environment = mapOf(
                 IOS_TOOL_ENV to "/env/dsbuilder-ios",
@@ -54,7 +55,7 @@ class IosToolchainLocatorTest {
      * они датированные (`release-01-09-2026`), и порядок строк им не соответствует.
      */
     @Test
-    fun managedInstallWinsOverPath() {
+    fun managedInstallWinsOverPath() = runTest {
         val locator = locator(
             environment = mapOf("HOME" to "/home/me", "PATH" to "/usr/local/bin"),
             existing = setOf("$managed/dsbuilder-ios", "/usr/local/bin/dsbuilder-ios"),
@@ -64,7 +65,7 @@ class IosToolchainLocatorTest {
     }
 
     @Test
-    fun installedVersionsAreIgnoredWithoutCurrent() {
+    fun installedVersionsAreIgnoredWithoutCurrent() = runTest {
         val locator = locator(
             environment = mapOf("HOME" to "/home/me", "PATH" to "/usr/local/bin"),
             existing = setOf(
@@ -77,7 +78,7 @@ class IosToolchainLocatorTest {
     }
 
     @Test
-    fun pathIsTheLastResortAndKeepsItsOrder() {
+    fun pathIsTheLastResortAndKeepsItsOrder() = runTest {
         val locator = locator(
             environment = mapOf("PATH" to "/empty:/usr/local/bin:/opt/bin"),
             existing = setOf("/usr/local/bin/dsbuilder-ios", "/opt/bin/dsbuilder-ios"),
@@ -87,14 +88,14 @@ class IosToolchainLocatorTest {
     }
 
     @Test
-    fun nothingFoundWhenToolIsNowhere() {
+    fun nothingFoundWhenToolIsNowhere() = runTest {
         val locator = locator(environment = mapOf("PATH" to "/usr/local/bin"), existing = emptySet())
 
         assertNull(locator.locate(null))
     }
 
     @Test
-    fun checkedLocationsNameEveryStepOfTheChain() {
+    fun checkedLocationsNameEveryStepOfTheChain() = runTest {
         val locations = locator(environment = mapOf("HOME" to "/home/me"), existing = emptySet())
             .checkedLocations()
 

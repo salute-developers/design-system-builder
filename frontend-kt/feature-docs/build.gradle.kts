@@ -33,6 +33,12 @@ kotlin {
             dependsOn(posixMain)
         }
 
+        val posixTest by creating { dependsOn(commonTest.get()) }
+        jvmTest.get().dependsOn(posixTest)
+        getByName("macosArm64Test").dependsOn(posixTest)
+        getByName("macosX64Test").dependsOn(posixTest)
+        getByName("mingwX64Test").dependsOn(posixTest)
+
         val nativeMain by creating {
             dependsOn(posixMain)
         }
@@ -41,14 +47,4 @@ kotlin {
         getByName("macosX64Main").dependsOn(nativeMain)
         getByName("mingwX64Main").dependsOn(nativeMain)
     }
-}
-
-tasks.matching {
-    it.name == "jsTest" ||
-        it.name == "jsNodeTest" ||
-        it.name == "compileTestKotlinJs" ||
-        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
-        it.name == "jsTestTestDevelopmentExecutableCompileSync"
-}.configureEach {
-    enabled = false
 }

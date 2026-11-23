@@ -3,7 +3,6 @@
 ## Purpose
 Определяет npm-пакет web-генератора `@sddsjs/design-system-builder-generator`: состав пакета, команду
 `dsbuilder-web-generator` и её подкоманды, scope генерируемого пакета и ручную публикацию.
-
 ## Requirements
 ### Requirement: npm-пакет web-генератора
 
@@ -64,18 +63,21 @@ SHALL использовать `@sddsjs`.
 
 ### Requirement: Ручная публикация пакета
 
-Пакет SHALL публиковаться вручную командой `npm publish` из `js/cli`; версия SHALL браться из поля `version`
-в `package.json`. Перед упаковкой npm SHALL выполнять проверку типов и тесты генератора.
+Пакет SHALL поддерживать ручную публикацию командой `npm publish` из `js/cli` и публикацию проверенного tarball шагом существующего `.github/workflows/publish-cli-release.yml`. Версия SHALL браться из поля `version` в `js/cli/package.json` независимо от номера CLI-релиза. Проверка типов и тесты генератора SHALL выполняться перед упаковкой/публикацией: через существующий `prepublishOnly` для локального npm publish и явно в workflow при подготовке tarball.
 
 #### Scenario: Публикация
-
-- **WHEN** владелец scope `@salutejs` выполняет `npm publish` в `js/cli`
+- **WHEN** пользователь с правом записи `@sddsjs/design-system-builder-generator` выполняет `npm publish` в `js/cli`
 - **THEN** npm MUST выполнить проверку типов и тесты `js/cli` до упаковки и MUST остановить публикацию при их ошибке
 - **THEN** пакет MUST публиковаться с публичным доступом без дополнительных флагов
 
 #### Scenario: Состав опубликованного архива
-
 - **WHEN** выполняется `npm pack --dry-run` в `js/cli`
 - **THEN** архив MUST содержать `bin`, исходники генератора, шаблоны и заготовку пакета
 - **THEN** архив MUST NOT содержать тесты, `.sdds`, `output` и `node_modules`
 
+#### Scenario: Публикация в текущем CLI workflow
+- **WHEN** `publish-cli-release.yml` выпускает новый CLI-тег с поддержкой Node.js-поставки
+- **THEN** он MUST подготовить генератор из исходников того же тега, выполнить `npm ci`, typecheck, тесты, проверку состава и глобальной установки
+- **THEN** отдельный шаг MUST опубликовать либо подтвердить совпадающую существующую версию генератора до публикации npm-пакета CLI и продвижения GitHub Release
+- **THEN** workflow MUST NOT переписывать версию генератора или создавать для неё коммит/тег
+- **THEN** изменение содержимого при уже занятой версии MUST остановить выпуск с требованием новой версии генератора в исходниках

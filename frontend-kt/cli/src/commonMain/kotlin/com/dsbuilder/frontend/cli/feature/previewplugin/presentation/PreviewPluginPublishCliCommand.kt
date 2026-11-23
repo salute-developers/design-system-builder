@@ -16,7 +16,6 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder preview-plugin publish`.
@@ -41,8 +40,8 @@ internal class PreviewPluginPublishCliCommand(
     private val apply: Boolean by option("--apply").flag()
         .help("Write the build. Without it the command performs a dry run.")
 
-    override fun runOperation() {
-        val result = runBlocking {
+    override suspend fun runOperation() {
+        val result = run {
             publishUseCase.execute(
                 PublishPreviewPluginCommand(
                     platform = platform,

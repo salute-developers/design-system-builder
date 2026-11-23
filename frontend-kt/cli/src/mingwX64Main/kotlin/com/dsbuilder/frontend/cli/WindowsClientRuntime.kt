@@ -26,6 +26,7 @@ public actual fun defaultClientRuntime(): ClientRuntime {
         { HttpClient(WinHttp) { followRedirects = false } },
     )
     return ClientRuntime(
+        supportsIosToolchain = false,
         analyticsConsent = consent,
         fileSystem = WindowsWorkspaceFileSystem,
         environmentReader = EnvironmentReader(WindowsEnvironment::get),

@@ -1,9 +1,15 @@
 package com.dsbuilder.frontend.cli.di
 
+import com.dsbuilder.frontend.core.application.ClientRuntime
 import com.dsbuilder.frontend.core.platform.PlatformDelegate
 import com.dsbuilder.frontend.core.platform.PlatformDelegateRegistry
 import com.dsbuilder.frontend.core.platform.ToolchainInstaller
 import com.dsbuilder.frontend.core.platform.ToolchainInstallerRegistry
+import com.dsbuilder.frontend.platform.android.AndroidGradleDelegate
+import com.dsbuilder.frontend.platform.ios.IosCliDelegate
+import com.dsbuilder.frontend.platform.ios.IosToolchainInstaller
+import com.dsbuilder.frontend.platform.web.WebNpmDelegate
+import com.dsbuilder.frontend.platform.web.WebToolchainInstaller
 import org.koin.core.module.Module
 import org.koin.core.scope.Scope
 import org.koin.dsl.module
@@ -23,7 +29,13 @@ public fun platformDelegatesModule(): Module = module {
 /**
  * Делегаты в порядке регистрации.
  */
-internal expect fun Scope.platformDelegates(): List<PlatformDelegate>
+internal fun Scope.platformDelegates(): List<PlatformDelegate> = buildList {
+    if (this@platformDelegates.get<ClientRuntime>().supportsIosToolchain) {
+        add(this@platformDelegates.get<IosCliDelegate>())
+    }
+    add(this@platformDelegates.get<AndroidGradleDelegate>())
+    add(this@platformDelegates.get<WebNpmDelegate>())
+}
 
 /**
  * Установщики в порядке регистрации.
@@ -31,4 +43,9 @@ internal expect fun Scope.platformDelegates(): List<PlatformDelegate>
  * Toolchain без установщика остаётся рабочим: его инструмент ставят руками, а `--tool`
  * и `DSBUILDER_IOS_TOOL` продолжают работать.
  */
-internal expect fun Scope.toolchainInstallers(): List<ToolchainInstaller>
+internal fun Scope.toolchainInstallers(): List<ToolchainInstaller> = buildList {
+    if (this@toolchainInstallers.get<ClientRuntime>().supportsIosToolchain) {
+        add(this@toolchainInstallers.get<IosToolchainInstaller>())
+    }
+    add(this@toolchainInstallers.get<WebToolchainInstaller>())
+}
