@@ -138,6 +138,11 @@ jobs:
             target: jvm
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+        if: matrix.target == 'windows-x64'
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: cli-distributions
@@ -151,10 +156,26 @@ jobs:
         shell: powershell
         run: ./release-tools/tests/install-windows.Tests.ps1
       - uses: actions/setup-java@v4
-        if: matrix.target == 'jvm'
+        if: matrix.target == 'jvm' || matrix.target == 'windows-x64'
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-node@v4
+        if: matrix.target == 'windows-x64'
+        with:
+          node-version: '22.20.0'
+      - uses: gradle/actions/setup-gradle@v4
+        if: matrix.target == 'windows-x64'
+      - name: Test JVM Windows process ownership
+        if: matrix.target == 'windows-x64'
+        shell: bash
+        working-directory: frontend-kt
+        run: DSBUILDER_TEST_NODE="$(node -p 'process.execPath')" ./gradlew :cli:jvmIntegrationTest --tests '*JvmWindowsProcessRunnerTest'
+      - name: Test native and Node Windows processes
+        if: matrix.target == 'windows-x64'
+        shell: bash
+        working-directory: frontend-kt
+        run: ./gradlew :cli:mingwX64Test :runtime-node:jsNodeTest :cli:jsNodeTest
       - name: Install and smoke test on Unix
         if: matrix.target != 'windows-x64'
         shell: bash

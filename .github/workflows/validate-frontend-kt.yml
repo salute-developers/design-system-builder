@@ -63,8 +63,11 @@ jobs:
           java-version: '17'
       - name: Ensure wget for installer HTTPS contract tests
         run: brew list wget >/dev/null 2>&1 || brew install wget
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build :cli:linkReleaseExecutableMingwX64
+      - run: ./gradlew build :cli:linkReleaseExecutableMingwX64 :cli:npmPackCliNodeSmoke
         working-directory: frontend-kt
 
   cli-windows-installers:
@@ -75,32 +78,9 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '22.20.0'
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Test JVM Windows process ownership
-        shell: bash
-        working-directory: frontend-kt
-        run: DSBUILDER_TEST_NODE="$(node -p 'process.execPath')" ./gradlew :cli:jvmIntegrationTest --tests '*JvmWindowsProcessRunnerTest'
-      - name: Test native Windows CLI processes and cancellation
-        shell: bash
-        working-directory: frontend-kt
-        run: ./gradlew :cli:mingwX64Test
       - name: Test local and network installers
         shell: powershell
         run: ./frontend-kt/cli/distribution/tests/install-windows.Tests.ps1
-      - name: Upload Windows process test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: windows-cli-process-reports
-          path: frontend-kt/cli/build/test-results/
-          if-no-files-found: ignore
 
   cli-s3-integration:
     name: CLI delivery / MinIO
@@ -113,38 +93,3 @@ jobs:
           python-version: '3.12'
       - name: Test delivery with isolated MinIO
         run: python3 frontend-kt/cli/distribution/tests/run_s3_integration.py
-
-  cli-node:
-    name: CLI Node.js / npm package
-    runs-on: ${{ matrix.os }}
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-22.04, macos-15, windows-2022]
-        node: ['22.20.0']
-        include:
-          - os: ubuntu-22.04
-            node: '24'
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-      - uses: actions/setup-node@v4
-        with:
-          node-version: ${{ matrix.node }}
-      - uses: gradle/actions/setup-gradle@v4
-      - name: Check Node CLI and package
-        shell: bash
-        working-directory: frontend-kt
-        run: ./gradlew :runtime-node:jsNodeTest :cli:jsNodeTest :cli:npmPackCliNodeSmoke
-      - name: Upload Node test reports
-        if: failure()
-        uses: actions/upload-artifact@v4
-        with:
-          name: node-cli-reports-${{ matrix.os }}-${{ matrix.node }}
-          path: |
-            frontend-kt/cli/build/test-results/
-            frontend-kt/runtime-node/build/test-results/
-          if-no-files-found: ignore
