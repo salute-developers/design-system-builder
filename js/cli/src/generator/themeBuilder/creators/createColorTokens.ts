@@ -1,3 +1,4 @@
+import { colorVariableName } from '../../../web-mapping/index.ts';
 import { getRestoredColorFromPalette } from '@salutejs/plasma-tokens-utils';
 
 import { ThemeMode, TokenType } from '../types/index.ts';
@@ -22,7 +23,7 @@ const getColor = (color: any, tokens: TokenType[], mode: ThemeMode, isJS = false
         .filter((token) => token.tags[0] === mode)
         .map((token) => {
             const [, category, subcategory, name] = token.name.split('.');
-            const tokenName = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
+            const tokenName = colorVariableName(category, subcategory, name);
             const value = color?.[token.name];
 
             if (!value) {

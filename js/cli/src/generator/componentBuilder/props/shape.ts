@@ -1,4 +1,5 @@
-import { DEFAULT_FONT_SIZE, type PlatformTokens, type PropConfig, type ThemeValues } from '../type.ts';
+import { adjustedRadius } from '../../../web-mapping/index.ts';
+import type { PlatformTokens, PropConfig, ThemeValues } from '../type.ts';
 import { Prop } from './prop.ts';
 
 export class ShapeProp extends Prop {
@@ -22,7 +23,7 @@ export class ShapeProp extends Prop {
         const token = theme ? theme.getTokenValue(this.value, 'shape', 'web') : this.getCSSVar(this.value);
 
         const value = this.adjustment
-            ? `calc(${token} + ${Number(this.adjustment) / DEFAULT_FONT_SIZE}rem)`
+            ? adjustedRadius(`${token}`, Number(this.adjustment))
             : `${token}`;
 
         return {

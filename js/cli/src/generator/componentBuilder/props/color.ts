@@ -1,13 +1,8 @@
 import { getRestoredColorFromPalette, type ThemeMode } from '@salutejs/plasma-tokens-utils';
 
 import type { PlatformTokens, PropConfig, PropState, State, ThemeValues, WebTokenValues } from '../type.ts';
+import { colorVariableName, DERIVED_STATE_TOKEN_SUFFIX } from '../../../web-mapping/index.ts';
 import { Prop } from './prop.ts';
-
-// Суффиксы производных токенов темы для состояний (тема генерирует `<base>-hover` / `<base>-active`).
-const stateSuffixMap: Record<PropState, string> = {
-    hovered: '-hover',
-    pressed: '-active',
-};
 
 const isTokenName = (value: string | number) => /^[a-z0-9-]+(\.[a-z0-9-]+)+$/i.test(value.toString());
 
@@ -29,7 +24,7 @@ export class ColorProp extends Prop {
         }
 
         const [category, subcategory, name] = value.toString().split('.');
-        const tokenValue = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
+        const tokenValue = colorVariableName(category, subcategory, name);
 
         return `var(${tokenValue})`;
     }
@@ -71,7 +66,7 @@ export class ColorProp extends Prop {
         const additionalValues = this.webTokens.reduce<WebTokenValues>((acc, { name }) => {
             const getValue = (state: State) => {
                 const stateName = state.state[0];
-                const stateTokenName = state.value ?? `${this.value}${stateSuffixMap[stateName]}`;
+                const stateTokenName = state.value ?? `${this.value}${DERIVED_STATE_TOKEN_SUFFIX[stateName]}`;
 
                 return theme
                     ? this.getThemeValue(stateTokenName, theme, themeMode)

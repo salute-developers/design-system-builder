@@ -1,3 +1,4 @@
+import { typographyPartFor, typographyVariableBase } from '../../../web-mapping/index.ts';
 import type { PlatformTokens, PropConfig, ThemeValues, WebTokenValues } from '../type.ts';
 import { Prop } from './prop.ts';
 
@@ -8,33 +9,8 @@ export class TypographyProp extends Prop {
         super(name, data, platformTokens);
     }
 
-    private formattedTokenName(nameParts: string[]) {
-        const fontWeightMap: Record<string, string> = {
-            bold: 'bold',
-            medium: 'medium',
-            normal: '',
-        };
-
-        // Системные группы — как в теме (`header` опускается), своя группа идёт как есть.
-        const nameMap: Record<string, string> = {
-            display: 'dspl',
-            text: 'text',
-            body: 'body',
-            header: '',
-        };
-
-        // Только собственные ключи: своя группа вроде `constructor` не должна находить свойство `Object.prototype`.
-        const own = (record: Record<string, string>, key: string) =>
-            Object.prototype.hasOwnProperty.call(record, key) ? record[key] : undefined;
-        const tokenValue = [...nameParts];
-        tokenValue[0] = own(nameMap, tokenValue[0]) ?? tokenValue[0];
-        tokenValue[2] = own(fontWeightMap, tokenValue[2]) ?? '';
-
-        return tokenValue.filter(Boolean).join('-');
-    }
-
     private getCSSVar(value: string | number) {
-        const tokenValue = this.formattedTokenName(value.toString().split('.'));
+        const tokenValue = typographyVariableBase(value.toString());
 
         return {
             fontFamily: `var(--plasma-typo-${tokenValue}-font-family)`,
@@ -71,11 +47,9 @@ export class TypographyProp extends Prop {
         }
 
         return this.webTokens.reduce<WebTokenValues>((acc, { name }) => {
-            const tokenKey = Object.keys(value).find((key) =>
-                name.toLocaleLowerCase().includes(key.toLocaleLowerCase()),
-            );
+            const tokenKey = typographyPartFor(name);
 
-            if (!tokenKey) {
+            if (!tokenKey || !Object.hasOwn(value, tokenKey)) {
                 return acc;
             }
 

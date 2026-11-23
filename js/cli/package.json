@@ -1,11 +1,15 @@
 {
     "name": "@sddsjs/design-system-builder-generator",
-    "version": "0.1.4",
+    "version": "0.2.0",
     "description": "DS Builder web generator: React design-system package from local .sdds data",
     "license": "MIT",
     "type": "module",
     "bin": {
         "dsbuilder-web-generator": "bin/dsbuilder-web-generator.js"
+    },
+    "exports": {
+        "./web-mapping": "./src/web-mapping/index.ts",
+        "./package.json": "./package.json"
     },
     "files": [
         "bin",
@@ -23,8 +27,8 @@
         "generate:components": "tsx --env-file-if-exists=../.env src/components.ts",
         "generate:ds": "tsx --env-file-if-exists=../.env src/ds.ts",
         "generate:api-meta": "tsx src/generate-api-meta.ts",
-        "test": "tsx --test src/*.test.ts",
-        "typecheck": "tsc -p .",
+        "test": "tsx --test 'src/**/*.test.ts'",
+        "typecheck": "tsc -p . && tsc -p tsconfig.web-mapping.json",
         "import:plasma": "tsx src/import-plasma-component.ts",
         "prepublishOnly": "npm run typecheck && npm test",
         "seeds:update": "tsx src/component-seeds.ts"
