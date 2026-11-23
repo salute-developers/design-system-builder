@@ -22,11 +22,12 @@ class CoreReleaseMigrationPostgresIntegrationTest {
             postgres.start()
             val config = Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
                 .locations("classpath:dsbuilder/ds/db/migration")
-            config.target("18").load().migrate()
+            config.target("22").load().migrate()
             DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                 val ds = UUID.randomUUID()
                 val published = UUID.randomUUID()
                 val draft = UUID.randomUUID()
+                val archived = UUID.randomUUID()
                 val component = UUID.randomUUID()
                 val property = UUID.randomUUID()
                 connection.createStatement().use { statement ->
@@ -54,7 +55,12 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                         "INSERT INTO design_system_versions(id, design_system_id, status, sequence_number, revision, published_at) VALUES ('$draft', '$ds', 'draft', 2, 0, NULL)",
                     )
                 }
-                assertEquals(2, config.target("latest").load().migrate().migrationsExecuted)
+                connection.createStatement().use { statement ->
+                    statement.execute(
+                        "INSERT INTO design_system_versions(id, design_system_id, version, snapshot, status, sequence_number, revision) VALUES ('$archived', '$ds', '0.9.0', '{\"legacy\":true}', NULL, NULL, NULL)",
+                    )
+                }
+                assertEquals(6, config.target("latest").load().migrate().migrationsExecuted)
                 val release =
                     scalar(
                         connection,
@@ -83,7 +89,7 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                     scalar(connection, "SELECT property_id FROM core_release_properties WHERE release_id = '$release'"),
                 )
                 assertEquals(
-                    "0",
+                    scalar(connection, "SELECT count(*) FROM core_current_releases"),
                     scalar(
                         connection,
                         "SELECT count(*) FROM design_system_version_core_releases WHERE version_id = '$draft'",
@@ -97,11 +103,25 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                     ),
                 )
 
+                assertEquals(
+                    release,
+                    scalar(
+                        connection,
+                        "SELECT release_id FROM design_system_version_core_releases WHERE version_id = '$archived' AND platform = 'compose'",
+                    ),
+                )
+                assertEquals(
+                    "true",
+                    scalar(connection, "SELECT snapshot->>'legacy' FROM design_system_versions WHERE id = '$archived'"),
+                )
+
                 for (sql in listOf(
                     "UPDATE components SET name = 'Renamed' WHERE id = '$component'",
                     "UPDATE properties SET name = 'renamed' WHERE id = '$property'",
                     "UPDATE core_release_properties SET type = 'integer' WHERE release_id = '$release'",
                     "DELETE FROM core_releases WHERE id = '$release'",
+                    "UPDATE design_system_version_core_releases SET release_id = release_id WHERE version_id = '$archived'",
+                    "DELETE FROM design_system_version_core_releases WHERE version_id = '$archived'",
                 )) {
                     val error = assertFailsWith<SQLException> { connection.createStatement().use { it.execute(sql) } }
                     assertEquals("23514", error.sqlState)
@@ -110,7 +130,7 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                 val future = UUID.randomUUID()
                 connection.createStatement().use { statement ->
                     statement.execute(
-                        "INSERT INTO core_releases(id, library_id, platform, version, source_meta, meta_sha256, normalized_meta, provenance) VALUES ('$future', 'uikit-compose', 'compose', 'future', convert_to('[]', 'UTF8'), repeat('a', 64), '[]', 'imported')",
+                        "INSERT INTO core_releases(id, library_id, platform, version, source_meta, meta_sha256, normalized_meta, provenance, channel) VALUES ('$future', 'uikit-compose', 'compose', 'future', convert_to('[]', 'UTF8'), repeat('a', 64), '[]', 'imported', 'stable')",
                     )
                     statement.execute(
                         "UPDATE core_current_releases SET release_id = '$future' WHERE platform = 'compose'",

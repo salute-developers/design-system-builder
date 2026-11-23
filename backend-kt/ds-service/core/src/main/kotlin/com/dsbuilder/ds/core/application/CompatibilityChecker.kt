@@ -13,7 +13,11 @@ fun interface CompatibilityChecker {
 fun CoreCompatibilityReport.conflict(
     projectId: com.dsbuilder.ds.core.domain.ProjectId,
 ): DsFailure.Conflict = DsFailure.Conflict(
-    code = "CORE_COMPATIBILITY_CONFLICT",
+    code = if (items.any { it.code == "CORE_SELECTION_REQUIRED" }) {
+        "CORE_SELECTION_REQUIRED"
+    } else {
+        "CORE_COMPATIBILITY_CONFLICT"
+    },
     coreContext = context,
     blockingCount = blockingCount,
     compatibilityPath = "/api/projects/${projectId.value}/design-systems/${context.designSystemId}/compatibility",

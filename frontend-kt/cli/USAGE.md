@@ -484,13 +484,13 @@ components:write
 ```bash
 dsbuilder auth login --username admin@example.com
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
-  --library-id uikit-compose --core-version 0.55.0 # план, ничего не пишется
+  --library-id uikit-compose --core-version 0.55.0 --channel stable # план, ничего не пишется
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
-  --library-id uikit-compose --core-version 0.55.0 --apply   # запись
+  --library-id uikit-compose --core-version 0.55.0 --channel stable --apply   # запись
 ```
 
 Команде не нужны проект, `.sdds/config.json`, Gradle и дизайн-система: только файл, платформа и API URL.
-`--from`, `--platform`, `--library-id` и `--core-version` обязательны. Поддержаны `compose`, `android-view`, `swiftui` и `react`; остальные
+`--from`, `--platform`, `--library-id`, `--core-version` и `--channel stable|dev` обязательны. Поддержаны `compose`, `android-view`, `swiftui` и `react`; остальные
 платформы команда отклоняет до чтения файла и обращения к backend.
 
 Файл меты — вывод генератора меты платформы (`uikit-compose-api-meta.json`, `uikit-api-meta.json`,

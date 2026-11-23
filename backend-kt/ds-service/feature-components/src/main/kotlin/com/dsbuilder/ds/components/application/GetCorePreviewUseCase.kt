@@ -23,16 +23,16 @@ class GetCorePreviewUseCase(
         val id = context.designSystemId ?: return DsResult.Failure(DsFailure.InvalidRequest("invalid_query"))
         return policy.read(context, ProjectScope.COMPONENTS_READ) {
             transactions.readOnly(context, ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, id)) { resolved ->
-                val storage = storages.configured(platform) ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 val core = cores.resolve(resolved.versionId).find { it.ref.platform == platform.wire }
-                    ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
+                    ?: return@readOnly DsResult.Failure(DsFailure.Conflict("CORE_SELECTION_REQUIRED"))
+                val storage = storages.configured(platform) ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 val build = builds.selected(platform.wire, resolved.versionId)
                     ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 DsResult.Success(
                     CorePreviewSelection(
                         ActivePluginBuild(
                             build,
-                            storage.settings.pluginUrl(build.buildId),
+                            storage.settings.pluginUrl(build.storageKey),
                         ),
                         core,
                     ),

@@ -33,6 +33,9 @@ import {
     StyledPreviewUnavailable,
 } from './ComponentEditorPreview.styles';
 import { restorePaletteColor } from '../../../../palette/activePalette';
+import { iconPreviewAsset, useIconCatalog } from '../../../../modules/icons';
+import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
+import type { StoryArgs, StoryArgValue } from './storyArgs';
 
 interface ComponentEditorPreviewProps {
     config: Config;
@@ -143,6 +146,15 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     // перечисляет компонент.
     const coreWeb = useComposePreviewHost('web');
     const webPlugin = useWebPreviewPluginAt(isWebComponent ? componentName : undefined, coreWeb?.pluginUrl);
+    // Иконки рисуются из SVG каталога билдера: плагин получает их ресурсами payload и не держит свой набор.
+    const iconCatalog = useIconCatalog(designSystem?.getParameters()?.projectId).data;
+    const resolveIconAsset = useCallback(
+        (value: string) => {
+            const asset = iconPreviewAsset(iconCatalog, value);
+            return asset && { ...asset, url: new URL(asset.url, window.location.href).href };
+        },
+        [iconCatalog],
+    );
     const debugMode = isDebugMode();
     const rendererModes = useMemo(
         () => (supportsCompose ? [WEB_PLUGIN_RENDERER, COMPOSE_RENDERER] : [WEB_PLUGIN_RENDERER]),

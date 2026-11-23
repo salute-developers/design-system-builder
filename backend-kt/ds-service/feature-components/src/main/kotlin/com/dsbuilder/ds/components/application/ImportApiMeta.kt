@@ -21,6 +21,8 @@ data class ImportApiMeta(
     val sourceMetaBase64: String? = null,
     /** SHA-256 исходных байтов файла. */
     val metaSha256: String? = null,
+    /** Явный канал поставки; не выводится из версии библиотеки. */
+    val channel: String? = null,
 ) {
     /** One component of the manifest. */
     data class Component(

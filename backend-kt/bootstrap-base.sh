@@ -10,6 +10,7 @@
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
+#   DSBUILDER_WEB_CORE_VERSION / DSBUILDER_WEB_CORE_CHANNEL  точные версия и stable/dev (default stable)
 #   DSBUILDER_WEB_API_META       web-api-meta.json; default js/cli/.sdds/web/web-api-meta.json, генерируется при отсутствии
 set -euo pipefail
 
@@ -141,7 +142,15 @@ for project in json.load(sys.stdin):
 
 import_global_layer() {
     log "Importing the web component layer from $WEB_API_META"
-    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" > "$IMPORT_BODY_FILE" \
+    local version="${DSBUILDER_WEB_CORE_VERSION:-}"
+    if [[ -z "$version" ]]; then
+        [[ -z "${DSBUILDER_WEB_API_META:-}" ]] || fail "Set DSBUILDER_WEB_CORE_VERSION for a custom API meta"
+        version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
+            "$ROOT_DIR/js/cli/node_modules/@salutejs/plasma-new-hope/package.json")"
+    fi
+    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" \
+        --library-id "${DSBUILDER_WEB_CORE_LIBRARY:-plasma-new-hope}" --core-version "$version" \
+        --channel "${DSBUILDER_WEB_CORE_CHANNEL:-stable}" > "$IMPORT_BODY_FILE" \
         || fail "Web API meta normalization failed"
     local body
     body="$(curl -sS -w '%{stderr}%{http_code}' -X POST \

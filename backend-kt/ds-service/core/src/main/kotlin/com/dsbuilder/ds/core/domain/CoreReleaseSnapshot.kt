@@ -12,4 +12,8 @@ data class CoreReleaseSnapshot(
     val metaSha256: String?,
     /** imported либо migration-snapshot; последнее не доказывает историческую версию. */
     val provenance: String,
+    /** Канал поставки; неизвестен у наследованных релизов. */
+    val channel: String? = null,
+    /** Политика выбора черновика; опубликованный контекст всегда закреплён. */
+    val selectionMode: String = "pinned",
 )

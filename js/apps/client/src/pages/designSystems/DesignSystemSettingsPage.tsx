@@ -1,3 +1,4 @@
+import { CoreSettingsPanel, type CoreSaveState } from './CoreSettingsPanel';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -21,6 +22,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     const [params, setParams] = useSearchParams();
     // Настройки из опубликованной версии: темы этой версии и только чтение.
     const versionId = params.get('versionId') ?? undefined;
+    const [coreSaveState, setCoreSaveState] = useState<CoreSaveState>({ disabled: true, saving: false });
     const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
         (signal) => designSystemsApi.get(projectId, designSystemId, signal),
@@ -109,7 +111,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     const canWriteSystem = allowed('designSystems:write');
     const canDeleteSystem = allowed('designSystems:delete');
     const themeCount = themes.data.length;
-    const sections: SettingsSection[] = ['Основное', 'Темы', ...(canDeleteSystem ? ['Опасная зона' as const] : [])];
+    const sections: SettingsSection[] = ['Основное', 'Темы', 'Версии библиотек', ...(canDeleteSystem ? ['Опасная зона' as const] : [])];
     const save = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!canWriteSystem) return;
@@ -133,7 +135,19 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
             ]}
             sections={sections}
             saveForm={canWriteSystem ? 'settings-general' : false}
-            sectionActions={{ danger: false }}
+            sectionActions={{
+                core: (
+                    <button
+                        className="ps-button ps-button-primary"
+                        type="submit"
+                        form="core-library-settings-form"
+                        disabled={!canWriteSystem || coreSaveState.disabled}
+                    >
+                        {coreSaveState.saving ? 'Сохраняем…' : 'Сохранить'}
+                    </button>
+                ),
+                danger: false,
+            }}
             aside={
                 <>
                     <div className="ps-aside-section-block">
@@ -150,10 +164,13 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                         </dl>
                     </div>
                     <div className="ps-aside-section-block">
-                        <p className="ps-aside-section">Данные дизайн-системы</p>
+                        <p className="ps-aside-section">
+                            {params.get('section') === 'core' ? 'Версии библиотек' : 'Данные дизайн-системы'}
+                        </p>
                         <p className="ps-aside-note">
-                            Название используется в каталоге проекта и в навигации Theme. Темы дизайн-системы
-                            переименовываются, дублируются и удаляются в разделе «Темы».
+                            {params.get('section') === 'core'
+                                ? 'Выбранные библиотеки задают набор компонентов и свойств дизайн-системы. Канал stable содержит выпущенные версии, dev — версии в разработке.'
+                                : 'Название используется в каталоге проекта и в навигации Theme. Темы переименовываются, дублируются и удаляются в разделе «Темы».'}
                         </p>
                     </div>
                 </>
@@ -184,6 +201,29 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                     confirmDeleteId={params.get('confirm') === 'delete' ? params.get('theme') : null}
                     openTenantId={tenantId}
                 />
+                <section id="settings-core" className="settings-section">
+                    {params.get('onboarding') === '1' && (
+                        <section
+                            className="settings-section ps-core-onboarding"
+                            aria-label="Выбор Core новой дизайн-системы"
+                        >
+                            <h2>Выберите Core для нужных платформ</h2>
+                            <p>
+                                Канал stable предложен по умолчанию. Версия выбирается явно; этот шаг можно пропустить.
+                            </p>
+                            <a className="ps-button" href={`/projects/${projectId}/design-systems/${designSystemId}`}>
+                                Пропустить и перейти к темам
+                            </a>
+                        </section>
+                    )}
+                    <CoreSettingsPanel
+                        projectId={projectId}
+                        designSystemId={designSystemId}
+                        versionId={versionId}
+                        onSaveStateChange={setCoreSaveState}
+                        readOnly={!canWriteSystem}
+                    />
+                </section>
                 {canDeleteSystem && (
                     <section id="settings-danger" className="settings-section">
                         <h2 className="ps-danger-title">Опасная зона</h2>

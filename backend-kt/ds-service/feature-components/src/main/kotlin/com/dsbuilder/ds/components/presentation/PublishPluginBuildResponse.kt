@@ -1,14 +1,12 @@
 package com.dsbuilder.ds.components.presentation
 
-import com.dsbuilder.ds.components.application.PublishKind
 import com.dsbuilder.ds.components.application.PublishResult
-import io.ktor.server.routing.get
 import kotlinx.serialization.Serializable
 
 /** Ответ публикации. */
 @Serializable
 data class PublishPluginBuildResponse(
-    /** `published`, `activated` или `unchanged`. */
+    /** `published`, `activated`, `replaced` или `unchanged`. */
     val outcome: String,
     /** Была ли это пробная отправка. */
     val dryRun: Boolean,
@@ -27,11 +25,7 @@ data class PublishPluginBuildResponse(
     companion object {
         /** Преобразует результат use case в ответ. */
         fun from(value: PublishResult, dryRun: Boolean) = PublishPluginBuildResponse(
-            outcome = when (value.kind) {
-                PublishKind.PUBLISHED -> "published"
-                PublishKind.ACTIVATED -> "activated"
-                PublishKind.UNCHANGED -> "unchanged"
-            },
+            outcome = value.kind.name.lowercase(),
             dryRun = dryRun,
             buildId = value.build.buildId,
             uikitComposeVersion = value.build.libraryVersion,

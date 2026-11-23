@@ -8,11 +8,14 @@ DESIGN_SYSTEM_NAME_EXPLICIT=0
 THEME_NAME="sdds_serv_local"
 THEME_PROFILE="malachite"
 PUBLISH_VERSION="0.1.0"
+SKIP_PUBLISH=0
 PACKAGE_DIR=""
 THEME_PACKAGE="$ROOT_DIR/local-dev/design-system/theme"
 USERNAME="${DSBUILDER_LOCAL_USERNAME:-admin@example.com}"
 PASSWORD="${DSBUILDER_LOCAL_PASSWORD:-password}"
 CLI="${DSBUILDER_CLI:-}"
+CORE_RELEASE_ID="${DSBUILDER_COMPOSE_CORE_RELEASE_ID:-}"
+CORE_ARCHIVE="${PREVIEW_PLUGIN_ZIP:-$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip}"
 
 usage() {
   cat <<'USAGE'
@@ -36,10 +39,14 @@ Options:
   --publish-version VERSION
                          Publish this version after import unless it already exists. Default: 0.1.0.
                          An existing publication stays unchanged; the import still updates the draft.
+  --skip-publish        Load configurations into the draft without publishing a DS version.
   --name NAME            Name of the design system that the script owns. Default: sdds_serv_local.
   --theme NAME           Theme name. Default: sdds_serv_local.
   --profile PROFILE      Starting palette of the theme: sber, malachite or b2b. Default: malachite.
   --gateway-url URL      Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
+  --core-release-id ID   Exact registered Compose Core for a DS without a selection.
+  --core-archive FILE    Source of exact coordinates when no ID is passed. Default: bundled Compose ZIP.
+                         An existing DS selection is preserved; a conflicting explicit ID is rejected.
   --cli PATH             dsbuilder CLI. Env: DSBUILDER_CLI. Default: the JVM CLI of this repository.
   --help                 Show this help.
 
@@ -75,6 +82,7 @@ while [[ $# -gt 0 ]]; do
       PUBLISH_VERSION="${2:-}"
       shift 2
       ;;
+    --skip-publish) SKIP_PUBLISH=1; shift ;;
     --name)
       DESIGN_SYSTEM_NAME="${2:-}"
       DESIGN_SYSTEM_NAME_EXPLICIT=1
@@ -92,6 +100,8 @@ while [[ $# -gt 0 ]]; do
       GATEWAY_URL="${2:-}"
       shift 2
       ;;
+    --core-release-id) CORE_RELEASE_ID="${2:-}"; shift 2 ;;
+    --core-archive) CORE_ARCHIVE="${2:-}"; shift 2 ;;
     --cli)
       CLI="${2:-}"
       shift 2
@@ -193,6 +203,21 @@ else
   log "Reusing the design system '$DESIGN_SYSTEM_NAME'"
 fi
 
+# Выбор берётся из явного ID либо из точного manifest локального ZIP, никогда из latest.
+core_root="$DS_BASE/$DESIGN_SYSTEM_ID"
+core_settings="$(api GET "$core_root/core-settings")" || fail "Could not read Core settings"
+selected_core="$(printf '%s' "$core_settings" | json_get "next((x['releaseId'] for x in d['context']['coreReleases'] if x['platform'] == 'compose'), '')")"
+if [[ -n "$selected_core" ]]; then
+  [[ -z "$CORE_RELEASE_ID" || "$CORE_RELEASE_ID" == "$selected_core" ]] \
+    || fail "Existing Compose Core differs; change it explicitly in DS settings or use a new DS name"
+  log "Preserving selected Compose Core $selected_core"
+else
+  core_selection="$(DSBUILDER_LOCAL_ACCESS_TOKEN="$TOKEN" python3 "$ROOT_DIR/local-dev/select_core_release.py" \
+    --api-root "$GATEWAY_URL$core_root" --release-id "$CORE_RELEASE_ID" --archive "$CORE_ARCHIVE")" \
+    || fail "Pass --core-release-id of an imported Core or --core-archive with matching release metadata"
+  api PUT "$core_root/core-settings/compose" --data "$core_selection" >/dev/null || fail "Could not select Compose Core"
+fi
+
 THEMES="$(api GET "$DS_BASE/$DESIGN_SYSTEM_ID/tenants" | json_get "len(d)")"
 if [[ "$THEMES" == "0" ]]; then
   log "Creating the theme '$THEME_NAME' (starting palette: $THEME_PROFILE)"
@@ -247,7 +272,15 @@ push_output="$(DSBUILDER_API_URL="$GATEWAY_URL" DSBUILDER_API_KEY="$PAT_SECRET" 
     printf '%s\n' "$push_output" | grep -v SLF4J >&2 || true
     fail "The component configurations could not be loaded"
   }
+if printf '%s\n' "$push_output" | grep -Eq '^Rejected: [1-9]'; then
+  fail "Component import contains rejected configurations; publication was not attempted"
+fi
 printf '%s\n' "$push_output" | grep -v SLF4J | grep -E "^(Created|Updated|Unchanged|Rejected|Status)|^  .*:" || true
+
+if [[ "$SKIP_PUBLISH" == "1" ]]; then
+  log "Done. Component configurations are loaded into the draft; publication was skipped."
+  exit 0
+fi
 
 VERSIONS_URL="$DS_BASE/$DESIGN_SYSTEM_ID/versions"
 existing_version="$(api GET "$VERSIONS_URL?version=$PUBLISH_VERSION&limit=1" \

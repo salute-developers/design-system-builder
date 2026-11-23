@@ -31,6 +31,7 @@ internal fun releaseMetaBody(body: String, archive: ByteArray): String {
     return JsonObject(
         request + mapOf(
             "coreRelease" to coordinates,
+            "channel" to (manifest?.get("channel") ?: JsonPrimitive("stable")),
             "sourceMetaBase64" to JsonPrimitive(Base64.getEncoder().encodeToString(source)),
             "metaSha256" to JsonPrimitive(sha256Hex(source)),
         ),

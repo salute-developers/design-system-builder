@@ -31,6 +31,7 @@ export class Config {
 
     private readonly platform: ComponentPlatform;
     private readonly coreReleaseId?: string;
+    private readonly coreSelectionRevision?: number;
     private readonly componentId?: string;
 
     constructor(meta: Meta, configID?: string) {
@@ -43,6 +44,7 @@ export class Config {
         this.previewMetadata = meta.preview;
         this.platform = meta.platform ?? 'web';
         this.coreReleaseId = meta.serverBinding?.coreReleaseId;
+        this.coreSelectionRevision = meta.serverBinding?.coreSelectionRevision;
         this.componentId = meta.serverBinding?.componentId;
 
         const appearance = configID ? configs.find((item) => item.id === configID) : configs[0];
@@ -140,13 +142,13 @@ export class Config {
     }
 
     /** Core той модели, из которой построено оформление; не входит в конфигурацию генератора. */
-    public getCoreReleaseId() {
-        return this.coreReleaseId;
+    /** Ревизия исходной модели, которую сохраняют вместе с локальной правкой. */
+    public getCoreSelectionRevision() {
+        return this.coreSelectionRevision;
     }
 
-    /** Устойчивый ID именно этой платформенной модели. */
-    public getComponentId() {
-        return this.componentId;
+    public getCoreReleaseId() {
+        return this.coreReleaseId;
     }
 
     public getPlatform() {

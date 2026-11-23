@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { ComponentAPI } from '../controllers/componentBuilder/type';
 import {
     collectDependencies,
+    deprecationsByProperty,
     enrichApi,
     variationNamesByProperty,
     webParamsByProperty,
@@ -89,4 +90,30 @@ describe('component model enrichment', () => {
         ]);
         expect(deps.has('AvatarGroup')).toBe(false);
     });
+});
+
+it('keeps platform-specific deprecation messages independently of saved assignments', () => {
+    const params = [
+        {
+            id: '1',
+            propertyId: 'height',
+            platform: 'compose',
+            name: 'height',
+            deprecated: true,
+            deprecatedMessage: 'Use minHeight',
+        },
+        {
+            id: '2',
+            propertyId: 'width',
+            platform: 'web',
+            name: 'width',
+            deprecated: true,
+            deprecatedMessage: 'Use size',
+        },
+        { id: '3', propertyId: 'enabled', platform: 'compose', name: 'enabled', deprecated: false },
+    ];
+    const hints = deprecationsByProperty(params, 'compose');
+    expect(hints.get('height')).toEqual({ message: 'Use minHeight' });
+    expect(hints.has('width')).toBe(false);
+    expect(hints.has('enabled')).toBe(false);
 });

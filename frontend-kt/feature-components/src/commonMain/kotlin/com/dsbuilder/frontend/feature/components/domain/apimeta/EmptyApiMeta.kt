@@ -12,7 +12,7 @@ internal fun isExplicitlyEmptyApiMeta(text: String, platform: String): Boolean {
         return false
     }
     val components = when (source) {
-        is JsonArray -> source
+        is JsonArray -> source.takeUnless { platform == "xml" }
         is JsonObject -> if (platform == "xml") source["components"] as? JsonArray else null
         else -> null
     }

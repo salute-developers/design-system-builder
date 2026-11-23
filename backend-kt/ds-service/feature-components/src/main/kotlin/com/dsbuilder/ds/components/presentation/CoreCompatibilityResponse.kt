@@ -34,6 +34,8 @@ data class CoreCompatibilityResponse(
         val draftRevision: Long?,
         /** Согласованный набор снимков Core выбранной границы. */
         val coreReleases: List<Release>,
+        /** Отдельная ревизия выбора Core. */
+        val coreSelectionRevision: Long? = null,
     )
 
     /** Проверенное происхождение релиза либо явно обозначенный технический снимок. */
@@ -51,6 +53,10 @@ data class CoreCompatibilityResponse(
         val metaSha256: String?,
         /** imported либо migration-snapshot; последнее не доказывает историческую версию. */
         val provenance: String,
+        /** Канал поставки или неизвестное наследованное происхождение. */
+        val channel: String? = null,
+        /** Политика выбора черновика; история закреплена. */
+        val selectionMode: String = "pinned",
     )
 
     /** Адрес и доступные действия одной проблемы. */
@@ -148,7 +154,8 @@ data class CoreCompatibilityResponse(
             report.nextCursor,
         )
 
-        private fun context(c: ModelReadContext) = Context(
+        /** Преобразует безопасный контекст для отчёта и настроек. */
+        fun context(c: ModelReadContext) = Context(
             c.designSystemId.toString(),
             c.versionId?.toString(),
             c.draftId?.toString(),
@@ -161,8 +168,11 @@ data class CoreCompatibilityResponse(
                     r.ref.version,
                     r.metaSha256,
                     r.provenance,
+                    r.channel,
+                    r.selectionMode,
                 )
             },
+            c.coreSelectionRevision,
         )
 
         private fun issue(i: CoreCompatibilityIssue): Issue {

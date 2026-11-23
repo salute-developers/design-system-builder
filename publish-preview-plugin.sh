@@ -5,14 +5,15 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:8080}"
 PLUGIN_SOURCE=""
 PLATFORM=""
+CHANNEL=""
 CLI="${DSBUILDER_CLI:-}"
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ./publish-preview-plugin.sh --platform compose --from path/to/preview-compose-plugin.zip
-  ./publish-preview-plugin.sh --platform react --from path/to/preview-web-plugin.zip
-  ./publish-preview-plugin.sh --platform compose --from https://example.com/preview-compose-plugin.zip
+  ./publish-preview-plugin.sh --platform compose --channel dev --from path/to/preview-compose-plugin.zip
+  ./publish-preview-plugin.sh --platform react --channel dev --from path/to/preview-web-plugin.zip
+  ./publish-preview-plugin.sh --platform compose --channel dev --from https://example.com/preview-compose-plugin.zip
 
 Local dev helper for the stack started by ./setup-local.sh. It sends a prebuilt preview plugin to the local backend,
 exactly as CI does: the backend stores the files in the local MinIO bucket of the platform (compose-preview or
@@ -26,6 +27,7 @@ Archives bundled in this repository (setup-local.sh uses them by default):
 
 Options:
   --platform compose|react  Plugin platform: compose (Compose plugin) or react (web plugin).
+  --channel stable|dev     Publication channel (required, independent of the archive and server).
   --from FILE|URL           Plugin archive: a local file or an http(s) address.
   --gateway-url URL         Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
   --cli PATH                dsbuilder CLI with the `preview-plugin` command. Env: DSBUILDER_CLI. By default the
@@ -53,6 +55,7 @@ while [[ $# -gt 0 ]]; do
       PLATFORM="${2:-}"
       shift 2
       ;;
+    --channel) CHANNEL="${2:-}"; shift 2 ;;
     --from)
       PLUGIN_SOURCE="${2:-}"
       shift 2
@@ -82,6 +85,7 @@ case "$PLATFORM" in
   react) ARCHIVE_NAME="preview-web-plugin.zip" ;;
   *) usage >&2; fail "Pass --platform compose or --platform react" ;;
 esac
+[[ "$CHANNEL" =~ ^(stable|dev)$ ]] || fail "Pass --channel stable or dev"
 [[ -n "$PLUGIN_SOURCE" ]] || { usage >&2; fail "Pass the plugin archive with --from"; }
 
 WORK_DIR="$(mktemp -d)"
@@ -102,12 +106,12 @@ resolve_cli() {
     return
   fi
   # The installed CLI must know the command and the platform: an older one publishes only Compose.
-  if command -v dsbuilder >/dev/null 2>&1 && dsbuilder preview-plugin publish --help 2>&1 | grep -q "$PLATFORM"; then
+  if command -v dsbuilder >/dev/null 2>&1 && dsbuilder preview-plugin publish --help 2>&1 | grep -q -- "--channel"; then
     echo "dsbuilder"
     return
   fi
   local jvm="$ROOT_DIR/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder"
-  log "Building the JVM dsbuilder CLI of this repository (the installed one cannot publish $PLATFORM)" >&2
+  log "Building the JVM dsbuilder CLI of this repository (the installed one cannot publish $PLATFORM with an explicit channel)" >&2
   (cd "$ROOT_DIR/frontend-kt" && ./gradlew --quiet :cli:installJvmDist >&2) || fail "The CLI build failed (JDK 17 is required)"
   [[ -x "$jvm" ]] || fail "The built CLI is missing: $jvm"
   echo "$jvm"
@@ -120,7 +124,7 @@ export DSBUILDER_CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-preview-publisher}"
 export DSBUILDER_CLIENT_SECRET="${DSBUILDER_CLIENT_SECRET:-dev-preview-publisher-secret}"
 
 log "Publishing the $PLATFORM plugin $ARCHIVE to $GATEWAY_URL"
-"$CLI" preview-plugin publish --platform "$PLATFORM" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
+"$CLI" preview-plugin publish --platform "$PLATFORM" --channel "$CHANNEL" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
   || fail "The publication failed. Is the stack running (./setup-local.sh)?"
 
 log "Done. The component editor loads the plugin from the local MinIO bucket."

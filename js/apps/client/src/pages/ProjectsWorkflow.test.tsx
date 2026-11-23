@@ -65,6 +65,10 @@ const atCreateDesignSystem = (path = '/projects/project-1/design-systems/new') =
                     <Route path="design-systems/new" element={<CreateDesignSystemDialog />} />
                 </Route>
                 <Route path="/projects/:projectId/design-systems/:designSystemId" element={<DesignSystemPage />} />
+                <Route
+                    path="/projects/:projectId/design-systems/:designSystemId/settings"
+                    element={<DesignSystemSettingsPage />}
+                />
             </Routes>
         </MemoryRouter>,
     );
@@ -88,10 +92,12 @@ beforeEach(() => {
     resetQueryCache();
     vi.spyOn(projectsApi, 'list').mockResolvedValue([]);
     vi.spyOn(userSettingsApi, 'tokens').mockResolvedValue([]);
-    vi.spyOn(userSettingsApi, 'scopes').mockResolvedValue({ scopes: [
-        { id: 'projects:read', title: 'Проекты', description: 'Просмотр проектов' },
-        { id: 'members:read', title: 'Участники', description: 'Просмотр участников' },
-    ] });
+    vi.spyOn(userSettingsApi, 'scopes').mockResolvedValue({
+        scopes: [
+            { id: 'projects:read', title: 'Проекты', description: 'Просмотр проектов' },
+            { id: 'members:read', title: 'Участники', description: 'Просмотр участников' },
+        ],
+    });
     vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([]);
@@ -825,7 +831,9 @@ describe('project workflow', () => {
         expect(await screen.findByText('CI')).toBeInTheDocument();
         expect(screen.getByText('projects:read')).toHaveClass('ps-scope-chip');
         expect(screen.getByText('projects:read').parentElement).toHaveClass('ps-scope-flow');
-        expect(document.querySelector('.ps-cli-head')).toHaveTextContent('НазваниеСтатусРазрешенияСрок действияДействия');
+        expect(document.querySelector('.ps-cli-head')).toHaveTextContent(
+            'НазваниеСтатусРазрешенияСрок действияДействия',
+        );
         fireEvent.click(screen.getAllByRole('button', { name: 'Создать ключ' }).at(-1)!);
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toBeInTheDocument();
         expect(screen.getByRole('dialog', { name: 'Создать ключ доступа' })).toHaveClass('ps-access-key-dialog');
@@ -1180,7 +1188,7 @@ describe('design system and Theme workflow', () => {
         expect(screen.getByRole('button', { name: 'Создать' })).toBeDisabled();
     });
 
-    it('opens a newly created design system without a full-page skeleton flash', async () => {
+    it('opens explicit optional Core selection after creation without a full-page skeleton flash', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
         vi.spyOn(projectsApi, 'list').mockResolvedValue([project('owner')]);
         vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
@@ -1198,10 +1206,14 @@ describe('design system and Theme workflow', () => {
             target: { value: 'New System' },
         });
         fireEvent.click(screen.getByRole('button', { name: 'Создать' }));
-        expect(await screen.findByText('Тем пока нет')).toBeInTheDocument();
+        expect(await screen.findByText('Выберите Core для нужных платформ')).toBeInTheDocument();
+        expect(screen.getByRole('link', { name: 'Пропустить и перейти к темам' })).toHaveAttribute(
+            'href',
+            '/projects/project-1/design-systems/ds-new',
+        );
         expect(view.container.querySelector('.catalog-loading-grid')).not.toBeInTheDocument();
         expect(screen.getByText('DS Builder').parentElement).toHaveTextContent(
-            'DS Builder/Проекты/Platform/New System',
+            'DS Builder/Проекты/Platform/New System/Настройки',
         );
     });
 
@@ -1395,7 +1407,7 @@ describe('design system and Theme workflow', () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected fetch'));
         at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
         expect(await screen.findByRole('navigation', { name: 'Разделы: Настройки дизайн-системы' })).toHaveTextContent(
-            'ОсновноеТемыОпасная зона',
+            'ОсновноеТемыВерсии библиотекОпасная зона',
         );
         // Публикации в npm нет: ни блока статуса, ни запросов к npm registry.
         expect(screen.queryByText('Публикация в npm')).not.toBeInTheDocument();

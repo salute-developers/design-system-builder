@@ -9,6 +9,6 @@ internal fun coreReleasePayload(version: String, components: String): String {
     val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
     val source = Base64.getEncoder().encodeToString(bytes)
     return """{"platform":"compose","dryRun":false,"components":$components,
-        "coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":"$version"},
+        "channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":"$version"},
         "sourceMetaBase64":"$source","metaSha256":"$hash"}"""
 }

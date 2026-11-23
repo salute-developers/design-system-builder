@@ -9,7 +9,8 @@ import com.dsbuilder.ds.components.domain.ComponentConfigPackage
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
-import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.inSubQuery
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 
 /** Component-config repository backed by the existing normalized db-service schema. */
@@ -116,14 +117,15 @@ class ExposedComponentConfigRepository internal constructor(
         designSystemId: java.util.UUID,
         platform: ComponentPlatformDb,
     ): List<ConfigAppearance> {
-        val active = DesignSystemComponentsTable.selectAll()
-            .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
-            .map { it[DesignSystemComponentsTable.componentId] }
         val query = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
             .where {
                 (ComponentAppearancesTable.designSystemId eq designSystemId) and
                     (ComponentsTable.platform eq platform) and
-                    (ComponentsTable.id inList active)
+                    (
+                        ComponentAppearancesTable.componentId inSubQuery
+                            DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId)
+                                .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
+                        )
             }
         return query.map {
             ConfigAppearance(
@@ -136,8 +138,12 @@ class ExposedComponentConfigRepository internal constructor(
         }
     }
 
-    private fun normalized(values: List<String>?): Set<String>? = values?.map(String::trim)?.filter(String::isNotEmpty)
-        ?.map(String::lowercase)?.toSet()?.takeIf(Set<String>::isNotEmpty)
+    private fun normalized(values: List<String>?): Set<String>? = values.orEmpty().asSequence()
+        .map(String::trim)
+        .filter(String::isNotEmpty)
+        .map(String::lowercase)
+        .toSet()
+        .takeIf(Set<String>::isNotEmpty)
 
     private fun matches(value: String, filter: Set<String>?): Boolean = filter == null || value.lowercase() in filter
 }

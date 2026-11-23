@@ -77,6 +77,14 @@ class FetchComponentsUseCaseTest {
     )
 
     @Test
+    fun selectedPublicationIsForwardedToExport() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+        val result = execute(selectedContext = context.copy(selectedVersion = "1.0.0"), onExport = commands::add)
+        assertTrue(result is FetchComponentsResult.Fetched)
+        assertEquals("1.0.0", commands.single().version)
+    }
+
+    @Test
     fun requestsPackageOnceAndWritesIt() = runTest {
         val commands = mutableListOf<ExportComponentsCommand>()
         val result = execute(onExport = { commands += it })
@@ -277,6 +285,24 @@ class FetchComponentsUseCaseTest {
     }
 
     @Test
+    fun webAdapterUsesTheExportedSnapshotBeforeAnyLocalWrite() = runTest {
+        val commands = mutableListOf<ExportComponentsCommand>()
+        var writes = 0
+        val result = execute(
+            exportResult = ExportComponentsResult.Exported(
+                ExportedComponentPackage("fixture", "draft", emptyList(), readContext = "snapshot-A"),
+            ),
+            onWebAdapterFetch = commands::add,
+            webAdapterResult = WebAdapterFileResult.Failed("DS context changed"),
+            onWrite = { writes++ },
+            platform = TargetPlatform.REACT,
+        )
+        assertEquals("snapshot-A", commands.single().readContext)
+        assertTrue(result is FetchComponentsResult.Failed)
+        assertEquals(0, writes)
+    }
+
+    @Test
     fun webAdapterFailureBlocksWrites() = runTest {
         var writes = 0
 
@@ -354,7 +380,7 @@ class FetchComponentsUseCaseTest {
         ),
         onExport: (ExportComponentsCommand) -> Unit = {},
         webAdapterResult: WebAdapterFileResult = WebAdapterFileResult.Loaded("[]"),
-        onWebAdapterFetch: () -> Unit = {},
+        onWebAdapterFetch: (ExportComponentsCommand) -> Unit = {},
         onWebAdapterWrite: (WebAdapterFileResult.Loaded) -> Unit = {},
         platform: TargetPlatform? = null,
         onDirectoryRead: () -> Unit = {},
@@ -388,8 +414,8 @@ class FetchComponentsUseCaseTest {
                 ComponentPackageWriteResult.Written("/work/.sdds/components")
             },
             codec = ConfigCodec(),
-            webAdapterSource = WebAdapterFileSource {
-                onWebAdapterFetch()
+            webAdapterSource = WebAdapterFileSource { command ->
+                onWebAdapterFetch(command)
                 webAdapterResult
             },
             webAdapterWriter = WebAdapterFileWriter { _, _, meta ->

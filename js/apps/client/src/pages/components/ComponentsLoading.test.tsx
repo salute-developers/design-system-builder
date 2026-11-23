@@ -15,18 +15,7 @@ const mocks = vi.hoisted(() => ({
         getMeta: () => ({}),
         getConfigurationId: () => undefined,
         getConfigurations: () => [],
-        getComponentId: () => undefined,
     },
-}));
-
-vi.mock('../../utils', async (importOriginal) => ({
-    ...(await importOriginal<typeof import('../../utils')>()),
-    getComposeMenuItems: () => ({
-        groups: [{ data: [{ items: [{ name: 'Button', disabled: false, data: [{ ...mocks.config, getPlatform: () => 'compose', getComponentId: () => 'compose-Button' }] }] }] }],
-    }),
-    getOldMenuItems: () => ({
-        groups: [{ data: [{ items: [{ name: 'Button', disabled: false, data: [mocks.config] }] }] }],
-    }),
 }));
 
 vi.mock('../../layouts', () => ({
@@ -42,10 +31,6 @@ vi.mock('./features/ComponentEditor', () => ({
     ComponentEditor: () => <div>настройка и превью</div>,
 }));
 
-vi.mock('../../components/CoreProblems', () => ({
-    CoreProblems: (props: { componentId: string }) => { mocks.problems(props); return <div>диагностика {props.componentId}</div>; },
-}));
-
 vi.mock('../../api/componentRepository', () => ({
     componentRepository: {
         saveComponentMutation: vi.fn(),
@@ -55,14 +40,22 @@ vi.mock('../../api/componentRepository', () => ({
 }));
 
 vi.mock('../../api/http', () => ({
-    http: { get: async (url: string, options: unknown) => {
-        if (url.endsWith('/compatibility')) return { data: {
-            context: { coreReleases: [] }, items: [], blockingCount: 0, warningCount: 0,
-        } };
-        const data = await mocks.fetchWebPreviewPluginDescriptor(url, options);
-        if (!data) throw { isAxiosError: true, response: { status: 404 } };
-        return { data };
-    } },
+    http: {
+        get: async (url: string, options: unknown) => {
+            if (url.endsWith('/compatibility'))
+                return {
+                    data: {
+                        context: { coreReleases: [] },
+                        items: [],
+                        blockingCount: 0,
+                        warningCount: 0,
+                    },
+                };
+            const data = await mocks.fetchWebPreviewPluginDescriptor(url, options);
+            if (!data) throw { isAxiosError: true, response: { status: 404 } };
+            return { data };
+        },
+    },
 }));
 
 import { resetWebPreviewPluginLocation } from '../../composePreview';
@@ -71,13 +64,23 @@ import { Components } from './Components';
 const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
 
 const renderPage = (
-    state: { componentLoading?: boolean; componentError?: string; components?: unknown[]; composeComponents?: unknown[] },
+    state: {
+        componentLoading?: boolean;
+        componentError?: string;
+        components?: unknown[];
+        composeComponents?: unknown[];
+    },
     reload = vi.fn(),
     route = '/components/Button',
 ) => {
     const context = {
-        designSystem: { getParameters: () => editorContext, getComponentDataByName: () => ({}),
-            findComponentData: (platform: string, name: string) => ({ serverBinding: { componentId: `${platform}-${name}` } }),
+        designSystem: {
+            getParameters: () => editorContext,
+            getComponentDataByName: () => ({}),
+            getComponentData: () => ({}),
+            findComponentData: (platform: string, name: string) => ({
+                serverBinding: { componentId: `${platform}-${name}` },
+            }),
         },
         theme: {},
         components: [mocks.config],
@@ -160,7 +163,8 @@ describe('Components: загрузка выбранного компонента
         expect(await screen.findByTestId('web-preview-host')).toBeInTheDocument();
         expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(1);
         expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledWith(
-            '/api/projects/project/design-systems/ds/preview/web', expect.anything(),
+            '/api/projects/project/design-systems/ds/preview/web',
+            expect.anything(),
         );
 
         cleanup();
@@ -169,17 +173,12 @@ describe('Components: загрузка выбранного компонента
         expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(2);
     });
 
-    it('передаёт Compose ID в диагностику вместо одноимённого web-компонента', async () => {
-        renderPage({ composeComponents: [mocks.config] }, vi.fn(), '/components/compose-Button?section=problems');
-        expect(await screen.findByText('диагностика compose-Button')).toBeInTheDocument();
-        expect(mocks.problems).toHaveBeenCalledWith(expect.objectContaining({ componentId: 'compose-Button' }));
-        expect(screen.queryByText('диагностика web-Button')).not.toBeInTheDocument();
-    });
-
     it('не передаёт модель A в preview B и запрашивает новую модель', async () => {
         mocks.coreReleaseId = 'core-A';
         mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue({
-            buildId: 'build-B', pluginUrl: 'https://preview.test/B/', coreRelease: { releaseId: 'core-B' },
+            buildId: 'build-B',
+            pluginUrl: 'https://preview.test/B/',
+            coreRelease: { releaseId: 'core-B' },
         });
         const reload = renderPage({});
         await vi.waitFor(() => expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalled());

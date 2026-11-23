@@ -50,6 +50,7 @@ internal class McpEditorTools(
             arguments.text("idempotencyKey").orEmpty(),
             arguments.text("version"),
             arguments.number("baseRevision"),
+            arguments.number("coreSelectionRevision"),
         )
         return when {
             name == "token_edit_data_get" -> tokenData?.execute(
@@ -93,7 +94,8 @@ private val pointNames = setOf(
     "token_value_delete",
 )
 private val themeNames = editorTokenTools.map { it.name }.toSet() - pointNames
-private val editorOptionFields = setOf("designSystem", "version", "idempotencyKey", "baseRevision")
+private val editorOptionFields =
+    setOf("designSystem", "version", "idempotencyKey", "baseRevision", "coreSelectionRevision")
 private val themeRoutes = mapOf(
     "color_token_create" to setOf("tenantId"),
     "color_token_values_update" to setOf("tenantId", "tokenId"),

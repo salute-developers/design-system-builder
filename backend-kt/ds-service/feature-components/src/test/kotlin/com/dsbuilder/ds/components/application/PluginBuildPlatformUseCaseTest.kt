@@ -26,6 +26,8 @@ import java.util.zip.ZipOutputStream
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertNotEquals
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 /** Публикация и выдача билдов по платформам (change publish-web-preview-plugin): платформы не мешают друг другу. */
@@ -46,8 +48,10 @@ class PluginBuildPlatformUseCaseTest {
     private fun settings(base: String, keepBuilds: Int) =
         PluginBuildSettings(publicBaseUrl = base, keepBuilds = keepBuilds, orphanGrace = Duration.ofHours(1))
 
-    private fun publisher(storages: PluginBuildStorages = storages()) =
-        PublishPluginBuildUseCase(ImmediateTransactions, storages, builds, RecordingApiMeta(metaImports))
+    private fun publisher(
+        storages: PluginBuildStorages = storages(),
+        apiMeta: ApiMetaRepository = RecordingApiMeta(metaImports),
+    ) = PublishPluginBuildUseCase(ImmediateTransactions, storages, builds, apiMeta)
 
     private fun active(storages: PluginBuildStorages = storages()) = GetActivePluginBuildUseCase(
         DsAccessPolicy(PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded())),
@@ -137,6 +141,62 @@ class PluginBuildPlatformUseCaseTest {
     }
 
     @Test
+    fun `pinned inactive build does not consume retention for ordinary inactive builds`() = runBlocking<Unit> {
+        val storages = storages(keepBuilds = 1)
+        assertIs<DsResult.Success<PublishResult>>(publish(PreviewPluginPlatform.WEB, COMMIT_A, storages = storages))
+        assertIs<DsResult.Success<PublishResult>>(publish(PreviewPluginPlatform.WEB, COMMIT_B, storages = storages))
+        builds.pinned += COMMIT_B.take(12)
+        assertIs<DsResult.Success<PublishResult>>(publish(PreviewPluginPlatform.WEB, COMMIT_C, storages = storages))
+        assertEquals(setOf(COMMIT_A.take(12), COMMIT_B.take(12), COMMIT_C.take(12)), builds.rows.keys)
+        assertTrue(webStorage.files.keys.any { it.startsWith(COMMIT_A.take(12) + "/") })
+    }
+
+    @Test
+    fun `a dev build published again after retention uses a new immutable URL for changed files`() = runBlocking<Unit> {
+        val storages = storages(keepBuilds = 0)
+        suspend fun dev(commit: String, html: String): PublishResult = assertIs<DsResult.Success<PublishResult>>(
+            publisher(storages).execute(
+                PreviewPluginPlatform.WEB,
+                PUBLISHER,
+                PublishPluginBuild(
+                    archive(PreviewPluginPlatform.WEB, commit, html),
+                    meta("web").copy(channel = "dev"),
+                    false,
+                ),
+            ),
+        ).value
+        val first = dev(COMMIT_A, "<html>A</html>")
+        dev(COMMIT_B, "<html>another build</html>")
+        assertNull(builds.find(first.build.buildId))
+        assertTrue(webStorage.files.keys.none { it.startsWith("${first.build.storageKey}/") })
+
+        val republished = dev(COMMIT_A, "<html>B</html>")
+        assertEquals(PublishKind.PUBLISHED, republished.kind)
+        assertEquals(first.build.buildId, republished.build.buildId)
+        assertNotEquals(first.pluginUrl, republished.pluginUrl)
+        assertNotEquals(first.build.zipSha256, republished.build.zipSha256)
+        assertTrue(webStorage.files.containsKey("${republished.build.storageKey}/index.html"))
+    }
+
+    @Test
+    fun `a rejected first dev import removes uploaded files without registering a build`() = runBlocking<Unit> {
+        val rejecting = object : ApiMetaRepository {
+            override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt {
+                assertTrue(webStorage.files.isNotEmpty())
+                return ApiMetaRepository.ImportAttempt.Conflict("CORE_RELEASE_IMMUTABLE")
+            }
+        }
+        val result = publisher(apiMeta = rejecting).execute(
+            PreviewPluginPlatform.WEB,
+            PUBLISHER,
+            PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A), meta("web").copy(channel = "dev"), false),
+        )
+        assertEquals(DsFailure.Conflict("CORE_RELEASE_IMMUTABLE"), assertIs<DsResult.Failure>(result).error)
+        assertTrue(webStorage.files.isEmpty())
+        assertTrue(builds.rows.isEmpty())
+    }
+
+    @Test
     fun `publication without the storage of its platform is unavailable`() = runBlocking<Unit> {
         val storages = storages(web = UnconfiguredStorage)
 
@@ -175,6 +235,7 @@ class PluginBuildPlatformUseCaseTest {
         source = "api-meta.json",
         dryRun = true,
         components = emptyList(),
+        channel = "stable",
         coreRelease = CoreReleaseRef(
             if (platform == "web") "plasma-new-hope" else "uikit-compose",
             platform,
@@ -184,15 +245,15 @@ class PluginBuildPlatformUseCaseTest {
         metaSha256 = sha256Hex("""[{"componentName":"Button"}]""".toByteArray()),
     )
 
-    private fun archive(platform: PreviewPluginPlatform, commit: String): ByteArray {
+    private fun archive(platform: PreviewPluginPlatform, commit: String, html: String = "<html/>"): ByteArray {
         val meta = """[{"componentName":"Button"}]"""
         val library = if (platform == PreviewPluginPlatform.WEB) "0.386.0" else "0.55.0"
         val manifest = """{"schemaVersion":1,"platform":"${platform.wire}","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
-            """"coreRelease":{"libraryId":"${if (platform == PreviewPluginPlatform.WEB) "plasma-new-hope" else "uikit-compose"}","platform":"${platform.wire}","version":"$library"},"${platform.libraryVersionField}":"$library","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
+            """"channel":"stable","coreRelease":{"libraryId":"${if (platform == PreviewPluginPlatform.WEB) "plasma-new-hope" else "uikit-compose"}","platform":"${platform.wire}","version":"$library"},"${platform.libraryVersionField}":"$library","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         val out = ByteArrayOutputStream()
         ZipOutputStream(out).use { zip ->
-            mapOf("index.html" to "<html/>", "preview-plugin.json" to manifest, "api-meta.json" to meta)
+            mapOf("index.html" to html, "preview-plugin.json" to manifest, "api-meta.json" to meta)
                 .forEach { (path, content) ->
                     zip.putNextEntry(ZipEntry(path))
                     zip.write(content.toByteArray())
@@ -221,6 +282,8 @@ class PluginBuildPlatformUseCaseTest {
 
     private class InMemoryBuilds : PluginBuildRepository {
         val rows = linkedMapOf<String, PluginBuild>()
+        val pinned = mutableSetOf<String>()
+        override suspend fun pinnedBuildIds(): Set<String> = pinned
         private var clock = Instant.parse("2026-10-01T00:00:00Z")
 
         override suspend fun lockPublications() = Unit
@@ -249,6 +312,7 @@ class PluginBuildPlatformUseCaseTest {
                 publishedBy = build.publishedBy,
                 publishedAt = clock,
                 active = true,
+                storageKey = build.storageKey,
             ).also { rows[it.buildId] = it }
         }
 

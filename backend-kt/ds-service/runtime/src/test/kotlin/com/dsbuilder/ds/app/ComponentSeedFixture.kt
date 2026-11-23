@@ -100,7 +100,7 @@ internal object ComponentSeedFixture {
                 }
                 if (property != null && token != null) {
                     target[property] = when (token.substringBefore('.')) {
-                        "text", "surface", "overlay", "outline" -> "color"
+                        "text", "surface", "overlay", "outline", "data" -> "color"
                         "round" -> "shape"
                         "body", "header" -> "typography"
                         "down" -> "shadow"

@@ -116,7 +116,7 @@ class ComponentConfigImportCostIntegrationTest {
         val response = service.builder.client.post("/api/admin/component-config/import-api-meta") {
             actor(administrator = true)
             contentType(ContentType.Application.Json)
-            setBody("""{"platform":"compose","meta":{"source":"cost.json"},"dryRun":false,"components":[$list]}""")
+            setBody(coreReleasePayload("cost", "[$list]"))
         }
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
     }
@@ -128,7 +128,9 @@ class ComponentConfigImportCostIntegrationTest {
             setBody("""{"name":"$name","projectName":"$name"}""")
         }
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-        return json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        val system = json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        selectImportedFixtureCore(service.postgres, system, "cost")
+        return system
     }
 
     private fun scalar(value: Int, states: Boolean = false) = if (states) {

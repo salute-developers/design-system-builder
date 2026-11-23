@@ -22,6 +22,7 @@ internal data class ExportedComponentPackage(
     val configurations: List<ExportedComponentConfig>,
     val underivedTypes: List<String> = emptyList(),
     val coreReleases: List<com.dsbuilder.frontend.core.domain.CoreReleaseSnapshot> = emptyList(),
+    val readContext: String? = null,
 )
 
 /**

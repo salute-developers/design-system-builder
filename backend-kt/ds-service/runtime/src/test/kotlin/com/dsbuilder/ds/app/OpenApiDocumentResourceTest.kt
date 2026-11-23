@@ -21,6 +21,47 @@ class OpenApiDocumentResourceTest {
     private val paths = document.getValue("paths").jsonObject
 
     @Test
+    fun `preview upload documents ordinary replacement with no default write`() {
+        val admin = document.getValue("x-admin-preview-publication").jsonObject
+        for (platform in listOf("compose", "web")) {
+            val operation = admin.getValue(
+                "/api/admin/$platform-preview/plugin-builds",
+            ).jsonObject.getValue("post").jsonObject
+            val parameters = operation.getValue("parameters").jsonArray.associateBy {
+                it.jsonObject.getValue("name").jsonPrimitive.content
+            }
+            assertFalse("replaceDevPreview" in parameters)
+            assertEquals(
+                "true",
+                parameters.getValue(
+                    "dryRun",
+                ).jsonObject.getValue("schema").jsonObject.getValue("default").jsonPrimitive.content,
+            )
+            assertTrue("PREVIEW_BUILD_PINNED" in operation.getValue("description").jsonPrimitive.content)
+        }
+    }
+
+    @Test
+    fun `Core selection documents latest policy while preserving pinned clients`() {
+        val operation = paths.getValue(
+            "/api/design-systems/{designSystemId}/core-settings/{platform}",
+        ).jsonObject.getValue("put").jsonObject
+        val schema = operation.getValue(
+            "requestBody",
+        ).jsonObject.getValue(
+            "content",
+        ).jsonObject.getValue("application/json").jsonObject.getValue("schema").jsonObject
+        val policy = schema.getValue("properties").jsonObject.getValue("selectionMode").jsonObject
+        assertEquals("pinned", policy.getValue("default").jsonPrimitive.content)
+        assertTrue(policy.getValue("enum").jsonArray.any { it.jsonPrimitive.content == "latest" })
+        assertFalse(schema.getValue("required").jsonArray.any { it.jsonPrimitive.content == "releaseId" })
+        val release = document.getValue(
+            "components",
+        ).jsonObject.getValue("schemas").jsonObject.getValue("CoreReleaseSnapshot").jsonObject
+        assertTrue("selectionMode" in release.getValue("properties").jsonObject)
+    }
+
+    @Test
     fun `specialized value writes document repeatable responses`() {
         val operations = listOf(
             "/api/design-systems/{designSystemId}/tenants/{tenantId}/size-tokens/{tokenId}/value" to "put",
@@ -299,7 +340,7 @@ class OpenApiDocumentResourceTest {
 
         // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
         // каталог иконок, дублирование темы и состояния цветового токена.
-        assertEquals(204, operationCount)
+        assertEquals(213, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)

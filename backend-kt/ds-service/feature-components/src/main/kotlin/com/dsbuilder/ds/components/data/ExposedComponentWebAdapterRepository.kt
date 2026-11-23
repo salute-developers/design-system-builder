@@ -7,7 +7,9 @@ import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.core.isNotNull
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -45,7 +47,15 @@ class ExposedComponentWebAdapterRepository internal constructor() : ComponentWeb
     private fun entries(designSystemId: UUID, onlyKey: String?): List<ComponentWebAdapterEntry> {
         // Состав тот же, что у выгрузки: компоненты, у которых в дизайн-системе есть appearance.
         val appearances = ComponentAppearancesTable.innerJoin(ComponentsTable).selectAll()
-            .where { ComponentAppearancesTable.designSystemId eq designSystemId }
+            .where {
+                (ComponentAppearancesTable.designSystemId eq designSystemId) and
+                    (ComponentsTable.platform eq ComponentPlatformDb.WEB) and
+                    (
+                        ComponentsTable.id inSubQuery
+                            DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId)
+                                .where { DesignSystemComponentsTable.designSystemId eq designSystemId }
+                        )
+            }
             .map {
                 AdapterAppearance(
                     it[ComponentAppearancesTable.id],

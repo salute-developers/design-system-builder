@@ -5,27 +5,35 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.nio.charset.CharacterCodingException
-import java.security.MessageDigest
 import java.util.Base64
 
 /** Проверка полного релизного запроса до любых изменений каталога. */
 internal object CoreMetaValidation {
     /** Возвращает безопасную причину отказа, не раскрывая содержимое файла или SQL. */
     fun error(command: ImportApiMeta, supportedTypes: Set<String>): String? {
-        val release = command.coreRelease ?: return "CORE_RELEASE_REQUIRED"
-        if (!release.valid() || CoreReleaseRef.canonicalPlatform(release.platform) != command.platform) {
-            return "CORE_RELEASE_INVALID_PLATFORM"
+        if (missingMetadata(command)) {
+            return "CORE_RELEASE_METADATA_REQUIRED"
         }
+        val release = requireNotNull(command.coreRelease)
         val names = command.components.map { it.name }.toSet()
-        return sourceError(command)
-            ?: command.components.firstNotNullOfOrNull { componentError(it, names, supportedTypes) }
-            ?: duplicateError(command)
+        return when {
+            command.channel !in setOf("stable", "dev") -> "CORE_RELEASE_INVALID_CHANNEL"
+            !release.valid() || CoreReleaseRef.canonicalPlatform(release.platform) != command.platform ->
+                "CORE_RELEASE_INVALID_PLATFORM"
+            else -> sourceError(command)
+                ?: command.components.firstNotNullOfOrNull { componentError(it, names, supportedTypes) }
+                ?: duplicateError(command)
+        }
     }
+
+    /** Отличает старый клиент от некорректного содержимого нового релиза. */
+    fun missingMetadata(command: ImportApiMeta): Boolean =
+        listOf(command.coreRelease, command.channel, command.sourceMetaBase64, command.metaSha256).any { it == null }
 
     private fun componentError(component: ImportApiMeta.Component, names: Set<String>, types: Set<String>): String? =
         when {
             component.name.isBlank() || component.states.any(String::isBlank) -> "CORE_META_INVALID_COMPONENT"
-            component.dependencies.groupBy { it.component }.values.any { it.distinct().size > 1 } ->
+            component.dependencies.conflictingBy { it.component } ->
                 "CORE_META_CONFLICTING_DEPENDENCY: ${component.name}"
             component.dependencies.any { it.component !in names || it.type != "compose" } ->
                 "CORE_META_INVALID_DEPENDENCY: ${component.name}"
@@ -43,16 +51,16 @@ internal object CoreMetaValidation {
         property.aliases.isEmpty() || property.aliases.any { it.name.isBlank() } ->
             "CORE_META_INVALID_ALIAS: $component.${property.name}"
         property.componentTargets.any { it !in names } -> "CORE_META_UNKNOWN_COMPONENT_TARGET"
-        property.aliases.groupBy { it.name }.values.any { it.distinct().size > 1 } ->
+        property.aliases.conflictingBy { it.name } ->
             "CORE_META_CONFLICTING_ALIAS: $component.${property.name}"
         else -> null
     }
 
     private fun sourceError(command: ImportApiMeta): String? {
-        val encoded = command.sourceMetaBase64 ?: return "CORE_META_SOURCE_REQUIRED"
+        val encoded = requireNotNull(command.sourceMetaBase64)
         val bytes = runCatching { Base64.getDecoder().decode(encoded) }.getOrNull()
             ?: return "CORE_META_INVALID_BASE64"
-        val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val hash = sha256Hex(bytes)
         return if (hash != command.metaSha256) "CORE_META_SHA256_MISMATCH" else shapeError(bytes, command.platform)
     }
 
@@ -64,26 +72,27 @@ internal object CoreMetaValidation {
         } catch (_: CharacterCodingException) {
             return "CORE_META_INVALID_UTF8"
         }
-        val supportedShape = array is JsonArray ||
-            (platform == "xml" && array is JsonObject && array["components"] is JsonArray)
-        return if (supportedShape) null else "CORE_META_INVALID_SHAPE"
+        val components = if (platform == "xml") (array as? JsonObject)?.get("components") else array
+        return if (components is JsonArray) null else "CORE_META_INVALID_SHAPE"
     }
 
     private fun duplicateError(command: ImportApiMeta): String? {
         for ((name, components) in command.components.groupBy { it.name }) {
-            if (components.map { it.description }.distinct().size > 1 ||
-                components.map { it.dependencies }.distinct().size > 1
+            if (components.map { it.description to it.dependencies }.distinct().size > 1
             ) {
                 return "CORE_META_CONFLICTING_COMPONENT: $name"
             }
-            for ((propertyName, properties) in components.flatMap { it.properties }.groupBy { it.name }) {
-                if (properties.map { it.copy(aliases = emptyList()) }.distinct().size > 1 ||
-                    properties.flatMap { it.aliases }.groupBy { it.name }.values.any { it.distinct().size > 1 }
-                ) {
-                    return "CORE_META_CONFLICTING_PROPERTY: $name.$propertyName"
+            val conflictingProperty = components.flatMap { it.properties }.groupBy { it.name }
+                .entries.firstOrNull { (_, properties) ->
+                    properties.map { it.copy(aliases = emptyList()) }.distinct().size > 1 ||
+                        properties.flatMap { it.aliases }.conflictingBy { it.name }
                 }
-            }
+            conflictingProperty?.let { return "CORE_META_CONFLICTING_PROPERTY: $name.${it.key}" }
         }
         return null
     }
+
+    /** Identical repeats are allowed; two different definitions of one key reject the release. */
+    private fun <T, K> List<T>.conflictingBy(key: (T) -> K): Boolean =
+        distinct().groupBy(key).values.any { it.size > 1 }
 }

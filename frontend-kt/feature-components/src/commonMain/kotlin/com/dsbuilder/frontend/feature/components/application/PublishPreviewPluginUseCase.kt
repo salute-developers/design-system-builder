@@ -71,6 +71,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                 source = META_FILE,
                 dryRun = !command.apply,
                 coreRelease = prepared.identity.coreRelease,
+                channel = prepared.identity.channel,
             ),
         )
         return when (remote) {
@@ -109,6 +110,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                 propertyCount = normalized.manifest.propertyCount,
                 stateCount = normalized.manifest.stateCount,
                 dryRun = dryRun,
+                channel = identity.channel,
             )
         }
     }
@@ -123,6 +125,8 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "Supported: ${SUPPORTED_PLATFORMS.joinToString { it.cliValue }}.",
             )
         }
+        val channel = command.channel?.takeIf { it in setOf("stable", "dev") }
+            ?: return Preparation.Rejected("Error: specify publication channel stable or dev with --channel.")
         val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
             is WriteApiUrlResult.Rejected -> return Preparation.Rejected(resolved.message)
             is WriteApiUrlResult.Resolved -> resolved.url
@@ -131,23 +135,17 @@ public class PublishPreviewPluginUseCase internal constructor(
             is PreviewPluginArchiveResult.Failed -> return Preparation.Rejected(read.message)
             is PreviewPluginArchiveResult.Read -> read.archive
         }
-        val identity = when (val checked = checkManifest(archive, rules)) {
+        val identity = when (val checked = checkManifest(archive, rules, channel)) {
             is ManifestCheck.Invalid -> return Preparation.Rejected(checked.message)
             is ManifestCheck.Valid -> checked
         }
-        val normalized = when (val result = normalizer.normalize(archive.metaBytes.decodeToString())) {
+        val normalized = when (val result = normalize(archive, command.platform, normalizer)) {
             is ApiMetaNormalizationResult.Invalid -> return Preparation.Rejected(
                 "Error: cannot read $META_FILE of ${archive.path}: ${result.message}",
             )
-            ApiMetaNormalizationResult.Empty -> if (
-                isExplicitlyEmptyApiMeta(archive.metaBytes.decodeToString(), command.platform.toApiMetaPlatform())
-            ) {
-                ApiMetaNormalizationResult.Normalized(ApiMetaManifest(emptyList()), emptyList())
-            } else {
-                return Preparation.Rejected(
-                    "Error: $META_FILE of ${archive.path} contains no supported component definitions.",
-                )
-            }
+            ApiMetaNormalizationResult.Empty -> return Preparation.Rejected(
+                "Error: $META_FILE of ${archive.path} contains no supported component definitions.",
+            )
             is ApiMetaNormalizationResult.Normalized -> result
         }
         if (normalized.conflicts.isNotEmpty()) {
@@ -158,18 +156,35 @@ public class PublishPreviewPluginUseCase internal constructor(
         return Preparation.Ready(command.platform, apiUrl, archive, identity, normalized)
     }
 
+    private fun normalize(
+        archive: PreviewPluginArchive,
+        platform: TargetPlatform,
+        normalizer: ApiMetaNormalizer,
+    ): ApiMetaNormalizationResult {
+        val source = archive.metaBytes.decodeToString()
+        val result = normalizer.normalize(source)
+        return if (result == ApiMetaNormalizationResult.Empty &&
+            isExplicitlyEmptyApiMeta(source, platform.toApiMetaPlatform())
+        ) {
+            ApiMetaNormalizationResult.Normalized(ApiMetaManifest(emptyList()), emptyList())
+        } else {
+            result
+        }
+    }
+
     private sealed interface ManifestCheck {
         data class Valid(
             val version: String,
             val libraryVersion: String,
             val coreRelease: CoreReleaseRef,
+            val channel: String,
         ) : ManifestCheck
 
         data class Invalid(val message: String) : ManifestCheck
     }
 
     @Suppress("ReturnCount")
-    private fun checkManifest(archive: PreviewPluginArchive, rules: PlatformRules): ManifestCheck {
+    private fun checkManifest(archive: PreviewPluginArchive, rules: PlatformRules, channel: String): ManifestCheck {
         val root = runCatching { Json.parseToJsonElement(archive.manifestText) }.getOrNull() as? JsonObject
             ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} is not a JSON object.")
         fun text(name: String): String? = (root[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -195,7 +210,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "the file has $actual.",
             )
         }
-        return checkCoreCoordinates(root, rules, version, library)
+        return checkCoreCoordinates(root, rules, version, library, channel)
     }
 
     private fun checkCoreCoordinates(
@@ -203,6 +218,7 @@ public class PublishPreviewPluginUseCase internal constructor(
         rules: PlatformRules,
         version: String,
         library: String,
+        channel: String,
     ): ManifestCheck {
         val core = root["coreRelease"] as? JsonObject
             ?: return ManifestCheck.Invalid("Error: preview manifest requires coreRelease coordinates.")
@@ -211,7 +227,7 @@ public class PublishPreviewPluginUseCase internal constructor(
         if (release.libraryId.isBlank() || release.version != library || release.platform != rules.manifestPlatform) {
             return ManifestCheck.Invalid("Error: coreRelease does not match preview platform/library version.")
         }
-        return ManifestCheck.Valid(version, library, release)
+        return ManifestCheck.Valid(version, library, release, channel)
     }
 
     /** Служебная учётка из окружения либо сессия администратора; ключ проекта не используется. */
@@ -271,6 +287,8 @@ public data class PublishPreviewPluginCommand(
     public val from: String,
     public val apply: Boolean,
     public val apiUrlOverride: String? = null,
+    /** Явный канал публикации; не читается из ZIP и не выводится из адреса сервера. */
+    public val channel: String? = null,
 )
 
 /**
@@ -296,6 +314,8 @@ public data class PublishPreviewPluginTarget(
     public val propertyCount: Int,
     public val stateCount: Int,
     public val dryRun: Boolean,
+    /** Канал, явно выбранный вызывающим. */
+    public val channel: String? = null,
 )
 
 /** Результат отправки билда плагина. */

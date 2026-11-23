@@ -17,15 +17,20 @@ fun Route.componentTemplateRoutes(
     evaluator: PolicyEvaluator,
     list: ListComponentTemplatesUseCase,
 ) {
-    get(dsRoutePath("/api/design-systems/catalog/component-templates")) {
-        val context = TrustedDsRequestContextMapper.map(
-            call.dsTrustedHeaders(),
-            evaluator,
-            call.request.queryParameters["versionId"],
-        ) ?: return@get call.respondFailure(DsFailure.Forbidden)
-        when (val result = list.execute(context)) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentTemplateResponse::from))
-            is DsResult.Failure -> call.respondFailure(result.error)
+    listOf(
+        "/api/design-systems/catalog/component-templates",
+        "/api/design-systems/{designSystemId}/component-templates",
+    ).forEach { path ->
+        get(dsRoutePath(path)) {
+            val context = TrustedDsRequestContextMapper.map(
+                call.dsTrustedHeaders(),
+                evaluator,
+                call.request.queryParameters["versionId"],
+            ) ?: return@get call.respondFailure(DsFailure.Forbidden)
+            when (val result = list.execute(context)) {
+                is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentTemplateResponse::from))
+                is DsResult.Failure -> call.respondFailure(result.error)
+            }
         }
     }
 }

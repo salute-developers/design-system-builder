@@ -1327,7 +1327,7 @@ class DsBuilderCliTest {
             fakeRuntime(
                 fileSystem = fileSystem,
                 environment = mapOf("DSBUILDER_API_URL" to "https://api.example.com", "CI_PROJECT_KEY" to "ci-secret"),
-                httpResults = successfulComponentHttpResults(),
+                httpResults = successfulComponentHttpResults().mapKeys { (path, _) -> "$path?version=1.0" },
                 onCredential = { credentials += it },
             ),
         ).execute(

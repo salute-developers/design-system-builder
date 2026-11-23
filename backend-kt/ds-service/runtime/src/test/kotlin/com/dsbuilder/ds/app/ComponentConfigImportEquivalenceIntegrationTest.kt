@@ -12,9 +12,11 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
@@ -115,6 +117,25 @@ class ComponentConfigImportEquivalenceIntegrationTest {
     }
 
     @Test
+    fun `stale configuration property and type reject atomically`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        val before = exportPackage(system)
+        for (entry in listOf(
+            buttonDefault(gap = "[1]").replace("\"ghost\"", "\"absentProperty\""),
+            buttonDefault(gap = "[1]").replace("\"type\":\"value\"", "\"type\":\"shape\""),
+        )) {
+            val response = service.builder.client.post("/api/design-systems/$system/component-config/import") {
+                actor(administrator = false)
+                contentType(ContentType.Application.Json)
+                setBody(packageBody(listOf(entry), false))
+            }
+            assertEquals(HttpStatusCode.UnprocessableEntity, response.status, response.bodyAsText())
+            assertEquals(before, exportPackage(system))
+        }
+    }
+
+    @Test
     fun `a dry run reports what an applied import reports and stores nothing`() = withService {
         seedGlobalLayer()
         val system = designSystem()
@@ -203,6 +224,24 @@ class ComponentConfigImportEquivalenceIntegrationTest {
         importPackage(system, listOf(icon, entry("large", "small")))
     }
 
+    @Test
+    fun `component style import reuses an existing Core composition pair`() = withService {
+        seedGlobalLayer()
+        val system = designSystem()
+        execute(
+            "INSERT INTO component_deps(parent_id, child_id, type) " +
+                "SELECT parent.id, child.id, 'compose' FROM components parent, components child " +
+                "WHERE parent.name = 'Button' AND child.name = 'Icon' " +
+                "AND parent.platform = 'compose' AND child.platform = 'compose'",
+        )
+        val parent = """{"componentName":"button","styleName":"refs","config":{"invariants":{"content":{"type":"component_style","value":"icon.small"}}}}"""
+        importPackage(system, listOf(icon, parent))
+        importPackage(system, listOf(icon, parent))
+        assertEquals(1, rows("component_deps"))
+        assertEquals(1, rows("component_deps WHERE type = 'compose'"))
+        assertEquals(0, rows("component_deps WHERE type = 'reuse'"))
+    }
+
     // ── corpus ─────────────────────────────────────────────────────────────────────────────────────
 
     private fun property(values: String) =
@@ -212,7 +251,7 @@ class ComponentConfigImportEquivalenceIntegrationTest {
         gap: String,
         views: List<String> = listOf("default", "plain"),
         withMediumSize: Boolean = true,
-        withFocus: Boolean = true,
+        withFocus: Boolean = false,
         hover: Int = 3,
     ): String {
         fun prop(values: String) =
@@ -236,8 +275,8 @@ class ComponentConfigImportEquivalenceIntegrationTest {
             ""
         }
         return """{"componentName":"button","styleName":"default","config":{"invariants":{"gap":${prop(gap)},""" +
-            """"content":{"type":"component_style","value":"icon.small"},"ghost":{"type":"shape","value":1},"nosuch":{"type":"value","value":1},""" +
-            focus + """"fill":{"type":"gradient","value":"missing.token"}},""" +
+            """"content":{"type":"component_style","value":"icon.small"},"ghost":{"type":"value","value":1},""" +
+            focus + """"fill":{"type":"color","value":"#ff0000"}},""" +
             """"variations":[{"id":"size","name":"size","values":[$sizes]},""" +
             """{"id":"view","name":"view","values":[$viewValues]}]}}"""
     }
@@ -278,8 +317,7 @@ class ComponentConfigImportEquivalenceIntegrationTest {
             actor(administrator = true)
             contentType(ContentType.Application.Json)
             setBody(
-                """{"platform":"compose","meta":{"source":"equivalence.json"},"dryRun":false,""" +
-                    """"components":[${components.joinToString(",")}]}""",
+                coreReleasePayload("equivalence", "[${components.joinToString(",")}]"),
             )
         }
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
@@ -292,7 +330,9 @@ class ComponentConfigImportEquivalenceIntegrationTest {
             setBody("""{"name":"equivalence","projectName":"equivalence"}""")
         }
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-        return json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        val system = json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        selectImportedFixtureCore(service.postgres, system, "equivalence")
+        return system
     }
 
     private fun packageBody(entries: List<String>, dryRun: Boolean) =
@@ -339,8 +379,13 @@ class ComponentConfigImportEquivalenceIntegrationTest {
         }
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
         val exported = json.parseToJsonElement(response.bodyAsText()).jsonObject
-        // Время выгрузки и источник не относятся к результату импорта.
-        return JsonObject(exported.filterKeys { it != "exportedAt" && it != "generatedAt" })
+        // Время и выданный БД releaseId не относятся к эквивалентности результата импорта.
+        val meta = exported.getValue("meta").jsonObject
+        val releases = meta.getValue("coreReleases").jsonArray.map { release ->
+            JsonObject(release.jsonObject.filterKeys { it != "releaseId" })
+        }
+        val stableMeta = JsonObject(meta + ("coreReleases" to JsonArray(releases)))
+        return JsonObject(exported.filterKeys { it != "exportedAt" && it != "generatedAt" } + ("meta" to stableMeta))
     }
 
     // ── harness ────────────────────────────────────────────────────────────────────────────────────

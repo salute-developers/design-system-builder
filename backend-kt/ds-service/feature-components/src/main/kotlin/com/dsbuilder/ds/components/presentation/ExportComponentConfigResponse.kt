@@ -49,6 +49,7 @@ data class ExportComponentConfigResponse(
                         r.ref.version,
                         r.metaSha256,
                         r.provenance,
+                        r.channel,
                     )
                 },
             ),

@@ -44,6 +44,7 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
             command.value,
             command.stateSetId,
         )
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val designSystemId = ComponentAppearancesTable.selectAll()
             .where { ComponentAppearancesTable.id eq command.appearanceId }
             .single()[ComponentAppearancesTable.designSystemId]
@@ -135,6 +136,7 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
     }
 
     private fun validateUpdate(existing: ResultRow, command: StyleCombinationRepository.Update) {
+        checkIcon(existing, command)
         validateCoreAssignment(
             existing[StyleCombinationsTable.propertyId],
             existing[StyleCombinationsTable.appearanceId],
@@ -142,8 +144,17 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
             if (command.tokenIdPresent) command.tokenId else existing[StyleCombinationsTable.tokenId],
             command.value ?: existing[StyleCombinationsTable.value],
             command.stateSetId ?: existing[StyleCombinationsTable.stateSetId],
+            StyleReferenceWriter.Source.Combination(existing[StyleCombinationsTable.id]),
         )
     }
+
+    /** Значение свойства-иконки проверяется по каталогу; сохранённое значение принимается повторно. */
+    private fun checkIcon(existing: ResultRow, command: StyleCombinationRepository.Update) = IconValueGuard.check(
+        existing[StyleCombinationsTable.propertyId],
+        if (command.tokenIdPresent) command.tokenId else existing[StyleCombinationsTable.tokenId],
+        command.value,
+        existing[StyleCombinationsTable.value],
+    )
 
     override suspend fun delete(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean {
         if (!lockComponentSubject(

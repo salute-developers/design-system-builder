@@ -46,7 +46,6 @@ class ExposedTransactionRunner(
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
         configure(context)
-        if (context.designSystemId != null) lockCurrentCoreReleases()
         val request = context.mutationRequest
         if (request != null) {
             if (request.key.isBlank() || request.key.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
@@ -201,6 +200,9 @@ class ExposedTransactionRunner(
         } else {
             TransactionManager.current().removeUserData(expectedDraftKey)
         }
+        context.expectedCoreSelectionRevision?.let {
+            TransactionManager.current().putUserData(expectedCoreSelectionRevision, it)
+        }
         TransactionManager.current().exec(
             "SELECT set_config('ds.design_system_id', ?, true)",
             listOf(TextColumnType() to context.designSystemId?.toString().orEmpty()),
@@ -286,6 +288,8 @@ class ExposedTransactionRunner(
                 return executeAttempt(readOnly, attempt, block)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: CoreSelectionStaleException) {
+                return DsResult.Failure(DsFailure.Conflict("CORE_SELECTION_STALE"))
             } catch (_: InaccessibleDesignSystemException) {
                 return DsResult.Failure(DsFailure.NotFound)
             } catch (_: DraftChangedException) {

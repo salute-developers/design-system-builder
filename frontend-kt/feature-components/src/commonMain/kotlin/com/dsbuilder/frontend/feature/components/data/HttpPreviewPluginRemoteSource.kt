@@ -46,6 +46,7 @@ internal class HttpPreviewPluginRemoteSource(
                 command.dryRun,
                 command.coreRelease,
                 command.archive.metaBytes,
+                command.channel,
             ),
         )
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)

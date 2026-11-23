@@ -4,10 +4,12 @@ import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-d
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    coreRevision: undefined as number | undefined,
     currentMeta: { enabled: true } as Record<string, unknown>,
     config: {
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
+        getCoreSelectionRevision: () => mocks.coreRevision,
         getMeta: () => structuredClone(mocks.currentMeta),
         getConfigurationId: () => undefined,
         getConfigurations: () => [],
@@ -73,8 +75,8 @@ const renderEditor = () => {
     const context = {
         designSystem: {
             getParameters: () => editorContext,
-            getComponentDataByName: () => ({}),
-            getComponentData: () => ({}),
+            getComponentDataByName: () => ({ serverBinding: { coreSelectionRevision: mocks.coreRevision } }),
+            getComponentData: () => ({ serverBinding: { coreSelectionRevision: mocks.coreRevision } }),
         },
         theme: {},
         components: [mocks.config, mocks.inputConfig],
@@ -304,6 +306,7 @@ describe('Components autosave', () => {
         }
     });
     beforeEach(() => {
+        mocks.coreRevision = undefined;
         localStorage.clear();
         mocks.currentMeta = { enabled: true };
         mocks.inputMeta = { enabled: true, kind: 'input' };
@@ -314,6 +317,75 @@ describe('Components autosave', () => {
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();
+    });
+
+    it('новая локальная операция сохраняет ревизию от открытой Config до отправки', async () => {
+        mocks.coreRevision = 3;
+        let finish!: (value: Record<string, number>) => void;
+        mocks.saveComponentMutation.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        renderEditor();
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        mocks.coreRevision = 4;
+        expect(mocks.saveComponentMutation.mock.calls[0][2]).toMatchObject({ coreSelectionRevision: 3 });
+        expect(
+            JSON.parse(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')!),
+        ).toMatchObject({ coreSelectionRevision: 3 });
+        await act(async () => {
+            finish({ style: 1 });
+        });
+    });
+
+    it('replay после смены Core сохраняет ревизию A вместо ревизии новой модели B', async () => {
+        mocks.coreRevision = 2;
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                componentName: 'Button',
+                coreSelectionRevision: 1,
+                before: { enabled: true },
+                after: { enabled: false },
+                idempotencyKeys: {},
+                generation: 'from-A',
+                retryCount: 0,
+            }),
+        );
+        renderEditor();
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        expect(mocks.saveComponentMutation.mock.calls[0][2]).toMatchObject({ coreSelectionRevision: 1 });
+        expect(mocks.saveComponentMutation.mock.calls[0][1]).toMatchObject({
+            serverBinding: { coreSelectionRevision: 2 },
+        });
+    });
+
+    it('не перепривязывает старую локальную операцию без известной ревизии к текущему Core', async () => {
+        mocks.coreRevision = 2;
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                componentName: 'Button',
+                before: { enabled: true },
+                after: { enabled: false },
+                idempotencyKeys: {},
+                generation: 'unknown-Core',
+                retryCount: 0,
+            }),
+        );
+        renderEditor();
+        await waitFor(() => expect(getDraftAutosaveStatus(editorContext)).toBe('error'));
+        expect(mocks.saveComponentMutation).not.toHaveBeenCalled();
+        expect(JSON.parse(localStorage.getItem(key)!)).toMatchObject({
+            generation: 'unknown-Core',
+            after: { enabled: false },
+        });
     });
 
     it('сохраняет исходную базу частично выполненной операции после открытия редактора', async () => {

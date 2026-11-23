@@ -1,3 +1,4 @@
+import { numericPropertyTypes, unitlessNumericPropertyTypes } from '../controllers/componentBuilder/propertyTypes';
 import type {
     JsonValue,
     PreviewDefaults,
@@ -50,22 +51,19 @@ const sourceFor = (
     if (raw === undefined) return diagnostic('incompatible_value', `Property ${property.id} has no value`, property.id);
     if (property.type === 'component_style' && typeof raw === 'string') return { type: 'styleRef', styleId: raw };
     const numeric = Number(raw);
-    if (
-        !adjusted &&
-        (property.type === 'dimension' || property.type === 'float' || property.type === 'integer') &&
-        Number.isFinite(numeric)
-    ) {
-        return { type: 'literal', value: numeric };
-    }
-    // Свойство типа `value` хранит значение без темы (имя константы enum, флаг): это литерал, а не токен.
-    // Иконка — имя в формате данных (`disclosure.down.fill.16`); плагин находит по нему иконку, токена темы нет.
-    if (!adjusted && (property.type === 'value' || property.type === 'icon')) return { type: 'literal', value: raw };
-    // Web-значение, которое не имя токена (`transparent`, `#F3A912`, `auto`), — литерал; цвет — в `#RRGGBBAA`.
-    if (!adjusted && web && typeof raw === 'string' && !isTokenName(raw)) {
-        return { type: 'literal', value: (property.type === 'color' && parseWebColor(raw)) || raw };
-    }
-    if (!adjusted && typeof raw === 'string' && property.type !== 'float' && property.type !== 'integer') {
-        return { type: 'tokenRef', tokenId: raw };
+    if (!adjusted) {
+        if (numericPropertyTypes.has(property.type) && Number.isFinite(numeric)) {
+            return { type: 'literal', value: numeric };
+        }
+        // `value` хранит CSS или enum, `icon` — имя иконки; оба значения передаются без токена темы.
+        if (['value', 'icon'].includes(property.type)) return { type: 'literal', value: raw };
+        if (typeof raw === 'string') {
+            // Web-строка, которая не является именем токена, передаётся литералом; цвет нормализуется.
+            if (web && !isTokenName(raw)) {
+                return { type: 'literal', value: (property.type === 'color' && parseWebColor(raw)) || raw };
+            }
+            if (!unitlessNumericPropertyTypes.has(property.type)) return { type: 'tokenRef', tokenId: raw };
+        }
     }
     const adjustment = adjusted ? Number(property.adjustment) : 0;
     // Форма хранится токеном, поправка (в пикселях) смещает его радиусы.

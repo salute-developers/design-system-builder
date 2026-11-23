@@ -54,6 +54,7 @@ fun Route.corePreviewRoutes(evaluator: PolicyEvaluator, useCase: GetCorePreviewU
                             r.ref.version,
                             r.metaSha256,
                             r.provenance,
+                            r.channel,
                         ),
                         b.build.metaSha256,
                     ),

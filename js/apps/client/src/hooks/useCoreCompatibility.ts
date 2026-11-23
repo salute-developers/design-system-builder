@@ -4,12 +4,17 @@ import { coreCompatibilityRepository, type CoreCompatibilityReport } from '../ap
 import { invalidateEditorReads } from '../api/editorReads';
 
 /** Смена Core не меняет draftRevision: повторяем чтение при фокусе и пока открыт экран. */
-export const useCoreCompatibility = (context?: EditorContextKey | null, componentId?: string, onCoreChanged?: () => void) => {
+export const useCoreCompatibility = (
+    context?: EditorContextKey | null,
+    componentId?: string,
+    onCoreChanged?: () => void,
+) => {
     const changeCallback = useRef(onCoreChanged);
     changeCallback.current = onCoreChanged;
     const key = context
         ? JSON.stringify([context.projectId, context.designSystemId, context.versionId, componentId])
         : '';
+    const lastCore = useRef<{ key: string; core: string }>();
     const [generation, setGeneration] = useState(0);
     const [state, setState] = useState<{ key: string; report?: CoreCompatibilityReport; error?: string }>({ key: '' });
     const reload = useCallback(() => {
@@ -19,7 +24,6 @@ export const useCoreCompatibility = (context?: EditorContextKey | null, componen
     useEffect(() => {
         if (!context) return;
         let controller: AbortController | undefined;
-        let previousCore: string | undefined;
         const read = () => {
             controller?.abort();
             const attempt = new AbortController();
@@ -28,12 +32,12 @@ export const useCoreCompatibility = (context?: EditorContextKey | null, componen
                 .read(context, componentId, attempt.signal)
                 .then((report) => {
                     if (attempt.signal.aborted) return;
-                    const core = JSON.stringify(report.context.coreReleases);
-                    if (previousCore !== core) {
-                    invalidateEditorReads(context);
-                    changeCallback.current?.();
-                }
-                    previousCore = core;
+                    const core = JSON.stringify([report.context.coreSelectionRevision, report.context.coreReleases]);
+                    if (lastCore.current?.key !== key || lastCore.current.core !== core) {
+                        invalidateEditorReads(context, { includeMetadata: true });
+                        changeCallback.current?.();
+                    }
+                    lastCore.current = { key, core };
                     setState({ key, report });
                 })
                 .catch((error: unknown) => {

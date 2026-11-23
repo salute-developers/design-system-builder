@@ -2,6 +2,8 @@ package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfigImportResult
+import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 internal class ComponentConfigImportContext(
@@ -13,6 +15,16 @@ internal class ComponentConfigImportContext(
     val platform: ComponentPlatformDb,
 ) {
     val report = ComponentConfigImportReport()
+
+    /** Типы выбранного Core уже прочитаны при разрешении свойств текущего пакета. */
+    val propertyTypes = hashMapOf<UUID, String>()
+
+    /** Токены в одной транзакции импорта; повторного SQL на каждое назначение нет. */
+    val tokenRows by lazy {
+        ComponentTokensTable.selectAll()
+            .where { ComponentTokensTable.designSystemId eq designSystemId }
+            .associateBy { it[ComponentTokensTable.id] }
+    }
     val styleToComponent = entries.associate { it.styleName to it.componentName }
     val interactionStates = linkedMapOf<String, UUID>()
     val componentStates = linkedMapOf<String, UUID>()
@@ -40,7 +52,7 @@ internal class ComponentConfigImportContext(
         if (created) newAppearances += appearance
     }
 
-    /** Дочерние компоненты со связью `REUSE` по родителю, прочитанные один раз на импорт. */
+    /** Дочерние компоненты существующих связей по родителю, прочитанные один раз на импорт. */
     val reuseChildren = hashMapOf<UUID, MutableSet<UUID>>()
 
     /** Цели ссылок на стили по паре (компонент, оформление). */

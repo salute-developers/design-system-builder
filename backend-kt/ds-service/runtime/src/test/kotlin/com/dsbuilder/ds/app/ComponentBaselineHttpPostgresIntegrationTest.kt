@@ -36,6 +36,13 @@ class ComponentBaselineHttpPostgresIntegrationTest {
                 val system = Json.parseToJsonElement(created.bodyAsText()).field("id")
                 val repeated = api(client, "POST", "/api/design-systems", body, key)
                 assertEquals(created.bodyAsText(), repeated.bodyAsText())
+                val coreSettings = api(client, "GET", "/api/design-systems/$system/core-settings")
+                assertEquals(HttpStatusCode.OK, coreSettings.status, coreSettings.bodyAsText())
+                assertEquals(
+                    "[]",
+                    Json.parseToJsonElement(coreSettings.bodyAsText()).jsonObject.getValue("context")
+                        .jsonObject.getValue("coreReleases").toString(),
+                )
                 val changesPath = "/api/design-systems/$system/changes"
                 assertEquals("[]", api(client, "GET", changesPath).bodyAsText())
                 assertEquals(

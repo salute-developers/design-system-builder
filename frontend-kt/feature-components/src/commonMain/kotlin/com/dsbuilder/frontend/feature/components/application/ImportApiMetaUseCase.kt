@@ -70,6 +70,9 @@ public class ImportApiMetaUseCase internal constructor(
             is WriteApiUrlResult.Resolved -> resolved.url
         }
 
+        if (command.channel !in setOf("stable", "dev")) {
+            return ImportApiMetaResult.Failed("Error: provide --channel stable or --channel dev.")
+        }
         val release = command.coreRelease
         if (!validRelease(release, command.platform)) {
             return ImportApiMetaResult.Failed(
@@ -132,6 +135,7 @@ public class ImportApiMetaUseCase internal constructor(
                 manifest = normalized.manifest,
                 coreRelease = requireNotNull(command.coreRelease).copy(platform = command.platform.toApiMetaPlatform()),
                 sourceBytes = file.bytes,
+                channel = command.channel,
             ),
         )
 
@@ -196,6 +200,7 @@ public class ImportApiMetaUseCase internal constructor(
  * @property typeMap подмена типа свойства `from → to` до отправки.
  * @property apiUrlOverride backend API URL, переданный аргументом.
  * @property coreRelease координаты неизменяемого релиза Core.
+ * @property channel явный канал поставки stable/dev.
  */
 public data class ImportApiMetaCommand(
     public val platform: TargetPlatform,
@@ -204,6 +209,7 @@ public data class ImportApiMetaCommand(
     public val typeMap: Map<String, String> = emptyMap(),
     public val apiUrlOverride: String? = null,
     public val coreRelease: CoreReleaseRef? = null,
+    public val channel: String? = null,
 )
 
 /**

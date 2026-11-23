@@ -26,7 +26,7 @@ export async function loadJournalComponentMetadata(
     const request = readRequest(context, signal);
     type NamedOwner = { id: string; name: string; componentId: string | null };
     type NamedStyle = { id: string; name: string; variationId: string; designSystemId: string };
-    const [components, appearances, properties, variations, styles] = await Promise.all([
+    const [components, appearances, properties, variations, styles, states, stateSets] = await Promise.all([
         readEditor<ComponentDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/components`, request),
         readEditor<AppearanceDto[]>(`${root}/appearances`, request),
         readEditor<NamedOwner[]>(`${apiRoot(context.projectId, context.designSystemId)}/properties`, request),

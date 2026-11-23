@@ -91,6 +91,19 @@ class CoreCompatibilityUseCaseTest {
         assertEquals(before, reads)
     }
 
+    @Test
+    fun `absent and zero cursor share the first page while invalid offsets retain their error code`() = runBlocking {
+        val first = page(GetCoreCompatibilityUseCase.Query(limit = 1))
+        val prefix = requireNotNull(first.nextCursor).substringBeforeLast(':')
+        assertEquals(first.items, page(GetCoreCompatibilityUseCase.Query(limit = 1, cursor = "$prefix:0")).items)
+        for (offset in listOf("-1", "not-a-number", "2147483648")) {
+            val result = useCase.execute(context, GetCoreCompatibilityUseCase.Query(cursor = "$prefix:$offset"))
+            assertEquals(DsFailure.InvalidRequest("invalid_cursor"), assertIs<DsResult.Failure>(result).error)
+        }
+        val malformed = useCase.execute(context, GetCoreCompatibilityUseCase.Query(cursor = "$prefix:0:extra"))
+        assertEquals(DsFailure.Conflict("CORE_CONTEXT_STALE"), assertIs<DsResult.Failure>(malformed).error)
+    }
+
     private suspend fun page(query: GetCoreCompatibilityUseCase.Query) =
         assertIs<DsResult.Success<CoreCompatibilityReport>>(useCase.execute(context, query)).value
 

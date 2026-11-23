@@ -47,11 +47,12 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         systemAdmin: Boolean,
         appearanceId: UUID,
         command: AppearanceEditorRepository.PropertyValueSet,
+        preservedStateIds: List<UUID>? = null,
     ): EditorPropertyValue? {
         val appearance = EditorSupport.writableAppearance(projectId, systemAdmin, appearanceId) ?: return null
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val componentId = appearance[ComponentAppearancesTable.componentId]
-        val scope = scope(appearanceId, componentId, command.scope)
+        val scope = scope(appearanceId, componentId, command.scope, preservedStateIds)
         PropertyStateSetGuard.requireAllowed(scope.propertyId, scope.stateIds)
         val propertyType = scope.property[PropertiesTable.type].wireValue
         val tokenType = tokenType(projectId, systemAdmin, designSystemId, command.tokenId)
@@ -140,16 +141,20 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
                 it.stateSetId == current.stateSetId
         }
         if (occupied) return DsResult.Failure(DsFailure.Conflict("CORE_TRANSFER_TARGET_OCCUPIED"))
-        val names = catalog.sets[current.stateSetId].orEmpty().map { catalog.stateNames.getValue(it) }
+        val stateIds = catalog.sets.getValue(current.stateSetId)
+        if (stateIds.any { it !in catalog.states }) {
+            return DsResult.Failure(DsFailure.Unprocessable("Transfer failed", "CORE_STATE_REMOVED"))
+        }
         val transferred = setPropertyValue(
             projectId, admin, command.appearanceId,
             AppearanceEditorRepository.PropertyValueSet(
-                AppearanceEditorRepository.PropertyValueScope(target, current.styleIds, names), null,
+                AppearanceEditorRepository.PropertyValueScope(target, current.styleIds, emptyList()), null,
                 current.tokenId, current.value, current.alpha, current.adjustment,
                 current.reference?.let {
                     AppearanceEditorRepository.StyleReferenceInput(it.targetAppearanceId, it.styleIds)
                 },
             ),
+            preservedStateIds = stateIds,
         ) ?: return DsResult.Failure(DsFailure.NotFound)
         move(ds, Row(transferred.kind, transferred.id), current.position)
         return DsResult.Success(Unit)
@@ -200,6 +205,7 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         appearanceId: UUID,
         componentId: UUID,
         command: AppearanceEditorRepository.PropertyValueScope,
+        preservedStateIds: List<UUID>? = null,
     ): Scope {
         val property = PropertiesTable.selectAll().where {
             (PropertiesTable.id eq command.propertyId) and (PropertiesTable.componentId eq componentId)
@@ -224,7 +230,7 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
             property,
             styleIds,
             axisIds.map { axisVariations.getValue(it) },
-            EditorSupport.stateIds(componentId, command.states),
+            preservedStateIds ?: EditorSupport.stateIds(componentId, command.states),
         )
     }
 
@@ -260,19 +266,15 @@ internal class AppearanceEditorValueOperations(private val states: StateReposito
         replacing: StyleReferenceWriter.Source?,
     ): StyleReferenceWriter.Resolved? {
         val input = command.reference
-        if (propertyType != "component_style") {
-            if (input != null) {
-                throw EditorRuleViolationException(
-                    "reference_not_allowed",
-                    "Only component_style properties carry references",
-                )
-            }
-            return null
+        val failure = when {
+            input != null && (propertyType != "component_style" || command.tokenId != null) -> "reference_not_allowed"
+            propertyType == "component_style" && input == null && !command.value.isNullOrBlank() -> "reference_required"
+            else -> null
+        }
+        if (failure != null) {
+            throw EditorRuleViolationException(failure, "Выберите совместимое вложенное оформление без токена")
         }
         if (input == null) return null
-        if (command.tokenId != null) {
-            throw EditorRuleViolationException("reference_not_allowed", "A reference cannot be combined with a token")
-        }
         val resolved = StyleReferenceWriter.resolve(projectId, systemAdmin, appearance, input, replacing)
         validateCoreReference(command.scope.propertyId, resolved.target)
         return resolved

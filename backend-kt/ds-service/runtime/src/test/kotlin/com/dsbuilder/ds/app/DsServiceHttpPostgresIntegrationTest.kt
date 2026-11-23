@@ -52,7 +52,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(204, operations.size)
+                    assertEquals(213, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
@@ -108,6 +108,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     }
                     assertEquals(HttpStatusCode.Created, designSystem.status, designSystem.bodyAsText())
                     val designSystemId = id(designSystem.bodyAsText())
+                    importFixtureCore(postgres)
                     verifyEmptyDesignSystemPatch(client, designSystemId)
                     assertEquals(1, versionBoundaryCount(postgres, designSystemId, "baseline"))
                     assertEquals(1, versionBoundaryCount(postgres, designSystemId, "draft"))
@@ -218,7 +219,7 @@ class DsServiceHttpPostgresIntegrationTest {
                         draftRevision,
                         version.bodyAsText(),
                     )
-                    verifyVersionSelection(client, designSystemId, publishedVersionId, tenantId)
+                    verifyVersionSelection(client, designSystemId, publishedVersionId, tenantId, postgres)
 
                     verifyInheritedNameConflicts(client, designSystemId)
 
@@ -275,6 +276,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     }
                     assertEquals(HttpStatusCode.Created, foreignDesignSystem.status)
                     val foreignDesignSystemId = id(foreignDesignSystem.bodyAsText())
+                    importFixtureCore(postgres)
                     val foreignTenant = client.post("/api/design-systems/$foreignDesignSystemId/tenants") {
                         trusted("project-b", "editor")
                         jsonBody("""{"name":"foreign"}""")
@@ -709,6 +711,7 @@ class DsServiceHttpPostgresIntegrationTest {
         designSystemId: String,
         versionId: String,
         tenantId: String,
+        postgres: IsolatedPostgresDatabase,
     ) {
         val historical = client.get(
             "/api/design-systems/$designSystemId/tokens?versionId=$versionId",
@@ -764,6 +767,7 @@ class DsServiceHttpPostgresIntegrationTest {
         }
         assertEquals(HttpStatusCode.Created, otherDesignSystem.status, otherDesignSystem.bodyAsText())
         val otherDesignSystemId = id(otherDesignSystem.bodyAsText())
+        importFixtureCore(postgres)
         val otherDesignSystemUpdate = client.patch("/api/design-systems/$otherDesignSystemId") {
             trusted("project-a", "owner")
             jsonBody("""{"description":"publishable change"}""")

@@ -59,6 +59,7 @@ import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentTemplateRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
+import com.dsbuilder.ds.components.data.ExposedCoreSettingsRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
 import com.dsbuilder.ds.components.data.ExposedIconCatalogRepository
 import com.dsbuilder.ds.components.data.ExposedIconUsageReader
@@ -80,7 +81,7 @@ val componentsModule = module {
     }
     single { GeneratedDesignSystemComponentInitializer() }
     single<DesignSystemComponentInitializer> { get<GeneratedDesignSystemComponentInitializer>() }
-    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get()) }
+    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get(), get()) }
     single<ComponentRepository> { ExposedComponentRepository() }
     single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
     factory { RepairCoreProblemUseCase(get(), get(), get()) }
@@ -91,6 +92,10 @@ val componentsModule = module {
     single<CoreContextResolver> { ExposedCoreContextResolver() }
     factory { GetCorePreviewUseCase(get(), get(), get(), get(), get()) }
     factory { GetCoreCompatibilityUseCase(get(), get(), get()) }
+    factory { com.dsbuilder.ds.components.application.ReadCoreSettingsUseCase(get(), get(), get()) }
+    single<com.dsbuilder.ds.components.application.CoreSettingsRepository> { ExposedCoreSettingsRepository() }
+    factory { com.dsbuilder.ds.components.application.ListCoreReleasesUseCase(get(), get(), get()) }
+    factory { com.dsbuilder.ds.components.application.SelectCoreReleaseUseCase(get(), get(), get(), get()) }
     single<CompatibilityChecker> { ExposedCompatibilityChecker() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<PluginBuildRepository> { ExposedPluginBuildRepository() }

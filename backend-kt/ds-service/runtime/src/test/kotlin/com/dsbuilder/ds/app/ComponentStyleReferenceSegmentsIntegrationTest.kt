@@ -357,10 +357,7 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
         val response = service.builder.client.post("/api/admin/component-config/import-api-meta") {
             actor(administrator = true)
             contentType(ContentType.Application.Json)
-            setBody(
-                """{"platform":"compose","meta":{"source":"references.json"},"dryRun":false,""" +
-                    """"components":[${components.joinToString(",")}]}""",
-            )
+            setBody(coreReleasePayload("references", "[${components.joinToString(",")}]"))
         }
         assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
     }
@@ -372,7 +369,9 @@ class ComponentStyleReferenceSegmentsIntegrationTest {
             setBody("""{"name":"$name","projectName":"$name"}""")
         }
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
-        return json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        val system = json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+        selectImportedFixtureCore(service.postgres, system, "references")
+        return system
     }
 
     private suspend fun importPackage(system: String, entries: List<String>, dryRun: Boolean = false): JsonObject {

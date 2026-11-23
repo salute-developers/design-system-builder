@@ -8,6 +8,7 @@ export type EditorSection =
     | 'components'
     | 'changes'
     | 'versions'
+    | 'validation'
     | 'icons'
     | 'settings';
 
@@ -22,6 +23,16 @@ export const sectionTokenTypes: Partial<Record<EditorSection, TokenDefinitionDto
 };
 
 export const editorSection = (value?: string): EditorSection =>
-    ['palette', 'typography', 'shapes', 'components', 'changes', 'versions', 'icons', 'settings'].includes(value ?? '')
+    [
+        'palette',
+        'typography',
+        'shapes',
+        'components',
+        'changes',
+        'versions',
+        'validation',
+        'icons',
+        'settings',
+    ].includes(value ?? '')
         ? (value as EditorSection)
         : 'colors';

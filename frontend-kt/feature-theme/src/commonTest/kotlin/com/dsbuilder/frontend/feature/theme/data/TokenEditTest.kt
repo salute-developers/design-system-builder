@@ -22,7 +22,12 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.network.HttpMutationRequest
 import com.dsbuilder.frontend.core.network.HttpMutationResult
 import com.dsbuilder.frontend.core.network.MutationHttpMethod
+import com.dsbuilder.frontend.feature.theme.application.ColorFamilyMemberUpdate
+import com.dsbuilder.frontend.feature.theme.application.ColorFamilyUpdate
+import com.dsbuilder.frontend.feature.theme.application.ColorFamilyValue
+import com.dsbuilder.frontend.feature.theme.application.EditThemeUseCase
 import com.dsbuilder.frontend.feature.theme.application.EditTokenUseCase
+import com.dsbuilder.frontend.feature.theme.application.ThemeEditCommand
 import com.dsbuilder.frontend.feature.theme.application.TokenEditCommand
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
@@ -53,12 +58,15 @@ class TokenEditTest {
     fun updateKeepsTheValueKeyAndOriginalRevisionAcrossRetriesWithoutAGet() = runTest {
         val fixture = Fixture()
         val command = TokenEditCommand.UpdateValue("value", JsonPrimitive("palette.ref"), "palette")
-        repeat(2) { fixture.useCase.execute(command, DraftEditOptions("original", baseRevision = 7)) }
+        repeat(2) {
+            fixture.useCase.execute(command, DraftEditOptions("original", baseRevision = 7, coreSelectionRevision = 11))
+        }
         val request = fixture.requests.first()
         assertEquals(request, fixture.requests.last())
         assertEquals(MutationHttpMethod.PATCH, request.method)
         assertEquals("original", request.idempotencyKey)
         assertEquals(7L, request.baseRevision)
+        assertEquals(11L, request.coreSelectionRevision)
         val body = Json.parseToJsonElement(request.body!!).jsonObject
         assertEquals(setOf("value", "paletteId"), body.keys)
         assertEquals(JsonPrimitive("palette.ref"), body["value"])
@@ -115,6 +123,32 @@ class TokenEditTest {
         assertEquals(0, fixture.contextReads)
     }
 
+    @Test
+    fun themeChangesCarryTheSameExplicitCorePrecondition() = runTest {
+        val fixture = Fixture()
+        fixture.themeUseCase.execute(
+            ThemeEditCommand.UpdateFamily(
+                "tenant",
+                "token",
+                ColorFamilyUpdate(
+                    0,
+                    listOf(
+                        ColorFamilyMemberUpdate(
+                            "token",
+                            listOf("web", "ios", "android").flatMap { platform ->
+                                listOf("light", "dark").map { mode ->
+                                    ColorFamilyValue(platform, mode, value = JsonPrimitive("#123456"), baseRevision = 0)
+                                }
+                            },
+                        ),
+                    ),
+                ),
+            ),
+            DraftEditOptions("theme-key", coreSelectionRevision = 19),
+        )
+        assertEquals(19L, fixture.requests.single().coreSelectionRevision)
+    }
+
     private class Fixture(version: String? = null) {
         val requests = mutableListOf<HttpMutationRequest>()
         var contextReads = 0
@@ -165,5 +199,6 @@ class TokenEditTest {
             }
         }
         val useCase = EditTokenUseCase(resolver, HttpTokenEditRemoteSource(factory))
+        val themeUseCase = EditThemeUseCase(resolver, HttpThemeEditRemoteSource(factory))
     }
 }

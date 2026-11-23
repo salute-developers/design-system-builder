@@ -9,6 +9,7 @@ import com.dsbuilder.ds.core.application.CoreProblemLocation
 import com.dsbuilder.ds.core.application.CoreProblemValue
 import com.dsbuilder.ds.core.application.ModelReadContext
 import com.dsbuilder.ds.core.data.ExposedCoreContextResolver
+import com.dsbuilder.ds.core.data.coreSelectionRevision
 import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.data.withCoreReadScope
 import com.dsbuilder.ds.core.domain.ProjectId
@@ -20,10 +21,9 @@ import java.util.UUID
 /** Проверяет сохранённые назначения до фильтрации экспортируемого состава. */
 class ExposedCompatibilityChecker : CompatibilityChecker {
     override suspend fun check(projectId: ProjectId, designSystemId: UUID, versionId: UUID?): CoreCompatibilityReport =
-        withCoreReadScope(designSystemId, versionId) { checkSelected(projectId, designSystemId, versionId) }
+        withCoreReadScope(designSystemId, versionId) { checkSelected(designSystemId, versionId) }
 
     private suspend fun checkSelected(
-        projectId: ProjectId,
         designSystemId: UUID,
         versionId: UUID?,
     ): CoreCompatibilityReport {
@@ -43,12 +43,35 @@ class ExposedCompatibilityChecker : CompatibilityChecker {
         val appearances = catalog.appearances.values.filter {
             it[ComponentAppearancesTable.componentId] in catalog.activeComponents
         }
-        for (appearance in appearances) {
-            val appearanceId = appearance[ComponentAppearancesTable.id]
-            val model = AppearanceEditorModelReader.read(projectId, true, appearanceId, versionId) ?: continue
+        val validator = CoreValueProblems(catalog)
+        val candidates = AppearanceEditorModelReader.readForCompatibility(appearances, versionId).mapNotNull { model ->
+            val problems = model.propertyValues.filter {
+                validator.reasons(
+                    model.appearance.componentId,
+                    it,
+                ).isNotEmpty()
+            }
+            model.copy(propertyValues = problems).takeIf { problems.isNotEmpty() }
+        }
+        for (model in AppearanceEditorModelReader.completeCompatibilityDetails(candidates, versionId)) {
             issues += appearanceIssues(model, catalog, versionId != null)
         }
         val context = context(designSystemId, versionId)
+        val selectedPlatforms = context.coreReleases.map { it.ref.platform }.toSet()
+        for (componentId in catalog.activeComponents) {
+            val platform = catalog.componentPlatforms.getValue(componentId)
+            if (platform !in selectedPlatforms) {
+                issues.removeAll { it.location.componentId == componentId }
+                issues += CoreCompatibilityIssue(
+                    "component:$componentId:CORE_SELECTION_REQUIRED", "CORE_SELECTION_REQUIRED", "blocking",
+                    CoreProblemLocation(
+                        componentId, catalog.componentNames[componentId].orEmpty(), platform,
+                        null, null, null, null, null, null,
+                    ),
+                    null, emptyList(),
+                )
+            }
+        }
         return CoreCompatibilityReport(
             context,
             issues.sortedBy { it.issueId },
@@ -62,6 +85,8 @@ class ExposedCompatibilityChecker : CompatibilityChecker {
         catalog: CoreCompatibilityCatalog,
         readOnly: Boolean,
     ): List<CoreCompatibilityIssue> = model.propertyValues.flatMap { value ->
+        val reasons = CoreValueProblems(catalog).reasons(model.appearance.componentId, value)
+        if (reasons.isEmpty()) return@flatMap emptyList()
         val adjustments = catalog.adjustments[value.id].orEmpty()
         val stored = CoreProblemValue(
             value.value,
@@ -79,7 +104,7 @@ class ExposedCompatibilityChecker : CompatibilityChecker {
             else -> listOf("remove", "transfer")
         }
         val location = location(model, value, catalog)
-        CoreValueProblems(catalog).reasons(model.appearance.componentId, value).map { (code, severity) ->
+        reasons.map { (code, severity) ->
             CoreCompatibilityIssue(
                 "${value.kind.name.lowercase()}:${value.id}:$code",
                 code,
@@ -125,6 +150,7 @@ class ExposedCompatibilityChecker : CompatibilityChecker {
             draftId = id.takeIf { versionId == null },
             draftRevision = if (versionId == null) resolvedDraftRevision(id) else null,
             coreReleases = ExposedCoreContextResolver().resolve(versionId),
+            coreSelectionRevision = if (versionId == null) coreSelectionRevision(id) else null,
         )
     }
 }

@@ -50,6 +50,7 @@ class TypographyStyleHttpPostgresIntegrationTest {
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
+                importFixtureCore(postgres)
                 val tenantA = api.createTenant(designSystemId, "a")
                 val tenantB = api.createTenant(designSystemId, "b")
                 val base = "/api/design-systems/$designSystemId/tenants/$tenantA/typography-styles"

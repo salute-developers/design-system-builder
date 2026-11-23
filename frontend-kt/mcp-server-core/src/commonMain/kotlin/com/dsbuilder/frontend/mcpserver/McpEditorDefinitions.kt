@@ -28,6 +28,9 @@ internal fun editorTool(
                     required = true,
                     description = "Stable key for an exact retry with the original body and revisions.",
                 ),
+                "coreSelectionRevision" to editorInteger(
+                    description = "Core selection revision returned with the source model.",
+                ),
                 "baseRevision" to editorInteger(
                     description = "Subject revision from source data, distinct from draft revision.",
                 ),

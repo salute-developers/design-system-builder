@@ -33,8 +33,8 @@ object PluginManifestParser {
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "commit должен быть sha коммита")
         val version = root.string("version")
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "version не задана")
-        if (version != commit.take(BUILD_ID_LENGTH)) {
-            return invalid("PLUGIN_VERSION_COMMIT_MISMATCH", "version должна равняться первым 12 символам commit")
+        if (!Regex("^[0-9a-f]{12}$").matches(version)) {
+            return invalid("PLUGIN_MANIFEST_INVALID", "version должна содержать 12 шестнадцатеричных символов")
         }
         val libraryField = platform.libraryVersionField
         val libraryVersion = root.string(libraryField)?.takeIf(SEMVER::matches)

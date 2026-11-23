@@ -1,3 +1,9 @@
+import {
+    UnavailableAssignment,
+    useInspectorCompatibility,
+} from '../../../../features/coreCompatibility/InspectorCompatibility';
+import { issueMatchesSource } from '../../../../features/coreCompatibility/model';
+import type { CoreIssue } from '../../../../api/coreCompatibilityRepository';
 import { useMemo, useState } from 'react';
 
 import type { ComponentAPI, Config } from '../../../../controllers';
@@ -6,6 +12,7 @@ import { TyGlyph } from '../../../../components/TyGlyph';
 import { InspectorGroup } from './InspectorGroup';
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import {
+    editSource,
     INSPECTOR_SECTIONS,
     SECTION_TITLES,
     collectProperties,
@@ -64,6 +71,24 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         [config, api, selection, updated],
     );
 
+    const compatibility = useInspectorCompatibility();
+    const relevant =
+        compatibility?.issues.filter(
+            (issue) =>
+                issue.severity === 'blocking' &&
+                issueMatchesSource(issue, editSource(config, selection)),
+        ) ?? [];
+    const missing = relevant.filter(
+        (issue) =>
+            !properties.some(
+                (row) => row.prop.getID() === issue.location.propertyId && issueMatchesSource(issue, row.source),
+            ),
+    );
+    const missingByValue = new Map<string, CoreIssue[]>();
+    for (const issue of missing) {
+        const key = issue.location.valueId ?? issue.issueId;
+        missingByValue.set(key, [...(missingByValue.get(key) ?? []), issue]);
+    }
     const row = ({ prop, source, isSet, linked, inheritedFrom, inheritedStateSources }: InspectorProperty) => (
         <InspectorPropertyRow
             key={`${sourceKey(source)}:${prop.getID()}`}
@@ -92,6 +117,14 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             <InspectorGroup
                 key={title}
                 title={title}
+                forceOpen={rows.some((row) =>
+                    relevant.some(
+                        (issue) =>
+                            issue.issueId === compatibility?.focused &&
+                            issue.location.propertyId === row.prop.getID() &&
+                            issueMatchesSource(issue, row.source),
+                    ),
+                )}
                 additional={additional}
                 actions={
                     <FilterButton
@@ -115,6 +148,13 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
 
     return (
         <>
+            {missingByValue.size > 0 && (
+                <InspectorGroup title="Недоступные назначения">
+                    {[...missingByValue].map(([key, issues]) => (
+                        <UnavailableAssignment key={key} issues={issues} />
+                    ))}
+                </InspectorGroup>
+            )}
             {INSPECTOR_SECTIONS.map((section) =>
                 group(
                     SECTION_TITLES[section],

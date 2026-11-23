@@ -106,7 +106,7 @@ private fun ComponentReadRuntime.selectionPath(
     "${encodePart(appearanceId)}/$operation?version=${encodePart(version)}" +
     selectedValueIds.joinToString("") { "&selectedValueId=${encodePart(it)}" }
 
-private fun encodePart(value: String): String = buildString {
+internal fun encodePart(value: String): String = buildString {
     value.encodeToByteArray().forEach { raw ->
         val byte = raw.toInt() and 0xff
         val letter = byte in 'a'.code..'z'.code || byte in 'A'.code..'Z'.code

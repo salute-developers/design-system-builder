@@ -556,6 +556,8 @@
 .settings-content[data-active-section='general'] #settings-general,
 .ps-content[data-active-section='general'] #settings-general,
 .ps-content[data-active-section='user-general'] #settings-user-general,
+.settings-content[data-active-section='core'] #settings-core,
+.ps-content[data-active-section='core'] #settings-core,
 .settings-content[data-active-section='members'] #settings-members,
 .ps-content[data-active-section='members'] #settings-members,
 .settings-content[data-active-section='lifecycle'] #settings-lifecycle,
@@ -4091,7 +4093,10 @@ button:disabled {
     border-radius: 6px;
     background: #ffffff08;
     color: #f3f3f3;
-    font: 600 12px/16px Inter, system-ui, sans-serif;
+    font:
+        600 12px/16px Inter,
+        system-ui,
+        sans-serif;
     cursor: pointer;
 }
 .ps-scope-group-toggle > span {
@@ -4419,6 +4424,110 @@ button:disabled {
 .project-settings .settings-section button:hover:not(:disabled) {
     background: #4a9df0;
 }
+.styled-select-menu button.styled-select-option-with-saved {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.styled-select-option-with-saved .styled-select-option-label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.styled-select-saved-mark {
+    flex: 0 0 auto;
+    color: var(--p-text);
+}
+.project-settings .ps-core-description {
+    max-width: 640px;
+    margin: 0;
+    line-height: 18px;
+}
+.project-settings .ps-core-platforms {
+    display: grid;
+    gap: 12px;
+    max-width: 640px;
+    margin-top: 24px;
+}
+.project-settings .ps-core-columns,
+.project-settings .ps-core-platform {
+    display: grid;
+    grid-template-columns: 104px 120px minmax(0, 1fr);
+    align-items: start;
+    gap: 6px 12px;
+    min-width: 0;
+    font: 400 12px/16px Inter;
+}
+.project-settings .ps-core-columns {
+    color: var(--p-muted);
+}
+.project-settings .ps-core-platform-name {
+    padding-top: 4px;
+    color: var(--p-text);
+}
+.project-settings .ps-core-fields {
+    min-width: 0;
+}
+.project-settings .ps-core-field-label {
+    display: none;
+}
+.project-settings .ps-core-version {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.project-settings .ps-core-fields .styled-select-trigger {
+    width: 100%;
+}
+.project-settings .ps-core-fields .styled-select-trigger:hover:not(:disabled) {
+    border-color: var(--p-outline);
+    background: var(--p-panel);
+}
+.project-settings .ps-core-fields .styled-select-trigger > span:first-child {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.project-settings .ps-core-fields .styled-select-chevron {
+    flex-shrink: 0;
+    margin-left: 8px;
+}
+.project-settings .ps-core-row-hint {
+    grid-column: 3;
+    margin: 0;
+}
+.project-settings .ps-core-onboarding {
+    margin-bottom: 24px;
+}
+.project-settings .ps-core-onboarding .ps-button {
+    margin-top: 12px;
+}
+@media (max-width: 1100px) {
+    .project-settings .ps-core-columns {
+        display: none;
+    }
+    .project-settings .ps-core-platform {
+        grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+    }
+    .project-settings .ps-core-platform-name {
+        grid-column: 1 / -1;
+        padding-top: 0;
+    }
+    .project-settings .ps-core-field-label {
+        display: block;
+        margin-bottom: 6px;
+        color: var(--p-muted);
+    }
+    .project-settings .ps-core-row-hint {
+        grid-column: 1 / -1;
+    }
+}
+@media (max-width: 480px) {
+    .project-settings .ps-core-platform {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
 .project-settings .settings-section .ps-cli-copy-button {
     width: 32px;
     min-width: 32px;
@@ -4605,18 +4714,37 @@ button:disabled {
     background: var(--builder-panel, #212327);
     color: var(--p-text, #f3f3f3);
     box-shadow: 0 4px 16px #0006;
-    font: 400 13px/20px Inter, system-ui, sans-serif;
+    font:
+        400 13px/20px Inter,
+        system-ui,
+        sans-serif;
     overflow: auto;
 }
-.mcp-link-popover p { margin: 0 0 12px; }
-.mcp-link-field { display: flex; align-items: center; gap: 8px; }
-.mcp-link-field input {
-    flex: 1; min-width: 0; padding: 8px;
-    border: 1px solid var(--p-line, #ffffff1a); border-radius: 4px;
-    background: transparent; color: inherit; font: inherit;
+.mcp-link-popover p {
+    margin: 0 0 12px;
 }
-.mcp-link-field button { flex-shrink: 0; }
-.mcp-link-popover [role="status"] { display: block; margin-top: 8px; }
+.mcp-link-field {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.mcp-link-field input {
+    flex: 1;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--p-line, #ffffff1a);
+    border-radius: 4px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+}
+.mcp-link-field button {
+    flex-shrink: 0;
+}
+.mcp-link-popover [role='status'] {
+    display: block;
+    margin-top: 8px;
+}
 
 /*
  * Оболочка по Figma (`Rail`, `Topbar`, `Back`): знак без плашки, линии `outline/general/primary`,

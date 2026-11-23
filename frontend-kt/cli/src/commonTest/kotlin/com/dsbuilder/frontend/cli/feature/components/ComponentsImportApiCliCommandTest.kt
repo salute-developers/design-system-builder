@@ -438,7 +438,7 @@ class ComponentsImportApiCliCommandTest {
             credentialStore = sessionStore(session),
             tokenClient = tokenClient(),
         ),
-    ).execute(args + listOf("--library-id", "test-library", "--core-version", "1.0.0"))
+    ).execute(args + listOf("--library-id", "test-library", "--core-version", "1.0.0", "--channel", "stable"))
 
     private fun sessionStore(present: Boolean): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? = UserSession(

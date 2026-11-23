@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Convert the bundled web API meta to the ds-service import request for local setup."""
 
+import argparse
+import base64
+import hashlib
 import json
 import re
 import sys
@@ -17,13 +20,19 @@ def kebab_case(value: str) -> str:
 
 
 def normalize(source: list[dict]) -> list[dict]:
+    if not isinstance(source, list):
+        raise ValueError("Web API meta must be an array")
     components: dict[str, dict] = {}
     for entry in source:
+        if not isinstance(entry, dict):
+            raise ValueError("Web API meta component must be an object")
         name = entry.get("componentName", "")
         if not isinstance(name, str) or not name.strip():
             continue
         component = components.setdefault(name, {"name": name, "properties": {}, "states": {}})
         for param in entry.get("params", []):
+            if not isinstance(param, dict) or not isinstance(param.get("paramName"), str):
+                raise ValueError("Web API meta parameter requires a string paramName")
             prop_id = param.get("id", "")
             prop_type = param.get("type", "")
             if not isinstance(prop_id, str) or not prop_id.strip() or not isinstance(prop_type, str) or not prop_type.strip():
@@ -33,7 +42,7 @@ def normalize(source: list[dict]) -> list[dict]:
                 prop_id, {"name": prop_id, "type": prop_type, "platformNames": {}, "description": ""}
             )
             if prop["type"] != prop_type:
-                continue
+                raise ValueError(f"Conflicting property types for {name}.{prop_id}: {prop['type']} and {prop_type}")
             state = param.get("state")
             if isinstance(state, str):
                 canonical = "".join(char for char in state.lower() if char.isalnum())
@@ -61,16 +70,26 @@ def normalize(source: list[dict]) -> list[dict]:
                 prop["description"] = "token: " + "/".join(alias["name"] for alias in aliases)
                 properties.append(prop)
         result.append({"name": component["name"], "properties": properties, "states": list(component["states"])})
+    if source and not result:
+        raise ValueError("Nonempty Web API meta has no valid components")
     return result
 
 
 def main() -> None:
-    source_path = Path(sys.argv[1])
-    components = normalize(json.loads(source_path.read_text(encoding="utf-8")))
-    if not components:
-        raise SystemExit("Web API meta contains no components")
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("source", type=Path)
+    parser.add_argument("--library-id", required=True)
+    parser.add_argument("--core-version", required=True)
+    parser.add_argument("--channel", choices=["stable", "dev"], required=True)
+    args = parser.parse_args()
+    source_path = args.source
+    raw = source_path.read_bytes()
+    components = normalize(json.loads(raw))
     json.dump(
-        {"platform": "web", "meta": {"source": source_path.name}, "dryRun": False, "components": components},
+        {"platform": "web", "meta": {"source": source_path.name}, "dryRun": False, "components": components,
+         "coreRelease": {"libraryId": args.library_id, "platform": "web", "version": args.core_version},
+         "channel": args.channel, "sourceMetaBase64": base64.b64encode(raw).decode(),
+         "metaSha256": hashlib.sha256(raw).hexdigest()},
         sys.stdout,
         ensure_ascii=False,
     )

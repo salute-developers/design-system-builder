@@ -151,13 +151,16 @@ import com.dsbuilder.ds.components.presentation.componentDependencyRoutes
 import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
+import com.dsbuilder.ds.components.presentation.componentTemplateRoutes
 import com.dsbuilder.ds.components.presentation.coreCompatibilityRoutes
+import com.dsbuilder.ds.components.presentation.coreComponentCatalogRoutes
 import com.dsbuilder.ds.components.presentation.coreComponentReadRoutes
 import com.dsbuilder.ds.components.presentation.coreDependencyReadRoutes
 import com.dsbuilder.ds.components.presentation.corePlatformParamReadRoutes
 import com.dsbuilder.ds.components.presentation.corePreviewRoutes
 import com.dsbuilder.ds.components.presentation.coreProblemRepairRoutes
 import com.dsbuilder.ds.components.presentation.corePropertyReadRoutes
+import com.dsbuilder.ds.components.presentation.coreSettingsRoutes
 import com.dsbuilder.ds.components.presentation.coreStateReadRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
 import com.dsbuilder.ds.components.presentation.iconCatalogPublishRoutes
@@ -477,6 +480,13 @@ fun Application.installDsRoutes(runtime: DsRuntime, json: Json, diagnostics: Boo
 
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
+    coreSettingsRoutes(
+        runtime.evaluator,
+        koin.get<com.dsbuilder.ds.components.application.ListCoreReleasesUseCase>(),
+        koin.get<com.dsbuilder.ds.components.application.SelectCoreReleaseUseCase>(),
+        koin.get<com.dsbuilder.ds.components.application.ReadCoreSettingsUseCase>(),
+        json,
+    )
     coreCompatibilityRoutes(runtime.evaluator, koin.get<GetCoreCompatibilityUseCase>())
     corePreviewRoutes(runtime.evaluator, koin.get<GetCorePreviewUseCase>())
     coreProblemRepairRoutes(runtime.evaluator, koin.get<RepairCoreProblemUseCase>(), json)
@@ -497,6 +507,7 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetComponentWebAdapterUseCase>(),
         json,
     )
+    coreComponentCatalogRoutes(runtime.evaluator, koin.get<ListComponentsUseCase>())
     coreComponentReadRoutes(runtime.evaluator, koin.get<GetComponentUseCase>())
     corePropertyReadRoutes(runtime.evaluator, koin.get<ListPropertiesUseCase>())
     corePlatformParamReadRoutes(runtime.evaluator, koin.get<ListPropertyPlatformParamsUseCase>())

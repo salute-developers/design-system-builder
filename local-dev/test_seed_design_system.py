@@ -33,6 +33,7 @@ if path == '/auth/token': result = {'access_token': os.environ['SEED_TEST_SESSIO
 elif path == '/api/projects': result = [{'id': 'project', 'ownerUserId': 'owner'}]
 elif path == '/api/projects/project': result = {'name': 'local'}
 elif path == '/api/projects/project/design-systems': result = [{'id': 'ds', 'name': 'sdds_serv_local'}]
+elif path == '/api/projects/project/design-systems/ds/core-settings': result = {'context': {'coreReleases': [{'platform': 'compose', 'releaseId': 'selected-core'}]}}
 elif path == '/api/projects/project/design-systems/ds/tenants': result = [{'id': 'tenant'}]
 elif path.startswith('/api/projects/project/design-systems/ds/versions?'):
     version = path.split('version=')[1].split('&')[0]
@@ -62,7 +63,7 @@ print(json.dumps(result))
 '''
 
 class SeedPatTest(unittest.TestCase):
-    def run_seed(self, case, version=None):
+    def run_seed(self, case, version=None, skip_publish=False):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             (root / 'meta.json').write_text('{}')
@@ -77,10 +78,18 @@ class SeedPatTest(unittest.TestCase):
             if version is not None: env['SEED_TEST_VERSION'] = version
             result = subprocess.run(['bash', str(ROOT / 'seed-local-design-system.sh'),
                 '--package', str(root), '--theme-package', '', '--gateway-url', 'http://seed.test',
-                '--cli', str(root / 'cli')] + (['--publish-version', version] if version is not None else []), env=env, capture_output=True, text=True)
+                '--cli', str(root / 'cli')] + (['--publish-version', version] if version is not None else []) + (['--skip-publish'] if skip_publish else []), env=env, capture_output=True, text=True)
             events = [json.loads(line) for line in (root / 'events').read_text().splitlines()]
             self.assertNotIn('test-pat-secret', result.stdout + result.stderr)
             return result, events
+
+    def test_skip_publish_imports_and_revokes_pat_without_version_requests(self):
+        result, events = self.run_seed('success', skip_publish=True)
+        self.assertEqual(0, result.returncode, result.stderr)
+        self.assertTrue(any('cli' in event for event in events))
+        self.assertFalse(any('/versions' in event.get('path', '') for event in events))
+        self.assertEqual('DELETE', events[-1]['method'])
+        self.assertIn('publication was skipped', result.stdout)
 
     def test_success_revokes_pat(self):
         result, events = self.run_seed('success')

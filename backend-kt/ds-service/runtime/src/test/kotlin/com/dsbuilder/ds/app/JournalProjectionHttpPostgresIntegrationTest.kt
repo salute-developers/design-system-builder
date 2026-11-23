@@ -138,6 +138,7 @@ class JournalProjectionHttpPostgresIntegrationTest {
                 }
                 assertEquals(HttpStatusCode.Created, component.status)
                 val componentId = Json.parseToJsonElement(component.bodyAsText()).jsonObject.getValue("id")
+                importFixtureCore(postgres)
                 api.call("POST", "$root/design-system-components", """{"componentId":$componentId}""")
                 assertEquivalent(api, db, legacy, owner, tenant)
                 val foreignTenant = fixture.values.map { it.jsonObject }.first {

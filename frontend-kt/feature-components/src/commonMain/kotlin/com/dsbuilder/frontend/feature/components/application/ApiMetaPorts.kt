@@ -73,6 +73,7 @@ internal data class ImportApiMetaRemoteCommand(
     val manifest: ApiMetaManifest,
     val coreRelease: CoreReleaseRef? = null,
     val sourceBytes: ByteArray = byteArrayOf(),
+    val channel: String? = null,
 )
 
 /** Результат загрузки манифеста. */

@@ -146,6 +146,7 @@ export const StyledSelect = ({
     disabled = false,
     popoverWidth,
     onOpen,
+    savedValue,
 }: {
     label: string;
     value: string | number;
@@ -156,6 +157,7 @@ export const StyledSelect = ({
     disabled?: boolean;
     popoverWidth?: number | 'content';
     onOpen?: () => void;
+    savedValue?: string | number;
 }) => {
     const [open, setOpen] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
@@ -285,14 +287,25 @@ export const StyledSelect = ({
                                 type="button"
                                 role="option"
                                 tabIndex={-1}
+                                className={savedValue !== undefined ? 'styled-select-option-with-saved' : undefined}
                                 aria-selected={String(option.value) === String(value)}
+                                aria-label={
+                                    savedValue !== undefined && String(option.value) === String(savedValue)
+                                        ? `${option.label}, сохранённая версия`
+                                        : undefined
+                                }
                                 key={option.value}
                                 onClick={() => {
                                     onChange(String(option.value));
                                     closeAndFocusTrigger();
                                 }}
                             >
-                                {option.label}
+                                <span className="styled-select-option-label">{option.label}</span>
+                                {savedValue !== undefined && String(option.value) === String(savedValue) && (
+                                    <span className="styled-select-saved-mark" aria-hidden="true">
+                                        ✓
+                                    </span>
+                                )}
                             </button>
                         ))}
                     </div>,

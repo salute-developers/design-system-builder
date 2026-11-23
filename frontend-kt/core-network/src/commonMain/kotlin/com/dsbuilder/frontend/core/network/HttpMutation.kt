@@ -31,9 +31,12 @@ public data class HttpMutationRequest(
     public val baseRevision: Long? = null,
     /** Идентификатор клиента для метаданных записи. */
     public val clientId: String? = null,
+    /** Ожидаемая ревизия Core выбранной модели. */
+    public val coreSelectionRevision: Long? = null,
 ) {
     init {
         require(idempotencyKey.isNotBlank()) { "idempotencyKey is required." }
+        require(coreSelectionRevision == null || coreSelectionRevision >= 0)
         require(baseRevision == null || baseRevision >= 0) { "baseRevision must be non-negative." }
     }
 }
@@ -84,6 +87,7 @@ internal suspend fun executeMutation(
         header(HttpHeaders.Authorization, credential.authorizationValue())
         header("Idempotency-Key", command.idempotencyKey)
         command.baseRevision?.let { header("X-DS-Base-Revision", it) }
+        command.coreSelectionRevision?.let { header("X-DS-Core-Selection-Revision", it) }
         command.clientId?.let { header("X-DS-Client-Id", it) }
         command.body?.let {
             contentType(ContentType.Application.Json)

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.app
 
 import com.dsbuilder.ds.components.application.PluginArchiveLimits
@@ -12,6 +14,7 @@ import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
 import io.ktor.client.request.post
+import io.ktor.client.request.put
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
 import io.ktor.client.statement.bodyAsText
@@ -24,6 +27,8 @@ import io.ktor.server.testing.ApplicationTestBuilder
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonObject
@@ -195,7 +200,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             "PLUGIN_ARCHIVE_UNSAFE_PATH" to archive(extra = mapOf("../escape.txt" to "x")),
             "PLUGIN_FILE_MISSING" to zip(mapOf("index.html" to "<html/>")),
             "PLUGIN_META_SHA256_MISMATCH" to archive(metaSha = "0".repeat(64)),
-            "PLUGIN_VERSION_COMMIT_MISMATCH" to archive(version = "000000000000"),
+            "PLUGIN_MANIFEST_INVALID" to archive(version = "not-a-build-id"),
             "PLUGIN_ENTRYPOINT_MISSING" to archive(entrypoint = "missing.html"),
             "PLUGIN_ARCHIVE_INVALID" to "not a zip".toByteArray(),
         )
@@ -295,7 +300,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             contentType(ContentType.Application.Json)
             setBody(body)
         }
-        suspend fun createPublished(name: String): Pair<String, String> {
+        suspend fun createPublished(name: String, coreVersion: String): Pair<String, String> {
             val created = postJson("/api/design-systems", """{"name":"$name","projectName":"$name"}""")
             assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
             val system = json.parseToJsonElement(created.bodyAsText()).jsonObject.string("id")
@@ -308,6 +313,17 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
             val response = service.builder.client.get("/api/design-systems/$system") { actor(Actor.ADMIN) }
             val draft = response.ok()
+            val release = query("SELECT id FROM core_releases WHERE version = '$coreVersion'")
+            val selection = service.builder.client.put("/api/design-systems/$system/core-settings/compose") {
+                actor(Actor.ADMIN)
+                contentType(ContentType.Application.Json)
+                setBody(
+                    """{"channel":"stable","releaseId":"$release","expectedDraftId":${draft.getValue(
+                        "draftId",
+                    )},"expectedCoreSelectionRevision":0}""",
+                )
+            }
+            assertEquals(HttpStatusCode.OK, selection.status, selection.bodyAsText())
             val published = postJson(
                 "/api/design-systems/$system/versions",
                 """{"draftId":${draft.getValue(
@@ -322,7 +338,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         ) { actor(Actor.ADMIN) }
 
         publish(archive(), Actor.PUBLISHER, dryRun = false).ok()
-        val (systemA, versionA) = createPublished("preview-a")
+        val (systemA, versionA) = createPublished("preview-a", "0.55.0")
         assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
         val b = archive(COMMIT_B, uikit = "0.56.0")
         val meta = json.parseToJsonElement(releaseMetaBody(metaBody(), b)).jsonObject
@@ -331,9 +347,9 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             JsonObject(meta + ("dryRun" to kotlinx.serialization.json.JsonPrimitive(false))).toString(),
         )
         assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
-        val (systemB, versionB) = createPublished("preview-b")
+        val (systemB, versionB) = createPublished("preview-b", "0.56.0")
         assertEquals(HttpStatusCode.NotFound, selected(systemB, versionB).status)
-        assertEquals(HttpStatusCode.NotFound, selected(systemA).status)
+        assertEquals(COMMIT_A.take(12), selected(systemA).ok().string("buildId"))
         assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
         publish(b, Actor.PUBLISHER, dryRun = false).ok()
         assertEquals(COMMIT_B.take(12), selected(systemB, versionB).ok().string("buildId"))
@@ -345,9 +361,238 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertTrue(storage.files.keys.any { it.startsWith(COMMIT_A.take(12) + "/") })
     }
 
+    @Test
+    fun `cleanup rechecks a draft pin committed while it waits for the Core barrier`() = withService(keepBuilds = 1) {
+        publish(archive(COMMIT_A, uikit = "1.0.0"), Actor.ADMIN, dryRun = false).ok()
+        publish(archive(COMMIT_B, uikit = "2.0.0"), Actor.ADMIN, dryRun = false).ok()
+        val release = query("SELECT id FROM core_releases WHERE version = '1.0.0'")
+        val system = UUID.randomUUID()
+        val draft = UUID.randomUUID()
+        DriverManager.getConnection(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        ).use { selection ->
+            selection.createStatement().use {
+                it.execute(
+                    "INSERT INTO design_systems(id,project_name,project_id) VALUES ('$system','cleanup-race','project')",
+                )
+                it.execute(
+                    "INSERT INTO design_system_versions(id,design_system_id,status,sequence_number,revision,published_at) VALUES ('${UUID.randomUUID()}','$system','baseline',0,0,NULL)",
+                )
+                it.execute(
+                    "INSERT INTO design_system_versions(id,design_system_id,status,sequence_number,revision,published_at) VALUES ('$draft','$system','draft',1,0,NULL)",
+                )
+            }
+            selection.autoCommit = false
+            selection.createStatement().use {
+                it.execute("SELECT pg_advisory_xact_lock_shared(hashtextextended('$release',684314))")
+                it.execute(
+                    "INSERT INTO design_system_version_core_releases(version_id,platform,release_id) VALUES ('$draft','compose','$release')",
+                )
+            }
+            coroutineScope {
+                val cleanup = async { publish(archive(COMMIT_C, uikit = "3.0.0"), Actor.ADMIN, dryRun = false) }
+                withTimeout(10_000) {
+                    while (query("SELECT count(*) FROM pg_stat_activity WHERE wait_event = 'advisory' AND query LIKE '%pg_advisory_xact_lock(%'").toInt() == 0) delay(
+                        20,
+                    )
+                }
+                assertTrue(!cleanup.isCompleted)
+                selection.commit()
+                cleanup.await().ok()
+            }
+        }
+        assertTrue(COMMIT_A.take(12) in buildIds())
+        assertTrue(storage.files.keys.any { it.startsWith(COMMIT_A.take(12) + "/") })
+    }
+
+    @Test
+    fun `legacy preview multipart is rejected before inspecting either old or new ZIP`() = withService {
+        for (bytes in listOf("old archive".toByteArray(), archive())) {
+            val response = service.builder.client.post(PATH) {
+                actor(Actor.ADMIN)
+                setBody(
+                    MultiPartFormDataContent(
+                        formData {
+                            append(
+                                "plugin",
+                                bytes,
+                                Headers.build { append(HttpHeaders.ContentDisposition, "filename=plugin.zip") },
+                            )
+                            append("meta", metaBody())
+                        },
+                    ),
+                )
+            }
+            assertEquals(HttpStatusCode.BadRequest, response.status, response.bodyAsText())
+            assertTrue(response.bodyAsText().contains("CORE_RELEASE_METADATA_REQUIRED"))
+            assertTrue(response.bodyAsText().contains("CLI"))
+        }
+        assertEquals(0, count("compose_preview_plugin_builds"))
+        assertEquals(0, count("components"))
+        assertEquals(0, storage.puts)
+    }
+
     // ── helpers ───────────────────────────────────────────────────────────────────────────
 
     private enum class Actor { PUBLISHER, ADMIN, USER }
+
+    @Test
+    fun `ordinary dev upload switches the complete URL and removes the old generation`() = withService {
+        val a = archive(channel = "dev")
+        val old = publish(a, Actor.ADMIN, dryRun = false).ok()
+        val changed = archive(channel = "dev", extra = mapOf("new.txt" to "new"))
+        val before = storage.puts
+        val preview = publish(changed, Actor.ADMIN).ok()
+        assertEquals("replaced", preview.string("outcome"))
+        assertEquals(before, storage.puts)
+        assertEquals(old.string("pluginUrl"), active(Actor.USER).ok().string("pluginUrl"))
+        val replaced = publish(changed, Actor.ADMIN, dryRun = false).ok()
+        assertEquals("replaced", replaced.string("outcome"))
+        assertEquals(old.string("buildId"), replaced.string("buildId"))
+        assertTrue(old.string("pluginUrl") != replaced.string("pluginUrl"))
+        val key = replaced.string("pluginUrl").trimEnd('/').substringAfterLast('/')
+        assertTrue(storage.files.keys.all { it.startsWith("$key/") })
+        assertTrue("$key/new.txt" in storage.files)
+        assertEquals(setOf(COMMIT_A.take(12)), buildIds())
+        val after = storage.puts
+        assertEquals("unchanged", publish(changed, Actor.ADMIN, dryRun = false).ok().string("outcome"))
+        assertEquals(after, storage.puts)
+        val third = archive(channel = "dev", extra = mapOf("third.txt" to "third"))
+        val next = publish(third, Actor.ADMIN, dryRun = false).ok()
+        val nextKey = next.string("pluginUrl").trimEnd('/').substringAfterLast('/')
+        assertTrue(storage.files.keys.all { it.startsWith("$nextKey/") })
+        assertTrue(storage.files.keys.none { it.endsWith("new.txt") })
+    }
+
+    @Test
+    fun `replacement rejects stable and changed Core before writing files`() = withService {
+        publish(archive(), Actor.ADMIN, dryRun = false).ok()
+        val count = storage.puts
+        val rejected = publish(archive(extra = mapOf("changed" to "x")), Actor.ADMIN, dryRun = false)
+        assertEquals(HttpStatusCode.Conflict, rejected.status)
+        assertEquals(count, storage.puts)
+    }
+
+    @Test
+    fun `dev replacement cannot alter registered Core coordinates or meta`() = withService {
+        publish(archive(channel = "dev"), Actor.ADMIN, dryRun = false).ok()
+        val before = storage.files.keys.toSet()
+        for (zip in listOf(archive(channel = "dev", uikit = "0.56.0"), archive(channel = "dev", avatar = "Changed"))) {
+            val result = publish(zip, Actor.ADMIN, dryRun = false)
+            assertEquals(HttpStatusCode.Conflict, result.status, result.bodyAsText())
+        }
+        assertEquals(before, storage.files.keys)
+    }
+
+    @Test
+    fun `partial storage failure and DB failure preserve the previous complete generation`() = withService {
+        val old = publish(archive(channel = "dev"), Actor.ADMIN, dryRun = false).ok()
+        val files = storage.files.keys.toSet()
+        val changed = archive(channel = "dev", extra = mapOf("new.txt" to "new"))
+        storage.failAfter = storage.puts + 1
+        assertEquals(
+            HttpStatusCode.ServiceUnavailable,
+            publish(changed, Actor.ADMIN, dryRun = false).status,
+        )
+        assertEquals(files, storage.files.keys)
+        assertEquals(old.string("pluginUrl"), active(Actor.USER).ok().string("pluginUrl"))
+        storage.failAfter = null
+        sql(
+            "CREATE FUNCTION fail_preview_replace() RETURNS trigger LANGUAGE plpgsql AS $$ BEGIN RAISE EXCEPTION 'test failure'; END; $$",
+        )
+        sql(
+            "CREATE TRIGGER fail_preview_replace BEFORE UPDATE OF storage_key ON compose_preview_plugin_builds FOR EACH ROW EXECUTE FUNCTION fail_preview_replace()",
+        )
+        val result = publish(changed, Actor.ADMIN, dryRun = false)
+        assertTrue(result.status.value >= 400, result.bodyAsText())
+        assertEquals(files, storage.files.keys)
+        assertEquals(old.string("pluginUrl"), active(Actor.USER).ok().string("pluginUrl"))
+    }
+
+    @Test
+    fun `draft selection allows replacement but a concurrent historical pin forbids it`() = withService {
+        publish(archive(channel = "dev"), Actor.ADMIN, dryRun = false).ok()
+        val release = query("SELECT id FROM core_releases WHERE version = '0.55.0'")
+        val system = java.util.UUID.randomUUID()
+        val boundary = java.util.UUID.randomUUID()
+        val buildId = COMMIT_A.take(12)
+        sql("INSERT INTO design_systems(id,project_name,project_id) VALUES ('$system','replace-test','project-a')")
+        sql(
+            "INSERT INTO design_system_versions(id,design_system_id,status,sequence_number,revision,published_at) VALUES ('${java.util.UUID.randomUUID()}','$system','baseline',0,0,NULL)",
+        )
+        sql(
+            "INSERT INTO design_system_versions(id,design_system_id,status,sequence_number,revision,published_at) VALUES ('$boundary','$system','draft',1,0,NULL)",
+        )
+        sql(
+            "INSERT INTO design_system_version_core_releases(version_id,platform,release_id) VALUES ('$boundary','compose','$release')",
+        )
+        val changed = archive(channel = "dev", extra = mapOf("first.txt" to "first"))
+        val replaced = publish(changed, Actor.ADMIN, dryRun = false).ok()
+        val files = storage.files.keys.toSet()
+        DriverManager.getConnection(
+            service.postgres.jdbcUrl,
+            service.postgres.username,
+            service.postgres.password,
+        ).use { pin ->
+            pin.autoCommit = false
+            pin.createStatement().use {
+                it.execute(
+                    "SELECT pg_advisory_xact_lock_shared(hashtextextended('$release', 684314))",
+                )
+            }
+            coroutineScope {
+                val replacing = async {
+                    publish(
+                        archive(channel = "dev", extra = mapOf("second.txt" to "second")),
+                        Actor.ADMIN,
+                        dryRun = false,
+                    )
+                }
+                withTimeout(10_000) {
+                    while (query("SELECT count(*) FROM pg_locks WHERE locktype = 'advisory' AND NOT granted").toInt() == 0) delay(
+                        10,
+                    )
+                }
+                pin.createStatement().use {
+                    it.execute(
+                        "INSERT INTO design_system_version_preview_builds(version_id,platform,release_id,build_id) VALUES ('$boundary','compose','$release','$buildId')",
+                    )
+                    it.execute(
+                        "UPDATE design_system_versions SET status='published', version='1.0.0', published_at=now() WHERE id='$boundary'",
+                    )
+                }
+                pin.commit()
+                val refused = replacing.await()
+                assertEquals(HttpStatusCode.Conflict, refused.status)
+                assertTrue(refused.bodyAsText().contains("PREVIEW_BUILD_PINNED"))
+            }
+        }
+        assertEquals(files, storage.files.keys)
+        assertEquals(replaced.string("pluginUrl"), active(Actor.USER).ok().string("pluginUrl"))
+    }
+
+    @Test
+    fun `new Core version and build ID can be uploaded without changing base commit`() = withService {
+        publish(
+            archive(uikit = "1.0.0-dev.1", version = "111111111111", channel = "dev"),
+            Actor.ADMIN,
+            dryRun = false,
+        ).ok()
+        publish(
+            archive(uikit = "1.0.0-dev.2", version = "222222222222", channel = "dev", avatar = "Changed"),
+            Actor.ADMIN,
+            dryRun = false,
+        ).ok()
+        assertEquals(setOf("111111111111", "222222222222"), buildIds())
+        assertEquals("222222222222", active(Actor.USER).ok().string("buildId"))
+    }
+
+    private fun sql(value: String) {
+        DriverManager.getConnection(service.postgres.jdbcUrl, service.postgres.username, service.postgres.password)
+            .use { connection -> connection.createStatement().use { it.execute(value) } }
+    }
 
     private suspend fun publish(bytes: ByteArray, actor: Actor, dryRun: Boolean = true): HttpResponse =
         service.builder.client.post("$PATH?dryRun=$dryRun") {
@@ -407,11 +652,13 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         entrypoint: String = "index.html",
         extra: Map<String, String> = emptyMap(),
         avatar: String = "Avatar",
+        channel: String = "stable",
     ): ByteArray {
         val meta = """[{"componentName":"$avatar"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.compose.preview","platform":"compose","protocolVersion":1,""" +
             """"entrypoint":"$entrypoint","version":"$version","commit":"$commit","uikitComposeVersion":"$uikit",""" +
-            """"coreRelease":{"libraryId":"fixture-compose","platform":"compose","version":"$uikit"},""" +
+            """"channel":"$channel","coreRelease":{"libraryId":"fixture-compose",""" +
+            """"platform":"compose","version":"$uikit"},""" +
             """"apiMetaSha256":"${metaSha ?: sha256Hex(meta.toByteArray())}","components":["$avatar"]}"""
         return zip(
             mapOf(
@@ -482,6 +729,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         val files = linkedMapOf<String, Stored>()
         var failOnPut = false
         var puts = 0
+        var failAfter: Int? = null
 
         fun preload(buildId: String, modified: Instant) {
             files["$buildId/index.html"] = Stored("text/html", "x", modified)
@@ -494,7 +742,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             contentType: String,
             cacheControl: String,
         ) {
-            check(!failOnPut) { "storage failure" }
+            check(!failOnPut && (failAfter == null || puts < requireNotNull(failAfter))) { "storage failure" }
             puts++
             files["$buildId/$path"] = Stored(contentType, cacheControl, Instant.now())
         }

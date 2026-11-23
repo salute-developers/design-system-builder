@@ -174,7 +174,8 @@ function Invoke-SetupTool([string]$script, [string[]]$arguments, [string[]]$moun
         '-w', '/workspace', '-e', "DSBUILDER_GATEWAY_URL=$gateway", '-e', "GATEWAY_URL=$gateway")
     foreach ($name in @('DSBUILDER_PROJECT_USERNAME', 'DSBUILDER_PROJECT_PASSWORD', 'DSBUILDER_PROJECT_NAME',
             'DSBUILDER_REALM', 'DSBUILDER_CLIENT_ID', 'DSBUILDER_CLIENT_SECRET',
-            'DSBUILDER_LOCAL_USERNAME', 'DSBUILDER_LOCAL_PASSWORD')) {
+            'DSBUILDER_LOCAL_USERNAME', 'DSBUILDER_LOCAL_PASSWORD',
+            'DSBUILDER_WEB_CORE_VERSION', 'DSBUILDER_WEB_CORE_CHANNEL', 'DSBUILDER_WEB_CORE_LIBRARY')) {
         $value = [Environment]::GetEnvironmentVariable($name)
         if ($null -ne $value) { $dockerArgs += @('-e', "$name=$value") }
     }
@@ -239,7 +240,7 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
         $source = Convert-InputPath $archive "/input/$(Split-Path $bundled -Leaf)" ([ref]$mounts)
         try {
             Write-SetupLog "Publishing the $title"
-            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--from', $source) $mounts
+            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--channel', 'stable', '--from', $source) $mounts
         } catch {
             if ($explicit) { throw }
             Write-SetupLog "The bundled $title could not be published: $_"
@@ -289,6 +290,9 @@ if (-not $SkipDesignSystem -and $componentsWereExplicit) {
         $mounts = @()
         $package = Convert-InputPath $ComponentsPackage '/input/components' ([ref]$mounts)
         $seedArgs = @('--package', $package)
+        $coreArchive = if ($PluginZip) { $PluginZip } else { Join-Path $root 'local-dev/compose-preview/preview-compose-plugin.zip' }
+        $coreSource = Convert-InputPath $coreArchive '/input/core-preview-plugin.zip' ([ref]$mounts)
+        $seedArgs += @('--core-archive', $coreSource)
         if ($themeWasExplicit) {
             if ($ThemePackage) {
                 $theme = Convert-InputPath $ThemePackage '/input/theme' ([ref]$mounts)

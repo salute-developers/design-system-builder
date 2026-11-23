@@ -8,16 +8,9 @@ import java.util.UUID
 
 /** Сохранение релиза выполняется в той же транзакции, что и аддитивное пополнение каталога. */
 internal class ExposedCoreReleaseImport {
-    /** Блокирует текущий указатель даже при первом импорте платформы. */
+    /** Сериализует импорты одной платформы без блокировок ДС. */
     fun lock(platform: String) {
-        TransactionManager.current().exec(
-            "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
-            listOf(TextColumnType() to "core-release:$platform"),
-        )
-        TransactionManager.current().exec(
-            "SELECT release_id FROM core_current_releases WHERE platform::text = ? FOR UPDATE",
-            listOf(TextColumnType() to platform),
-        ) { rows -> while (rows.next()) Unit }
+        lockCoreReleasePlatform(platform)
     }
 
     /** Существующий релиз вместе с точным сравнением исходника и нормализованного состава. */
@@ -25,7 +18,8 @@ internal class ExposedCoreReleaseImport {
         val ref = requireNotNull(command.coreRelease)
         return TransactionManager.current().exec(
             """
-                SELECT id, meta_sha256 = ? AND source_meta = decode(?, 'base64') AND normalized_meta = ?::jsonb AS
+                SELECT id, meta_sha256 = ? AND source_meta = decode(?, 'base64') AND normalized_meta = ?::jsonb
+                    AND channel = ? AS
                 matches
                 FROM core_releases WHERE library_id = ? AND platform::text = ? AND version = ?
             """.trimIndent(),
@@ -33,6 +27,7 @@ internal class ExposedCoreReleaseImport {
                 command.metaSha256,
                 command.sourceMetaBase64,
                 projection,
+                command.channel,
                 ref.libraryId,
                 command.platform,
                 ref.version,
@@ -50,15 +45,15 @@ internal class ExposedCoreReleaseImport {
         listOf(TextColumnType() to command.platform, TextColumnType() to requireNotNull(command.coreRelease).libraryId),
     ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
 
-    /** Записывает новый состав и переключает указатель только после успешного импорта. */
+    /** Записывает новый состав без переключения ДС. */
     fun insert(command: ImportApiMeta, projection: String): UUID {
         val ref = requireNotNull(command.coreRelease)
         val id = UUID.randomUUID()
         TransactionManager.current().exec(
             """
                 INSERT INTO core_releases(id, library_id, platform, version, source_meta, meta_sha256,
-                normalized_meta, provenance)
-                VALUES (?, ?, ?::component_platform, ?, decode(?, 'base64'), ?, ?::jsonb, 'imported')
+                normalized_meta, provenance, channel)
+                VALUES (?, ?, ?::component_platform, ?, decode(?, 'base64'), ?, ?::jsonb, 'imported', ?)
             """.trimIndent(),
             listOf(UUIDColumnType() to id) +
                 listOf(
@@ -68,15 +63,12 @@ internal class ExposedCoreReleaseImport {
                     command.sourceMetaBase64,
                     command.metaSha256,
                     projection,
+                    command.channel,
                 )
                     .map { TextColumnType() to it },
         )
         insertProjection(id)
-        TransactionManager.current().exec(
-            "INSERT INTO core_current_releases(platform, release_id) VALUES (?::component_platform, ?) " +
-                "ON CONFLICT (platform) DO UPDATE SET release_id = EXCLUDED.release_id",
-            listOf(TextColumnType() to command.platform, UUIDColumnType() to id),
-        )
+        advanceLatestCoreSelections(command.platform, requireNotNull(command.channel))
         return id
     }
 

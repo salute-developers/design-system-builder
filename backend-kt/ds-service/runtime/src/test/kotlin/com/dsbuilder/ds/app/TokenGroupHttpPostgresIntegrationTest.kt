@@ -48,6 +48,7 @@ class TokenGroupHttpPostgresIntegrationTest {
                     OWNER,
                     """{"name":"alpha","projectName":"alpha"}""",
                 )
+                importFixtureCore(postgres)
                 val compatibility = api.body(
                     api.call("GET", "/api/design-systems/$designSystemId/compatibility?limit=100", VIEWER),
                 ).jsonObject

@@ -16,6 +16,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.choice
 
 /**
  * Presentation command для `dsbuilder preview-plugin publish`.
@@ -34,6 +35,9 @@ internal class PreviewPluginPublishCliCommand(
                 "and api-meta.json.",
         )
 
+    private val channel: String by option("--channel").choice("stable", "dev").required()
+        .help("Core publication channel; independent of the ZIP and the backend URL.")
+
     private val apiUrl: String? by option("--api-url")
         .help("Backend API URL; an explicit URL is required because the command writes to the backend.")
 
@@ -48,6 +52,7 @@ internal class PreviewPluginPublishCliCommand(
                     from = from,
                     apply = apply,
                     apiUrlOverride = apiUrl,
+                    channel = channel,
                 ),
                 onTarget = { target -> echo(target.render()) },
             )
@@ -75,6 +80,7 @@ internal class PreviewPluginPublishCliCommand(
 private fun PublishPreviewPluginTarget.render(): String = """
     Plugin: $source
     Build: $buildId (${platform.libraryName()} $libraryVersion)
+    Channel: $channel
     Components: $componentCount
     Properties: $propertyCount
     States: $stateCount
@@ -85,6 +91,7 @@ private fun PublishPreviewPluginResult.Published.render(): String = buildString 
     appendLine(
         when (outcome) {
             "unchanged" -> "Outcome: unchanged (build $buildId is already published and active)"
+            "replaced" -> "Outcome: replaced (dev preview updated with the same build ID)"
             "activated" -> "Outcome: activated (the earlier build $buildId is active again)"
             else -> "Outcome: $outcome"
         },

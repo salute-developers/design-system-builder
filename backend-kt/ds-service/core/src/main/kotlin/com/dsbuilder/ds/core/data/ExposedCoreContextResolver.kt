@@ -3,6 +3,7 @@ package com.dsbuilder.ds.core.data
 import com.dsbuilder.ds.core.application.CoreContextResolver
 import com.dsbuilder.ds.core.application.ResolvedCoreRelease
 import com.dsbuilder.ds.core.domain.CoreReleaseRef
+import org.jetbrains.exposed.v1.core.Key
 import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.util.UUID
@@ -10,13 +11,18 @@ import java.util.UUID
 /** Читает один согласованный набор в текущей транзакции; старой границе latest не подставляется. */
 class ExposedCoreContextResolver : CoreContextResolver {
     override suspend fun resolve(versionId: UUID?): List<ResolvedCoreRelease> {
-        val binding = if (versionId == null) {
-            "SELECT release_id FROM core_current_releases"
-        } else {
-            "SELECT release_id FROM design_system_version_core_releases WHERE version_id = ?"
-        }
+        val binding = """
+            SELECT binding.release_id, CASE WHEN boundary.status = 'draft' THEN binding.selection_mode
+                ELSE 'pinned' END AS selection_mode FROM design_system_version_core_releases binding
+            JOIN design_system_versions boundary ON boundary.id = binding.version_id
+            WHERE boundary.design_system_id = NULLIF(current_setting('ds.design_system_id', true), '')::uuid
+              AND ds_request_matches_design_system(boundary.design_system_id)
+              AND ${if (versionId == null) "boundary.status = 'draft'" else "boundary.id = ?"}
+        """.trimIndent()
         return TransactionManager.current().exec(
-            "SELECT r.* FROM core_releases r JOIN ($binding) b ON b.release_id = r.id ORDER BY r.platform",
+            "SELECT r.id, r.library_id, r.platform, r.version, r.meta_sha256, r.provenance, " +
+                "r.channel, b.selection_mode " +
+                "FROM core_releases r JOIN ($binding) b ON b.release_id = r.id ORDER BY r.platform",
             if (versionId == null) emptyList() else listOf(UUIDColumnType() to versionId),
         ) { rows ->
             buildList {
@@ -30,6 +36,8 @@ class ExposedCoreContextResolver : CoreContextResolver {
                         ),
                         rows.getString("meta_sha256"),
                         rows.getString("provenance"),
+                        rows.getString("channel"),
+                        rows.getString("selection_mode"),
                     ),
                 )
             }
@@ -37,23 +45,43 @@ class ExposedCoreContextResolver : CoreContextResolver {
     }
 }
 
-/** Единый порядок блокировок публикации и обычных записей относительно импорта. */
-fun lockCurrentCoreReleases() {
-    TransactionManager.current().exec("SELECT release_id FROM core_current_releases ORDER BY platform FOR SHARE") {
+internal val expectedCoreSelectionRevision = Key<Long>()
+internal class CoreSelectionStaleException : RuntimeException()
+
+/** Блокирует только выбранную ДС: границу, затем её привязки по платформам. */
+fun lockDraftCoreSelection(designSystemId: UUID? = null) {
+    val tx = TransactionManager.current()
+    val system = designSystemId ?: tx.exec("SELECT NULLIF(current_setting('ds.design_system_id', true), '')") {
             rows ->
-        while (rows.next()) Unit
+        if (rows.next()) rows.getString(1)?.let(UUID::fromString) else null
+    } ?: return
+    requireRequestDesignSystemMutable()
+    lockDesignSystemPublication(system)
+    tx.exec(
+        "SELECT id FROM design_system_versions WHERE design_system_id = ? AND status = 'draft' FOR UPDATE",
+        listOf(UUIDColumnType() to system),
+    )
+    tx.getUserData(expectedCoreSelectionRevision)?.let { expected ->
+        val actual = tx.exec(
+            "SELECT core_selection_revision FROM design_system_versions " +
+                "WHERE design_system_id = ? AND status = 'draft'",
+            listOf(UUIDColumnType() to system),
+        ) { rows -> if (rows.next()) rows.getLong(1) else null }
+        if (actual != expected) throw CoreSelectionStaleException()
     }
+    tx.exec(
+        "SELECT binding.release_id FROM design_system_version_core_releases binding " +
+            "JOIN design_system_versions boundary ON boundary.id = binding.version_id " +
+            "WHERE boundary.design_system_id = ? AND boundary.status = 'draft' " +
+            "ORDER BY binding.platform FOR UPDATE OF binding",
+        listOf(UUIDColumnType() to system),
+    )
 }
 
 /** Закрепляет API и совместимый preview в существующей границе без создания версии или записи журнала. */
 fun bindVersionCoreReleases(versionId: UUID) {
     val tx = TransactionManager.current()
     val args = listOf(UUIDColumnType() to versionId)
-    tx.exec(
-        "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) " +
-            "SELECT ?, platform, release_id FROM core_current_releases",
-        args,
-    )
     tx.exec(
         """
         INSERT INTO design_system_version_preview_builds(version_id, platform, release_id, build_id)
@@ -65,3 +93,14 @@ fun bindVersionCoreReleases(versionId: UUID) {
         args,
     )
 }
+
+/** Читает отдельную ревизию выбора после разрешения предметной границы. */
+fun coreSelectionRevision(versionId: UUID): Long = TransactionManager.current().exec(
+    "SELECT core_selection_revision FROM design_system_versions WHERE id = ?",
+    listOf(UUIDColumnType() to versionId),
+) { rows -> if (rows.next()) rows.getLong(1) else 0L } ?: 0L
+
+/** Проверенный контекст чтения ДС отличает её Core-каталог от глобального служебного каталога. */
+fun hasDesignSystemCoreScope(): Boolean = TransactionManager.current().exec(
+    "SELECT NULLIF(current_setting('ds.design_system_id', true), '') IS NOT NULL",
+) { rows -> rows.next() && rows.getBoolean(1) } == true

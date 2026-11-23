@@ -33,6 +33,7 @@ internal class ComponentsImportApiCliCommand(
         .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
     private val libraryId: String by option("--library-id").required().help("Core library identifier.")
+    private val channel: String by option("--channel").required().help("Core channel: stable or dev.")
     private val coreVersion: String by option("--core-version").required().help("Published Core library version.")
 
     private val mapType: List<String> by option("--map-type")
@@ -62,6 +63,7 @@ internal class ComponentsImportApiCliCommand(
                     typeMap = typeMap,
                     apiUrlOverride = null,
                     coreRelease = CoreReleaseRef(libraryId, platform.cliValue, coreVersion),
+                    channel = channel,
                 ),
                 onTarget = { target -> echo(target.render()) },
             )

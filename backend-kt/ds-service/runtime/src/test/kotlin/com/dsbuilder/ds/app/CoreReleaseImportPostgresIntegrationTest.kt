@@ -4,6 +4,7 @@ package com.dsbuilder.ds.app
 
 import com.dsbuilder.ds.components.data.ExposedCompatibilityChecker
 import com.dsbuilder.ds.core.domain.ProjectId
+import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.patch
@@ -55,6 +56,18 @@ class CoreReleaseImportPostgresIntegrationTest {
                 }
                 val a = import("A", property("color"))
                 assertEquals(HttpStatusCode.OK, a.status, a.bodyAsText())
+                val changedChannel = client.post("/api/admin/component-config/import-api-meta") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "core-release-test")
+                    header("X-Project-Id", "global")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        body("A", property("color"), false).replace("\"channel\":\"stable\"", "\"channel\":\"dev\""),
+                    )
+                }
+                assertEquals(HttpStatusCode.Conflict, changedChannel.status)
+                assertEquals("stable", query(db, "SELECT channel FROM core_releases WHERE version = 'A'"))
                 val propertyId = query(db, "SELECT id FROM properties WHERE name = 'releaseFill'")
                 val b = import("B", property("typography"))
                 assertEquals(HttpStatusCode.OK, b.status, b.bodyAsText())
@@ -67,16 +80,16 @@ class CoreReleaseImportPostgresIntegrationTest {
                     ),
                 )
                 assertEquals(HttpStatusCode.OK, import("A", property("color")).status)
-                assertEquals("B", current(db))
+                assertEquals("catalog-at-migration", current(db))
                 assertEquals(HttpStatusCode.Conflict, import("A", property("typography")).status)
                 val count = query(db, "SELECT count(*) FROM core_releases")
                 assertEquals(HttpStatusCode.UnprocessableEntity, import("C", property("unknown")).status)
                 assertEquals(count, query(db, "SELECT count(*) FROM core_releases"))
-                assertEquals("B", current(db))
+                assertEquals("catalog-at-migration", current(db))
                 assertEquals(HttpStatusCode.OK, import("C", "", dryRun = true).status)
                 assertEquals(count, query(db, "SELECT count(*) FROM core_releases"))
                 assertEquals(HttpStatusCode.OK, import("C", "").status)
-                assertEquals("C", current(db))
+                assertEquals("catalog-at-migration", current(db))
                 assertEquals(
                     "0",
                     query(
@@ -104,7 +117,14 @@ class CoreReleaseImportPostgresIntegrationTest {
                     header("X-Project-Id", "global")
                     header("X-System-Admin", "true")
                     contentType(ContentType.Application.Json)
-                    setBody(body(version, properties, false))
+                    setBody(
+                        body(
+                            version,
+                            properties,
+                            false,
+                            extraComponents = if (version == "B") ",{\"name\":\"OnlyInB\"}" else "",
+                        ),
+                    )
                 }
                 val deprecated = property(
                     "color",
@@ -124,8 +144,13 @@ class CoreReleaseImportPostgresIntegrationTest {
                 assertEquals(1, report().warningCount)
                 assertEquals(
                     HttpStatusCode.OK,
-                    import("B", property("color").replace("releaseFill", "replacementFill")).status,
+                    import(
+                        "B",
+                        property("color").replace("releaseFill", "replacementFill") + "," +
+                            property("component_style").replace("releaseFill", "nestedFill").replace("\"fill\"", "\"nestedFill\""),
+                    ).status,
                 )
+                selectFixtureCore(db, fixture.draft, "B")
                 val conflicts = report()
                 assertEquals(listOf("CORE_PROPERTY_REMOVED"), conflicts.items.map { it.code })
                 assertEquals("#ff0000", conflicts.items.single().storedValue?.literal)
@@ -171,9 +196,9 @@ class CoreReleaseImportPostgresIntegrationTest {
                         """{"appearanceId":"${fixture.appearance}","valueKind":"invariant","valueId":"${fixture.value}","expectedRevision":$expected,"targetPropertyId":${target?.let(::JsonPrimitive) ?: "null"}}""",
                     )
                 }
-                suspend fun exported(version: UUID? = null) = client.post(
+                suspend fun exported(version: UUID? = null, name: String? = null) = client.post(
                     "/api/design-systems/${fixture.system}/component-config/export" +
-                        (version?.let { "?versionId=$it" } ?: ""),
+                        (version?.let { "?versionId=$it" } ?: name?.let { "?version=$it" } ?: ""),
                 ) {
                     header("X-Actor-Type", "user")
                     header("X-User-Id", "core-release-test")
@@ -189,6 +214,9 @@ class CoreReleaseImportPostgresIntegrationTest {
                 assertEquals("1", blockedBody.getValue("blockingCount").jsonPrimitive.content)
                 val historicalExport = exported(fixture.published)
                 assertEquals(HttpStatusCode.OK, historicalExport.status, historicalExport.bodyAsText())
+                val historicalByName = exported(name = "1.0.0")
+                assertEquals(HttpStatusCode.OK, historicalByName.status, historicalByName.bodyAsText())
+                assertEquals(historicalExport.bodyAsText(), historicalByName.bodyAsText())
                 val historicalMeta = Json.parseToJsonElement(
                     historicalExport.bodyAsText(),
                 ).jsonObject.getValue("meta").jsonObject
@@ -246,10 +274,27 @@ class CoreReleaseImportPostgresIntegrationTest {
                         assertEquals(true, byName.bodyAsText().contains("releaseFill"))
                         assertEquals(false, byName.bodyAsText().contains("replacementFill"))
                     }
+                    if (path == "components/$component" || path == "properties") {
+                        DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { connection ->
+                            connection.createStatement().use { statement ->
+                                val table = if (path == "properties") "properties" else "components"
+                                statement.executeUpdate("UPDATE $table SET updated_at = now() + interval '1 day'")
+                            }
+                        }
+                        assertEquals(byName.bodyAsText(), read("version=1.0.0").bodyAsText())
+                    }
                     assertEquals(HttpStatusCode.NotFound, read("versionId=${UUID.randomUUID()}").status)
                 }
                 val target = query(db, "SELECT id FROM properties WHERE name = 'replacementFill'")
                 val sourceRevision = conflicts.items.single().location.revision ?: 0
+                val nestedTarget = query(db, "SELECT id FROM properties WHERE name = 'nestedFill'")
+                val invalidTransfer = repair(sourceRevision, nestedTarget)
+                assertEquals(HttpStatusCode.UnprocessableEntity, invalidTransfer.status, invalidTransfer.bodyAsText())
+                assertEquals(conflicts, report())
+                assertEquals(
+                    "0",
+                    query(db, "SELECT count(*) FROM invariant_property_values WHERE property_id = '$nestedTarget'"),
+                )
                 for (selector in listOf("?version=1.0.0", "?versionId=${fixture.published}")) {
                     val historicalRepair = repair(sourceRevision, target, selector = selector)
                     assertEquals(HttpStatusCode.BadRequest, historicalRepair.status, historicalRepair.bodyAsText())
@@ -315,6 +360,32 @@ class CoreReleaseImportPostgresIntegrationTest {
                 assertEquals(listOf("CORE_PROPERTY_REMOVED"), report().items.map { it.code })
                 assertEquals("#ff0000", report().items.single().storedValue?.literal)
                 assertEquals(0, report(fixture.published).blockingCount)
+                val probe = query(db, "SELECT id FROM components WHERE name = 'OnlyInB'")
+                val added = client.post("/api/design-systems/${fixture.system}/design-system-components") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "core-release-test")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"componentId":"$probe"}""")
+                }
+                assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
+                for (path in listOf("catalog/components", "components/$probe")) {
+                    val historical = client.get(
+                        "/api/design-systems/${fixture.system}/$path?versionId=${fixture.published}",
+                    ) {
+                        header("X-Actor-Type", "user")
+                        header("X-User-Id", "owner")
+                        header("X-Project-Id", "project")
+                        header("X-Project-Role", "owner")
+                    }
+                    assertEquals(
+                        if (path == "catalog/components") HttpStatusCode.OK else HttpStatusCode.NotFound,
+                        historical.status,
+                        historical.bodyAsText(),
+                    )
+                    assertEquals(false, historical.bodyAsText().contains("OnlyInB"))
+                }
             }
         }
     }
@@ -359,6 +430,7 @@ class CoreReleaseImportPostgresIntegrationTest {
                 fun report(version: UUID? = null) = transaction(database) {
                     runBlocking { ExposedCompatibilityChecker().check(ProjectId("project"), f.system, version) }
                 }
+                selectFixtureCore(db, f.draft, "B")
                 val before = report()
                 val issue = before.items.first()
                 assertEquals(listOf("offset ${'$'}1"), issue.storedValue?.platformAdjustments?.map { it.template })
@@ -393,7 +465,7 @@ class CoreReleaseImportPostgresIntegrationTest {
     }
 
     @Test
-    fun `publication and ordinary edit wait for Core import and recheck the committed release`() {
+    fun `publication and ordinary edit wait for selection change and recheck the selected release`() {
         IsolatedPostgresDatabase.create().use { db ->
             testApplication {
                 application { module(configuration(db)) }
@@ -426,14 +498,16 @@ class CoreReleaseImportPostgresIntegrationTest {
                 DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { importer ->
                     importer.createStatement().use {
                         it.executeUpdate(
-                            "UPDATE core_current_releases SET release_id = (SELECT id FROM core_releases WHERE platform = 'compose' AND version = 'A') WHERE platform = 'compose'",
+                            "UPDATE design_system_version_core_releases SET release_id = (SELECT id FROM core_releases WHERE platform = 'compose' AND version = 'A') WHERE version_id = '${f.draft}' AND platform = 'compose'",
                         )
                     }
                     importer.autoCommit = false
-                    // The same current-pointer row lock used by the release importer; B remains invisible until commit.
+                    // Selection changes lock only this DS; B remains invisible until commit.
                     importer.createStatement().use {
+                        it.execute("SELECT pg_advisory_xact_lock(hashtextextended('${f.system}', 684313))")
+                        it.execute("SELECT id FROM design_system_versions WHERE id = '${f.draft}' FOR UPDATE")
                         it.executeUpdate(
-                            "UPDATE core_current_releases SET release_id = (SELECT id FROM core_releases WHERE platform = 'compose' AND version = 'B') WHERE platform = 'compose'",
+                            "UPDATE design_system_version_core_releases SET release_id = (SELECT id FROM core_releases WHERE platform = 'compose' AND version = 'B') WHERE version_id = '${f.draft}' AND platform = 'compose'",
                         )
                     }
                     coroutineScope {
@@ -455,12 +529,22 @@ class CoreReleaseImportPostgresIntegrationTest {
                             }
                         }
                         withTimeout(10_000) {
-                            while (query(db, "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%core_current_releases%'").toInt() < 2) delay(
+                            while (query(db, "SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%pg_advisory_xact_lock%'").toInt() < 1) delay(
                                 20,
                             )
                         }
+                        // Publication acquires its session barrier with pg_try_advisory_lock polling;
+                        // the edit waits on a blocking transaction lock. Both must remain pending.
+                        delay(100)
+                        assertFalse(edit.isCompleted)
                         assertFalse(publication.isCompleted)
-                        assertEquals("A", current(db))
+                        assertEquals(
+                            "A",
+                            query(
+                                db,
+                                "SELECT version FROM core_releases r JOIN design_system_version_core_releases b ON r.id = b.release_id WHERE b.version_id = '${f.draft}' AND b.platform = 'compose'",
+                            ),
+                        )
                         importer.commit()
                         val edited = edit.await()
                         assertEquals(HttpStatusCode.UnprocessableEntity, edited.status, edited.bodyAsText())
@@ -474,7 +558,7 @@ class CoreReleaseImportPostgresIntegrationTest {
                         )
                     }
                 }
-                assertEquals("B", current(db))
+                assertEquals("catalog-at-migration", current(db))
                 assertEquals(
                     "1",
                     query(
@@ -534,6 +618,7 @@ class CoreReleaseImportPostgresIntegrationTest {
                     HttpStatusCode.OK,
                     post("/api/admin/component-config/import-api-meta", body("B", property("integer"), false)).status,
                 )
+                selectFixtureCore(db, f.draft, "B")
                 val database = Database.connect(
                     db.jdbcUrl,
                     driver = "org.postgresql.Driver",
@@ -646,6 +731,509 @@ class CoreReleaseImportPostgresIntegrationTest {
         }
     }
 
+    @Test
+    fun `transfer cannot replace a removed component state with an occupied common namesake`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-four")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post(
+                        "/api/admin/component-config/import-api-meta",
+                        body("A", property("color"), false, "custom"),
+                    ).status,
+                )
+                val f = seedSettings(db)
+                val component = query(db, "SELECT id FROM components WHERE name = 'ReleaseButton'")
+                val custom = query(db, "SELECT id FROM states WHERE component_id = '$component' AND name = 'custom'")
+                val customSet = UUID.randomUUID()
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { c ->
+                    c.createStatement().use {
+                        it.executeUpdate("UPDATE states SET name = 'hovered' WHERE id = '$custom'")
+                        it.executeUpdate(
+                            "INSERT INTO state_sets(id, state_ids) VALUES ('$customSet', ARRAY['$custom']::uuid[])",
+                        )
+                        it.executeUpdate(
+                            "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) VALUES ('${f.value}', '${f.system}', '${f.draft}', 2, '#ff0000', 0, '$customSet', false)",
+                        )
+                    }
+                }
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post(
+                        "/api/admin/component-config/import-api-meta",
+                        body("B", property("color").replace("releaseFill", "replacementFill"), false),
+                    ).status,
+                )
+                selectFixtureCore(db, f.draft, "B")
+                val target = query(db, "SELECT id FROM properties WHERE name = 'replacementFill'")
+                val commonSet =
+                    post(
+                        "/api/design-systems/catalog/state-sets/resolve",
+                        """{"stateIds":["00000000-0000-4000-8000-000000000002"]}""",
+                    )
+                val commonSetId = Json.parseToJsonElement(
+                    commonSet.bodyAsText(),
+                ).jsonObject.getValue("id").jsonPrimitive.content
+                val occupied =
+                    post(
+                        "/api/design-systems/${f.system}/invariant-property-values",
+                        """{"propertyId":"$target","componentId":"$component","appearanceId":"${f.appearance}","stateSetId":"$commonSetId","value":"#0000ff"}""",
+                    )
+                assertEquals(HttpStatusCode.Created, occupied.status, occupied.bodyAsText())
+                val repaired =
+                    post(
+                        "/api/design-systems/${f.system}/compatibility/repair",
+                        """{"appearanceId":"${f.appearance}","valueKind":"invariant","valueId":"${f.value}","expectedRevision":${query(
+                            db,
+                            "SELECT revision FROM entity_edit_states WHERE entity_id = '${f.value}' AND design_system_version_id = '${f.draft}'",
+                        )},"targetPropertyId":"$target"}""",
+                    )
+                assertEquals(HttpStatusCode.UnprocessableEntity, repaired.status, repaired.bodyAsText())
+                assertEquals(true, repaired.bodyAsText().contains("CORE_STATE_REMOVED"))
+                assertEquals(
+                    "#ff0000",
+                    query(
+                        db,
+                        "SELECT value FROM invariant_property_value_revisions WHERE invariant_property_value_id = '${f.value}' AND NOT deleted ORDER BY version_sequence_number DESC LIMIT 1",
+                    ),
+                )
+                assertEquals(
+                    "#0000ff",
+                    query(
+                        db,
+                        "SELECT r.value FROM invariant_property_value_revisions r JOIN invariant_property_values v ON v.id = r.invariant_property_value_id WHERE v.property_id = '$target' AND NOT r.deleted",
+                    ),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `publication preserves monotonic Core revision and old unversioned mutations remain stale`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-four")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post("/api/admin/component-config/import-api-meta", body("A", property("color"), false)).status,
+                )
+                val f = seedSettings(db)
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { c ->
+                    c.createStatement().use {
+                        it.executeUpdate(
+                            "UPDATE design_system_versions SET core_selection_revision = 7 WHERE id = '${f.draft}'",
+                        )
+                    }
+                }
+                val created =
+                    post(
+                        "/api/design-systems/${f.system}/appearances",
+                        """{"componentId":"${query(
+                            db,
+                            "SELECT id FROM components WHERE name = 'ReleaseButton'",
+                        )}","name":"publication-proof"}""",
+                    )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val revision = query(db, "SELECT resolved_draft_revision('${f.draft}')")
+                val published =
+                    post(
+                        "/api/design-systems/${f.system}/versions",
+                        """{"draftId":"${f.draft}","draftRevision":$revision,"version":"2.0.0"}""",
+                    )
+                assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
+                val next =
+                    query(
+                        db,
+                        "SELECT id FROM design_system_versions WHERE design_system_id = '${f.system}' AND status = 'draft'",
+                    )
+                assertEquals(
+                    "7",
+                    query(db, "SELECT core_selection_revision FROM design_system_versions WHERE id = '$next'"),
+                )
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post("/api/admin/component-config/import-api-meta", body("B", property("color"), false)).status,
+                )
+                val selected = client.put("/api/design-systems/${f.system}/core-settings/compose") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-four")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        """{"channel":"stable","releaseId":"${query(
+                            db,
+                            "SELECT id FROM core_releases WHERE version = 'B'",
+                        )}","expectedDraftId":"$next","expectedCoreSelectionRevision":7}""",
+                    )
+                }
+                assertEquals(HttpStatusCode.OK, selected.status, selected.bodyAsText())
+                val stale = client.delete("/api/design-systems/${f.system}/design-system-components/${f.link}") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-four")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    header("X-DS-Core-Selection-Revision", "7")
+                }
+                assertEquals(HttpStatusCode.Conflict, stale.status, stale.bodyAsText())
+                assertEquals(true, stale.bodyAsText().contains("CORE_SELECTION_STALE"))
+            }
+        }
+    }
+
+    @Test
+    fun `legacy nested reference cannot use a namesake component from another platform`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-four")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                val nested = property(
+                    "component_style",
+                ).replace("releaseFill", "nestedFill").replace("\"fill\"", "\"nestedFill\"")
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post(
+                        "/api/admin/component-config/import-api-meta",
+                        body("A", property("color") + "," + nested, false),
+                    ).status,
+                )
+                val f = seedSettings(db)
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post(
+                        "/api/admin/component-config/import-api-meta",
+                        body(
+                            "A",
+                            property("color"),
+                            false,
+                        ).replace("\"compose\"", "\"web\"").replace("uikit-compose", "web-core"),
+                    ).status,
+                )
+                val target = UUID.randomUUID()
+                val link = UUID.randomUUID()
+                val value = UUID.randomUUID()
+                val reference = UUID.randomUUID()
+                val sourceComponent =
+                    query(db, "SELECT id FROM components WHERE name = 'ReleaseButton' AND platform = 'compose'")
+                val targetComponent =
+                    query(db, "SELECT id FROM components WHERE name = 'ReleaseButton' AND platform = 'web'")
+                val nestedProperty =
+                    query(
+                        db,
+                        "SELECT id FROM properties WHERE component_id = '$sourceComponent' AND name = 'nestedFill'",
+                    )
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { c ->
+                    c.createStatement().use {
+                        val statements = listOf(
+                            "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) SELECT '${f.draft}', 'web', id FROM core_releases WHERE platform = 'web' AND version = 'A'",
+                            "INSERT INTO design_system_components(id, design_system_id, component_id) VALUES ('$link', '${f.system}', '$targetComponent')",
+                            "INSERT INTO design_system_component_revisions(design_system_component_id, design_system_id, design_system_version_id, version_sequence_number, deleted) VALUES ('$link', '${f.system}', '${f.draft}', 2, false)",
+                            "INSERT INTO appearances(id, design_system_id, component_id) VALUES ('$target', '${f.system}', '$targetComponent')",
+                            "INSERT INTO appearance_revisions(appearance_id, design_system_id, design_system_version_id, version_sequence_number, name, deleted) VALUES ('$target', '${f.system}', '${f.draft}', 2, 'web-target', false)",
+                            "INSERT INTO invariant_property_values(id, design_system_id, component_id, appearance_id, property_id) VALUES ('$value', '${f.system}', '$sourceComponent', '${f.appearance}', '$nestedProperty')",
+                            "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) VALUES ('$value', '${f.system}', '${f.draft}', 2, 'ReleaseButton.web-target', 0, '00000000-0000-4000-8000-0000000000ff', false)",
+                            "INSERT INTO component_style_references(id, design_system_id) VALUES ('$reference', '${f.system}')",
+                            "INSERT INTO component_style_reference_revisions(component_style_reference_id, design_system_id, design_system_version_id, version_sequence_number, invariant_property_value_id, target_appearance_id, reference, deleted) VALUES ('$reference', '${f.system}', '${f.draft}', 2, '$value', '$target', 'ReleaseButton.web-target', false)",
+                        )
+                        statements.forEach(it::executeUpdate)
+                    }
+                }
+                val database = Database.connect(
+                    db.jdbcUrl,
+                    driver = "org.postgresql.Driver",
+                    user = db.username,
+                    password = db.password,
+                )
+                val report =
+                    transaction(
+                        database,
+                    ) { runBlocking { ExposedCompatibilityChecker().check(ProjectId("project"), f.system, null) } }
+                assertEquals(listOf("CORE_COMPONENT_REFERENCE_UNAVAILABLE"), report.items.map { it.code })
+                val exported =
+                    post("/api/design-systems/${f.system}/component-config/export", """{"platform":"compose"}""")
+                assertEquals(HttpStatusCode.Conflict, exported.status, exported.bodyAsText())
+            }
+        }
+    }
+
+    @Test
+    fun `published hidden component placeholder never reads mutable catalog description`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-five")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post("/api/admin/component-config/import-api-meta", body("A", property("color"), false)).status,
+                )
+                val f = seedSettings(db)
+                val empty = Json.parseToJsonElement(body("B", "", false)).jsonObject.toMutableMap().apply {
+                    put("components", kotlinx.serialization.json.JsonArray(emptyList()))
+                    put("sourceMetaBase64", JsonPrimitive(Base64.getEncoder().encodeToString("[]".toByteArray())))
+                    put(
+                        "metaSha256",
+                        JsonPrimitive(
+                            MessageDigest.getInstance(
+                                "SHA-256",
+                            ).digest("[]".toByteArray()).joinToString("") {
+                                "%02x".format(it)
+                            },
+                        ),
+                    )
+                }
+                val imported =
+                    post(
+                        "/api/admin/component-config/import-api-meta",
+                        kotlinx.serialization.json.JsonObject(empty).toString(),
+                    )
+                assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+                selectFixtureCore(db, f.draft, "B")
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { c ->
+                    c.createStatement().use {
+                        it.executeUpdate(
+                            "INSERT INTO design_system_component_revisions(design_system_component_id, design_system_id, design_system_version_id, version_sequence_number, deleted) VALUES ('${f.link}', '${f.system}', '${f.draft}', 2, true)",
+                        )
+                    }
+                }
+                val revision = query(db, "SELECT resolved_draft_revision('${f.draft}')")
+                val published =
+                    post(
+                        "/api/design-systems/${f.system}/versions",
+                        """{"draftId":"${f.draft}","draftRevision":$revision,"version":"2.0.0"}""",
+                    )
+                assertEquals(HttpStatusCode.Created, published.status, published.bodyAsText())
+                val component = query(db, "SELECT id FROM components WHERE name = 'ReleaseButton'")
+                suspend fun read() = client.get(
+                    "/api/design-systems/${f.system}/components/$component?versionId=${f.draft}",
+                ) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-five")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                }
+                val before = read()
+                assertEquals(HttpStatusCode.OK, before.status, before.bodyAsText())
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { c ->
+                    c.createStatement().use {
+                        it.executeUpdate(
+                            "UPDATE components SET description = 'MUTABLE NEW DESCRIPTION', updated_at = now() WHERE id = '$component'",
+                        )
+                    }
+                }
+                assertEquals(before.bodyAsText(), read().bodyAsText())
+                assertFalse(before.bodyAsText().contains("MUTABLE NEW DESCRIPTION"))
+            }
+        }
+    }
+
+    @Test
+    fun `dimension spacing token remains compatible for existing values edits and export import`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-five")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                assertEquals(
+                    HttpStatusCode.OK,
+                    post("/api/admin/component-config/import-api-meta", body("A", property("dimension"), false)).status,
+                )
+                val f = seedSettings(db, "8")
+                suspend fun token(type: String): String {
+                    val created =
+                        post("/api/design-systems/${f.system}/tokens", """{"name":"fixture.$type","type":"$type"}""")
+                    assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                    return Json.parseToJsonElement(created.bodyAsText()).jsonObject.getValue("id").jsonPrimitive.content
+                }
+                val spacing = token("spacing")
+                val color = token("color")
+                suspend fun edit(
+                    id: String,
+                ) = client.patch("/api/design-systems/${f.system}/invariant-property-values/${f.value}") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "review-five")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody("""{"tokenId":"$id"}""")
+                }
+                val changed = edit(spacing)
+                assertEquals(HttpStatusCode.OK, changed.status, changed.bodyAsText())
+                assertEquals(HttpStatusCode.UnprocessableEntity, edit(color).status)
+                val exported =
+                    post("/api/design-systems/${f.system}/component-config/export", """{"platform":"compose"}""")
+                assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
+                assertEquals(true, exported.bodyAsText().contains("fixture.spacing"))
+                val existing = Json.parseToJsonElement(exported.bodyAsText()).jsonObject
+                val payload = kotlinx.serialization.json.JsonObject(
+                    mapOf(
+                        "platform" to JsonPrimitive("compose"),
+                        "dryRun" to kotlinx.serialization.json.JsonPrimitive(false),
+                        "meta" to kotlinx.serialization.json.JsonObject(mapOf("name" to JsonPrimitive("fixture"), "source" to JsonPrimitive("saved snapshot"))),
+                        "components" to existing.getValue("components"),
+                    ),
+                )
+                val imported = post("/api/design-systems/${f.system}/component-config/import", payload.toString())
+                assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+                assertEquals(true, imported.bodyAsText().contains("\"rejected\":[]"))
+                assertEquals(
+                    spacing,
+                    query(
+                        db,
+                        "SELECT token_id FROM invariant_property_value_revisions WHERE invariant_property_value_id = '${f.value}' AND NOT deleted ORDER BY version_sequence_number DESC LIMIT 1",
+                    ),
+                )
+                val database = Database.connect(
+                    db.jdbcUrl,
+                    driver = "org.postgresql.Driver",
+                    user = db.username,
+                    password = db.password,
+                )
+                val report =
+                    transaction(
+                        database,
+                    ) { runBlocking { ExposedCompatibilityChecker().check(ProjectId("project"), f.system, null) } }
+                assertEquals(0, report.blockingCount)
+            }
+        }
+    }
+
+    @Test
+    fun `compatibility reads all appearances with a bounded number of database queries`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                val imported = client.post("/api/admin/component-config/import-api-meta") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "compatibility-cost")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(
+                        body(
+                            "A",
+                            property(
+                                "color",
+                            ).replace("[\"fill\"]", """[{"name":"fill","deprecated":{"message":"old"}}]"""),
+                            false,
+                        ),
+                    )
+                }
+                assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+                val f = seedSettings(db)
+                val database = Database.connect(
+                    db.jdbcUrl,
+                    driver = "org.postgresql.Driver",
+                    user = db.username,
+                    password = db.password,
+                )
+                fun measured(
+                    version: UUID? = null,
+                ): Pair<com.dsbuilder.ds.core.application.CoreCompatibilityReport, QueryCounter.Snapshot> {
+                    val before = QueryCounter.snapshot()
+                    val report = transaction(database) {
+                        runBlocking { ExposedCompatibilityChecker().check(ProjectId("project"), f.system, version) }
+                    }
+                    return report to (QueryCounter.snapshot() - before)
+                }
+                val (single, singleCost) = measured()
+                assertEquals(1, single.warningCount)
+                val component = query(db, "SELECT id FROM components WHERE name = 'ReleaseButton'")
+                val propertyId = query(db, "SELECT id FROM properties WHERE name = 'releaseFill'")
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { connection ->
+                    connection.createStatement().use { sql ->
+                        repeat(40) { index ->
+                            val appearance = UUID.randomUUID()
+                            val value = UUID.randomUUID()
+                            sql.execute(
+                                "INSERT INTO appearances(id, design_system_id, component_id) VALUES ('$appearance', '${f.system}', '$component')",
+                            )
+                            sql.execute(
+                                "INSERT INTO appearance_revisions(appearance_id, design_system_id, design_system_version_id, version_sequence_number, name, deleted) VALUES ('$appearance', '${f.system}', '${f.draft}', 2, 'cost-$index', false)",
+                            )
+                            sql.execute(
+                                "INSERT INTO invariant_property_values(id, design_system_id, component_id, property_id, appearance_id) VALUES ('$value', '${f.system}', '$component', '$propertyId', '$appearance')",
+                            )
+                            sql.execute(
+                                "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) SELECT '$value', '${f.system}', '${f.draft}', 2, '#ff0000', 0, id, false FROM state_sets WHERE cardinality(state_ids) = 0 LIMIT 1",
+                            )
+                        }
+                    }
+                }
+                val (many, manyCost) = measured()
+                assertEquals(41, many.warningCount)
+                assertEquals(0, many.blockingCount)
+                assertEquals(41, many.items.map { it.location.appearanceId }.distinct().size)
+                assertEquals(1, measured(f.published).first.warningCount)
+                val nextCore = client.post("/api/admin/component-config/import-api-meta") {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "compatibility-cost")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(body("B", property("color").replace("[\"fill\"]", """[{"name":"fill"}]"""), false))
+                }
+                assertEquals(HttpStatusCode.OK, nextCore.status, nextCore.bodyAsText())
+                selectFixtureCore(db, f.draft, "B")
+                val (valid, validCost) = measured()
+                assertEquals(0, valid.items.size, valid.items.groupingBy { it.code }.eachCount().toString())
+                kotlin.test.assertTrue(
+                    validCost.executions < manyCost.executions,
+                    "Valid report fetched problem details",
+                )
+                assertEquals(1, measured(f.published).first.warningCount)
+                println(
+                    "compatibility-query-cost one=${singleCost.executions} fortyOne=${manyCost.executions} valid=${validCost.executions}",
+                )
+                kotlin.test.assertTrue(
+                    manyCost.executions <= singleCost.executions + 8,
+                    "Query count grew with appearances: $singleCost -> $manyCost",
+                )
+            }
+        }
+    }
+
     private data class SettingsFixture(
         val baseline: UUID = UUID.randomUUID(),
         val system: UUID = UUID.randomUUID(),
@@ -693,13 +1281,16 @@ class CoreReleaseImportPostgresIntegrationTest {
                     "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) SELECT '${f.value}', '${f.system}', '${f.published}', 1, '$literal', 0, id, false FROM state_sets WHERE cardinality(state_ids) = 0 LIMIT 1",
                 )
                 s.execute(
+                    "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) SELECT '${f.published}', platform, id FROM core_releases WHERE version = 'A'",
+                )
+                s.execute(
                     "UPDATE design_system_versions SET status = 'published', version = '1.0.0', published_at = now() WHERE id = '${f.published}'",
                 )
                 s.execute(
                     "INSERT INTO design_system_versions(id, design_system_id, status, sequence_number, revision, published_at) VALUES ('${f.draft}', '${f.system}', 'draft', 2, 0, NULL)",
                 )
                 s.execute(
-                    "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) SELECT '${f.published}', platform, release_id FROM core_current_releases",
+                    "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) SELECT '${f.draft}', platform, id FROM core_releases WHERE version = 'A'",
                 )
                 s.execute(
                     "INSERT INTO design_system_version_preview_builds(version_id, platform, release_id) SELECT version_id, platform, release_id FROM design_system_version_core_releases WHERE version_id = '${f.published}'",
@@ -711,13 +1302,26 @@ class CoreReleaseImportPostgresIntegrationTest {
 
     private fun property(type: String) = """{"name":"releaseFill","type":"$type","platformNames":["fill"]}"""
 
-    private fun body(version: String, properties: String, dryRun: Boolean, state: String? = null): String {
-        val components = """[{"name":"ReleaseButton","properties":[$properties],"states":[${state?.let(::JsonPrimitive) ?: ""}]}]"""
+    private fun body(version: String, properties: String, dryRun: Boolean, state: String? = null, extraComponents: String = ""): String {
+        val components = """[{"name":"ReleaseButton","properties":[$properties],"states":[${state?.let(::JsonPrimitive) ?: ""}]}$extraComponents]"""
         val bytes = components.toByteArray()
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-        return """{"platform":"compose","dryRun":$dryRun,"components":$components,"coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":${JsonPrimitive(
+        return """{"platform":"compose","dryRun":$dryRun,"components":$components,"channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":${JsonPrimitive(
             version,
         )}},"sourceMetaBase64":"${Base64.getEncoder().encodeToString(bytes)}","metaSha256":"$hash"}"""
+    }
+
+    private fun selectFixtureCore(db: IsolatedPostgresDatabase, draft: UUID, version: String) {
+        DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { connection ->
+            connection.createStatement().use { statement ->
+                statement.execute(
+                    "UPDATE design_system_version_core_releases SET release_id = (SELECT id FROM core_releases WHERE platform = 'compose' AND version = '$version') WHERE version_id = '$draft' AND platform = 'compose'",
+                )
+                statement.execute(
+                    "UPDATE design_system_versions SET core_selection_revision = core_selection_revision + 1 WHERE id = '$draft'",
+                )
+            }
+        }
     }
 
     private fun current(db: IsolatedPostgresDatabase) = query(

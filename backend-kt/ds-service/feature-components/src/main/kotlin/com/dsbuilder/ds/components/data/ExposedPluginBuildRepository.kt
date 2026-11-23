@@ -3,6 +3,8 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.PluginBuildRepository
 import com.dsbuilder.ds.components.domain.NewPluginBuild
 import com.dsbuilder.ds.components.domain.PluginBuild
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
 import org.jetbrains.exposed.v1.core.LongColumnType
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
@@ -44,8 +46,8 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
     override suspend fun selected(platform: String, versionId: UUID?): PluginBuild? {
         val id = if (versionId == null) {
             TransactionManager.current().exec(
-                "SELECT b.build_id FROM core_release_preview_builds b JOIN core_current_releases c " +
-                    "ON c.release_id = b.release_id WHERE c.platform::text = ? " +
+                "SELECT b.build_id FROM core_release_preview_builds b " +
+                    "WHERE b.release_id = ds_selected_core_release(?::component_platform) " +
                     "ORDER BY b.registered_at DESC, b.build_id DESC LIMIT 1",
                 listOf(TextColumnType() to platform),
             ) { rows -> if (rows.next()) rows.getString(1) else null }
@@ -67,6 +69,8 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
 
     override suspend fun insertActive(build: NewPluginBuild): PluginBuild {
         val db = build.platform.toDb()
+        val release = corePreviewReleaseId(build)
+        com.dsbuilder.ds.core.data.CorePreviewLocks.lockRegistration(release)
         deactivateOthers(db, build.buildId)
         PluginBuildsTable.insert {
             it[buildId] = build.buildId
@@ -76,13 +80,70 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
             it[commitSha] = build.commit
             it[protocolVersion] = build.protocolVersion
             it[zipSha256] = build.zipSha256
+            it[storageKey] = build.storageKey
             it[sizeBytes] = build.sizeBytes
             it[fileCount] = build.fileCount
             it[publishedBy] = build.publishedBy
             it[publishedAt] = Instant.now()
             it[active] = true
         }
-        bindCorePreviewBuild(build)
+        bindCorePreviewBuild(build, release)
+        return requireNotNull(find(build.buildId))
+    }
+
+    override suspend fun validateReplacement(build: NewPluginBuild): DsResult<Unit> {
+        val tx = TransactionManager.current()
+        val bound = tx.exec(
+            "SELECT r.id, r.channel, r.library_id = ? AND r.platform::text = ? AND r.version = ? " +
+                "AND r.meta_sha256 = ? AS matches FROM core_release_preview_builds preview " +
+                "JOIN core_releases r ON r.id = preview.release_id WHERE preview.build_id = ?",
+            listOf(build.coreRelease.libraryId, build.platform, build.libraryVersion, build.metaSha256, build.buildId)
+                .map { TextColumnType() to it },
+        ) { rows ->
+            if (rows.next()) {
+                Triple(
+                    rows.getObject(1, UUID::class.java),
+                    rows.getString(2),
+                    rows.getBoolean(3),
+                )
+            } else {
+                null
+            }
+        }
+        if (bound == null || bound.second != "dev" || !bound.third) {
+            return DsResult.Failure(
+                DsFailure.Conflict("DEV_PREVIEW_REPLACEMENT_FORBIDDEN"),
+            )
+        }
+        com.dsbuilder.ds.core.data.CorePreviewLocks.lockRegistration(bound.first)
+        val pinned = tx.exec(
+            "SELECT EXISTS(SELECT 1 FROM design_system_version_preview_builds WHERE build_id = ?)",
+            listOf(TextColumnType() to build.buildId),
+        ) { rows -> rows.next() && rows.getBoolean(1) } ?: true
+        return if (pinned) {
+            DsResult.Failure(
+                DsFailure.Conflict("PREVIEW_BUILD_PINNED"),
+            )
+        } else {
+            DsResult.Success(Unit)
+        }
+    }
+
+    override suspend fun replaceActive(build: NewPluginBuild): PluginBuild {
+        deactivateOthers(build.platform.toDb(), build.buildId)
+        PluginBuildsTable.update({ PluginBuildsTable.buildId eq build.buildId }) {
+            it[zipSha256] = build.zipSha256
+            it[storageKey] = build.storageKey
+            it[sizeBytes] = build.sizeBytes
+            it[fileCount] = build.fileCount
+            it[publishedBy] = build.publishedBy
+            it[publishedAt] = Instant.now()
+            it[active] = true
+        }
+        TransactionManager.current().exec(
+            "UPDATE core_release_preview_builds SET registered_at = now() WHERE build_id = ?",
+            listOf(TextColumnType() to build.buildId),
+        )
         return requireNotNull(find(build.buildId))
     }
 
@@ -95,6 +156,17 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
     }
 
     override suspend fun pinnedBuildIds(): Set<String> = pinnedCorePreviewBuildIds()
+
+    override suspend fun deleteIfUnpinned(buildId: String): Boolean {
+        val release = TransactionManager.current().exec(
+            "SELECT release_id FROM core_release_preview_builds WHERE build_id = ?",
+            listOf(TextColumnType() to buildId),
+        ) { rows -> if (rows.next()) rows.getObject(1, UUID::class.java) else null }
+        release?.let(com.dsbuilder.ds.core.data.CorePreviewLocks::lockRegistration)
+        if (buildId in pinnedBuildIds()) return false
+        delete(buildId)
+        return true
+    }
 
     override suspend fun delete(buildId: String) {
         PluginBuildsTable.deleteWhere { PluginBuildsTable.buildId eq buildId }
@@ -120,6 +192,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
         commit = this[PluginBuildsTable.commitSha],
         protocolVersion = this[PluginBuildsTable.protocolVersion],
         zipSha256 = this[PluginBuildsTable.zipSha256],
+        storageKey = this[PluginBuildsTable.storageKey] ?: this[PluginBuildsTable.buildId],
         sizeBytes = this[PluginBuildsTable.sizeBytes],
         fileCount = this[PluginBuildsTable.fileCount],
         publishedBy = this[PluginBuildsTable.publishedBy],

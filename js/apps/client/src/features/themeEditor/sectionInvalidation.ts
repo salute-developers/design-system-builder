@@ -10,10 +10,14 @@ interface InvalidationRule {
 
 const tokenSections: readonly EditorSection[] = ['colors', 'palette', 'typography', 'shapes', 'components'];
 const metadata: InvalidationRule = {
-    sections: ['settings', ...tokenSections], shell: true, colorGroups: true,
+    sections: ['settings', ...tokenSections],
+    shell: true,
+    colorGroups: true,
 };
 const all: InvalidationRule = {
-    sections: [...tokenSections, 'settings', 'changes', 'versions'], shell: true, colorGroups: true,
+    sections: [...tokenSections, 'settings', 'changes', 'versions', 'validation'],
+    shell: true,
+    colorGroups: true,
 };
 const rules: Record<DraftInvalidationScope, InvalidationRule> = {
     all,

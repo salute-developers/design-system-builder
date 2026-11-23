@@ -3,7 +3,6 @@ package com.dsbuilder.ds.components.data
 import com.dsbuilder.ds.components.application.ImportApiMeta
 import com.dsbuilder.ds.components.domain.AliasDeprecation
 import kotlinx.serialization.json.JsonArray
-import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -13,7 +12,7 @@ internal fun coreMetaProjection(command: ImportApiMeta): String = JsonArray(
     command.components.groupBy { it.name }.toSortedMap().map { (name, components) ->
         buildJsonObject {
             put("name", name)
-            put("description", components.first().description?.let(::JsonPrimitive) ?: JsonNull)
+            put("description", components.first().description)
             put("states", JsonArray(components.flatMap { it.states }.distinct().sorted().map(::JsonPrimitive)))
             put(
                 "dependencies",
@@ -22,7 +21,7 @@ internal fun coreMetaProjection(command: ImportApiMeta): String = JsonArray(
                         buildJsonObject {
                             put("component", it.component)
                             put("type", it.type)
-                            put("order", it.order?.let(::JsonPrimitive) ?: JsonNull)
+                            put("order", it.order)
                         }
                     },
                 ),
@@ -44,8 +43,8 @@ private fun propertyProjection(properties: List<ImportApiMeta.Property>) = build
     val property = properties.first()
     put("name", property.name)
     put("type", property.type)
-    put("description", property.description?.let(::JsonPrimitive) ?: JsonNull)
-    put("defaultValue", property.defaultValue?.let(::JsonPrimitive) ?: JsonNull)
+    put("description", property.description)
+    put("defaultValue", property.defaultValue)
     put("componentTargets", JsonArray(property.componentTargets.distinct().sorted().map(::JsonPrimitive)))
     put(
         "aliases",
@@ -63,7 +62,7 @@ private fun propertyProjection(properties: List<ImportApiMeta.Property>) = build
                     )
                     put(
                         "message",
-                        (alias.deprecation as? AliasDeprecation.Deprecated)?.message?.let(::JsonPrimitive) ?: JsonNull,
+                        (alias.deprecation as? AliasDeprecation.Deprecated)?.message,
                     )
                 }
             },

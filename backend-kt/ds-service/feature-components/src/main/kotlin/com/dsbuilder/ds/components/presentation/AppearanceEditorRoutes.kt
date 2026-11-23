@@ -23,7 +23,6 @@ import com.dsbuilder.ds.components.domain.EditorPropertyValue
 import com.dsbuilder.ds.components.domain.EditorRemoval
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
-import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
@@ -32,7 +31,7 @@ import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
-import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.core.presentation.respondResult
 import io.ktor.http.HttpStatusCode
 import io.ktor.server.request.receive
 import io.ktor.server.routing.Route
@@ -74,10 +73,7 @@ fun Route.appearanceEditorRoutes(
         get("/{id}/editor-model") {
             val context = requestContext(evaluator) ?: return@get
             val id = pathUuid("id") ?: return@get
-            when (val result = model.execute(context, id)) {
-                is DsResult.Success -> call.respondSuccess(result, AppearanceEditorModelResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(model.execute(context, id), transform = AppearanceEditorModelResponse::from)
         }
         get("/{id}/resolved-properties") {
             val context = call.modelReadContext(evaluator) ?: return@get
@@ -86,16 +82,12 @@ fun Route.appearanceEditorRoutes(
             if (valueIds.any { it == null }) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
             }
-            when (val result = resolvedProperties.execute(context, id, valueIds.filterNotNull())) {
-                is DsResult.Success -> call.respondSuccess(
-                    result,
-                    ResolvedComponentPropertiesResponse(
-                        id.toString(),
-                        valueIds.filterNotNull().map(UUID::toString),
-                        result.value.map(EditorPropertyValueResponse::from),
-                    ),
+            call.respondResult(resolvedProperties.execute(context, id, valueIds.filterNotNull())) { value ->
+                ResolvedComponentPropertiesResponse(
+                    id.toString(),
+                    valueIds.filterNotNull().map(UUID::toString),
+                    value.map(EditorPropertyValueResponse::from),
                 )
-                is DsResult.Failure -> call.respondFailure(result.error)
             }
         }
         get("/{id}/token-references") {
@@ -105,12 +97,8 @@ fun Route.appearanceEditorRoutes(
             if (valueIds.any { it == null }) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_selected_value_id"))
             }
-            when (val result = tokenReferences.execute(context, id, valueIds.filterNotNull())) {
-                is DsResult.Success -> call.respondSuccess(
-                    result,
-                    ComponentTokenReferencesResponse(result.value.map(ComponentTokenReferenceResponse::from)),
-                )
-                is DsResult.Failure -> call.respondFailure(result.error)
+            call.respondResult(tokenReferences.execute(context, id, valueIds.filterNotNull())) { value ->
+                ComponentTokenReferencesResponse(value.map(ComponentTokenReferenceResponse::from))
             }
         }
         post("/{id}/axes") {
@@ -130,11 +118,11 @@ fun Route.appearanceEditorRoutes(
                 json.encodeToString(EditorAxisResponse.serializer(), EditorAxisResponse.from(value))
             }
             val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
-            when (val result = addAxis.execute(createContext, id, command, key)) {
-                is DsResult.Success ->
-                    call.respondSuccess(result, HttpStatusCode.Created, EditorAxisResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                addAxis.execute(createContext, id, command, key),
+                HttpStatusCode.Created,
+                transform = EditorAxisResponse::from,
+            )
         }
         delete("/{id}/axes/{axisId}") {
             val context = requestContext(evaluator) ?: return@delete
@@ -144,10 +132,10 @@ fun Route.appearanceEditorRoutes(
             val mutation = call.repeatableMutation(context, confirm, json = json) { value: EditorRemoval ->
                 EditorRemovalResponse.from(value)
             }
-            when (val result = removeAxis.execute(mutation, id, axisId, confirm)) {
-                is DsResult.Success -> call.respondSuccess(result, EditorRemovalResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                removeAxis.execute(mutation, id, axisId, confirm),
+                transform = EditorRemovalResponse::from,
+            )
         }
         post("/{id}/axis-order") {
             val context = requestContext(evaluator) ?: return@post
@@ -158,9 +146,8 @@ fun Route.appearanceEditorRoutes(
             val mutation = call.repeatableMutation(context, request, json = json) { value: List<EditorAxis> ->
                 value.map(EditorAxisResponse::from)
             }
-            when (val result = reorderAxes.execute(mutation, id, axisIds.filterNotNull())) {
-                is DsResult.Success -> call.respondSuccess(result, result.value.map(EditorAxisResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
+            call.respondResult(reorderAxes.execute(mutation, id, axisIds.filterNotNull())) { value ->
+                value.map(EditorAxisResponse::from)
             }
         }
         post("/{id}/axes/{axisId}/values") {
@@ -176,11 +163,11 @@ fun Route.appearanceEditorRoutes(
                 json.encodeToString(EditorAxisValueResponse.serializer(), EditorAxisValueResponse.from(value))
             }
             val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
-            when (val result = addValue.execute(createContext, id, axisId, command, key)) {
-                is DsResult.Success ->
-                    call.respondSuccess(result, HttpStatusCode.Created, EditorAxisValueResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                addValue.execute(createContext, id, axisId, command, key),
+                HttpStatusCode.Created,
+                transform = EditorAxisValueResponse::from,
+            )
         }
         delete("/{id}/axis-values/{valueId}") {
             val context = requestContext(evaluator) ?: return@delete
@@ -190,10 +177,10 @@ fun Route.appearanceEditorRoutes(
             val mutation = call.repeatableMutation(context, confirm, json = json) { value: EditorRemoval ->
                 EditorRemovalResponse.from(value)
             }
-            when (val result = removeValue.execute(mutation, id, valueId, confirm)) {
-                is DsResult.Success -> call.respondSuccess(result, EditorRemovalResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                removeValue.execute(mutation, id, valueId, confirm),
+                transform = EditorRemovalResponse::from,
+            )
         }
         put("/{id}/axes/{axisId}/value-order") {
             val context = requestContext(evaluator) ?: return@put
@@ -203,10 +190,10 @@ fun Route.appearanceEditorRoutes(
             val valueIds = request.valueIds.map { it.toUuidOrNull() }
             if (valueIds.any { it == null }) return@put call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val mutation = call.repeatableMutation(context, request, json = json, response = EditorAxisResponse::from)
-            when (val result = reorderValues.execute(mutation, id, axisId, valueIds.filterNotNull())) {
-                is DsResult.Success -> call.respondSuccess(result, EditorAxisResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                reorderValues.execute(mutation, id, axisId, valueIds.filterNotNull()),
+                transform = EditorAxisResponse::from,
+            )
         }
         put("/{id}/property-values") {
             val context = requestContext(evaluator) ?: return@put
@@ -220,10 +207,10 @@ fun Route.appearanceEditorRoutes(
                 json = json,
                 response = EditorPropertyValueResponse::from,
             )
-            when (val result = setPropertyValue.execute(mutation, id, command)) {
-                is DsResult.Success -> call.respondSuccess(result, EditorPropertyValueResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                setPropertyValue.execute(mutation, id, command),
+                transform = EditorPropertyValueResponse::from,
+            )
         }
         delete("/{id}/property-values") {
             val context = requestContext(evaluator) ?: return@delete
@@ -238,9 +225,8 @@ fun Route.appearanceEditorRoutes(
             val states = query["states"].orEmpty().split(',').filter { it.isNotBlank() }
             val scope = AppearanceEditorRepository.PropertyValueScope(propertyId, styleIds.filterNotNull(), states)
             val mutation = call.repeatableMutation(context, scope, json = json) { _: Unit -> OkResponse() }
-            when (val result = removePropertyValue.execute(mutation, id, scope)) {
-                is DsResult.Success -> call.respondSuccess(result, OkResponse())
-                is DsResult.Failure -> call.respondFailure(result.error)
+            call.respondResult(removePropertyValue.execute(mutation, id, scope)) { value ->
+                OkResponse()
             }
         }
         put("/{id}/state-order") {
@@ -256,9 +242,8 @@ fun Route.appearanceEditorRoutes(
             val mutation = call.repeatableMutation(context, request, json = json) { value: List<EditorPropertyValue> ->
                 value.map(EditorPropertyValueResponse::from)
             }
-            when (val result = reorderStates.execute(mutation, id, command)) {
-                is DsResult.Success -> call.respondSuccess(result, result.value.map(EditorPropertyValueResponse::from))
-                is DsResult.Failure -> call.respondFailure(result.error)
+            call.respondResult(reorderStates.execute(mutation, id, command)) { value ->
+                value.map(EditorPropertyValueResponse::from)
             }
         }
         post("/new") {
@@ -273,11 +258,11 @@ fun Route.appearanceEditorRoutes(
             val command = AppearanceEditorRepository.NewAppearance(designSystemId, componentId, name)
             val createContext = context.withAppearanceResponse(json)
             val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
-            when (val result = createConfiguration.execute(createContext, command, key)) {
-                is DsResult.Success ->
-                    call.respondSuccess(result, HttpStatusCode.Created, AppearanceResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                createConfiguration.execute(createContext, command, key),
+                HttpStatusCode.Created,
+                transform = AppearanceResponse::from,
+            )
         }
         post("/{id}/duplicate") {
             val context = requestContext(evaluator) ?: return@post
@@ -289,11 +274,11 @@ fun Route.appearanceEditorRoutes(
             }
             val createContext = context.withAppearanceResponse(json)
             val key = call.dsTrustedHeaders()[IDEMPOTENCY_HEADER]
-            when (val result = duplicateConfiguration.execute(createContext, id, name, key)) {
-                is DsResult.Success ->
-                    call.respondSuccess(result, HttpStatusCode.Created, AppearanceResponse.from(result.value))
-                is DsResult.Failure -> call.respondFailure(result.error)
-            }
+            call.respondResult(
+                duplicateConfiguration.execute(createContext, id, name, key),
+                HttpStatusCode.Created,
+                transform = AppearanceResponse::from,
+            )
         }
     }
 }

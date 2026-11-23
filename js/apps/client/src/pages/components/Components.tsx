@@ -22,11 +22,14 @@ import {
 } from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
-import { componentRepository as repository } from '../../api/componentRepository';
+import {
+    componentRepository as repository,
+    type ComponentCatalogEntry,
+    type ComponentTemplateEntry,
+} from '../../api/componentRepository';
 import { useModelPreviewUrl } from '../../composePreview/useModelPreviewUrl';
 import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
 import { useCorePreview } from '../../composePreview/useCorePreview';
-import { CoreProblems } from '../../components/CoreProblems';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import '../../styles/component-tree.css';
@@ -105,12 +108,11 @@ export const Components = () => {
     const { componentName } = useParams<{ componentName?: string }>();
     const location = useLocation();
     const navigate = useNavigate();
-
     const parameters = designSystem?.getParameters();
-    const problemMode = new URLSearchParams(location.search).get('section') === 'problems';
     const selectedVersionId = new URLSearchParams(location.search).get('versionId') ?? undefined;
     const composeLocation = useCorePreview('compose', parameters, Boolean(composeComponents?.length));
     const webLocation = useCorePreview('web', parameters, Boolean(components?.length));
+
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
     // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
     const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
@@ -341,9 +343,120 @@ export const Components = () => {
             versionId: selectedVersionId,
         };
     }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId]);
-    useCoreCompatibility(editorContext, undefined, reload);
+    const compatibility = useCoreCompatibility(editorContext, undefined, reload);
+    const problemComponentIds = new Set(
+        compatibility.report?.items.filter((i) => i.severity === 'blocking').map((i) => i.location.componentId),
+    );
     const modelCore = config?.getCoreReleaseId?.();
     const modelPlatform = config?.getPlatform();
+    const designSystemReadOnly = parameters?.readOnly === true;
+
+    // Структурная операция «Структуры»: сначала уходят несохранённые правки, затем запрос, затем компонент
+    // перечитывается и, если операция создала конфигурацию, она открывается.
+    const runStructureOperation = useCallback(
+        async (operation: StructureOperation) => {
+            if (!editorContext || !openConfig) return;
+            const queue = autosaveQueue.current;
+            queue?.flushAll();
+            const deadline = Date.now() + AUTOSAVE_WAIT_MS;
+            while (queue?.hasPendingWhere(() => true)) {
+                if (Date.now() > deadline) throw new Error('Не удалось сохранить изменения перед операцией');
+                await new Promise((resolve) => setTimeout(resolve, 100));
+            }
+            await runStructureOperationOnServer(
+                operation,
+                { ...editorContext, coreSelectionRevision: openConfig.getCoreSelectionRevision?.() },
+                toComponentRoute(openConfig.getPlatform(), openConfig.getName()),
+                (route) => loadComponent?.(route, true),
+                onConfigurationSelect,
+            );
+        },
+        [editorContext, loadComponent, onConfigurationSelect, openConfig],
+    );
+    const structure = useMemo(
+        () => (editorContext ? { context: editorContext, run: runStructureOperation } : undefined),
+        [editorContext, runStructureOperation],
+    );
+
+    // Состав перечитывается вместе с меню (в том числе после отката в журнале), после каждого скрытия и возврата
+    // и при открытии диалога возврата: меню после записи может не измениться, а состав должен быть свежим.
+    const [catalogRevision, setCatalogRevision] = useState(0);
+    const refreshCatalog = () => setCatalogRevision((value) => value + 1);
+    useEffect(() => {
+        if (!editorContext || !components) return;
+
+        const controller = new AbortController();
+        repository
+            .loadComponentTemplates(editorContext, controller.signal)
+            .then(setTemplates)
+            .catch(() => undefined);
+        repository
+            .loadComponentCatalog(editorContext, controller.signal)
+            .then(setCatalog)
+            .catch(() => {
+                if (!controller.signal.aborted) setCatalogError('Не удалось загрузить состав дизайн-системы.');
+            });
+
+        return () => controller.abort();
+    }, [editorContext, components, composeComponents, catalogRevision]);
+
+    // Меню перечитывается при открытии страницы и после изменений извне (например, отката в журнале): загрузчик раздела
+    // пропускает обновление, пока у открытого компонента не сохранены правки, а индекс от этих правок не зависит.
+    useEffect(() => {
+        if (!editorContext) return;
+
+        void loadComponent?.().catch(() => undefined);
+        return subscribeEditorDataInvalidation(editorContext, (scopes) => {
+            if (!['all', 'design-system', 'component-configurations'].some((scope) => scopes.has(scope as never)))
+                return;
+            void loadComponent?.().catch(() => undefined);
+            refreshCatalog();
+        });
+    }, [editorContext, loadComponent]);
+
+    // Самопроверка: если меню расходится с составом (например, откат в журнале не смог обновить данные редактора),
+    // данные редактора перечитываются принудительно. Попыток немного, чтобы устойчивое расхождение не зациклило загрузку.
+    const syncAttempts = useRef({ catalog: undefined as ComponentCatalogEntry[] | undefined, count: 0 });
+    useEffect(() => {
+        if (!catalog || hiding.size || syncAttempts.current.catalog === catalog || syncAttempts.current.count >= 3)
+            return;
+        const inMenu = (platform: Platform, name: string) =>
+            componentGroups[platform].some(({ items }) => items.some((item) => sameName(item.getName(), name)));
+        const editable = catalog.filter(
+            ({ name, platform: item }) => (item === 'web' || item === 'compose') && isEditableComponent(name, item),
+        );
+        const mismatch = editable.some(
+            ({ name, platform: item, linkId }) => Boolean(linkId) !== inMenu(item as Platform, name),
+        );
+        if (!mismatch) return;
+        syncAttempts.current = { catalog, count: syncAttempts.current.count + 1 };
+        reload();
+        void loadComponent?.().catch(() => undefined);
+    }, [catalog, componentGroups, hiding, loadComponent, reload]);
+
+    // Строка остаётся заблокированной, пока скрытие не видно и в составе, и в меню: они перечитываются разными
+    // запросами, и меню обновляется позже состава.
+    useEffect(
+        () =>
+            setHiding((current) => {
+                const next = new Map(
+                    [...current].filter(([name, targets]) =>
+                        targets.some(
+                            ({ componentId, platform: target }) =>
+                                Boolean(catalog?.find((item) => item.componentId === componentId)?.linkId) ||
+                                componentGroups[target].some(({ items }) =>
+                                    items.some((item) => sameName(item.getName(), name)),
+                                ),
+                        ),
+                    ),
+                );
+                return next.size === current.size ? current : next;
+            }),
+        [catalog, componentGroups],
+    );
+
+    // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
+    // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     const matchingComposeUrl = useModelPreviewUrl(
         editorContext,
@@ -358,8 +471,16 @@ export const Components = () => {
         webLocation,
         reload,
     );
-    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId,
-        composeLocation.coreRelease?.releaseId, composeLocation.buildId, webLocation.coreRelease?.releaseId, webLocation.buildId].join(':');
+    const composeHostScope = [
+        parameters?.projectId,
+        parameters?.designSystemId,
+        parameters?.tenantId,
+        selectedVersionId,
+        composeLocation.coreRelease?.releaseId,
+        composeLocation.buildId,
+        webLocation.coreRelease?.releaseId,
+        webLocation.buildId,
+    ].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
         : null;
@@ -397,6 +518,19 @@ export const Components = () => {
                 // Compose-компонент ищется среди Compose-компонентов: имя по умолчанию совпало бы с web и выбрало бы чужой.
                 const meta =
                     designSystem.getComponentData(config) ?? designSystem.getComponentDataByName(componentName);
+                if (
+                    operation.predecessor &&
+                    operation.predecessor.coreSelectionRevision !== operation.coreSelectionRevision
+                ) {
+                    return Promise.reject(new Error('Сначала разрешите незавершённую правку предыдущего Core.'));
+                }
+                if (operation.coreSelectionRevision == null && meta.serverBinding?.coreSelectionRevision != null) {
+                    return Promise.reject(
+                        new Error(
+                            'Локальная правка не содержит ревизию Core. Сравните её с текущей моделью перед повтором.',
+                        ),
+                    );
+                }
                 if (!operation.prepared) {
                     if (confirmedConfig.current?.componentName === operation.componentName)
                         operation.before = structuredClone(confirmedConfig.current.value);
@@ -457,6 +591,7 @@ export const Components = () => {
                     persistStoredJson(requestKey, stored);
                 }
                 reload();
+                compatibility.reload();
             },
             retryable: isRetryableAutosaveError,
             statusChanged: (status, error) => {
@@ -533,14 +668,19 @@ export const Components = () => {
         if (!before) return;
         const requestKey = `${storagePrefix}:${editorKey}:request`;
         const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+        const coreSelectionRevision = config.getCoreSelectionRevision?.();
         const pending: PendingComponentSave = {
             componentName: editorKey,
+            coreSelectionRevision,
             appearanceId: config.getConfigurationId(),
             before: structuredClone(before),
             after: structuredClone(config.getMeta()),
             idempotencyKeys: {},
             requestBodies: {},
-            predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,
+            predecessor:
+                previous && (previous.prepared || previous.coreSelectionRevision !== coreSelectionRevision)
+                    ? (previous as PendingComponentSave)
+                    : previous?.predecessor,
             tokenKey: editorKey,
             operationKey: editorKey,
             generation: crypto.randomUUID(),
@@ -549,7 +689,7 @@ export const Components = () => {
         };
         persistStoredJson(requestKey, pending);
         autosaveQueue.current?.enqueue(pending);
-    }, [config, parameters?.readOnly, rerender, storagePrefix]);
+    }, [config, designSystem, parameters?.readOnly, rerender, storagePrefix]);
 
     const openComponent = (target: Platform, name: string) => {
         navigate(componentNavigationTarget(`../components/${toComponentRoute(target, name)}`, location.search));
@@ -605,8 +745,8 @@ export const Components = () => {
         );
         setCatalogError(undefined);
         try {
-            for (const { linkId } of links) {
-                await repository.hideComponent(editorContext, linkId!);
+            for (const { linkId, coreSelectionRevision } of links) {
+                await repository.hideComponent(editorContext, linkId!, coreSelectionRevision);
             }
         } catch {
             setCatalogError('Не удалось скрыть компонент. Проверьте права на удаление компонентов.');
@@ -629,12 +769,15 @@ export const Components = () => {
         setCatalogBusy(true);
         setCatalogError(undefined);
         try {
+            const revisionFor = (id: string) =>
+                catalog?.find((item) => item.componentId === id)?.coreSelectionRevision ??
+                templates.find((item) => item.componentId === id)?.coreSelectionRevision;
             const hidden = componentIds.filter((id) => !isNewComponent(id));
             for (const componentId of withHiddenDependencies(hidden)) {
-                await repository.restoreComponent(editorContext, componentId);
+                await repository.restoreComponent(editorContext, componentId, false, revisionFor(componentId));
             }
             for (const componentId of componentIds.filter(isNewComponent)) {
-                await repository.restoreComponent(editorContext, componentId, true);
+                await repository.restoreComponent(editorContext, componentId, true, revisionFor(componentId));
             }
             const first =
                 catalog?.find((item) => item.componentId === componentIds[0]) ??
@@ -653,8 +796,6 @@ export const Components = () => {
         }
     };
 
-    const problemComponentId = config?.getComponentId?.();
-
     const section =
         !designSystem || !theme || !components ? (
             <ComponentsSectionSkeleton />
@@ -672,6 +813,17 @@ export const Components = () => {
                         <>
                             <ComponentTree
                                 groups={tree}
+                                problemComponentIds={problemComponentIds}
+                                onProblemSelect={(entry) => {
+                                    const ids = entry.configs.map((config) => config.getComponentId());
+                                    const issue = compatibility.report?.items.find(
+                                        (i) => i.severity === 'blocking' && ids.includes(i.location.componentId),
+                                    );
+                                    const query = new URLSearchParams();
+                                    if (selectedVersionId) query.set('versionId', selectedVersionId);
+                                    if (issue) query.set('issueId', issue.issueId);
+                                    navigate(`${location.pathname.split('/components')[0]}/validation?${query}`);
+                                }}
                                 platform={platformFilter}
                                 selected={selectedConfig?.getName()}
                                 query={query}
@@ -755,21 +907,7 @@ export const Components = () => {
                                     </button>
                                 </div>
                             )}
-                            <SegmentButton label="Раздел компонента"
-                                items={[{ label: 'Настройки', value: 'settings' }, { label: 'Проблемы', value: 'problems' }]}
-                                selected={{ label: problemMode ? 'Проблемы' : 'Настройки', value: problemMode ? 'problems' : 'settings' }}
-                                onSelect={(item) => {
-                                    const query = new URLSearchParams(location.search);
-                                    query.set('section', String(item.value));
-                                    if (item.value !== 'problems') query.delete('issueId');
-                                    navigate({ search: query.toString() });
-                                }} />
-                            {problemMode && editorContext ? (
-                                problemComponentId ? <CoreProblems context={editorContext}
-                                    componentId={problemComponentId}
-                                    readOnly={parameters?.readOnly} onRepaired={reload} />
-                                    : <p role="alert">Не удалось определить компонент для диагностики</p>
-                            ) : !platform ? (
+                            {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
                                 <ComponentEditorSkeleton />
@@ -788,6 +926,24 @@ export const Components = () => {
                                     structure={designSystemReadOnly ? undefined : structure}
                                     onLoadComponent={loadComponent}
                                     readOnly={designSystemReadOnly}
+                                    compatibility={
+                                        editorContext && compatibility.report
+                                            ? {
+                                                  context: editorContext,
+                                                  report: compatibility.report,
+                                                  readOnly: designSystemReadOnly,
+                                                  beforeRepair: async () => {
+                                                      autosaveQueue.current?.flushAll();
+                                                  },
+                                                  onRepaired: () => {
+                                                      compatibility.reload();
+                                                      reload();
+                                                  },
+                                              }
+                                            : undefined
+                                    }
+                                    compatibilityError={compatibility.error}
+                                    onCompatibilityReload={compatibility.reload}
                                 />
                             )}
                         </>
@@ -808,10 +964,6 @@ export const Components = () => {
                 scope={composeHostScope}
                 preload={Boolean(components?.length)}
             >
-                {(composeLocation.developmentOverride || webLocation.developmentOverride) &&
-                    <p role="status">Preview по прямому URL · режим разработки</p>}
-                {composeLocation.error && <p role="alert">Compose: {composeLocation.error}</p>}
-                {webLocation.error && <p role="alert">Web: {webLocation.error}</p>}
                 {section}
             </ComposePreviewHostProvider>
         </ComposePreviewHostProvider>

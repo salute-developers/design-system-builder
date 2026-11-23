@@ -59,6 +59,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                         OWNER,
                         """{"name":"alpha","projectName":"alpha"}""",
                     )
+                    importFixtureCore(postgres)
                     val tenantA = api.createTenant(designSystemId, "a")
                     val tenantB = api.createTenant(designSystemId, "b")
                     val scope = Scope(api, Db(postgres), designSystemId, tenantA, tenantB)
@@ -87,6 +88,7 @@ class SizeTokenHttpPostgresIntegrationTest {
                         OWNER,
                         """{"name":"beta","projectName":"beta"}""",
                     )
+                    importFixtureCore(postgres)
                     val tenantA = api.createTenant(designSystemId, "a")
                     val tenantB = api.createTenant(designSystemId, "b")
                     val scope = Scope(api, Db(postgres), designSystemId, tenantA, tenantB)

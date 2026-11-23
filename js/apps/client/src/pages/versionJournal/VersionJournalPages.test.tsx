@@ -65,7 +65,12 @@ const token = {
     enabled: true,
 };
 
-const ComponentDestination = () => <p data-testid="problem-destination">{useLocation().pathname}{useLocation().search}</p>;
+const ComponentDestination = () => (
+    <p data-testid="problem-destination">
+        {useLocation().pathname}
+        {useLocation().search}
+    </p>
+);
 
 const renderPage = (page: 'changes' | 'versions', initial = page) =>
     render(
@@ -88,6 +93,7 @@ const renderPage = (page: 'changes' | 'versions', initial = page) =>
                     <Route path="changes" element={<DesignSystemChangesPage />} />
                     <Route path="versions" element={<DesignSystemVersionsPage />} />
                     <Route path="components/:componentName" element={<ComponentDestination />} />
+                    <Route path="validation" element={<ComponentDestination />} />
                     <Route path="typography" element={<div>Редактор типографики</div>} />
                 </Route>
             </Routes>
@@ -97,7 +103,10 @@ const renderPage = (page: 'changes' | 'versions', initial = page) =>
 beforeEach(() => {
     localStorage.clear();
     Object.values(operations).forEach((operation) => operation.mockReset());
-    operations.compatibility.mockReturnValue({ report: { blockingCount: 0, warningCount: 0, items: [] }, reload: vi.fn() });
+    operations.compatibility.mockReturnValue({
+        report: { context: { coreSelectionRevision: 7 }, blockingCount: 0, warningCount: 0, items: [] },
+        reload: vi.fn(),
+    });
     operations.listChanges.mockResolvedValue([change]);
     operations.listJournalTokens.mockResolvedValue([token]);
     operations.listProjectActorLabels.mockResolvedValue({ 'user-1': 'Анна' });
@@ -420,7 +429,7 @@ describe('DesignSystemVersionsPage', () => {
         expect(publish).toBeEnabled();
         fireEvent.click(publish);
         await waitFor(() =>
-            expect(operations.publish).toHaveBeenCalledWith(context, 'draft-1', 7, '0.1.0', '', expect.any(String)),
+            expect(operations.publish).toHaveBeenCalledWith(context, 'draft-1', 7, '0.1.0', '', expect.any(String), 7),
         );
     });
 
@@ -435,17 +444,20 @@ describe('DesignSystemVersionsPage', () => {
         expect(operations.waitForDraftAutosaveIdle).not.toHaveBeenCalled();
     });
 
-    it('открывает Compose-проблему из сводки, даже если есть одноимённый web-компонент', async () => {
-        operations.compatibility.mockReturnValue({ report: {
-            blockingCount: 1, warningCount: 0,
-            items: [{ issueId: 'compose-issue', location: { platform: 'compose', componentId: 'compose-button', componentName: 'Button', propertyName: 'fill' } }],
-        } });
+    it('показывает сводку и ведёт в отдельную валидацию без списка проблем', async () => {
+        operations.compatibility.mockReturnValue({
+            report: {
+                context: {},
+                blockingCount: 1,
+                warningCount: 0,
+                items: [{ issueId: 'native', code: 'CORE_PROPERTY_REMOVED', location: { componentName: 'Button' } }],
+            },
+            reload: vi.fn(),
+        });
         renderPage('versions');
-        fireEvent.click(await screen.findByRole('button', { name: 'Button · fill: открыть проблему' }));
-        const target = await screen.findByTestId('problem-destination');
-        expect(target.textContent).toContain('/components/compose-Button?');
-        expect(target.textContent).toContain('issueId=compose-issue');
-        expect(target.textContent).toContain('section=problems');
+        fireEvent.click(await screen.findByRole('button', { name: 'Валидация (1 проблема)' }));
+        expect(await screen.findByTestId('problem-destination')).toHaveTextContent('/validation');
+        expect(screen.queryByText('Свойство отсутствует в Core')).not.toBeInTheDocument();
         expect(operations.publish).not.toHaveBeenCalled();
     });
 
@@ -453,12 +465,42 @@ describe('DesignSystemVersionsPage', () => {
         operations.compatibility.mockReturnValue({ report: { blockingCount: 1, warningCount: 0, items: [] } });
         const view = renderPage('versions');
         await waitFor(() => expect(screen.getByLabelText('Номер версии')).toHaveValue('0.1.0'));
-        expect(screen.getByRole('button', { name: 'Опубликовать версию' })).toBeDisabled();
+        expect(screen.queryByRole('button', { name: 'Опубликовать версию' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Валидация (1 проблема)' })).toHaveClass('release-validation-button');
         view.unmount();
         operations.compatibility.mockReturnValue({ report: { blockingCount: 0, warningCount: 1, items: [] } });
         renderPage('versions');
         await waitFor(() => expect(screen.getByRole('button', { name: 'Опубликовать версию' })).toBeEnabled());
         expect(operations.publish).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        {
+            state: { report: { blockingCount: 0 } },
+            label: 'Совместимо',
+            hint: 'Блокирующих проблем совместимости нет.',
+        },
+        {
+            state: { report: { blockingCount: 2 } },
+            label: 'Есть проблемы',
+            hint: 'Публикация недоступна до исправления проблем совместимости.',
+        },
+        { state: {}, label: 'Проверяем…', hint: 'Проверяем совместимость с выбранными версиями библиотек.' },
+        {
+            state: { error: 'network unavailable' },
+            label: 'Недоступна',
+            hint: 'Не удалось проверить совместимость с выбранными версиями библиотек.',
+        },
+    ])('показывает краткий статус «$label» и полное сообщение только в тултипе', async ({ state, label, hint }) => {
+        operations.compatibility.mockReturnValue(state);
+        renderPage('versions');
+        const status = await screen.findByLabelText(hint);
+        expect(status).toHaveTextContent(label);
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
+        fireEvent.mouseEnter(status);
+        expect(await screen.findByRole('tooltip')).toHaveTextContent(hint);
+        fireEvent.mouseLeave(status);
+        expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
     });
 
     it('публикует серверную версию после ожидания автосохранения', async () => {
@@ -476,6 +518,7 @@ describe('DesignSystemVersionsPage', () => {
             '0.1.0',
             'Первая версия',
             expect.any(String),
+            7,
         );
         expect(await screen.findByText('Версия 0.1.0 создана')).toBeInTheDocument();
         expect(operations.reloadEditor).toHaveBeenCalledTimes(1);

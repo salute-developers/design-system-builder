@@ -10,6 +10,8 @@ export interface CoreRelease {
     version: string;
     metaSha256: string | null;
     provenance: string;
+    channel?: 'stable' | 'dev' | null;
+    selectionMode?: 'pinned' | 'latest';
 }
 export interface CoreIssue {
     issueId: string;
@@ -55,6 +57,7 @@ export interface CoreCompatibilityReport {
         draftId: string | null;
         draftRevision: number | null;
         coreReleases: CoreRelease[];
+        coreSelectionRevision?: number | null;
     };
     items: CoreIssue[];
     blockingCount: number;
@@ -62,6 +65,9 @@ export interface CoreCompatibilityReport {
     validatorVersion: number;
     nextCursor: string | null;
 }
+
+/** Настройки доступны без права читать подробные предметные назначения. */
+export type CoreSettings = Pick<CoreCompatibilityReport, 'context' | 'blockingCount' | 'warningCount'>;
 
 export const coreCompatibilityRepository = {
     async read(
@@ -99,6 +105,7 @@ export const coreCompatibilityRepository = {
         issue: CoreIssue,
         targetPropertyId?: string,
         draftRevision?: number | null,
+        coreSelectionRevision?: number | null,
     ): Promise<void> {
         const l = issue.location;
         await http.post(
@@ -114,6 +121,9 @@ export const coreCompatibilityRepository = {
                 ...readRequest(context),
                 headers: {
                     'Idempotency-Key': crypto.randomUUID(),
+                    ...(coreSelectionRevision != null
+                        ? { 'X-DS-Core-Selection-Revision': String(coreSelectionRevision) }
+                        : {}),
                     ...(draftRevision != null ? { 'X-DS-Base-Revision': String(draftRevision) } : {}),
                 },
             },

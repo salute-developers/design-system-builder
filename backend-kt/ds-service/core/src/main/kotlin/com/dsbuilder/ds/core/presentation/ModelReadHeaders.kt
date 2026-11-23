@@ -33,6 +33,7 @@ internal fun coreReadContextJson(context: ModelReadContext) = buildJsonObject {
     context.versionId?.let { put("versionId", it.toString()) }
     context.draftId?.let { put("draftId", it.toString()) }
     context.draftRevision?.let { put("draftRevision", it) }
+    context.coreSelectionRevision?.let { put("coreSelectionRevision", it) }
     if (context.versionId != null || context.draftId != null) {
         put(
             "coreReleases",
@@ -45,6 +46,7 @@ internal fun coreReadContextJson(context: ModelReadContext) = buildJsonObject {
                         put("version", release.ref.version)
                         release.metaSha256?.let { put("metaSha256", it) }
                         put("provenance", release.provenance)
+                        release.channel?.let { put("channel", it) }
                     }
                 },
             ),

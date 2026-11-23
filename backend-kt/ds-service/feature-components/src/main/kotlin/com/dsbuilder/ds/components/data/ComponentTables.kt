@@ -644,6 +644,7 @@ internal object PluginBuildsTable : Table("compose_preview_plugin_builds") {
     val commitSha = text("commit_sha")
     val protocolVersion = integer("protocol_version")
     val zipSha256 = text("zip_sha256")
+    val storageKey = text("storage_key").nullable()
     val sizeBytes = long("size_bytes")
     val fileCount = integer("file_count")
     val publishedBy = text("published_by")

@@ -652,6 +652,40 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     // ── вложенные компоненты ───────────────────────────────────────────────────────────────────────
 
     @Test
+    fun `raw component style writes require a resolved reference and partial updates preserve it`() = withService {
+        val fixture = fixture()
+        val child = importChild(fixture.ds)
+        val nested = property("buttonStyle", "component_style")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        val childX = styleOf(model(child), "size", "x")
+        val stateSet = query("SELECT id FROM state_sets WHERE cardinality(state_ids) = 0 LIMIT 1")
+        val common = """"propertyId":"$nested","appearanceId":"${fixture.appearance}","stateSetId":"$stateSet","value":"junk""""
+        for ((path, extra) in listOf(
+            "invariant-property-values" to """"componentId":"${fixture.component}",""",
+            "variation-property-values" to """"styleId":"$styleA",""",
+            "style-combinations" to "",
+        )) {
+            val response = post("/api/design-systems/${fixture.ds}/$path", "{$extra$common}")
+            assertEquals(HttpStatusCode.UnprocessableEntity, response.status, response.bodyAsText())
+            assertTrue(response.bodyAsText().contains("reference_required"))
+        }
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childX)).status,
+        )
+        val value = valuesOf(fixture.appearance, nested, styleA).single()
+        val path = "/api/design-systems/${fixture.ds}/variation-property-values/${value.string("id")}"
+        val partial = patch(path, """{"alpha":"0.5"}""")
+        assertEquals(HttpStatusCode.OK, partial.status, partial.bodyAsText())
+        val invalid = patch(path, """{"value":"junk"}""")
+        assertEquals(HttpStatusCode.UnprocessableEntity, invalid.status, invalid.bodyAsText())
+        val stored = valuesOf(fixture.appearance, nested, styleA).single()
+        assertEquals("child.x", stored.string("value"))
+        assertEquals("child.x", stored.getValue("reference").jsonObject.string("reference"))
+        assertEquals("0.5", stored.string("alpha"))
+    }
+
+    @Test
     fun `a nested style reference is written validated rebuilt on rename and protects its target`() = withService {
         val fixture = fixture()
         val child = importChild(fixture.ds)
@@ -740,6 +774,17 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             val components = """[{"name":"Button","properties":[{"name":"buttonStyle","type":"component_style","platformNames":["buttonStyle"],"componentTargets":["$target"]}],"dependencies":[{"component":"Child"}]},{"name":"Child","properties":[]}]"""
             val response = post("/api/admin/component-config/import-api-meta", coreReleasePayload(version, components))
             assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+            val release = query("SELECT id FROM core_releases WHERE version = '$version'")
+            val draft =
+                query(
+                    "SELECT id FROM design_system_versions WHERE design_system_id = '${fixture.ds}' AND status = 'draft'",
+                )
+            val revision = query("SELECT core_selection_revision FROM design_system_versions WHERE id = '$draft'")
+            val selected = put(
+                "/api/design-systems/${fixture.ds}/core-settings/compose",
+                """{"channel":"stable","releaseId":"$release","expectedDraftId":"$draft","expectedCoreSelectionRevision":$revision}""",
+            )
+            assertEquals(HttpStatusCode.OK, selected.status, selected.bodyAsText())
         }
         suspend fun compatibility(version: String = ""): JsonObject {
             val response = get("/api/design-systems/${fixture.ds}/compatibility$version")
@@ -762,10 +807,10 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childY)).status,
         )
         assertEquals(before, query("SELECT normalized_meta FROM core_releases WHERE version = 'A'"))
-        assertEquals("Child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
+        assertEquals("child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
         val historical =
             get("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/editor-model?versionId=$published")
-        assertTrue(historical.bodyAsText().contains("Child.x"), historical.bodyAsText())
+        assertTrue(historical.bodyAsText().contains("child.x"), historical.bodyAsText())
         assertEquals("0", compatibility().string("blockingCount"))
         val childComponent = query("SELECT id FROM components WHERE name = 'Child'")
         val childLink =
@@ -792,7 +837,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals("0", compatibility("?versionId=$published").string("blockingCount"))
         val rejected = setValue(fixture.appearance, nested, listOf(styleA), reference = reference(child, childX))
         assertEquals(HttpStatusCode.UnprocessableEntity, rejected.status, rejected.bodyAsText())
-        assertEquals("Child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
+        assertEquals("child.y", valuesOf(fixture.appearance, nested, styleA).single().string("value"))
         assertEquals(before, query("SELECT normalized_meta FROM core_releases WHERE version = 'A'"))
         assertEquals(
             HttpStatusCode.OK,
@@ -1609,7 +1654,9 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         contentType(ContentType.Application.Json)
         setBody(body)
     }.also { response ->
-        if (path.startsWith("/api/design-systems/catalog/") && response.status.value < 300) {
+        if ((path.startsWith("/api/design-systems/catalog/") || path == "/api/design-systems") &&
+            response.status.value < 300
+        ) {
             importFixtureCore(service.postgres)
         }
     }

@@ -1,3 +1,8 @@
+import { useLocation, useNavigate } from 'react-router-dom';
+import { ComponentProblems } from '../../../../features/coreCompatibility/ComponentProblems';
+import { InspectorCompatibilityContext } from '../../../../features/coreCompatibility/InspectorCompatibility';
+import type { IssueRepairAccess } from '../../../../features/coreCompatibility/coreAssignmentRemoval';
+import { issueNodeId } from '../../../../features/coreCompatibility/model';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
 import {
@@ -32,6 +37,9 @@ import { editSource, type Selection } from './inspectorModel';
 import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 
 interface ComponentInspectorProps {
+    compatibility?: IssueRepairAccess;
+    compatibilityError?: string;
+    onCompatibilityReload?: () => void;
     config: Config;
     designSystem: DesignSystem;
     theme: Theme;
@@ -53,7 +61,7 @@ interface ComponentInspectorProps {
     readOnly?: boolean;
 }
 
-type InspectorTab = 'style' | 'tree';
+type InspectorTab = 'style' | 'tree' | 'problems';
 
 const TABS: Array<{ id: InspectorTab; label: string }> = [
     { id: 'style', label: 'Стилизация' },
@@ -76,14 +84,37 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     const { config, designSystem, theme, updated, selection, themeMode, onSelectionChange, onConfigUpdate, storyArgs } =
         props;
     const { structure, onConfigurationSelect, onLoadComponent } = props;
+    const [repairError, setRepairError] = useState('');
     const styleReferenceAccess = useMemo(
         () => ({ designSystem, loadComponent: onLoadComponent }),
         [designSystem, onLoadComponent],
     );
     // Выбранная вкладка запоминается между открытиями редактора; без структурных операций есть только «Стилизация».
     const [storedTab, setStoredTab] = useState<InspectorTab>(readTab);
-    const tabs = structure ? TABS : TABS.slice(0, 1);
-    const tab = structure ? storedTab : 'style';
+    const location = useLocation();
+    const navigate = useNavigate();
+    const query = new URLSearchParams(location.search);
+    const componentIssues =
+        props.compatibility?.report.items.filter((i) => i.location.componentId === config.getComponentId()) ?? [];
+    const problems = componentIssues.filter((i) => i.severity === 'blocking');
+    const requested = query.get('section');
+    const tabs = [
+        ...(structure ? TABS : TABS.slice(0, 1)),
+        ...(problems.length ? [{ id: 'problems' as const, label: 'Проблемы' }] : []),
+    ];
+    const tab =
+        requested === 'problems' && problems.length
+            ? 'problems'
+            : requested === 'style'
+              ? 'style'
+              : requested === 'tree' && structure
+                ? 'tree'
+                : tabs.some((item) => item.id === storedTab)
+                  ? storedTab
+                  : 'style';
+    const focused = problems.find(
+        (i) => i.issueId === query.get('issueId') && i.location.appearanceId === config.getConfigurationId(),
+    );
     // Привязка свойства к вариации — сразу запросом, без перечитывания: значение следом уйдёт автосохранением.
     const linkProperty = useMemo(
         () =>
@@ -95,8 +126,12 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     );
     const selectTab = (next: InspectorTab) => {
         setStoredTab(next);
+        const search = new URLSearchParams(location.search);
+        search.set('section', next);
+        search.delete('issueId');
+        navigate({ search: search.toString() });
         try {
-            localStorage.setItem(TAB_STORAGE_KEY, next);
+            if (next !== 'problems') localStorage.setItem(TAB_STORAGE_KEY, next);
         } catch {
             // Вкладка — удобство: без хранилища она просто не запоминается.
         }
@@ -106,6 +141,15 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     const configurationId = config.getConfigurationId();
     const source = editSource(config, selection);
     const combination = source.kind === 'combination' ? source.styleIDs : undefined;
+    useEffect(() => {
+        if (!focused || tab !== 'style') return;
+        const timer = window.setTimeout(() => {
+            const node = document.getElementById(issueNodeId(focused));
+            node?.scrollIntoView?.({ block: 'center' });
+            node?.focus({ preventScroll: true });
+        }, 50);
+        return () => window.clearTimeout(timer);
+    }, [focused?.issueId, tab, configurationId, selection, updated]);
     const [combinationError, setCombinationError] = useState<string>();
     const [combinationReset, setCombinationReset] = useState(0);
     const scope = `${configurationId}:${combination?.join('+')}`;
@@ -188,8 +232,21 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                     aria-label="Панели редактора"
                     onKeyDown={(event) => {
                         if (tabs.length < 2) return;
-                        if (event.key === 'ArrowLeft' || event.key === 'Home') selectTab('style');
-                        if (event.key === 'ArrowRight' || event.key === 'End') selectTab('tree');
+                        const index = tabs.findIndex((item) => item.id === tab);
+                        const next =
+                            event.key === 'Home'
+                                ? 0
+                                : event.key === 'End'
+                                  ? tabs.length - 1
+                                  : event.key === 'ArrowRight'
+                                    ? (index + 1) % tabs.length
+                                    : event.key === 'ArrowLeft'
+                                      ? (index + tabs.length - 1) % tabs.length
+                                      : undefined;
+                        if (next !== undefined) {
+                            event.preventDefault();
+                            selectTab(tabs[next].id);
+                        }
                     }}
                 >
                     {tabs.map((item) => (
@@ -198,7 +255,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                             type="button"
                             role="tab"
                             id={`component-inspector-tab-${item.id}`}
-                            className={item.id === tab ? 'is-active' : ''}
+                            className={`${item.id === tab ? 'is-active' : ''}${item.id === 'problems' ? ' has-problems' : ''}`}
                             aria-selected={item.id === tab}
                             aria-controls={`component-inspector-panel-${item.id}`}
                             tabIndex={item.id === tab ? 0 : -1}
@@ -209,7 +266,13 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                     ))}
                 </nav>
             </header>
-            {tab === 'tree' && structure ? (
+            {tab === 'problems' ? (
+                <ComponentProblems
+                    issues={problems}
+                    error={props.compatibilityError}
+                    retry={props.onCompatibilityReload ?? (() => undefined)}
+                />
+            ) : tab === 'tree' && structure ? (
                 <section
                     className="component-inspector-body component-tree-pane"
                     role="tabpanel"
@@ -231,6 +294,17 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                     id="component-inspector-panel-style"
                     aria-labelledby="component-inspector-tab-style"
                 >
+                    {repairError && (
+                        <p role="alert" className="component-property-error">
+                            {repairError}
+                        </p>
+                    )}
+                    {props.compatibilityError && (
+                        <p role="alert">
+                            Проверка совместимости недоступна.{' '}
+                            <button onClick={props.onCompatibilityReload}>Повторить</button>
+                        </p>
+                    )}
                     {/* Конфигурация и вариации не прокручиваются: выбор источника правки всегда на месте, свойства прокручиваются под ним. */}
                     <div className="component-inspector-pinned">
                         {onConfigurationSelect && (
@@ -257,20 +331,38 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                             </p>
                         )}
                         <div className="component-inspector-sections">
-                            <StyleReferenceContext.Provider value={styleReferenceAccess}>
-                                <InspectorSections
-                                    key={combinationReset}
-                                    config={config}
-                                    api={api}
-                                    selection={selection}
-                                    tokens={tokens}
-                                    updated={updated}
-                                    onConfigUpdate={onConfigUpdate}
-                                    onLinkProperty={linkProperty}
-                                    onCombinationChange={changeCombination}
-                                    readOnly={props.readOnly}
-                                />
-                            </StyleReferenceContext.Provider>
+                            <InspectorCompatibilityContext.Provider
+                                value={
+                                    props.compatibility
+                                        ? {
+                                              issues: componentIssues.filter(
+                                                  (i) => i.location.appearanceId === config.getConfigurationId(),
+                                              ),
+                                              focused: focused?.issueId,
+                                              access: {
+                                                  ...props.compatibility,
+                                                  onFailure: setRepairError,
+                                                  onRefresh: props.onCompatibilityReload,
+                                              },
+                                          }
+                                        : null
+                                }
+                            >
+                                <StyleReferenceContext.Provider value={styleReferenceAccess}>
+                                    <InspectorSections
+                                        key={combinationReset}
+                                        config={config}
+                                        api={api}
+                                        selection={selection}
+                                        tokens={tokens}
+                                        updated={updated}
+                                        onConfigUpdate={onConfigUpdate}
+                                        onLinkProperty={linkProperty}
+                                        onCombinationChange={changeCombination}
+                                        readOnly={props.readOnly}
+                                    />
+                                </StyleReferenceContext.Provider>
+                            </InspectorCompatibilityContext.Provider>
                         </div>
                     </div>
                 </section>

@@ -225,7 +225,7 @@ publish_plugin() {
     return
   fi
   log "Publishing the $title"
-  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --from "$archive"; then
+  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --channel stable --from "$archive"; then
     if [[ "$explicit" == "1" ]]; then
       echo "[local-setup] The requested $title could not be published" >&2
       exit 1
@@ -268,7 +268,7 @@ fi
 if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
   if [[ -n "$COMPONENTS_PACKAGE" ]]; then
     log "Creating the design system with a theme and loading the components"
-    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
+    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" --core-archive "${PLUGIN_ZIP:-$BUNDLED_PLUGIN_ZIP}" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
       echo "[local-setup] The requested component package could not be loaded" >&2
       exit 1
     fi

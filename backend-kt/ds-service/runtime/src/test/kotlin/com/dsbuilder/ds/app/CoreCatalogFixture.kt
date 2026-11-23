@@ -61,11 +61,31 @@ internal fun importFixtureCore(jdbcUrl: String, username: String, password: Stri
                     WHERE p.release_id = '$id' AND c.release_id = '$id' AND d.type = 'compose'
                     """.trimIndent(),
                 )
+                // Legacy fixtures select the catalog they seeded explicitly; production import never does this.
                 statement.executeUpdate(
-                    "UPDATE core_current_releases SET release_id = '$id' WHERE platform::text = '$platform'",
+                    "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) " +
+                        "SELECT id, '$platform'::component_platform, '$id' FROM design_system_versions " +
+                        "WHERE status = 'draft' ON CONFLICT (version_id, platform) " +
+                        "DO UPDATE SET release_id = EXCLUDED.release_id",
                 )
             }
         }
         connection.commit()
+    }
+}
+
+/** Выбирает конкретный уже импортированный Core в новой ДС теста без повторного снимка каталога. */
+internal fun selectImportedFixtureCore(db: IsolatedPostgresDatabase, system: String, version: String) {
+    DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { connection ->
+        connection.prepareStatement(
+            "INSERT INTO design_system_version_core_releases(version_id,platform,release_id) " +
+                "SELECT boundary.id, release.platform, release.id FROM design_system_versions boundary " +
+                "CROSS JOIN core_releases release WHERE boundary.design_system_id = ?::uuid " +
+                "AND boundary.status = 'draft' AND release.version = ? AND release.library_id = 'uikit-compose'",
+        ).use { statement ->
+            statement.setString(1, system)
+            statement.setString(2, version)
+            check(statement.executeUpdate() == 1)
+        }
     }
 }

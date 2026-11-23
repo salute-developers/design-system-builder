@@ -14,6 +14,7 @@ internal fun validateCoreAssignment(
     tokenId: UUID?,
     literal: String?,
     stateSetId: UUID,
+    referenceSource: StyleReferenceWriter.Source? = null,
 ) {
     val appearance = ComponentAppearancesTable.selectAll()
         .where { ComponentAppearancesTable.id eq appearanceId }.singleOrNull()
@@ -24,23 +25,8 @@ internal fun validateCoreAssignment(
     if (property[PropertiesTable.componentId] != componentId) invalidCoreAssignment("property_not_found")
     val type = property[PropertiesTable.type].wireValue
     val platform = coreComponentPlatform(componentId)
-    if (tokenId != null) {
-        val token = ComponentTokensTable.selectAll().where { ComponentTokensTable.id eq tokenId }.singleOrNull()
-            ?: invalidCoreAssignment("token_not_found")
-        if (token[ComponentTokensTable.enabled] == false ||
-            token[ComponentTokensTable.designSystemId] != appearance[ComponentAppearancesTable.designSystemId] ||
-            token[ComponentTokensTable.type]?.let { !CoreValueCompatibility.tokenFits(type, it) } == true
-        ) {
-            invalidCoreAssignment("CORE_VALUE_TYPE_CONFLICT")
-        }
-    } else if (!CoreValueCompatibility.literalFits(
-            type,
-            literal,
-            platform,
-        )
-    ) {
-        invalidCoreAssignment("CORE_VALUE_TYPE_CONFLICT")
-    }
+    if (type == "component_style") validateStoredReference(propertyId, literal, referenceSource)
+    validateCoreValue(type, tokenId, literal, platform, appearance[ComponentAppearancesTable.designSystemId])
     val states = ComponentStateSetsTable.selectAll().where { ComponentStateSetsTable.id eq stateSetId }.singleOrNull()
         ?.get(ComponentStateSetsTable.stateIds) ?: invalidCoreAssignment("state_set_not_found")
     val available = ComponentStatesTable.selectAll().where { ComponentStatesTable.id inList states }
@@ -56,3 +42,36 @@ private fun invalidCoreAssignment(code: String): Nothing =
 internal fun coreComponentPlatform(componentId: UUID): String =
     StableComponentsTable.selectAll().where { StableComponentsTable.id eq componentId }
         .single()[StableComponentsTable.platform].wireValue
+
+private fun validateStoredReference(property: UUID, literal: String?, source: StyleReferenceWriter.Source?) {
+    val reference = source?.let(StyleReferenceWriter::existing)
+    if (reference == null) {
+        if (!literal.isNullOrBlank()) invalidCoreAssignment("reference_required")
+        return
+    }
+    if (reference[ComponentStyleReferencesTable.reference] != literal) invalidCoreAssignment("reference_required")
+    val target = ComponentAppearancesTable.selectAll().where {
+        ComponentAppearancesTable.id eq reference[ComponentStyleReferencesTable.targetAppearanceId]
+    }.singleOrNull() ?: invalidCoreAssignment("reference_target_not_found")
+    validateCoreReference(property, target)
+}
+
+private fun validateCoreValue(type: String, tokenId: UUID?, literal: String?, platform: String, system: UUID) {
+    if (tokenId != null) {
+        val token = ComponentTokensTable.selectAll().where { ComponentTokensTable.id eq tokenId }.singleOrNull()
+            ?: invalidCoreAssignment("token_not_found")
+        if (token[ComponentTokensTable.enabled] == false ||
+            token[ComponentTokensTable.designSystemId] != system ||
+            !CoreValueCompatibility.tokenFits(type, token[ComponentTokensTable.type])
+        ) {
+            invalidCoreAssignment("CORE_VALUE_TYPE_CONFLICT")
+        }
+    } else if (!CoreValueCompatibility.literalFits(
+            type,
+            literal,
+            platform,
+        )
+    ) {
+        invalidCoreAssignment("CORE_VALUE_TYPE_CONFLICT")
+    }
+}

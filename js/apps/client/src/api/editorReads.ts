@@ -37,26 +37,18 @@ const readQueue = new EditorReadQueue();
 let epoch = 0;
 
 /** Новое чтение после подтверждённой записи не присоединяется к запросу старого состояния. */
-export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectId'>) => {
+export const invalidateEditorReads = (
+    context?: Pick<EditorContextKey, 'projectId'>,
+    options: { includeMetadata?: boolean } = {},
+) => {
     epoch++;
     for (const [key, value] of confirmed) {
         const path = new URL(value.url).pathname;
-        if (
-            /\/design-systems(?:\/|$)/.test(path) &&
-            (!context ||
-                path === `/api/projects/${context.projectId}/design-systems` ||
-                path.startsWith(`/api/projects/${context.projectId}/design-systems/`))
-        )
-            confirmed.delete(key);
-    }
-};
-
-const delay = (milliseconds: number, signal: AbortSignal) =>
-    new Promise<void>((resolve, reject) => {
-        const cancel = () => {
-            clearTimeout(timer);
-            signal.removeEventListener('abort', cancel);
-            reject(new CanceledError());
+        const root = `/api/projects/${context?.projectId}/design-systems`;
+        const scope = {
+            mutable: value.mutable || options.includeMetadata === true,
+            designSystems: /\/design-systems(?:\/|$)/.test(path),
+            project: !context || path === root || path.startsWith(`${root}/`),
         };
         if (Object.values(scope).every(Boolean)) confirmed.delete(key);
     }

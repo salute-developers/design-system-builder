@@ -44,6 +44,8 @@ internal data class ExportComponentsCommand(
     val projectId: ProjectId,
     val designSystemId: DesignSystemId,
     val platform: String,
+    val version: String? = null,
+    val readContext: String? = null,
 )
 
 /**

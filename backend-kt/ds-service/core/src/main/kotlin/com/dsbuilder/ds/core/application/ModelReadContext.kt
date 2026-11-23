@@ -17,4 +17,6 @@ data class ModelReadContext(
     val draftRevision: Long? = null,
     /** API платформ, фактически использованные этим чтением. */
     val coreReleases: List<ResolvedCoreRelease> = emptyList(),
+    /** Ревизия выбора платформ, независимая от предметных настроек. */
+    val coreSelectionRevision: Long? = null,
 )

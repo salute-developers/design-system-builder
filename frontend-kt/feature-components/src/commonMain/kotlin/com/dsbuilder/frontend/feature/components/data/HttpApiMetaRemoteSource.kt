@@ -34,6 +34,7 @@ internal class HttpApiMetaRemoteSource(
                 command.dryRun,
                 command.coreRelease,
                 command.sourceBytes,
+                command.channel,
             ),
         )
 
@@ -81,6 +82,7 @@ internal data class ApiMetaImportRequest(
     val coreRelease: CoreReleaseRequest? = null,
     val sourceMetaBase64: String? = null,
     val metaSha256: String? = null,
+    val channel: String? = null,
 )
 
 @Serializable
@@ -181,9 +183,11 @@ internal fun ApiMetaManifest.toImportRequest(
     dryRun: Boolean,
     release: CoreReleaseRef? = null,
     sourceBytes: ByteArray = byteArrayOf(),
+    channel: String? = null,
 ): ApiMetaImportRequest =
     ApiMetaImportRequest(
         platform = platform,
+        channel = channel,
         meta = ApiMetaImportMeta(source = source),
         coreRelease = release?.let { CoreReleaseRequest(it.libraryId, it.platform, it.version) },
         sourceMetaBase64 = sourceBytes.toByteString().base64(),

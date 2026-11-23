@@ -25,11 +25,19 @@ internal class HttpWebAdapterFileSource(
     override suspend fun fetch(command: ExportComponentsCommand): WebAdapterFileResult {
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val path = "/api/projects/${command.projectId.value}/design-systems/" +
-            "${command.designSystemId.value}/component-config/web-adapter"
+            "${command.designSystemId.value}/component-config/web-adapter" + exportVersionQuery(command.version)
         val body = buildJsonObject { }.toString()
         return when (val result = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> WebAdapterFileResult.Failed(result.message)
-            is AuthenticatedHttpResult.Success -> decode(result.body)
+            is AuthenticatedHttpResult.Success -> if (
+                !result.readHeadersValid || command.readContext != result.headers["x-ds-read-context"]
+            ) {
+                WebAdapterFileResult.Failed(
+                    "Error: DS context changed during fetch; retry without changing local files.",
+                )
+            } else {
+                decode(result.body)
+            }
         }
     }
 

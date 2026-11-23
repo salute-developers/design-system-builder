@@ -7,11 +7,10 @@ import com.dsbuilder.ds.components.application.ListPropertiesUseCase
 import com.dsbuilder.ds.components.application.ListPropertyPlatformParamsUseCase
 import com.dsbuilder.ds.components.application.ListStatesUseCase
 import com.dsbuilder.ds.core.application.DsFailure
-import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
-import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.core.presentation.respondResult
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.get
 
@@ -21,10 +20,7 @@ fun Route.coreComponentReadRoutes(evaluator: PolicyEvaluator, useCase: GetCompon
         val context = call.modelReadContext(evaluator) ?: return@get
         val id = call.parameters["id"].toUuidOrNull()
             ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
-        when (val result = useCase.execute(context, id)) {
-            is DsResult.Success -> call.respondSuccess(result, ComponentResponse.from(result.value))
-            is DsResult.Failure -> call.respondFailure(result.error)
-        }
+        call.respondResult(useCase.execute(context, id), transform = ComponentResponse::from)
     }
 }
 
@@ -32,9 +28,8 @@ fun Route.coreComponentReadRoutes(evaluator: PolicyEvaluator, useCase: GetCompon
 fun Route.corePropertyReadRoutes(evaluator: PolicyEvaluator, useCase: ListPropertiesUseCase) {
     get(dsRoutePath("/api/design-systems/{designSystemId}/properties")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        when (val result = useCase.execute(context)) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentPropertySummaryResponse::from))
-            is DsResult.Failure -> call.respondFailure(result.error)
+        call.respondResult(useCase.execute(context)) { value ->
+            value.map(ComponentPropertySummaryResponse::from)
         }
     }
 }
@@ -43,9 +38,8 @@ fun Route.corePropertyReadRoutes(evaluator: PolicyEvaluator, useCase: ListProper
 fun Route.corePlatformParamReadRoutes(evaluator: PolicyEvaluator, useCase: ListPropertyPlatformParamsUseCase) {
     get(dsRoutePath("/api/design-systems/{designSystemId}/property-platform-params")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        when (val result = useCase.execute(context)) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(PropertyPlatformParamResponse::from))
-            is DsResult.Failure -> call.respondFailure(result.error)
+        call.respondResult(useCase.execute(context)) { value ->
+            value.map(PropertyPlatformParamResponse::from)
         }
     }
 }
@@ -54,9 +48,8 @@ fun Route.corePlatformParamReadRoutes(evaluator: PolicyEvaluator, useCase: ListP
 fun Route.coreDependencyReadRoutes(evaluator: PolicyEvaluator, useCase: ListComponentDependenciesUseCase) {
     get(dsRoutePath("/api/design-systems/{designSystemId}/component-deps")) {
         val context = call.modelReadContext(evaluator) ?: return@get
-        when (val result = useCase.execute(context)) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentDependencyResponse::from))
-            is DsResult.Failure -> call.respondFailure(result.error)
+        call.respondResult(useCase.execute(context)) { value ->
+            value.map(ComponentDependencyResponse::from)
         }
     }
 }
@@ -72,9 +65,21 @@ fun Route.coreStateReadRoutes(evaluator: PolicyEvaluator, useCase: ListStatesUse
             raw.toUuidOrNull()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_component_id"))
         }
-        when (val result = useCase.execute(context, componentId, raw != null)) {
-            is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentStateResponse::from))
-            is DsResult.Failure -> call.respondFailure(result.error)
+        call.respondResult(useCase.execute(context, componentId, raw != null)) { value ->
+            value.map(ComponentStateResponse::from)
+        }
+    }
+}
+
+/** Каталог добавления принадлежит выбранному Core, даже если компонент ещё нигде не привязан. */
+fun Route.coreComponentCatalogRoutes(
+    evaluator: PolicyEvaluator,
+    useCase: com.dsbuilder.ds.components.application.ListComponentsUseCase,
+) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/catalog/components")) {
+        val context = call.modelReadContext(evaluator) ?: return@get
+        call.respondResult(useCase.execute(context)) { value ->
+            value.map(ComponentResponse::from)
         }
     }
 }

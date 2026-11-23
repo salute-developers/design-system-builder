@@ -57,6 +57,7 @@ internal class PublishPreviewPluginRemoteCommand(
     val source: String,
     val dryRun: Boolean,
     val coreRelease: CoreReleaseRef? = null,
+    val channel: String? = null,
 )
 
 /** Port отправки билда плагина на backend. */

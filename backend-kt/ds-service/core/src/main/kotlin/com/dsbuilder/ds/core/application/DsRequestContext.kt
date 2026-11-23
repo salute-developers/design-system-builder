@@ -31,6 +31,8 @@ data class DsRequestContext(
     val designSystemId: UUID? = null,
     /** Черновик, в который должна попасть запись; при смене активного черновика запись отклоняется. */
     val expectedDraftId: UUID? = null,
+    /** Ожидаемая ревизия выбора Core при согласованной записи. */
+    val expectedCoreSelectionRevision: Long? = null,
 ) {
     /** Project boundary derived exclusively from [principal]. */
     val projectId: ProjectId = ProjectId(principal.projectId)

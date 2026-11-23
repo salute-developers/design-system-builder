@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PLASMA_ANDROID=""
 TOKEN_MODULE="tokens/sdds.serv.compose"
 BUILD_PLUGIN=1
+CORE_VERSION=""
 
 usage() {
   cat <<'USAGE'
@@ -24,6 +25,7 @@ commit the result.
 Options:
   --plasma-android DIR   plasma-android checkout. Required.
   --token-module PATH    Token module of plasma-android that declares the theme. Default: tokens/sdds.serv.compose.
+  --core-version VERSION Exact Core version (optional).
   --skip-plugin-build    Copy the plugin archive that is already built.
   --help                 Show this help.
 USAGE
@@ -48,6 +50,7 @@ while [[ $# -gt 0 ]]; do
       TOKEN_MODULE="${2:-}"
       shift 2
       ;;
+    --core-version) CORE_VERSION="${2:-}"; shift 2 ;;
     --skip-plugin-build)
       BUILD_PLUGIN=0
       shift
@@ -68,8 +71,10 @@ done
 PLASMA_ANDROID="$(cd "$PLASMA_ANDROID" && pwd)"
 
 if [[ "$BUILD_PLUGIN" == "1" ]]; then
+  core_flags=()
+  [[ -z "$CORE_VERSION" ]] || core_flags+=("-PpreviewCoreVersion=$CORE_VERSION")
   log "Building the plugin archive"
-  (cd "$PLASMA_ANDROID" && ./gradlew --quiet :integration-core:preview-compose-plugin:previewPluginArtifact) \
+  (cd "$PLASMA_ANDROID" && ./gradlew --quiet -p integration-core :preview-compose-plugin:previewPluginArtifact "${core_flags[@]}") \
     || fail "The plugin build failed"
 fi
 

@@ -16,3 +16,9 @@ sealed interface DsResult<out T> {
     /** Failed application result carrying a safe [error]. */
     data class Failure(val error: DsFailure) : DsResult<Nothing>
 }
+
+/** Извлекает значение шага; обработчик отказа может вернуть исходный Failure из вызывающего сценария. */
+inline fun <T> DsResult<T>.valueOr(onFailure: (DsResult.Failure) -> T): T = when (this) {
+    is DsResult.Success -> value
+    is DsResult.Failure -> onFailure(this)
+}

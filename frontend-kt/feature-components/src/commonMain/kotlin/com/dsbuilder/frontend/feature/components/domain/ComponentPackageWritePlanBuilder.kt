@@ -102,6 +102,7 @@ internal class ComponentPackageWritePlanBuilder(
                             put("version", r.ref.version)
                             r.metaSha256?.let { put("metaSha256", it) }
                             put("provenance", r.provenance)
+                            r.channel?.let { put("channel", it) }
                         }
                     },
                 ),

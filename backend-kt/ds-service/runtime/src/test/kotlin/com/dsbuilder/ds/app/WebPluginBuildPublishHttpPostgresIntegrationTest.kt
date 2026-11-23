@@ -251,7 +251,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         val manifest = """{"schemaVersion":1,"id":"sdds.web.preview","platform":"web","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
             (library?.let { """"plasmaNewHopeVersion":"$it",""" } ?: "") +
-            """"coreRelease":{"libraryId":"fixture-web","platform":"web","version":"$library"},""" +
+            """"channel":"stable","coreRelease":{"libraryId":"fixture-web","platform":"web","version":"$library"},""" +
             """"apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         return zip(
             mapOf(
@@ -267,7 +267,8 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         val meta = """[{"componentName":"Avatar"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.compose.preview","platform":"compose","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
-            """"coreRelease":{"libraryId":"fixture-compose","platform":"compose","version":"0.55.0"},""" +
+            """"channel":"stable","coreRelease":{"libraryId":"fixture-compose",""" +
+            """"platform":"compose","version":"0.55.0"},""" +
             """"uikitComposeVersion":"0.55.0","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         return zip(
             mapOf(

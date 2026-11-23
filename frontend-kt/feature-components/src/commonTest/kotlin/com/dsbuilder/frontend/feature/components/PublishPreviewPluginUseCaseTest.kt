@@ -43,7 +43,7 @@ class PublishPreviewPluginUseCaseTest {
         sha: String? = metaSha,
     ) = buildString {
         append(
-            """{"coreRelease":{"libraryId":"uikit-compose","platform":"compose",""" +
+            """{"channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":"compose",""" +
                 """"version":"$uikit"},""" +
                 """"version":"$version","uikitComposeVersion":"$uikit"""",
         )
@@ -55,7 +55,7 @@ class PublishPreviewPluginUseCaseTest {
         append("{")
         if (platform != null) append(""""platform":"$platform",""")
         append(
-            """"coreRelease":{"libraryId":"plasma-new-hope","platform":"web",""" +
+            """"channel":"stable","coreRelease":{"libraryId":"plasma-new-hope","platform":"web",""" +
                 """"version":"0.384.0"},""" +
                 """"version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0",""" +
                 """"apiMetaSha256":"$sha"}""",
@@ -86,6 +86,7 @@ class PublishPreviewPluginUseCaseTest {
     private suspend fun execute(
         platform: TargetPlatform = TargetPlatform.COMPOSE,
         apply: Boolean = false,
+        channel: String? = "stable",
         apiUrlOverride: String? = "http://localhost:8080",
         archive: PreviewPluginArchiveResult = PreviewPluginArchiveResult.Read(archive()),
         credential: CredentialResult = CredentialResult.Selected(
@@ -134,9 +135,26 @@ class PublishPreviewPluginUseCaseTest {
             ),
         )
         return useCase.execute(
-            PublishPreviewPluginCommand(platform, "plugin.zip", apply, apiUrlOverride),
+            PublishPreviewPluginCommand(platform, "plugin.zip", apply, apiUrlOverride, channel),
             onTarget = { onTarget() },
         )
+    }
+
+    @Test
+    fun missingOrInvalidPublicationChannelIsRejectedBeforeCredentials() = runTest {
+        for (channel in listOf(null, "latest")) {
+            val touched = Touched()
+            val result = execute(channel = channel, touched = touched)
+            assertIs<PublishPreviewPluginResult.Failed>(result)
+            assertTrue(!touched.credentialResolved)
+        }
+    }
+
+    @Test
+    fun commandChannelOverridesAnyLegacyArchiveChannel() = runTest {
+        val sent = mutableListOf<PublishPreviewPluginRemoteCommand>()
+        assertIs<PublishPreviewPluginResult.Published>(execute(channel = "dev", onPublish = { sent += it }))
+        assertEquals("dev", sent.single().channel)
     }
 
     @Test
@@ -274,7 +292,8 @@ class PublishPreviewPluginUseCaseTest {
     @Test
     fun aComposeManifestThatNamesItsPlatformIsAccepted() = runTest {
         val manifestText =
-            """{"coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":"0.55.0"},""" +
+            """{"channel":"stable","coreRelease":{"libraryId":"uikit-compose",""" +
+                """"platform":"compose","version":"0.55.0"},""" +
                 """"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
                 """"apiMetaSha256":"$metaSha"}"""
 

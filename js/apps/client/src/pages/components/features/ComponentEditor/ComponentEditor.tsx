@@ -1,3 +1,4 @@
+import type { IssueRepairAccess } from '../../../../features/coreCompatibility/coreAssignmentRemoval';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
@@ -13,6 +14,9 @@ import { Root } from './ComponentEditor.styles';
 import { componentPreviewRequest, modeList, resolveComponentPreview } from './ComponentEditor.utils';
 
 interface ComponentEditorProps {
+    compatibility?: IssueRepairAccess;
+    compatibilityError?: string;
+    onCompatibilityReload?: () => void;
     designSystem: DesignSystem;
     theme: Theme;
     configs?: Config[];
@@ -66,6 +70,28 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
         setSelection({ [target.variationName]: target.styleID });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [config, preview]);
+    // Адрес назначения стабилен при повторном чтении отчёта: оно не сбрасывает выбор пользователя.
+    const problemQuery = new URLSearchParams(location.search);
+    const problem =
+        problemQuery.get('section') === 'style'
+            ? props.compatibility?.report.items.find(
+                  (item) =>
+                      item.issueId === problemQuery.get('issueId') &&
+                      item.location.appearanceId === config?.getConfigurationId(),
+              )
+            : undefined;
+    const problemStyles = problem ? JSON.stringify(problem.location.styleIds) : '';
+    // Эффект применяется после defaults хука useComponentData, включая первое открытие по URL.
+    useEffect(() => {
+        if (!config || !problemStyles) return;
+        const styleIds = JSON.parse(problemStyles) as string[];
+        const target: Record<string, string> = {};
+        for (const variation of config.getVariations()) {
+            const style = variation.getStyles()?.find((item) => styleIds.includes(item.getID()));
+            if (style) target[variation.getName()] = style.getID();
+        }
+        setSelection(target);
+    }, [config, problemStyles, setSelection]);
     // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
     const resolveStyleReference = useCallback(
         (reference: string) => designSystem.resolveComposeStyleReference(reference),
@@ -124,6 +150,9 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                 structure={structure}
                 onLoadComponent={onLoadComponent}
                 readOnly={props.readOnly}
+                compatibility={props.compatibility}
+                compatibilityError={props.compatibilityError}
+                onCompatibilityReload={props.onCompatibilityReload}
             />
         </Root>
     );

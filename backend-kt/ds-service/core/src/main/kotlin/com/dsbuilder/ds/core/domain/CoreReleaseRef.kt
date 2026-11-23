@@ -13,13 +13,18 @@ data class CoreReleaseRef(
     fun valid(): Boolean = libraryId.isNotBlank() && version.isNotBlank() && canonicalPlatform(platform) != null
 
     companion object {
+        private val platforms = mapOf(
+            "web" to "web",
+            "react" to "web",
+            "compose" to "compose",
+            "xml" to "xml",
+            "android-view" to "xml",
+            "ios" to "ios",
+            "swiftui" to "ios",
+            "uikit" to "ios",
+        )
+
         /** Сопоставляет обозначения производителей с существующим словарём каталога. */
-        fun canonicalPlatform(value: String): String? = when (value) {
-            "web", "react" -> "web"
-            "compose" -> "compose"
-            "xml", "android-view" -> "xml"
-            "ios", "swiftui", "uikit" -> "ios"
-            else -> null
-        }
+        fun canonicalPlatform(value: String): String? = platforms[value]
     }
 }

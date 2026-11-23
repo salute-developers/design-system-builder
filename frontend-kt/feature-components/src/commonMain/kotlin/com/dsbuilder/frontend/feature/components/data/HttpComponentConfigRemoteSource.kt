@@ -63,12 +63,21 @@ internal class HttpComponentConfigRemoteSource(
         )
 
         val path = "/api/projects/${command.projectId.value}/design-systems/" +
-            "${command.designSystemId.value}/component-config/export"
+            "${command.designSystemId.value}/component-config/export" + exportVersionQuery(command.version)
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(response.message)
-            is AuthenticatedHttpResult.Success -> parsePackage(response.body)
+            is AuthenticatedHttpResult.Success -> if (!response.readHeadersValid) {
+                ExportComponentsResult.Failed("Error: ambiguous component read context.")
+            } else {
+                when (val parsed = parsePackage(response.body)) {
+                    is ExportComponentsResult.Failed -> parsed
+                    is ExportComponentsResult.Exported -> parsed.copy(
+                        value = parsed.value.copy(readContext = response.headers["x-ds-read-context"]),
+                    )
+                }
+            }
         }
     }
 
@@ -234,6 +243,7 @@ private data class ExportPackageResponse(
                 CoreReleaseRef(it.libraryId, it.platform, it.version),
                 it.metaSha256,
                 it.provenance,
+                it.channel,
             )
         },
     )
@@ -275,4 +285,9 @@ private data class ExportCoreRelease(
     val version: String,
     val metaSha256: String? = null,
     val provenance: String,
+    val channel: String? = null,
 )
+
+/** Версия из явного DS-link применяется одинаково к конфигурациям и их web-адаптеру. */
+internal fun exportVersionQuery(version: String?): String =
+    if (version == null || version == "draft") "" else "?version=${encodePart(version)}"

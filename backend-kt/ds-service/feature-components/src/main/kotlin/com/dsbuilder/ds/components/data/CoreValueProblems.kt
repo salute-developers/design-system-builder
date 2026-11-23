@@ -22,11 +22,9 @@ internal class CoreValueProblems(private val catalog: CoreCompatibilityCatalog) 
                         value.propertyId
                 }
             },
-            referenceProblem(type, value),
+            referenceProblem(type, value, componentId),
         ).map { it to "blocking" }
-        val deprecated = catalog.params.values.any {
-            it[PropertyPlatformParamsTable.propertyId] == value.propertyId && it[PropertyPlatformParamsTable.deprecated]
-        }
+        val deprecated = value.propertyId in catalog.deprecatedPropertyIds
         return blocking + if (deprecated) listOf("CORE_PROPERTY_DEPRECATED" to "warning") else emptyList()
     }
 
@@ -40,14 +38,10 @@ internal class CoreValueProblems(private val catalog: CoreCompatibilityCatalog) 
         if (type == null) return true
         if (value.reference != null) return type == "component_style"
         val tokenType = value.tokenId?.let(catalog.tokens::get)?.get(ComponentTokensTable.type)
-        return when {
-            tokenType != null -> CoreValueCompatibility.tokenFits(type, tokenType)
-            value.tokenId == null -> CoreValueCompatibility.literalFits(
-                type,
-                value.value,
-                catalog.componentPlatforms.getValue(componentId),
-            )
-            else -> true // Missing tokens have their own diagnostic.
+        return if (value.tokenId == null) {
+            CoreValueCompatibility.literalFits(type, value.value, catalog.componentPlatforms.getValue(componentId))
+        } else {
+            CoreValueCompatibility.tokenFits(type, tokenType)
         }
     }
 
@@ -57,14 +51,17 @@ internal class CoreValueProblems(private val catalog: CoreCompatibilityCatalog) 
             state == null || state[ComponentStatesTable.componentId]?.let { it != componentId } == true
         }
 
-    private fun referenceProblem(type: String?, value: EditorPropertyValue): String? {
+    private fun referenceProblem(type: String?, value: EditorPropertyValue, sourceComponentId: UUID): String? {
         val reference = value.reference ?: return "CORE_COMPONENT_REFERENCE_UNAVAILABLE".takeIf {
             type == "component_style" && !value.value.isNullOrBlank()
         }
         val target = catalog.appearances[reference.targetAppearanceId]
         val component = target?.get(ComponentAppearancesTable.componentId)
-        val available = component in catalog.activeComponents && component in catalog.availableComponents
-        val stylesAvailable = reference.styleIds.all { it in EditorSupport.styleAxes(reference.targetAppearanceId) }
+        val available = component in catalog.activeComponents && component in catalog.availableComponents &&
+            catalog.componentPlatforms[component] == catalog.componentPlatforms[sourceComponentId]
+        val stylesAvailable = reference.styleIds.all {
+            it in catalog.styleIdsByAppearance[reference.targetAppearanceId].orEmpty()
+        }
         val targets = catalog.componentTargets[value.propertyId].orEmpty()
         return when {
             !available || !stylesAvailable -> "CORE_COMPONENT_REFERENCE_UNAVAILABLE"

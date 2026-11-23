@@ -140,7 +140,8 @@ class ApiMetaImportHttpPostgresIntegrationTest {
             "shape",
             query(
                 "SELECT p.type::text FROM core_release_properties p " +
-                    "JOIN core_current_releases c ON c.release_id = p.release_id WHERE p.name = 'fill'",
+                    "JOIN core_releases c ON c.id = p.release_id " +
+                    "WHERE p.name = 'fill' AND c.provenance = 'imported' ORDER BY c.created_at DESC LIMIT 1",
             ),
         )
     }
@@ -448,12 +449,13 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         components: String = """[{"name":"A","properties":[{"name":"p","type":"color","platformNames":["p"]}]}]""",
         source: String = "meta.json",
     ): String {
-        val bytes = components.toByteArray()
+        val bytes = (if (platform == "xml") """{"components":$components}""" else components).toByteArray()
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         val encoded = Base64.getEncoder().encodeToString(bytes)
         return """{"platform":"$platform","meta":{"source":${JsonPrimitive(source)}},""" +
             """"dryRun":$dryRun,"components":$components,"sourceMetaBase64":"$encoded","metaSha256":"$hash",""" +
-            """"coreRelease":{"libraryId":"fixture-$platform","platform":"$platform","version":"$hash"}}"""
+            """"channel":"stable","coreRelease":{"libraryId":"fixture-$platform",""" +
+            """"platform":"$platform","version":"$hash"}}"""
     }
 
     private fun prop(name: String, type: String, names: String) =

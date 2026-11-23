@@ -383,6 +383,7 @@ class ImportApiMetaUseCaseTest {
             ImportApiMetaCommand(
                 platform = platform,
                 coreRelease = CoreReleaseRef("test-library", platform.cliValue, "1.0.0"),
+                channel = "stable",
                 from = "meta.json",
                 dryRun = dryRun,
                 typeMap = typeMap,

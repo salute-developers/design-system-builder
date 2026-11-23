@@ -224,6 +224,49 @@ describe('createComponentPreviewDraft', () => {
         });
     });
 
+    it.each([
+        { name: 'missing', compose: null, web: [], xml: null, ios: null, nonCompose: false, nonWeb: false },
+        { name: 'empty Compose', compose: ' , ', web: [], xml: null, ios: null, nonCompose: false, nonWeb: false },
+        { name: 'Compose', compose: 'background', web: [], xml: null, ios: null, nonCompose: false, nonWeb: true },
+        {
+            name: 'Web',
+            compose: null,
+            web: [{ name: '--background' }],
+            xml: null,
+            ios: null,
+            nonCompose: true,
+            nonWeb: false,
+        },
+        { name: 'XML', compose: null, web: [], xml: 'background', ios: null, nonCompose: true, nonWeb: true },
+        { name: 'iOS', compose: null, web: [], xml: null, ios: 'background', nonCompose: true, nonWeb: true },
+    ])(
+        'keeps $name mappings distinct from missing platform metadata',
+        ({ name: _, nonCompose, nonWeb, ...mappings }) => {
+            const meta = componentMeta();
+            meta.sources.api[0].platformMappings = mappings;
+            const result = createComponentPreviewDraft({
+                config: new Config(meta),
+                theme: buildMockTheme(),
+                args: { density: 'compact' },
+                themeMode: 'light',
+                themeValuePlatform: 'web',
+                surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+            });
+            expect(result).toMatchObject({
+                ok: true,
+                draft: {
+                    invariantProperties: [
+                        expect.objectContaining({
+                            id: 'background',
+                            hasNonComposeMappings: nonCompose,
+                            hasNonWebMappings: nonWeb,
+                        }),
+                    ],
+                },
+            });
+        },
+    );
+
     it('marks intentionally platform-specific properties separately from missing metadata', () => {
         const meta = componentMeta();
         meta.sources.api.push({

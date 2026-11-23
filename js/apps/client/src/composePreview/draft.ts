@@ -112,25 +112,29 @@ interface CollectContext {
     styles: Map<string, PreviewStyleDraft>;
 }
 
-const projectProperty = (prop: PropUnion): PreviewPropertyDraft => ({
-    id: prop.getID(),
-    name: prop.getName(),
-    type: prop.getType()!,
-    composeParameters: splitComposeMapping(prop.getPlatformMappings()?.compose),
-    hasNonComposeMappings: Boolean(
-        prop.getPlatformMappings()?.web?.length || prop.getPlatformMappings()?.xml || prop.getPlatformMappings()?.ios,
-    ),
-    webParameters: (prop.getPlatformMappings()?.web ?? []).map((param) => param.name),
-    hasNonWebMappings: Boolean(
-        splitComposeMapping(prop.getPlatformMappings()?.compose).length ||
-        prop.getPlatformMappings()?.xml ||
-        prop.getPlatformMappings()?.ios,
-    ),
-    value: prop.getValue(),
-    states: (prop.getStates() ?? []).map((state) => ({ names: state.state, value: state.value, alpha: state.alpha })),
-    adjustment: prop.getAdjustment(),
-    alpha: prop.getAlpha(),
-});
+const projectProperty = (prop: PropUnion): PreviewPropertyDraft => {
+    const mappings = prop.getPlatformMappings();
+    const composeParameters = splitComposeMapping(mappings?.compose);
+    const webParameters = (mappings?.web ?? []).map((param) => param.name);
+    const hasNativeMappings = Boolean(mappings?.xml || mappings?.ios);
+    return {
+        id: prop.getID(),
+        name: prop.getName(),
+        type: prop.getType()!,
+        composeParameters,
+        hasNonComposeMappings: hasNativeMappings || webParameters.length > 0,
+        webParameters,
+        hasNonWebMappings: hasNativeMappings || composeParameters.length > 0,
+        value: prop.getValue(),
+        states: (prop.getStates() ?? []).map((state) => ({
+            names: state.state,
+            value: state.value,
+            alpha: state.alpha,
+        })),
+        adjustment: prop.getAdjustment(),
+        alpha: prop.getAlpha(),
+    };
+};
 
 /**
  * Добавляет в контекст стиль, на который указывает ссылка (`basic-button.m.default`), вместе со стилями, на которые

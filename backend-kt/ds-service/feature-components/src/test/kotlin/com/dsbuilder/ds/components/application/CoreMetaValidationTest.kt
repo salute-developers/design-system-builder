@@ -69,6 +69,35 @@ class CoreMetaValidationTest {
         assertNull(CoreMetaValidation.error(command(listOf(component("Button", "color"))), supported))
     }
 
+    @Test
+    fun `channel is mandatory and never inferred from version`() {
+        val valid = command(emptyList())
+        assertNull(CoreMetaValidation.error(valid.copy(channel = "dev"), supported))
+        assertEquals("CORE_RELEASE_METADATA_REQUIRED", CoreMetaValidation.error(valid.copy(channel = null), supported))
+        assertEquals(
+            "CORE_RELEASE_INVALID_CHANNEL",
+            CoreMetaValidation.error(valid.copy(channel = "latest"), supported),
+        )
+    }
+
+    @Test
+    fun `Android View source requires object with components while Compose keeps array`() {
+        val valid = command(emptyList())
+        val xml = valid.copy(platform = "xml", coreRelease = CoreReleaseRef("view-core", "xml", "1.0"))
+        assertEquals("CORE_META_INVALID_SHAPE", CoreMetaValidation.error(xml, supported))
+        val bytes = "{\"components\":[]}".toByteArray()
+        assertNull(
+            CoreMetaValidation.error(
+                xml.copy(
+                    sourceMetaBase64 = Base64.getEncoder().encodeToString(bytes),
+                    metaSha256 = MessageDigest.getInstance("SHA-256").digest(bytes)
+                        .joinToString("") { "%02x".format(it) },
+                ),
+                supported,
+            ),
+        )
+    }
+
     private fun component(name: String, type: String) = ImportApiMeta.Component(
         name,
         listOf(ImportApiMeta.Property("fill", type, listOf(ApiMetaAlias("fill", AliasDeprecation.Current)), null)),
@@ -85,6 +114,7 @@ class CoreMetaValidationTest {
             CoreReleaseRef("uikit-compose", "compose", "1.0"),
             Base64.getEncoder().encodeToString(bytes),
             MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) },
+            channel = "stable",
         )
     }
 }

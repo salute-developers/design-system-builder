@@ -52,12 +52,12 @@ class GetCoreCompatibilityUseCase(
                 query.severity,
             ),
         )
-        val parts = query.cursor?.split(':')
-        if (parts != null && (parts.size != 2 || parts[0] != fingerprint)) {
+        val parts = query.cursor?.split(':') ?: listOf(fingerprint, "0")
+        if (parts.size != 2 || parts[0] != fingerprint) {
             return DsResult.Failure(DsFailure.Conflict("CORE_CONTEXT_STALE"))
         }
-        val offset = if (parts == null) 0 else parts[1].toIntOrNull()
-        if (offset == null || offset < 0) return DsResult.Failure(DsFailure.InvalidRequest("invalid_cursor"))
+        val offset = parts[1].toIntOrNull()?.takeIf { it >= 0 }
+            ?: return DsResult.Failure(DsFailure.InvalidRequest("invalid_cursor"))
         val items = report.items.filter {
             (query.componentId == null || it.location.componentId == query.componentId) &&
                 (query.severity == null || it.severity == query.severity)

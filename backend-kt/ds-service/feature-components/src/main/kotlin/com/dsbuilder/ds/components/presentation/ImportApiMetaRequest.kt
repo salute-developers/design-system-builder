@@ -36,6 +36,8 @@ data class ImportApiMetaRequest(
     val sourceMetaBase64: String? = null,
     /** SHA-256 исходного файла. */
     val metaSha256: String? = null,
+    /** Явный неизменяемый канал поставки stable/dev. */
+    val channel: String? = null,
 ) {
     /** Координаты Core на HTTP-границе. */
     @Serializable
@@ -112,17 +114,10 @@ data class ImportApiMetaRequest(
         val combinations: Boolean,
     )
 
-    /** True when the body satisfies the contract that the generated serializer cannot express. */
-    fun valid(): Boolean = platform in componentPlatforms && coreRelease?.toDomain()?.valid() == true &&
-        sourceMetaBase64 != null && metaSha256 != null &&
+    /** Checks alias DTO shape before mapping; release and catalog rules belong to CoreMetaValidation. */
+    fun valid(): Boolean = platform in componentPlatforms &&
         interactionStates.orEmpty().none(String::isBlank) &&
-        components.all { component ->
-            component.name.isNotEmpty() && component.states.none(String::isEmpty) &&
-                component.properties.all { property ->
-                    property.name.isNotEmpty() && property.type.isNotEmpty() && property.aliases() != null &&
-                        property.stateSupport?.states.orEmpty().none(String::isBlank)
-                }
-        }
+        components.flatMap { it.properties }.all { it.aliases() != null && it.stateSupport?.states.orEmpty().none(String::isBlank) }
 
     /** Performs the to command operation. */
     fun toCommand() = ImportApiMeta(
@@ -154,6 +149,7 @@ data class ImportApiMetaRequest(
         coreRelease?.toDomain(),
         sourceMetaBase64,
         metaSha256,
+        channel,
     )
 
     /**

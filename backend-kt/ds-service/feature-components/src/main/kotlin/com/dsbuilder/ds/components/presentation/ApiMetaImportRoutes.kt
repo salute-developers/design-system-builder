@@ -42,8 +42,12 @@ fun Route.apiMetaImportRoutes(evaluator: PolicyEvaluator, importApiMeta: ImportA
                 ?: return@post call.respond(HttpStatusCode.PayloadTooLarge, ErrorResponse("Payload too large"))
             val request = runCatching {
                 lenientJson.decodeFromString<ImportApiMetaRequest>(body.toString(Charsets.UTF_8))
-            }.getOrNull()?.takeIf(ImportApiMetaRequest::valid)
+            }.getOrNull()
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            if (null in listOf(request.coreRelease, request.channel, request.sourceMetaBase64, request.metaSha256)) {
+                return@post call.respondFailure(DsFailure.InvalidRequest("CORE_RELEASE_METADATA_REQUIRED"))
+            }
+            if (!request.valid()) return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             when (
                 val result = importApiMeta.execute(
                     context.withIdempotentResponse { value: com.dsbuilder.ds.components.domain.ApiMetaImportReport ->

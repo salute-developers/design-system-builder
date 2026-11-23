@@ -6,6 +6,7 @@ import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.util.UUID
@@ -66,6 +67,9 @@ internal class CoreCompatibilityCatalog(designSystemId: UUID, versionId: UUID?) 
     val sets = ComponentStateSetsTable.selectAll()
         .associate { it[ComponentStateSetsTable.id] to it[ComponentStateSetsTable.stateIds] }
     val params = PropertyPlatformParamsTable.selectAll().associateBy { it[PropertyPlatformParamsTable.id] }
+    val deprecatedPropertyIds = params.values.asSequence()
+        .filter { it[PropertyPlatformParamsTable.deprecated] }
+        .map { it[PropertyPlatformParamsTable.propertyId] }.toSet()
     val tokens = ComponentTokensTable.selectAll()
         .where { ComponentTokensTable.designSystemId eq designSystemId }.associateBy { it[ComponentTokensTable.id] }
     val appearances = ComponentAppearancesTable.selectAll()
@@ -73,6 +77,10 @@ internal class CoreCompatibilityCatalog(designSystemId: UUID, versionId: UUID?) 
         .associateBy { it[ComponentAppearancesTable.id] }
     val styles = ComponentStylesTable.selectAll()
         .where { ComponentStylesTable.designSystemId eq designSystemId }.associateBy { it[ComponentStylesTable.id] }
+    val styleIdsByAppearance = AppearanceVariationValuesTable.innerJoin(AppearanceVariationsTable).selectAll()
+        .where { AppearanceVariationsTable.appearanceId inList appearances.keys }
+        .groupBy({ it[AppearanceVariationsTable.appearanceId] }, { it[AppearanceVariationValuesTable.styleId] })
+        .mapValues { it.value.toSet() }
     val adjustments = adjustments(designSystemId, versionId)
 
     private fun adjustments(designSystemId: UUID, versionId: UUID?): Map<UUID, List<CoreProblemAdjustment>> {

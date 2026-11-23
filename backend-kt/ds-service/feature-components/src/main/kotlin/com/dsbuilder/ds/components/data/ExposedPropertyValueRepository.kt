@@ -203,15 +203,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         id: UUID,
         command: PropertyValueRepository.ValueUpdate,
     ): VariationPropertyValue? {
-        if (command.tokenId != null && !ComponentOwnership.canReadToken(projectId, systemAdmin, command.tokenId)) {
-            return null
-        }
-        if (
-            command.stateSetId != null &&
-            !ComponentOwnership.canReadStateSet(projectId, systemAdmin, command.stateSetId)
-        ) {
-            return null
-        }
+        if (!canReadValueReferences(projectId, systemAdmin, command.tokenId, command.stateSetId)) return null
         if (!lockComponentSubject(
                 StableVariationPropertyValuesTable,
                 StableVariationPropertyValuesTable.id,
@@ -304,6 +296,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             command.stateSetId,
         )
         PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
+        IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
@@ -333,15 +326,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         id: UUID,
         command: PropertyValueRepository.ValueUpdate,
     ): InvariantPropertyValue? {
-        if (command.tokenId != null && !ComponentOwnership.canReadToken(projectId, systemAdmin, command.tokenId)) {
-            return null
-        }
-        if (
-            command.stateSetId != null &&
-            !ComponentOwnership.canReadStateSet(projectId, systemAdmin, command.stateSetId)
-        ) {
-            return null
-        }
+        if (!canReadValueReferences(projectId, systemAdmin, command.tokenId, command.stateSetId)) return null
         if (!lockComponentSubject(
                 StableInvariantPropertyValuesTable,
                 StableInvariantPropertyValuesTable.id,
@@ -402,18 +387,38 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         if (stateSetId != null) add("/state_set_id")
     }
 
+    /** Изменение не может оставить значение свойства без токена и без литерала: такую запись нечем показать. */
+    private fun requireContent(command: PropertyValueRepository.ValueUpdate, tokenId: UUID?, value: String?) {
+        val nextToken = if (command.tokenIdPresent) command.tokenId else tokenId
+        val nextValue = if (command.valuePresent) command.value else value
+        if (nextToken == null && nextValue == null) {
+            throw EditorRuleViolationException(
+                "property_value_empty",
+                "A property value must keep a token or a value; delete it instead",
+            )
+        }
+    }
+
     private fun writeVariationRevision(
         current: ResultRow,
         command: PropertyValueRepository.ValueUpdate?,
         deleted: Boolean,
     ) {
+        val next = PatchedPropertyValue(
+            current[VariationPropertyValuesTable.tokenId],
+            current[VariationPropertyValuesTable.value],
+            current[VariationPropertyValuesTable.alpha],
+            current[VariationPropertyValuesTable.adjustment],
+            current[VariationPropertyValuesTable.stateSetId],
+        ).apply(command)
         if (!deleted && command != null) {
             validateCoreAssignment(
                 current[VariationPropertyValuesTable.propertyId],
                 current[VariationPropertyValuesTable.appearanceId],
-                if (command.tokenIdPresent) command.tokenId else current[VariationPropertyValuesTable.tokenId],
-                if (command.valuePresent) command.value else current[VariationPropertyValuesTable.value],
-                command.stateSetId ?: current[VariationPropertyValuesTable.stateSetId],
+                next.tokenId,
+                next.literal,
+                next.stateSetId,
+                StyleReferenceWriter.Source.Variation(current[VariationPropertyValuesTable.id]),
             )
         }
         val designSystemId = current[VariationPropertyValuesTable.designSystemId]
@@ -426,30 +431,12 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             deleted,
             changedPaths,
         ) {
-            val nextTokenId = if (command?.tokenIdPresent == true) {
-                command.tokenId
-            } else {
-                current[VariationPropertyValuesTable.tokenId]
-            }
-            it[tokenId] = nextTokenId
-            val nextValue = if (command?.valuePresent == true) {
-                command.value
-            } else {
-                current[VariationPropertyValuesTable.value]
-            }
-            it[value] = nextValue.takeIf { nextTokenId == null }
-            it[alpha] = if (command?.alphaPresent == true) {
-                command.alpha
-            } else {
-                current[VariationPropertyValuesTable.alpha]
-            }
-            it[adjustment] = if (command?.adjustmentPresent == true) {
-                command.adjustment
-            } else {
-                current[VariationPropertyValuesTable.adjustment]
-            }
+            it[tokenId] = next.tokenId
+            it[value] = next.storedLiteral
+            it[alpha] = next.alpha
+            it[adjustment] = next.adjustment
             it[position] = current[VariationPropertyValuesTable.position]
-            it[stateSetId] = command?.stateSetId ?: current[VariationPropertyValuesTable.stateSetId]
+            it[stateSetId] = next.stateSetId
         }
     }
 
@@ -458,13 +445,21 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.ValueUpdate?,
         deleted: Boolean,
     ) {
+        val next = PatchedPropertyValue(
+            current[InvariantPropertyValuesTable.tokenId],
+            current[InvariantPropertyValuesTable.value],
+            current[InvariantPropertyValuesTable.alpha],
+            current[InvariantPropertyValuesTable.adjustment],
+            current[InvariantPropertyValuesTable.stateSetId],
+        ).apply(command)
         if (!deleted && command != null) {
             validateCoreAssignment(
                 current[InvariantPropertyValuesTable.propertyId],
                 current[InvariantPropertyValuesTable.appearanceId],
-                if (command.tokenIdPresent) command.tokenId else current[InvariantPropertyValuesTable.tokenId],
-                if (command.valuePresent) command.value else current[InvariantPropertyValuesTable.value],
-                command.stateSetId ?: current[InvariantPropertyValuesTable.stateSetId],
+                next.tokenId,
+                next.literal,
+                next.stateSetId,
+                StyleReferenceWriter.Source.Invariant(current[InvariantPropertyValuesTable.id]),
             )
         }
         val designSystemId = current[InvariantPropertyValuesTable.designSystemId]
@@ -477,30 +472,12 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             deleted,
             changedPaths,
         ) {
-            val nextTokenId = if (command?.tokenIdPresent == true) {
-                command.tokenId
-            } else {
-                current[InvariantPropertyValuesTable.tokenId]
-            }
-            it[tokenId] = nextTokenId
-            val nextValue = if (command?.valuePresent == true) {
-                command.value
-            } else {
-                current[InvariantPropertyValuesTable.value]
-            }
-            it[value] = nextValue.takeIf { nextTokenId == null }
-            it[alpha] = if (command?.alphaPresent == true) {
-                command.alpha
-            } else {
-                current[InvariantPropertyValuesTable.alpha]
-            }
-            it[adjustment] = if (command?.adjustmentPresent == true) {
-                command.adjustment
-            } else {
-                current[InvariantPropertyValuesTable.adjustment]
-            }
+            it[tokenId] = next.tokenId
+            it[value] = next.storedLiteral
+            it[alpha] = next.alpha
+            it[adjustment] = next.adjustment
             it[position] = current[InvariantPropertyValuesTable.position]
-            it[stateSetId] = command?.stateSetId ?: current[InvariantPropertyValuesTable.stateSetId]
+            it[stateSetId] = next.stateSetId
         }
     }
 }
@@ -540,8 +517,7 @@ private fun canWriteVariationReferences(
 ): Boolean = ComponentOwnership.canWriteProperty(projectId, systemAdmin, command.propertyId) &&
     ComponentOwnership.canWriteStyle(projectId, systemAdmin, command.styleId) &&
     ComponentOwnership.canWriteAppearance(projectId, systemAdmin, command.appearanceId) &&
-    ComponentOwnership.canReadStateSet(projectId, systemAdmin, command.stateSetId) &&
-    (command.tokenId == null || ComponentOwnership.canReadToken(projectId, systemAdmin, command.tokenId))
+    canReadValueReferences(projectId, systemAdmin, command.tokenId, command.stateSetId)
 
 private fun readableInvariantValue(projectId: ProjectId, systemAdmin: Boolean) =
     ComponentOwnership.readableDesignSystem(
@@ -582,5 +558,12 @@ private fun canWriteInvariantReferences(
     ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, command.designSystemId) &&
     command.componentId in ComponentOwnership.writableComponentIds(projectId, systemAdmin) &&
     ComponentOwnership.canWriteAppearance(projectId, systemAdmin, command.appearanceId) &&
-    ComponentOwnership.canReadStateSet(projectId, systemAdmin, command.stateSetId) &&
-    (command.tokenId == null || ComponentOwnership.canReadToken(projectId, systemAdmin, command.tokenId))
+    canReadValueReferences(projectId, systemAdmin, command.tokenId, command.stateSetId)
+
+private fun canReadValueReferences(
+    projectId: ProjectId,
+    systemAdmin: Boolean,
+    tokenId: UUID?,
+    stateSetId: UUID?,
+): Boolean = (tokenId == null || ComponentOwnership.canReadToken(projectId, systemAdmin, tokenId)) &&
+    (stateSetId == null || ComponentOwnership.canReadStateSet(projectId, systemAdmin, stateSetId))

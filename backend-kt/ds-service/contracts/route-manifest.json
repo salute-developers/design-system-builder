@@ -638,6 +638,69 @@
       "operations": [
         ["POST", "/{designSystemId}/changes/{changeId}/revert", null, null, 200, "design-systems:write", null]
       ]
+    },
+    {
+      "name": "core-settings",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        [
+          "GET",
+          "/{designSystemId}/core-settings",
+          null,
+          "CoreSettings",
+          200,
+          "design-systems:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/core-releases",
+          null,
+          "CoreReleaseSnapshot[]",
+          200,
+          "design-systems:read",
+          null
+        ],
+        [
+          "PUT",
+          "/{designSystemId}/core-settings/{platform}",
+          "SelectCoreRequest",
+          "CoreSettings",
+          200,
+          "design-systems:write",
+          null
+        ]
+      ]
+    },
+    {
+      "name": "selected-core-catalog",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        [
+          "GET",
+          "/{designSystemId}/catalog/components",
+          null,
+          "Component[]",
+          200,
+          "components:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/component-templates",
+          null,
+          "ComponentTemplate[]",
+          200,
+          "components:variations:read",
+          null
+        ]
+      ]
     }
   ]
 }
