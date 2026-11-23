@@ -105,7 +105,7 @@ class ColorTokenValueKindMigrationPostgresIntegrationTest {
                 }
                 assertEquals("40001", immutable.sqlState, "защитный триггер снова включён")
             }
-            // Журнал читает текущую схему значений, в том числе признак `detached` из V22.
+            // Журнал читает текущую схему значений, в том числе признак `detached` из V23.
             flyway(postgres).migrate()
             assertJournalOnlyShowsCreatedTheme(postgres, fixture)
         }

@@ -115,4 +115,6 @@ private class CursorOnlyDesignSystemRepository(
     ): DesignSystem = error("mutation")
 
     override suspend fun deleteOwned(projectId: ProjectId, id: DesignSystemId): Boolean = error("mutation")
+
+    override suspend fun isNameTaken(name: String): Boolean = error("mutation")
 }

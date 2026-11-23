@@ -60,7 +60,9 @@ val designSystemsModule = module {
         }
     }
     factory { GetDesignSystemDraftCursorUseCase(get(), get(), get()) }
-    factory { CreateDesignSystemUseCase(get(), get(), get(), get(), get(), get(), IdempotentCreateExecutor(get())) }
+    factory {
+        CreateDesignSystemUseCase(get(), get(), get(), get(), get(), get(), get(), IdempotentCreateExecutor(get()))
+    }
     factory { UpdateDesignSystemUseCase(get(), get(), get()) }
     factory { DeleteDesignSystemUseCase(get(), get(), get()) }
     factory { ListDesignSystemVersionsUseCase(get(), get(), get()) }

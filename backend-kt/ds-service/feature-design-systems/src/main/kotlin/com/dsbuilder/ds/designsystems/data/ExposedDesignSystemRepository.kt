@@ -21,6 +21,7 @@ import kotlinx.serialization.json.jsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
+import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.UUIDColumnType
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -114,6 +115,11 @@ class ExposedDesignSystemRepository : DesignSystemRepository {
         }
         return currentRow(id)?.let(::toDomain)
     }
+
+    override suspend fun isNameTaken(name: String): Boolean = TransactionManager.current().exec(
+        "SELECT design_system_name_taken(?, NULL)",
+        listOf(TextColumnType() to name),
+    ) { rows -> rows.next() && rows.getBoolean(1) } ?: false
 
     @Suppress("ReturnCount")
     override suspend fun deleteOwned(projectId: ProjectId, id: DesignSystemId): Boolean {
