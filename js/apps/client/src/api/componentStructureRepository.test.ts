@@ -51,6 +51,37 @@ describe('componentStructureRepository: пересечения', () => {
         );
     });
 
+    it('адресует состояние независимо от базового значения', async () => {
+        await repository.setCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', '55', undefined, ['pressed']);
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({ states: ['pressed'], value: '55' }),
+            expect.anything(),
+        );
+        await repository.removeCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', ['pressed']);
+        expect(http.delete).toHaveBeenCalledWith(url, {
+            params: { propertyId: 'height', styleIds: 's-l,s-pilled', states: 'pressed' },
+        });
+    });
+
+    it('сохраняет прозрачность состояния в запросе', async () => {
+        await repository.setCombinationValue(
+            context,
+            'a',
+            ['s-l', 's-pilled'],
+            'color',
+            '#ff0000',
+            undefined,
+            ['pressed'],
+            0.5,
+        );
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({ alpha: '0.5', states: ['pressed'] }),
+            expect.anything(),
+        );
+    });
+
     it('удаляет пересечение по одному запросу на каждое его значение', async () => {
         http.get.mockResolvedValue({
             data: {

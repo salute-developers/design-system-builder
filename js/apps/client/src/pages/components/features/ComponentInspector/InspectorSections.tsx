@@ -26,7 +26,7 @@ interface InspectorSectionsProps {
     /** Привязка свойства к вариации стиля перед первым значением. */
     onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
     /** Запись значения пересечения: источник правки — пересечение, когда в «Variants» выбрано два стиля и больше. */
-    onCombinationChange?: (propertyId: string, value: string | null) => void;
+    onCombinationChange?: (propertyId: string, value: string | null, states?: string[], alpha?: number) => void;
     /** Только просмотр: поля значений неактивны, заголовки, фильтр и сворачивание секций работают. */
     readOnly?: boolean;
 }

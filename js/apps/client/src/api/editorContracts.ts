@@ -136,7 +136,8 @@ export interface ComponentConfigPropertyDto {
     default?: unknown;
     value?: unknown;
     adjustment?: unknown;
-    states?: Array<{ state: string[]; value: unknown }>;
+    alpha?: unknown;
+    states?: Array<{ state: string[]; value: unknown; alpha?: unknown }>;
 }
 /** Остальные стили пересечения: `id` — ось выгрузки, `value` — имя её значения. */
 export interface ComponentConfigTargetDto {

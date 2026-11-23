@@ -38,6 +38,25 @@ export abstract class Prop {
         this.platformMappings = platformTokens;
     }
 
+    /** Копия значения: состояния перекрываются отдельно от базового значения. */
+    public overlay(next: Prop): this {
+        const copy = Object.assign(Object.create(Object.getPrototypeOf(this)), this) as this;
+        if (next.value !== undefined && next.value !== null) {
+            copy.value = next.value;
+            copy.adjustment = next.adjustment;
+            copy.alpha = next.alpha;
+        }
+        // Прежняя запись только с базой полностью переопределяет свойство.
+        if (next.value !== undefined && next.value !== null && !next.states?.length) {
+            copy.states = next.states;
+            return copy;
+        }
+        const states = new Map((this.states ?? []).map((item) => [stateKey(item.state), item]));
+        for (const item of next.states ?? []) states.set(stateKey(item.state), item);
+        copy.states = [...states.values()];
+        return copy;
+    }
+
     public getName() {
         return this.name;
     }

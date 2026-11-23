@@ -29,6 +29,27 @@ import kotlin.test.fail
 class ConfigCodecTest {
     private val codec = ConfigCodec()
 
+    @Test
+    fun stateOnlyIntersectionUsesInheritedBaseForNativeGenerator() {
+        val source = """{
+          "colorSchemeVariationId":"view",
+          "variations":[
+            {"id":"size","name":"size","values":[
+              {"name":"m","properties":{"padding":{"type":"dimension","value":16}}}]},
+            {"id":"view","name":"view","values":[{"name":"default","properties":{}},
+              {"name":"default","targets":[{"properties":[{"id":"size","value":"m"}]}],
+               "properties":{"padding":{"type":"dimension",
+                 "states":[{"state":["pressed"],"value":40}]}}}]
+            }
+          ]
+        }"""
+        val result = codec.encodeFromText(source)
+        assertTrue(result is ConfigCodecResult.Success)
+        val native = result.value.variations.single().view.values.single().props.getValue("padding")
+        assertEquals(JsonPrimitive(16), native.value)
+        assertEquals(JsonPrimitive(40), native.states!!.single().value)
+    }
+
     /**
      * Конфигурации, которые codec принимает. Исключена одна запись корпуса с опечаткой в поле
      * `key`: она проверяется отдельно тестом [decodeRejectsRealWorldKeyTypo].

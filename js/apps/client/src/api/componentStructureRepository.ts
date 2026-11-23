@@ -152,12 +152,22 @@ export const componentStructureRepository = {
         propertyId: string,
         value: string,
         adjustment?: string,
+        states?: string[],
+        alpha?: number,
     ) {
         const raw = value.replace(/^\[|\]$/g, '');
         const tokenId = TOKEN_REFERENCE.test(raw) ? await tokenIdOf(context, raw.replace(/^(light|dark)\./, '')) : null;
         await http.put(
             `${root(context)}/appearances/${appearanceId}/property-values`,
-            { propertyId, styleIds, tokenId, value: tokenId ? null : raw, adjustment: adjustment ?? null },
+            {
+                propertyId,
+                styleIds,
+                tokenId,
+                value: tokenId ? null : raw,
+                adjustment: adjustment ?? null,
+                ...(states ? { states } : {}),
+                ...(alpha !== undefined ? { alpha: String(alpha) } : {}),
+            },
             { headers: create.headers() },
         );
         return done(context, undefined);
@@ -169,9 +179,10 @@ export const componentStructureRepository = {
         appearanceId: string,
         styleIds: string[],
         propertyId: string,
+        states?: string[],
     ) {
         await http.delete(`${root(context)}/appearances/${appearanceId}/property-values`, {
-            params: { propertyId, styleIds: styleIds.join(',') },
+            params: { propertyId, styleIds: styleIds.join(','), ...(states ? { states: states.join(',') } : {}) },
         });
         return done(context, undefined);
     },

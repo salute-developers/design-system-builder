@@ -1031,6 +1031,31 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `export keeps combination states without a base value`() = withService {
+        val fixture = fixture()
+        val padding = property("padding", "dimension")
+        val model = model(fixture.appearance)
+        val styles = listOf(styleOf(model, "size", "a"), styleOf(model, "view", "default"))
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, padding, styles, value = "55", states = listOf("pressed")).status,
+        )
+        val response = post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val config = json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("components").jsonArray
+            .map { it.jsonObject }.single { it.string("styleName") == "default" }.getValue("config").jsonObject
+        val value = config.getValue("variations").jsonArray.flatMap { axis ->
+            axis.jsonObject.getValue("values").jsonArray.map { it.jsonObject }
+        }.single { it["targets"]?.jsonArray?.isNotEmpty() == true }
+            .getValue("properties").jsonObject.getValue("padding").jsonObject
+        assertTrue(value["default"] == null || value["default"] == JsonNull)
+        assertTrue(value["value"] == null || value["value"] == JsonNull)
+        val state = value.getValue("states").jsonArray.single().jsonObject
+        assertEquals("55", state.getValue("value").jsonPrimitive.content)
+        assertEquals(listOf("pressed"), state.getValue("state").jsonArray.map { it.jsonPrimitive.content })
+    }
+
+    @Test
     fun `a combination is found by its styles and written in the key order of the import`() = withService {
         val fixture = fixture()
         val values = """["a","b","c","d","e","f"]"""

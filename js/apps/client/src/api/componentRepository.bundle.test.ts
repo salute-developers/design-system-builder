@@ -137,7 +137,7 @@ const exports: Record<'web' | 'compose', ComponentConfigExportDto['components']>
                                     color: {
                                         type: 'color',
                                         value: '[general.blue.500]',
-                                        states: [{ state: ['hovered'], value: 'blue.600' }],
+                                        states: [{ state: ['hovered'], value: 'blue.600', alpha: 0.5 }],
                                     },
                                 },
                             },
@@ -338,6 +338,16 @@ describe('componentRepository.loadComponentData через editor-bundle', () =>
             signal: undefined,
             params: { versionId: 'version-1', platform: 'compose' },
         });
+    });
+
+    it('сохраняет прозрачность состояния из серверной выгрузки', async () => {
+        const [meta] = await componentRepository.loadComponentData(context, undefined, 'web', 'Button', 'c-button');
+        const states = meta.sources.configs.flatMap((item) =>
+            item.config.variations.flatMap((axis) =>
+                (axis.styles ?? []).flatMap((style) => (style.props ?? []).flatMap((prop) => prop.states ?? [])),
+            ),
+        );
+        expect(states).toContainEqual({ state: ['hovered'], value: 'blue.600', alpha: 0.5 });
     });
 
     it('без версии передаёт только платформу', async () => {

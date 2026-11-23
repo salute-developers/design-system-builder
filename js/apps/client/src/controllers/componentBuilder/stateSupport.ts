@@ -18,11 +18,10 @@ export const canonicalStateName = (name: string) => name.toLowerCase().replace(/
 type StateApi = Pick<ComponentAPI, 'name' | 'type' | 'stateSupport'> | undefined;
 
 /**
- * Состояния, которые меню «Добавить состояние» предлагает свойству; пустой список — кнопки нет. У строк пересечения
- * состояний нет. Заданный признак предлагает ровно свои состояния; без признака действует прежнее правило.
+ * Состояния, которые меню «Добавить состояние» предлагает свойству; пустой список — кнопки нет. Заданный признак предлагает ровно свои состояния; без признака действует прежнее правило.
  */
-export const bindableStates = (api: StateApi, isCombination: boolean): PropState[] => {
-    if (isCombination || !api) return [];
+export const bindableStates = (api: StateApi, _isCombination: boolean): PropState[] => {
+    if (!api) return [];
     if (api.stateSupport) return orderStates(api.stateSupport.states);
     return api.type === 'color' && !/focus/i.test(api.name) ? [...LEGACY_STATES] : [];
 };

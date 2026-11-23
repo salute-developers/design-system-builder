@@ -241,7 +241,10 @@ const collectCombinationProperties = (
     const rows = [...resolved.values()].flatMap(({ prop, from }): InspectorProperty[] => {
         const section = propertySection(prop);
         if (!section) return [];
-        const own = from.kind === 'combination' && sameStyles(from.combination.styleIDs, source.styleIDs);
+        const own =
+            from.kind === 'combination' &&
+            sameStyles(from.combination.styleIDs, source.styleIDs) &&
+            from.combination.props.getProp(prop.getID())?.getValue() !== undefined;
         return [
             {
                 prop,

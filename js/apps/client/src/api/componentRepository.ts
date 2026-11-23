@@ -69,9 +69,11 @@ const toLegacyComponentConfig = (
         id: value.id ?? propertyByName.get(name)?.id ?? name,
         value: legacyScalar(value.default ?? value.value),
         adjustment: legacyScalar(value.adjustment),
+        alpha: value.alpha == null ? undefined : Number(unwrapValue(value.alpha)),
         states: value.states?.map((state) => ({
             state: state.state as never,
             value: legacyScalar(state.value)?.toString(),
+            alpha: state.alpha == null ? undefined : Number(unwrapValue(state.alpha)),
         })),
     });
     const variations = config.variations.map((axis) => {

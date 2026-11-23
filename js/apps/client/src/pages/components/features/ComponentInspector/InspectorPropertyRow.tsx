@@ -51,7 +51,7 @@ interface InspectorPropertyRowProps {
     tokens: InspectorTokenLists;
     onConfigUpdate: () => void;
     /** Запись значения пересечения (`null` — сброс); есть только у строк источника `combination`. */
-    onCombinationChange?: (propertyId: string, value: string | null) => void;
+    onCombinationChange?: (propertyId: string, value: string | null, states?: string[], alpha?: number) => void;
     /** Значение унаследовано пересечением от этого источника (`size: m`): без сброса, состояния — только чтение. */
     inheritedFrom?: string;
 }
@@ -144,6 +144,15 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const states = [...(prop.getStates() ?? [])].sort((a, b) => compareStates(a.state, b.state));
 
     const isCombination = source.kind === 'combination';
+    const ownCombinationProp =
+        source.kind === 'combination'
+            ? config
+                  .getCombinations()
+                  .find((item) => [...item.styleIDs].sort().join(',') === [...source.styleIDs].sort().join(','))
+                  ?.props.getProp(id)
+            : undefined;
+    const ownsState = (key: string) =>
+        !isCombination || Boolean(ownCombinationProp?.getStates()?.some((item) => stateKey(item.state) === key));
     const update = (next: string) => {
         if (isCombination) {
             if (next !== '' || isSet) props.onCombinationChange?.(id, next === '' ? null : next);
@@ -216,6 +225,10 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             onAdd={(selected: string[]) => {
                 const key = stateKey(selected);
                 if (states.some((item) => stateKey(item.state) === key)) return;
+                if (isCombination) {
+                    props.onCombinationChange?.(id, text, selected, prop.getAlpha());
+                    return;
+                }
                 config.addTokenState(id, { state: selected, value: text }, variationID, styleID);
                 onConfigUpdate();
             }}
@@ -304,16 +317,18 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         states.map((state) => {
             const key = stateKey(state.state);
             const name = stateLabel(state.state);
-            const remove = (
+            const remove = ownsState(key) ? (
                 <StateRemoveButton
                     label={`${label} ${name}`}
                     onRemove={() => {
+                        if (isCombination) return props.onCombinationChange?.(id, null, state.state);
                         config.removeTokenState(id, key, variationID, styleID);
                         onConfigUpdate();
                     }}
                 />
-            );
+            ) : null;
             const onChange = (next: string) => {
+                if (isCombination) return props.onCombinationChange?.(id, next, state.state, state.alpha);
                 config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
                 onConfigUpdate();
             };
@@ -362,18 +377,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 </div>
             </div>
             {rows}
-            {states.length > 0 &&
-                (isCombination ? (
-                    // Состояния, унаследованные пересечением от стиля, видны, но не правятся: у пересечения нет записи
-                    // состояний.
-                    props.inheritedFrom && states.length > 0 ? (
-                        <fieldset className="component-inspector-readonly-rows" disabled>
-                            {stateRows()}
-                        </fieldset>
-                    ) : null
-                ) : (
-                    stateRows()
-                ))}
+            {states.length > 0 && stateRows()}
             {linkError && (
                 <p className="component-property-error" role="alert">
                     {linkError}

@@ -33,26 +33,35 @@ export interface SelectedProp {
 
 /**
  * Действующие значения при выбранных стилях: значения стилей в порядке дерева (`variationOrder`), поверх них —
- * пересечения, все стили которых выбраны, от меньших к большим. Более позднее значение перекрывает раннее целиком.
+ * пересечения, все стили которых выбраны, от меньших к большим. Более позднее базовое значение и каждый набор состояний перекрывают ранние независимо.
  */
 export const resolveSelectedProps = (config: Config, styleIDs: Iterable<string>): Map<string, SelectedProp> => {
     const selected = new Set(styleIDs);
     const byID = new Map<string, SelectedProp>();
+    const apply = (prop: PropUnion, from: SelectedPropOrigin) => {
+        const previous = byID.get(prop.getID());
+        byID.set(prop.getID(), {
+            prop: previous
+                ? previous.prop.overlay(prop)
+                : from.kind === 'combination' && prop.getValue() === undefined
+                  ? (config.getInvariants().getProp(prop.getID())?.overlay(prop) ?? prop)
+                  : prop,
+            from: prop.getValue() === undefined && previous ? previous.from : from,
+        });
+    };
     for (const variation of variationOrder(config)) {
         const style = variation.getStyles()?.find((item) => selected.has(item.getID()));
         style
             ?.getProps()
             ?.getList()
-            .forEach((prop) => byID.set(prop.getID(), { prop, from: { kind: 'style', variation, style } }));
+            .forEach((prop) => apply(prop, { kind: 'style', variation, style }));
     }
     config
         .getCombinations()
         .filter(({ styleIDs: ids }) => ids.length > 0 && ids.every((id) => selected.has(id)))
         .sort((a, b) => a.styleIDs.length - b.styleIDs.length)
         .forEach((combination) =>
-            combination.props
-                .getList()
-                .forEach((prop) => byID.set(prop.getID(), { prop, from: { kind: 'combination', combination } })),
+            combination.props.getList().forEach((prop) => apply(prop, { kind: 'combination', combination })),
         );
     return byID;
 };

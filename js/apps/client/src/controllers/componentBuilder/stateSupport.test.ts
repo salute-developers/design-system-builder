@@ -21,11 +21,11 @@ describe('bindableStates', () => {
         expect(bindableStates(api, false)).toEqual(['dragging-over']);
     });
 
-    it('offers nothing to an empty support and to a combination row', () => {
+    it('offers nothing to empty support and allows states on combinations', () => {
         expect(bindableStates({ ...color, stateSupport: { states: [], combinations: false } }, false)).toEqual([]);
-        expect(bindableStates({ ...color, stateSupport: { states: ['hovered'], combinations: true } }, true)).toEqual(
-            [],
-        );
+        expect(bindableStates({ ...color, stateSupport: { states: ['hovered'], combinations: true } }, true)).toEqual([
+            'hovered',
+        ]);
     });
 
     it('keeps the previous rule without a support', () => {
