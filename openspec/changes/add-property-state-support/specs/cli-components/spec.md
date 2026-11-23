@@ -44,7 +44,9 @@ web-меты (требование «API meta normalization reads state support�
 #### Scenario: SwiftUI
 
 - **WHEN** генератор iOS переводит состояния через `InteractiveState` из `SDDSThemeCore`
-- **THEN** `interactionStates` MUST содержать имена этого перечисления, а `combinations` MUST быть `true`
+- **THEN** `interactionStates` MUST содержать только общий набор из `InteractiveState.interactionStates`: `pressed`, `hovered`, `focused`, `selected`, `activated`
+- **THEN** `checked`, `indeterminate`, `error`, `readonly`, `collapsed`, `inactive`, `text-inlined` MUST NOT объявляться общими; они SHALL приходить из `stateEnum` соответствующих компонентов
+- **THEN** `combinations` MUST быть `true`, а runtime SHALL выбирать подходящий набор с наибольшим числом состояний независимо от порядка конфигурации
 
 ### Requirement: API meta normalization reads state support
 
