@@ -26,10 +26,12 @@ class JvmWindowsProcessRunnerTest {
         "process.stdout.write('ready');let n=0;" +
         "const tick=()=>fs.writeFileSync(process.argv[1],String(++n));tick();setInterval(tick,20)"
 
+    // libuv kills ordinary Windows children on parent exit. Detach only from that relationship,
+    // retaining the runner's outer JobObject (libuv does not request CREATE_BREAKAWAY_FROM_JOB).
     private val parentScript =
         "const fs=require('fs');fs.writeFileSync(process.argv[1],String(process.pid));" +
             "const child=require('child_process').spawn(process.execPath,['-e',process.argv[2],process.argv[3]," +
-            "process.argv[4]],{stdio:'inherit'});child.unref();" +
+            "process.argv[4]],{stdio:'inherit',detached:process.platform==='win32'});child.unref();" +
             "child.on('error',e=>{console.error(e);process.exit(1)});" +
             "setInterval(()=>{if(fs.existsSync(process.argv[3]))process.exit(0)},10)"
 
