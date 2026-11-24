@@ -1,6 +1,6 @@
 ---
 name: web-preview-plugin-flow
-description: Порядок правок web-генератора DS Builder (js/cli, npm @sddsjs/design-system-builder-generator) и web-плагина превью (plasma packages/sdds-preview-web-plugin) и доставки плагина в DS Builder. Использовать перед любой правкой генератора, web-adapter.json, манифестов генератора, web-плагина превью, его story или ядра, которое он рисует. Файл одинаков в репозиториях DS Builder и plasma.
+description: Порядок правок web-генератора DS Builder (js/cli, npm @sddsjs/design-system-builder-generator) и web-плагина превью (plasma packages/sdds-preview-web-plugin) и доставки плагина в DS Builder. Использовать перед любой правкой генератора (включая src/web-mapping: имена переменных типографики и цвета, единицы, шаблоны), подъёмом версии js/cli, правкой web-adapter.json, манифестов генератора, web-плагина превью, его story или ядра, которое он рисует. Файл одинаков в репозиториях DS Builder и plasma.
 ---
 
 # Генератор DS Builder и web-плагин превью
@@ -36,6 +36,7 @@ description: Порядок правок web-генератора DS Builder (js
 2. Публикация `npm publish` в `js/cli`. Реестр показывает новую версию через несколько минут (`npm view @sddsjs/design-system-builder-generator versions`).
 3. В plasma: `npm install @sddsjs/design-system-builder-generator@<версия> --save-exact` в `packages/sdds-preview-web-plugin`, затем lock-файл из корня (`npm install --no-audit --no-progress --package-lock-only --ignore-scripts`).
 4. Дальше — раздел 2: проверки плагина, архив, доставка.
+5. Если шаги 2–4 не сделаны в той же задаче, перечисли их в итоге задачи и в «Что важно знать» описания PR: какая версия генератора ждёт публикации, что плагин в plasma стоит на прежней версии и что после этого пересобирается архив и блок `web-provenance`. Не решай за пользователя, что публикация не нужна, даже если расхождение с плагином пока не проявляется.
 
 Проверка плагина до публикации генератора: `npm pack` в `js/cli`, затем `npm install <tgz> --no-save` в пакете плагина — `package.json` и lock-файл не меняются.
 
