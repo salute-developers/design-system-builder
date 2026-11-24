@@ -78,11 +78,18 @@ export interface AppearanceDto {
     /** Конфигурация по умолчанию компонента. */
     isDefault?: boolean;
 }
+/** Признак поддержки состояний свойства: допустимые состояния и допустимость их сочетаний. */
+export interface PropertyStateSupportDto {
+    stateIds: string[];
+    combinations: boolean;
+}
 export interface ComponentPropertyDto {
     id: string;
     name: string;
     type: string;
     description: string | null;
+    /** `null` — мета признак ещё не сообщила; поля нет у ответа прежнего сервера. */
+    stateSupport?: PropertyStateSupportDto | null;
 }
 export interface ComponentVariationDto {
     id: string;
@@ -108,6 +115,8 @@ export interface AppearanceVariationValueDto {
 export interface ComponentStateDto {
     id: string;
     name: string;
+    /** Компонент-владелец; `null` у общего состояния. */
+    componentId?: string | null;
 }
 export interface ComponentStateSetDto {
     id: string;
@@ -129,7 +138,8 @@ export interface ComponentConfigPropertyDto {
     default?: unknown;
     value?: unknown;
     adjustment?: unknown;
-    states?: Array<{ state: string[]; value: unknown }>;
+    alpha?: unknown;
+    states?: Array<{ state: string[]; value: unknown; alpha?: unknown }>;
 }
 /** Остальные стили пересечения: `id` — ось выгрузки, `value` — имя её значения. */
 export interface ComponentConfigTargetDto {
@@ -214,6 +224,8 @@ export interface ComponentEditorBundleDto {
     styles: ComponentStyleDto[];
     dependencies: ComponentDependencyDto[];
     dependencyComponents: ComponentDto[];
+    /** Общие и собственные состояния компонента без «теней»; поля нет у ответа прежнего сервера. */
+    states?: ComponentStateDto[];
 }
 export interface ThemeEditorTokenSnapshot {
     tenant: TenantDto;

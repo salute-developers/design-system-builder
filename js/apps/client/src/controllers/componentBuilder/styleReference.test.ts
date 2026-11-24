@@ -144,6 +144,29 @@ describe('collectStyleReferenceValues', () => {
         expect(new Set(values).size).toBe(values.length);
     });
 
+    it('собирает ссылки состояний инвариантов, стилей и пересечений для догрузки после reload', () => {
+        const withStates = structuredClone(config);
+        withStates.invariantProps.push({ id: 'buttonStyle', states: [{ state: ['pressed'], value: 'chip.s' }] });
+        withStates.variations[0].styles![0].props![0].states = [{ state: ['focused'], value: 'tag.m' }];
+        withStates.combinations = [
+            {
+                styleIDs: ['group-xxs', 'gap-wide'],
+                props: [
+                    {
+                        id: 'buttonStyle',
+                        states: [{ state: ['hovered'], value: 'tag.l' }, { state: ['pressed'] }],
+                    },
+                ],
+            },
+        ];
+        expect(collectStyleReferenceValues(withStates, group.sources.api)).toEqual([
+            'chip.s',
+            'basic-button.xxs.default',
+            'tag.m',
+            'tag.l',
+        ]);
+    });
+
     it('пропускает другие типы свойств и пустые значения', () => {
         const other = structuredClone(config);
         other.invariantProps.push({ id: 'spacing', value: '8' }, { id: 'buttonStyle', value: '' });

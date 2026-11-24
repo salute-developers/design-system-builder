@@ -13,6 +13,7 @@ import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,7 +27,7 @@ class WebNpmDelegateTest {
     private val globalGenerator = "/opt/node/bin/$WEB_GENERATOR_EXECUTABLE"
 
     @Test
-    fun servesReactWithThemeAndComponents() {
+    fun servesReactWithThemeAndComponents() = runTest {
         val delegate = delegate()
 
         assertEquals(ToolchainId("web"), delegate.toolchain)
@@ -35,7 +36,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun capabilityPicksTheNpmScript() {
+    fun capabilityPicksTheNpmScript() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -67,7 +68,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun outputAndPassthroughReachTheScript() {
+    fun outputAndPassthroughReachTheScript() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -80,7 +81,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun docsAggregateIsUnsupportedAndNothingIsStarted() {
+    fun docsAggregateIsUnsupportedAndNothingIsStarted() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests))
 
@@ -89,7 +90,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun toolOverrideWinsOverEnvironment() {
+    fun toolOverrideWinsOverEnvironment() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(runner = recording(requests), existing = setOf("/custom/cli/package.json", npm))
 
@@ -99,7 +100,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun missingToolIsReportedWithInstallCommandAndBothWaysToSetIt() {
+    fun missingToolIsReportedWithInstallCommandAndBothWaysToSetIt() = runTest {
         val delegate = delegate(existing = emptySet(), environment = mapOf("PATH" to "/usr/local/bin"))
 
         val hint = assertIs<DelegateResult.ToolchainMissing>(delegate.run(invocation(Capability.THEME))).hint
@@ -109,7 +110,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun globalGeneratorRunsWithoutEnvironmentFromTheWorkspace() {
+    fun globalGeneratorRunsWithoutEnvironmentFromTheWorkspace() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = recording(requests),
@@ -131,7 +132,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun explicitDirectoryWinsOverGlobalGenerator() {
+    fun explicitDirectoryWinsOverGlobalGenerator() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = recording(requests),
@@ -146,7 +147,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun wrongEnvironmentPathDoesNotFallBackToGlobalGenerator() {
+    fun wrongEnvironmentPathDoesNotFallBackToGlobalGenerator() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = recording(requests),
@@ -161,7 +162,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun managedInstallationWinsOverPath() {
+    fun managedInstallationWinsOverPath() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val managed = "/home/me/.dsbuilder/toolchains/web/bin/$WEB_GENERATOR_EXECUTABLE"
         val delegate = delegate(
@@ -176,7 +177,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun windowsManagedInstallationComesFromUserProfile() {
+    fun windowsManagedInstallationComesFromUserProfile() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val managed = "C:\\Users\\me\\.dsbuilder\\toolchains\\web\\$WEB_GENERATOR_EXECUTABLE.cmd"
         val delegate = delegate(
@@ -193,7 +194,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun globalGeneratorIsFoundInNpmPrefixWhenNotInPath() {
+    fun globalGeneratorIsFoundInNpmPrefixWhenNotInPath() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -215,7 +216,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun doctorReportsGlobalGeneratorVersion() {
+    fun doctorReportsGlobalGeneratorVersion() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -235,7 +236,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun windowsFindsGlobalGeneratorCmd() {
+    fun windowsFindsGlobalGeneratorCmd() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val windowsGenerator = "C:\\Users\\me\\AppData\\Roaming\\npm\\$WEB_GENERATOR_EXECUTABLE.cmd"
         val delegate = delegate(
@@ -256,7 +257,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun wrongEnvironmentPathIsNamedInTheHint() {
+    fun wrongEnvironmentPathIsNamedInTheHint() = runTest {
         val delegate = delegate(environment = mapOf(WEB_TOOL_ENV to "/wrong/js/cli", "PATH" to "/usr/local/bin"))
 
         val hint = assertIs<DelegateResult.ToolchainMissing>(delegate.run(invocation(Capability.THEME))).hint
@@ -265,7 +266,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun missingNpmIsReported() {
+    fun missingNpmIsReported() = runTest {
         val delegate = delegate(existing = setOf("$tool/package.json"))
 
         val hint = assertIs<DelegateResult.ToolchainMissing>(delegate.run(invocation(Capability.THEME))).hint
@@ -274,14 +275,14 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun nonZeroExitKeepsTheCode() {
+    fun nonZeroExitKeepsTheCode() = runTest {
         val delegate = delegate(runner = { ProcessResult(exitCode = 3, output = "") })
 
         assertEquals(3, assertIs<DelegateResult.Failed>(delegate.run(invocation(Capability.THEME))).exitCode)
     }
 
     @Test
-    fun launchFailureIsReportedAsMissingToolchain() {
+    fun launchFailureIsReportedAsMissingToolchain() = runTest {
         val delegate = delegate(runner = { throw ProcessLaunchException("permission denied") })
 
         val result = delegate.run(invocation(Capability.THEME))
@@ -290,7 +291,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun doctorReportsNpmVersionWithoutLeakingOutput() {
+    fun doctorReportsNpmVersionWithoutLeakingOutput() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val delegate = delegate(
             runner = { request ->
@@ -308,7 +309,7 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun windowsPathSelectsNpmCmdAndKeepsWindowsOutputPath() {
+    fun windowsPathSelectsNpmCmdAndKeepsWindowsOutputPath() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val windowsTool = "C:\\ds builder\\js\\cli"
         val windowsNpm = "C:\\Program Files\\nodejs\\npm.cmd"
@@ -330,14 +331,14 @@ class WebNpmDelegateTest {
     }
 
     @Test
-    fun doctorReportsMissingTool() {
+    fun doctorReportsMissingTool() = runTest {
         val delegate = delegate(environment = mapOf("PATH" to "/usr/local/bin"))
 
         assertIs<ToolchainStatus.Missing>(delegate.doctor(workspace))
     }
 
     @Test
-    fun doctorChecksTheToolFromTheOption() {
+    fun doctorChecksTheToolFromTheOption() = runTest {
         val delegate = delegate()
 
         val status = assertIs<ToolchainStatus.Missing>(delegate.doctor(workspace, toolOverride = "/elsewhere"))

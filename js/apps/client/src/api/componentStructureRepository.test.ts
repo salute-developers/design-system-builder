@@ -51,6 +51,64 @@ describe('componentStructureRepository: пересечения', () => {
         );
     });
 
+    it('адресует состояние независимо от базового значения', async () => {
+        await repository.setCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', '55', undefined, ['pressed']);
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({ states: ['pressed'], value: '55' }),
+            expect.anything(),
+        );
+        await repository.removeCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', ['pressed']);
+        expect(http.delete).toHaveBeenCalledWith(url, {
+            params: { propertyId: 'height', styleIds: 's-l,s-pilled', states: 'pressed' },
+        });
+    });
+
+    it('сохраняет прозрачность состояния в запросе', async () => {
+        await repository.setCombinationValue(
+            context,
+            'a',
+            ['s-l', 's-pilled'],
+            'color',
+            '#ff0000',
+            undefined,
+            ['pressed'],
+            0.5,
+        );
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({ alpha: '0.5', states: ['pressed'] }),
+            expect.anything(),
+        );
+    });
+
+    it('пишет вложенный стиль ссылкой с состояниями вместо литерала', async () => {
+        const reference = { targetAppearanceId: 'child', styleIds: ['child-xs', 'child-default'] };
+        await repository.setCombinationValue(
+            context,
+            'a',
+            ['s1', 's2'],
+            'buttonStyle',
+            'basic-button.xs.default',
+            undefined,
+            ['pressed'],
+            undefined,
+            reference,
+        );
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({
+                propertyId: 'buttonStyle',
+                states: ['pressed'],
+                reference,
+                value: null,
+                tokenId: null,
+            }),
+            expect.anything(),
+        );
+        expect(readEditor).not.toHaveBeenCalled();
+    });
+
     it('удаляет пересечение по одному запросу на каждое его значение', async () => {
         http.get.mockResolvedValue({
             data: {

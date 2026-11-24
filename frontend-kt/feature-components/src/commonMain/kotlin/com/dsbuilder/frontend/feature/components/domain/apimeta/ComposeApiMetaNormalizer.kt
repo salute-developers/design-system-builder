@@ -21,7 +21,10 @@ import kotlinx.serialization.json.Json
  *   метода билдера и у 58 параметров из 2315 отличается от `id`, поэтому в качестве имени не используется;
  * - состояние берётся из `stateEnum.values`: `configName`, если задан, иначе `name` в kebab-case
  *   нижнего регистра — в такой форме состояние встречается в конфигурациях оформления;
- * - компонент без параметров не попадает в манифест, потому что заводить его нечем.
+ * - компонент без параметров не попадает в манифест, потому что заводить его нечем;
+ * - признак поддержки состояний выводится, только если мета несёт `stateSupport` (одно значение у всех записей):
+ *   перегрузка `StatefulValue` даёт `interactionStates` меты и состояния `stateEnum` компонента, `InteractiveColor`
+ *   без `StatefulValue` — только `interactionStates`, иначе список пуст. Сочетания — из `stateSupport` меты.
  */
 internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
     private val json = Json { ignoreUnknownKeys = true }
@@ -43,6 +46,11 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
         }
         if (source.isEmpty()) {
             return ApiMetaNormalizationResult.Empty
+        }
+        val metaSupport = try {
+            source.map(ComposeMetaComponent::stateSupport).agreedStateSupport()
+        } catch (exception: IllegalArgumentException) {
+            return ApiMetaNormalizationResult.Invalid(exception.message.orEmpty())
         }
 
         val conflicts = mutableListOf<String>()
@@ -75,7 +83,9 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
             .map { (name, component) ->
                 ApiMetaComponent(
                     name = name,
-                    properties = component.properties.map { (id, property) -> property.toManifest(id) },
+                    properties = component.properties.map { (id, property) ->
+                        property.toManifest(id, metaSupport?.let { property.stateSupport(it, component.states) })
+                    },
                     states = component.states.toList(),
                 )
             }
@@ -83,7 +93,10 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
             return ApiMetaNormalizationResult.Empty
         }
 
-        return ApiMetaNormalizationResult.Normalized(ApiMetaManifest(components), conflicts)
+        return ApiMetaNormalizationResult.Normalized(
+            ApiMetaManifest(components, metaSupport?.interactionStates),
+            conflicts,
+        )
     }
 
     private fun ComposeMetaState.toStateName(): String =
@@ -119,7 +132,15 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
             paramSimpleType?.takeIf { it.isNotBlank() }?.let(paramTypes::add)
         }
 
-        fun toManifest(id: String): ApiMetaProperty {
+        /** Признак по перегрузкам слота: `StatefulValue` принимает и состояния компонента, `InteractiveColor` — нет. */
+        fun stateSupport(meta: MetaStateSupport, componentStates: Collection<String>): ApiMetaStateSupport = when {
+            STATEFUL_VALUE in paramTypes ->
+                ApiMetaStateSupport.of(meta.interactionStates + componentStates, meta.combinations)
+            INTERACTIVE_COLOR in paramTypes -> ApiMetaStateSupport.of(meta.interactionStates, meta.combinations)
+            else -> ApiMetaStateSupport.NONE
+        }
+
+        fun toManifest(id: String, stateSupport: ApiMetaStateSupport?): ApiMetaProperty {
             val parts = listOfNotNull(
                 methodName?.let { "method: $it" },
                 paramTypes.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = "param: "),
@@ -130,8 +151,14 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
                 platformNames = listOf(id),
                 description = parts.takeIf { it.isNotEmpty() }?.joinToString("; "),
                 deprecations = deprecation?.let { mapOf(id to it) }.orEmpty(),
+                stateSupport = stateSupport,
             )
         }
+    }
+
+    private companion object {
+        const val STATEFUL_VALUE = "StatefulValue"
+        const val INTERACTIVE_COLOR = "InteractiveColor"
     }
 }
 
@@ -156,6 +183,7 @@ private data class ComposeMetaComponent(
     val componentName: String = "",
     val params: List<ComposeMetaParam> = emptyList(),
     val stateEnum: ComposeMetaStateEnum? = null,
+    val stateSupport: MetaStateSupport? = null,
 )
 
 @Serializable

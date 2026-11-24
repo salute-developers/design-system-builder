@@ -32,9 +32,9 @@ import com.dsbuilder.frontend.feature.projects.projectsApplicationModule
 import com.dsbuilder.frontend.feature.status.statusApplicationModule
 import com.dsbuilder.frontend.feature.theme.themeApplicationModule
 import com.dsbuilder.frontend.feature.toolchain.toolchainApplicationModule
+import com.github.ajalt.clikt.command.parse
 import com.github.ajalt.clikt.core.CliktError
 import com.github.ajalt.clikt.core.obj
-import com.github.ajalt.clikt.core.parse
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.core.terminal
 import com.github.ajalt.mordant.rendering.AnsiLevel
@@ -68,11 +68,13 @@ public class DsBuilderCli(
      * @param args аргументы командной строки без имени исполняемого файла.
      * @return результат обработки вызова.
      */
-    public fun execute(args: List<String>): CliResult {
+    public suspend fun execute(args: List<String>): CliResult {
         rejectSecretArgument(args)?.let { message ->
+            runtime.close()
             return CliResult(exitCode = 1, output = message)
         }
         rejectPasswordArgument(args)?.let { message ->
+            runtime.close()
             return CliResult(exitCode = 1, output = message)
         }
 
@@ -84,30 +86,35 @@ public class DsBuilderCli(
      *
      * This path is used by installed entrypoints so Clikt prompts can read real stdin.
      */
-    public fun executeInteractive(args: List<String>): Int {
+    public suspend fun executeInteractive(args: List<String>): Int {
         rejectSecretArgument(args)?.let { message ->
             println(message)
+            runtime.close()
             return 1
         }
         rejectPasswordArgument(args)?.let { message ->
             println(message)
+            runtime.close()
             return 1
         }
 
         return withAnalytics { it.executeDirectly(args) }
     }
 
-    private inline fun <T> withAnalytics(block: (RootCliCommand) -> T): T {
+    private suspend inline fun <T> withAnalytics(block: (RootCliCommand) -> T): T {
         val session = analyticsFactory?.let { CliAnalyticsSession(it) }
             ?: defaultAnalyticsSession(runtime.environmentReader, consent = runtime.analyticsConsent)
-        val command = rootCommand()
-        command.subcommands(
-            com.dsbuilder.frontend.cli.presentation.AnalyticsSettingsCliCommand(runtime.analyticsConsent),
-        )
-        command.configureContext { obj = session }
-        try { return block(command) } finally {
-            session.finish()
-            runtime.analyticsConsent?.close()
+        try {
+            val command = rootCommand()
+            command.subcommands(
+                com.dsbuilder.frontend.cli.presentation.AnalyticsSettingsCliCommand(runtime.analyticsConsent),
+            )
+            command.configureContext { obj = session }
+            return block(command)
+        } finally {
+            try {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.NonCancellable) { session.finish() }
+            } finally { runtime.close() }
         }
     }
 
@@ -142,7 +149,7 @@ public class DsBuilderCli(
                 toolchainCliPresentationModule(),
                 cliModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin
 
         return koin.get()
@@ -160,7 +167,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 platformDelegatesModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin.get()
 
     /**
@@ -172,7 +179,7 @@ public class DsBuilderCli(
                 coreApplicationModule(runtime),
                 platformDelegatesModule(),
             )
-            modules(platformModules())
+            modules(platformModules(runtime.supportsIosToolchain))
         }.koin.get()
 }
 
@@ -197,7 +204,7 @@ private fun rejectPasswordArgument(args: List<String>): String? {
     }
 }
 
-private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
+private suspend fun RootCliCommand.executeForResult(args: List<String>): CliResult {
     var exitCode = 0
     val recorder = TerminalRecorder(AnsiLevel.NONE)
 
@@ -225,7 +232,7 @@ private fun RootCliCommand.executeForResult(args: List<String>): CliResult {
     )
 }
 
-private fun RootCliCommand.executeDirectly(args: List<String>): Int {
+private suspend fun RootCliCommand.executeDirectly(args: List<String>): Int {
     var exitCode = 0
     try {
         parse(args)

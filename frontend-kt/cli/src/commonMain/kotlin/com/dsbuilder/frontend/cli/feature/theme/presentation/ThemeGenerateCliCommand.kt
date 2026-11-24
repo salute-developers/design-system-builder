@@ -31,7 +31,7 @@ internal class ThemeGenerateCliCommand(
     private val passthrough: List<String> by argument("[-- <tool args>]")
         .multiple()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val result = generateThemeUseCase.execute(
             GenerateThemeCommand(
                 platform = platform,

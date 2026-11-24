@@ -9,9 +9,9 @@ import com.dsbuilder.frontend.feature.components.application.FetchComponentsUseC
 import com.dsbuilder.frontend.feature.components.application.GenerateComponentsUseCase
 import com.dsbuilder.frontend.feature.components.application.ImportApiMetaUseCase
 import com.dsbuilder.frontend.feature.components.application.PushComponentsUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Создает Koin module для presentation-слоя фичи `components` в `:cli`.

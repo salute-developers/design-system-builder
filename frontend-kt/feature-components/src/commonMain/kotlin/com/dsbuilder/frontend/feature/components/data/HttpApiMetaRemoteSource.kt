@@ -61,6 +61,7 @@ internal class HttpApiMetaRemoteSource(
  * @property meta метаданные источника.
  * @property dryRun признак импорта без сохранения изменений.
  * @property components компоненты манифеста.
+ * @property interactionStates общие состояния генератора платформы; не отправляется, если мета их не сообщает.
  */
 @Serializable
 internal data class ApiMetaImportRequest(
@@ -68,6 +69,7 @@ internal data class ApiMetaImportRequest(
     val meta: ApiMetaImportMeta,
     val dryRun: Boolean,
     val components: List<ApiMetaImportComponent>,
+    val interactionStates: List<String>? = null,
 )
 
 @Serializable
@@ -88,6 +90,14 @@ internal data class ApiMetaImportProperty(
     val type: String,
     val platformNames: List<ApiMetaImportAlias>,
     val description: String? = null,
+    val stateSupport: ApiMetaImportStateSupport? = null,
+)
+
+/** Признак поддержки состояний свойства в теле запроса. */
+@Serializable
+internal data class ApiMetaImportStateSupport(
+    val states: List<String>,
+    val combinations: Boolean,
 )
 
 /** Платформенное имя объектом: объект без `deprecated` явно говорит «не устарело». */
@@ -115,9 +125,11 @@ internal data class ApiMetaImportReportResponse(
     val deprecatedMarked: Int = 0,
     val deprecatedMessageChanged: Int = 0,
     val deprecatedCleared: Int = 0,
+    val stateSupportChanged: Int = 0,
     val rejected: List<ApiMetaRejectionResponse> = emptyList(),
     val typeMismatches: List<String> = emptyList(),
     val absent: List<String> = emptyList(),
+    val unresolvedStates: List<String> = emptyList(),
 ) {
     fun toDomain(): ApiMetaImportReport = ApiMetaImportReport(
         createdComponents = createdComponents,
@@ -128,9 +140,11 @@ internal data class ApiMetaImportReportResponse(
         deprecatedMarked = deprecatedMarked,
         deprecatedMessageChanged = deprecatedMessageChanged,
         deprecatedCleared = deprecatedCleared,
+        stateSupportChanged = stateSupportChanged,
         rejected = rejected.map { ApiMetaRejection(it.component, it.property, it.reason) },
         typeMismatches = typeMismatches,
         absent = absent,
+        unresolvedStates = unresolvedStates,
     )
 }
 
@@ -161,9 +175,13 @@ internal fun ApiMetaManifest.toImportRequest(platform: String, source: String, d
                             )
                         },
                         description = property.description,
+                        stateSupport = property.stateSupport?.let {
+                            ApiMetaImportStateSupport(it.states, it.combinations)
+                        },
                     )
                 },
                 states = component.states,
             )
         },
+        interactionStates = interactionStates,
     )

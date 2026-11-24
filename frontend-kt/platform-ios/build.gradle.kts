@@ -1,5 +1,5 @@
 plugins {
-    id("convention.kotlin-multiplatform-module")
+    id("convention.kotlin-multiplatform-node-library")
     id("org.jetbrains.kotlin.plugin.serialization")
 }
 
@@ -23,6 +23,7 @@ kotlin {
         }
 
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
             implementation(projects.coreWorkspace)
             implementation(libs.okio)
         }

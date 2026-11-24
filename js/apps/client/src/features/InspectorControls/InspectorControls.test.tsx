@@ -315,7 +315,7 @@ describe('TokenColorLibrary', () => {
 describe('StateBindingMenu', () => {
     it('adds one state from all checked options in the order of the menu items', () => {
         const onAdd = vi.fn();
-        render(<StateBindingMenu label="Background" onAdd={onAdd} />);
+        render(<StateBindingMenu label="Background" states={['hovered', 'pressed', 'focused']} onAdd={onAdd} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние: Background' }));
         const menu = screen.getByRole('menu', { name: 'Состояния' });
@@ -331,5 +331,29 @@ describe('StateBindingMenu', () => {
 
         expect(onAdd).toHaveBeenCalledWith(['hovered', 'pressed']);
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('offers the states it is given and picks only one when combinations are not allowed', () => {
+        const onAdd = vi.fn();
+        render(
+            <StateBindingMenu label="Background" states={['pressed', 'hovered']} combinations={false} onAdd={onAdd} />,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние: Background' }));
+        const menu = screen.getByRole('menu', { name: 'Состояния' });
+        expect(
+            within(menu)
+                .getAllByRole('menuitemcheckbox')
+                .map((item) => item.textContent),
+        ).toEqual(['pressed', 'hovered']);
+        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /pressed/ }));
+        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /hovered/ }));
+        expect(within(menu).getByRole('menuitemcheckbox', { name: /pressed/ })).toHaveAttribute(
+            'aria-checked',
+            'false',
+        );
+        fireEvent.click(within(menu).getByRole('button', { name: 'Добавить' }));
+
+        expect(onAdd).toHaveBeenCalledWith(['hovered']);
     });
 });

@@ -85,7 +85,6 @@ test(
             );
             expect(response.status()).toBe(201);
             expect(response.request().postDataJSON()).toEqual({
-                designSystemId: createdSystem.id,
                 name,
                 profile: 'custom',
                 customPalette: palette,

@@ -2,9 +2,7 @@
 
 ## Purpose
 Определяет CLI приложение `dsbuilder` в `frontend-kt`: структуру Kotlin Multiplatform модуля, JVM entrypoint, базовое поведение запуска и обязательные Gradle checks.
-
 ## Requirements
-
 ### Requirement: CLI module structure
 
 `frontend-kt` SHALL содержать Kotlin Multiplatform приложение `:cli`, общие `core-*`/`feature-*` библиотеки, новый
@@ -37,17 +35,24 @@
 - **THEN** login/refresh/session и MCP tool business logic MUST находиться в общих модулях
 
 ### Requirement: CLI application entrypoint
-The `:cli` module SHALL provide an executable JVM entrypoint for a command named `dsbuilder`.
+
+Модуль `:cli` SHALL предоставлять исполняемые точки входа JVM, macOS arm64/x64, Windows x64 и Kotlin/JS Node.js для команды `dsbuilder`, использующие общий путь выполнения команд.
 
 #### Scenario: CLI entrypoint is configured
-- **WHEN** Gradle configures the `:cli` module
-- **THEN** the module exposes a JVM main class for launching the CLI application
-- **THEN** the configured application name is `dsbuilder`
+- **WHEN** Gradle настраивает модуль `:cli`
+- **THEN** модуль MUST предоставлять JVM main class для запуска CLI с именем `dsbuilder`
+- **THEN** существующие native executable для macOS arm64/x64 и Windows x64 MUST сохраняться
+- **THEN** JS-таргет MUST предоставлять Node.js executable с тем же именем команды
 
 #### Scenario: CLI can print baseline output
-- **WHEN** a developer runs the CLI without product-specific command implementation
-- **THEN** the CLI returns deterministic baseline output suitable for smoke testing
-- **THEN** the CLI does not require backend services, Docker, credentials, or private URLs
+- **WHEN** разработчик запускает CLI без прикладного контекста для проверки базового поведения
+- **THEN** CLI MUST возвращать детерминированный вывод, пригодный для проверки запуска
+- **THEN** CLI MUST NOT требовать backend, Docker, credentials или приватные URL для help/version
+
+#### Scenario: Сохранение существующих дистрибутивов
+- **WHEN** добавляется Node.js-таргет и меняется общий путь выполнения
+- **THEN** JVM/native сборки MUST продолжать работать без установленного Node.js для команд, которым он ранее не требовался
+- **THEN** требования самостоятельных платформенных генераторов MUST сохраняться
 
 ### Requirement: CLI verification
 The CLI module SHALL include tests for baseline CLI behavior and SHALL be verifiable through Gradle build, test, Detekt, and Spotless tasks in `frontend-kt`.

@@ -130,6 +130,7 @@ export class ThemeEditorSession {
     private latestRemoteEvent: DraftInvalidationEvent | undefined;
     private readonly pendingRemoteScopes = new Set<DraftInvalidationScope>();
     private lastAppliedSectionSnapshot?: ThemeEditorSnapshot;
+    private lastAppliedSectionScope?: string;
 
     constructor(options: SessionOptions) {
         this.options = options;
@@ -257,8 +258,11 @@ export class ThemeEditorSession {
         types?: TokenDefinitionDto['type'][],
         componentsScope: ComponentsScope = 'full',
     ) {
-        if (this.options.sections && this.lastAppliedSectionSnapshot === next) return;
+        const scope = JSON.stringify([tokensChanged, componentsChanged, types, componentsScope]);
+        if (this.options.sections && this.lastAppliedSectionSnapshot === next && this.lastAppliedSectionScope === scope)
+            return;
         this.lastAppliedSectionSnapshot = next;
+        this.lastAppliedSectionScope = scope;
         this.snapshot = next;
         if (tokensChanged) {
             if (types && this.options.sections) this.replaceSectionRuntimeState(next, types);

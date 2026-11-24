@@ -22,12 +22,16 @@ data class ImportApiMetaResponse(
     val deprecatedMessageChanged: Int,
     /** Platform names whose deprecation was cleared. */
     val deprecatedCleared: Int,
+    /** Свойства, у которых изменился признак поддержки состояний. */
+    val stateSupportChanged: Int,
     /** Properties that were not written. */
     val rejected: List<Rejection>,
     /** Existing properties whose stored type differs from the meta. */
     val typeMismatches: List<String>,
     /** Stored for the platform but absent from the meta; informational. */
     val absent: List<String>,
+    /** Имена состояний признака, которые не разрешились. */
+    val unresolvedStates: List<String>,
 ) {
     /** One property that was not written. */
     @Serializable
@@ -51,9 +55,11 @@ data class ImportApiMetaResponse(
             value.deprecatedMarked,
             value.deprecatedMessageChanged,
             value.deprecatedCleared,
+            value.stateSupportChanged,
             value.rejected.map { Rejection(it.component, it.property, it.reason) },
             value.typeMismatches,
             value.absent,
+            value.unresolvedStates,
         )
     }
 }

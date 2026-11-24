@@ -12,6 +12,7 @@ import com.github.ajalt.mordant.terminal.PrintRequest
 import com.github.ajalt.mordant.terminal.Terminal
 import com.github.ajalt.mordant.terminal.TerminalInfo
 import com.github.ajalt.mordant.terminal.TerminalInterface
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -51,7 +52,7 @@ class InitSelectionMenuTest {
     }
 
     @Test
-    fun arrowsAndEnterScrollLongListAndRestoreRawMode() {
+    fun arrowsAndEnterScrollLongListAndRestoreRawMode() = runTest {
         val events = List(25) { KeyboardEvent("ArrowDown") } + KeyboardEvent("ArrowUp") + KeyboardEvent("Enter")
         val input = FakeTerminal(events.toMutableList())
         val terminal = Terminal(terminalInterface = input)
@@ -64,7 +65,7 @@ class InitSelectionMenuTest {
     }
 
     @Test
-    fun singleOptionStillRequiresEnterAndCancellationOrEofRestoresInput() {
+    fun singleOptionStillRequiresEnterAndCancellationOrEofRestoresInput() = runTest {
         for (events in listOf(listOf(KeyboardEvent("Enter")), listOf(KeyboardEvent("c", ctrl = true)), emptyList())) {
             val input = FakeTerminal(events.toMutableList())
             val terminal = Terminal(terminalInterface = input)
@@ -82,9 +83,13 @@ class InitSelectionMenuTest {
                         ),
                     )
                 }
+            } else if (events.first().ctrl) {
+                assertFailsWith<kotlinx.coroutines.CancellationException> {
+                    menu.select(terminal, "Project", listOf(InitChoice("id", "Name", null)))
+                }
             } else {
                 assertEquals(
-                    if (events.first().key == "Enter") "id" else null,
+                    "id",
                     menu.select(terminal, "Project", listOf(InitChoice("id", "Name", null))),
                 )
             }
@@ -94,7 +99,7 @@ class InitSelectionMenuTest {
     }
 
     @Test
-    fun multiSelectTogglesWithSpaceAndConfirmsInChoiceOrder() {
+    fun multiSelectTogglesWithSpaceAndConfirmsInChoiceOrder() = runTest {
         val input = FakeTerminal(
             mutableListOf(
                 KeyboardEvent("ArrowDown"),
@@ -119,14 +124,20 @@ class InitSelectionMenuTest {
     }
 
     @Test
-    fun multiSelectCanBeEmptyAndCancellationOrEofRestoresInput() {
+    fun multiSelectCanBeEmptyAndCancellationOrEofRestoresInput() = runTest {
         val choices = listOf(InitChoice("compose", "Compose", null))
         for ((events, expected) in listOf<Pair<List<KeyboardEvent>, List<String>?>>(
             listOf(KeyboardEvent("Enter")) to emptyList(),
             listOf(KeyboardEvent("c", ctrl = true)) to null,
         )) {
             val input = FakeTerminal(events.toMutableList())
-            assertEquals(expected, menu.selectMultiple(Terminal(terminalInterface = input), "Platforms", choices))
+            if (events.first().ctrl) {
+                assertFailsWith<kotlinx.coroutines.CancellationException> {
+                    menu.selectMultiple(Terminal(terminalInterface = input), "Platforms", choices)
+                }
+            } else {
+                assertEquals(expected, menu.selectMultiple(Terminal(terminalInterface = input), "Platforms", choices))
+            }
             assertTrue(input.restored)
         }
         val closed = FakeTerminal(mutableListOf())

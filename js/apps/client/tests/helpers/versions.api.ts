@@ -19,9 +19,9 @@ export class VersionsApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, designSystemId: string, session: Session) {
-        const root = new URL(`api/projects/${encodeURIComponent(projectId)}/ds/`, gatewayBaseURL);
-        this.createURL = new URL('design-system-versions', root).href;
-        this.systemURL = new URL(`design-systems/${encodeURIComponent(designSystemId)}`, root).href;
+        const root = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}/`, gatewayBaseURL);
+        this.createURL = new URL('versions', root).href;
+        this.systemURL = root.href.replace(/\/$/u, '');
         this.designSystemId = designSystemId;
         this.projectId = projectId;
         this.session = session;
@@ -29,6 +29,10 @@ export class VersionsApi {
 
     revertURL(changeId: string): string {
         return this.systemURL + '/changes/' + encodeURIComponent(changeId) + '/revert';
+    }
+
+    revertByAddressURL(): string {
+        return this.systemURL + '/changes/revert-by-address';
     }
 
     async publish(version: string, changelog: string): Promise<PublishedVersion> {
@@ -48,7 +52,7 @@ export class VersionsApi {
             this.createURL,
             'POST',
             [201],
-            { designSystemId: this.designSystemId, draftId, draftRevision, version, changelog },
+            { draftId, draftRevision, version, changelog },
             randomUUID(),
         );
         const published: unknown = await response.json();

@@ -22,7 +22,11 @@ import kotlinx.serialization.json.Json
  * - описание — `attr: <attrName>` (при нескольких имён через `/`); `methodName` и `paramSimpleType` у View нет;
  * - состояния — `configName` из `stateSets`. `stateValues` на параметрах (переопределение значения в
  *   состоянии) и `sharedStates` (словарь drawable-атрибутов) состояний компонента не объявляют;
- * - компонент без свойств не попадает в манифест, потому что заводить его нечем.
+ * - компонент без свойств не попадает в манифест, потому что заводить его нечем;
+ * - признак поддержки состояний выводится, только если корень меты несёт `stateSupport`: генератор строит
+ *   селекторы по состояниям для свойств типов `color`, `dimension`, `float` и `typography`, поэтому у них список —
+ *   `interactionStates` меты, `configName` из `stateSets` компонента и состояния из `stateValues` параметра;
+ *   у остальных типов список пуст. Пустой `stateValues` список не опустошает. Сочетания — из `stateSupport` меты.
  */
 internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
     private val json = Json { ignoreUnknownKeys = true }
@@ -44,7 +48,12 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
             .map { (name, component) ->
                 ApiMetaComponent(
                     name = name,
-                    properties = component.properties.map { (id, property) -> property.toManifest(id) },
+                    properties = component.properties.map { (id, property) ->
+                        property.toManifest(
+                            id,
+                            source.stateSupport?.let { property.stateSupport(it, component.states) },
+                        )
+                    },
                     states = component.states.toList(),
                 )
             }
@@ -61,7 +70,11 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
             ApiMetaSkipped(SKIPPED_SUB_STYLE, (collected.subStylePairs - kept).size),
         ).filter { it.count > 0 }
 
-        return ApiMetaNormalizationResult.Normalized(ApiMetaManifest(components), collected.conflicts, skipped)
+        return ApiMetaNormalizationResult.Normalized(
+            ApiMetaManifest(components, source.stateSupport?.interactionStates),
+            collected.conflicts,
+            skipped,
+        )
     }
 
     /** Проходит по записям: разворачивает имена, сливает свойства и собирает то, что нужно пропустить. */
@@ -115,12 +128,15 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
         val type = typeMap[param.type] ?: param.type
         val known = properties[param.id]
         if (known == null) {
-            properties[param.id] = MutableProperty(type)
-                .also { it.addAttr(param.attrName.ifBlank { param.id }, param.deprecated) }
+            properties[param.id] = MutableProperty(type).also {
+                it.addAttr(param.attrName.ifBlank { param.id }, param.deprecated)
+                it.addStateValues(param.stateValues)
+            }
         } else if (known.type != type) {
             conflicts += "$componentName.${param.id}: kept ${known.type}, ignored $type"
         } else {
             known.addAttr(param.attrName.ifBlank { param.id }, param.deprecated)
+            known.addStateValues(param.stateValues)
         }
     }
 
@@ -137,6 +153,20 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
     private class MutableProperty(val type: String) {
         private val attrNames = LinkedHashSet<String>()
         private val deprecations = LinkedHashMap<String, ApiMetaDeprecation>()
+        private val stateValueStates = LinkedHashSet<String>()
+
+        /** Состояния, под которыми у параметра есть дополнительное значение (`stateValues`). */
+        fun addStateValues(values: List<ViewMetaStateValue>) {
+            values.map { it.state }.filterTo(stateValueStates) { it.isNotBlank() }
+        }
+
+        /** Признак: селекторы по состояниям генератор строит только для [STATEFUL_TYPES]. */
+        fun stateSupport(meta: MetaStateSupport, componentStates: Collection<String>): ApiMetaStateSupport =
+            if (type in STATEFUL_TYPES) {
+                ApiMetaStateSupport.of(meta.interactionStates + componentStates + stateValueStates, meta.combinations)
+            } else {
+                ApiMetaStateSupport.NONE
+            }
 
         /**
          * Устаревание относится к конкретному атрибуту, а не к свойству: `sd_textColor` может быть устаревшим,
@@ -149,12 +179,13 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
             }
         }
 
-        fun toManifest(id: String) = ApiMetaProperty(
+        fun toManifest(id: String, stateSupport: ApiMetaStateSupport?) = ApiMetaProperty(
             name = id,
             type = type,
             platformNames = attrNames.toList(),
             description = attrNames.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = "attr: "),
             deprecations = deprecations.toMap(),
+            stateSupport = stateSupport,
         )
     }
 
@@ -162,12 +193,14 @@ internal class ViewApiMetaNormalizer : ApiMetaNormalizer {
         const val UNKNOWN_TYPE = "unknown"
         const val SKIPPED_UNKNOWN = "properties of type unknown"
         const val SKIPPED_SUB_STYLE = "properties of sub-style records"
+        val STATEFUL_TYPES = setOf("color", "dimension", "float", "typography")
     }
 }
 
 @Serializable
 private data class ViewMeta(
     val components: List<ViewMetaRecord> = emptyList(),
+    val stateSupport: MetaStateSupport? = null,
 )
 
 @Serializable
@@ -184,6 +217,12 @@ private data class ViewMetaParam(
     val type: String = "",
     val attrName: String = "",
     val deprecated: ViewMetaDeprecation? = null,
+    val stateValues: List<ViewMetaStateValue> = emptyList(),
+)
+
+@Serializable
+internal data class ViewMetaStateValue(
+    val state: String = "",
 )
 
 @Serializable

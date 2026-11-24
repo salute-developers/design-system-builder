@@ -38,6 +38,7 @@ vi.mock('./editorReads', () => ({
 import { loadThemeEditor } from './themeEditorRepository';
 import { tokenRepository } from './tokenRepository';
 import { componentRepository } from './componentRepository';
+import { StateRejection } from './autosaveHttp';
 import { versionJournalRepository } from './versionJournalRepository';
 import type { PendingComponentMutation } from './editorContracts';
 
@@ -1355,6 +1356,98 @@ describe('Editor repositories', () => {
                 { 'variation-property-value:icon-value': 1, 'variation-property-value:size-value': 4 },
             ),
         ).rejects.toBe(unknownIcon);
+
+        expect(patch).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/variation-property-values/size-value',
+            { tokenId: null, value: '48', adjustment: null },
+            expect.anything(),
+        );
+    });
+
+    it('keeps saving the other properties of the window when a state set is not supported, then reports it', async () => {
+        const value = (id: string, propertyId: string, text: string) => ({
+            id,
+            propertyId,
+            appearanceId: 'appearance-1',
+            styleId: 'style-1',
+            tokenId: null,
+            value: text,
+            adjustment: null,
+            stateSetId: 'empty-states',
+        });
+        get.mockImplementation((url: string) => {
+            if (url.endsWith('/appearance-variations'))
+                return Promise.resolve({
+                    data: [
+                        {
+                            id: 'axis-1',
+                            appearanceId: 'appearance-1',
+                            variationId: 'variation-1',
+                            defaultStyleId: 'style-1',
+                        },
+                    ],
+                });
+            if (url.endsWith('/appearance-variation-values')) return Promise.resolve({ data: [] });
+            if (url.includes('/invariant-property-values/by-component/')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/variation-property-values/by-appearance/appearance-1'))
+                return Promise.resolve({
+                    data: [value('icon-value', 'icon-property', 'add.outline.24'), value('size-value', 'size', '40')],
+                });
+            if (url.endsWith('/states')) return Promise.resolve({ data: [] });
+            if (url.endsWith('/state-sets')) return Promise.resolve({ data: [{ id: 'empty-states', stateIds: [] }] });
+            if (url.endsWith('/design-systems/ds-1/tokens')) return Promise.resolve({ data: [] });
+            throw new Error(`Unexpected GET ${url}`);
+        });
+        const rejected = { isAxiosError: true, response: { status: 422, data: { error: 'states_not_supported' } } };
+        patch.mockImplementation((url: string) =>
+            url.endsWith('/variation-property-values/icon-value')
+                ? Promise.reject(rejected)
+                : Promise.resolve({
+                      data: {},
+                      headers: {
+                          'x-ds-mutation-metadata': JSON.stringify([
+                              { entityType: 'variation-property-value', entityId: 'size-value', revision: 5 },
+                          ]),
+                      },
+                  }),
+        );
+        const before = {
+            defaultVariations: [{ variationID: 'variation-1', styleID: 'style-1' }],
+            invariantProps: [],
+            variations: [
+                {
+                    id: 'variation-1',
+                    styles: [
+                        {
+                            id: 'style-1',
+                            name: 'm',
+                            intersections: null,
+                            props: [
+                                { id: 'icon-property', value: 'add.outline.24' },
+                                { id: 'size', value: 40 },
+                            ],
+                        },
+                    ],
+                },
+            ],
+        };
+        const after = structuredClone(before);
+        after.variations[0].styles[0].props[0].value = 'no.such.icon.16';
+        after.variations[0].styles[0].props[1].value = 48;
+
+        await expect(
+            componentRepository.saveComponentMutation(
+                context,
+                {
+                    name: 'Button',
+                    description: '',
+                    serverBinding: { componentId: 'component-1', appearanceId: 'appearance-1' },
+                    sources: { api: [], variations: [], configs: [] },
+                },
+                { componentName: 'Button', before, after, idempotencyKeys: {} },
+                { 'variation-property-value:icon-value': 1, 'variation-property-value:size-value': 4 },
+            ),
+        ).rejects.toBeInstanceOf(StateRejection);
 
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/variation-property-values/size-value',

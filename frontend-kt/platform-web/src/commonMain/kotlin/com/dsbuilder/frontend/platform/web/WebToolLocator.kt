@@ -67,7 +67,7 @@ internal class WebToolLocator(
      *
      * @param override значение `--tool`; уже приведено к абсолютному пути вызывающим.
      */
-    fun locate(override: String?): WebToolLookup {
+    suspend fun locate(override: String?): WebToolLookup {
         val configured = environmentReader.get(WEB_TOOL_ENV)?.takeIf { it.isNotBlank() }
         val directory = override ?: configured
         if (directory != null) {
@@ -92,7 +92,7 @@ internal class WebToolLocator(
      * Установленная команда генератора: управляемая установка, затем `PATH`, затем каталог команд
      * глобального prefix npm. `npm prefix -g` запускается, только если раньше команда не нашлась.
      */
-    fun locateInstalled(): String? = managedExecutable()
+    suspend fun locateInstalled(): String? = managedExecutable()
         ?: findInPath(generatorExecutable())
         ?: globalPrefix()?.let { prefix -> executableIn(prefix).takeIf { fileSystem.exists(it) } }
 
@@ -116,7 +116,7 @@ internal class WebToolLocator(
     /** Абсолютный рабочий каталог процесса `dsbuilder`. */
     fun workingDirectory(): String = fileSystem.currentWorkingDirectory()
 
-    private fun globalPrefix(): String? {
+    private suspend fun globalPrefix(): String? {
         val npm = locateNpm() ?: return null
         val result = try {
             processRunner.run(

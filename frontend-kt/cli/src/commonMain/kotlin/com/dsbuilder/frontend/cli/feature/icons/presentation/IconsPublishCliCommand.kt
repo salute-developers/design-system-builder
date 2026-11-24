@@ -8,7 +8,6 @@ import com.dsbuilder.frontend.feature.components.application.PublishIconCatalogC
 import com.dsbuilder.frontend.feature.components.application.PublishIconCatalogResult
 import com.dsbuilder.frontend.feature.components.application.PublishIconCatalogTarget
 import com.dsbuilder.frontend.feature.components.application.PublishIconCatalogUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.UsageError
@@ -16,7 +15,7 @@ import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
-import kotlinx.coroutines.runBlocking
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Presentation command для `dsbuilder icons publish`.
@@ -47,14 +46,14 @@ internal class IconsPublishCliCommand(
     private val apply: Boolean by option("--apply").flag()
         .help("Write the catalog. Without it the command performs a dry run.")
 
-    override fun run() {
+    override suspend fun run() {
         if ((fromDir == null) == (from == null)) {
             throw UsageError("Pass exactly one of --from-dir and --from.")
         }
         if (writeManifest != null && fromDir == null) {
             throw UsageError("--write-manifest requires --from-dir.")
         }
-        val result = runBlocking {
+        val result = run {
             publishUseCase.execute(
                 PublishIconCatalogCommand(
                     fromDir = fromDir,

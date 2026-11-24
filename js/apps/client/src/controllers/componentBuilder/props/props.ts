@@ -1,4 +1,4 @@
-import type { ComponentAPI, PropConfig, PropUnion } from '../type';
+import type { ComponentAPI, PlatformTokens, PropConfig, PropType, PropUnion } from '../type';
 import { ColorProp } from './color';
 import { DimensionProp } from './dimension';
 import { FloatProp } from './float';
@@ -10,16 +10,27 @@ import { StyleReferenceProp } from './style-reference';
 import { TypographyProp } from './typography';
 import { ValueProp } from './value';
 
+/** Единое соответствие типа API и клиентской модели свойства. */
+const PROP_CONSTRUCTORS = new Map<PropType, new (name: string, data: PropConfig, tokens?: PlatformTokens) => PropUnion>(
+    [
+        ['color', ColorProp],
+        ['dimension', DimensionProp],
+        ['float', FloatProp],
+        ['integer', IntegerProp],
+        ['icon', IconProp],
+        ['shadow', ShadowProp],
+        ['shape', ShapeProp],
+        ['typography', TypographyProp],
+        ['value', ValueProp],
+        ['component_style', StyleReferenceProp],
+    ],
+);
+
 export class Props {
     private list: PropUnion[] = [];
 
     constructor(props: PropConfig[] | null, api: ComponentAPI[]) {
-        if (props === null) {
-            return;
-        }
-
-        // TOOD: подумать, можно ли сделать лучше
-        (props || []).forEach((prop) => {
+        (props ?? []).forEach((prop) => {
             const tokenFromAPI = this.getTokenFromAPI(api, prop.id);
 
             if (!tokenFromAPI) {
@@ -82,48 +93,7 @@ export class Props {
     }
 
     private getConfigToken(token: ComponentAPI, item: PropConfig) {
-        const { type, name, platformMappings } = token;
-
-        if (type === 'color') {
-            return new ColorProp(name, item, platformMappings);
-        }
-
-        if (type === 'float') {
-            return new FloatProp(name, item, platformMappings);
-        }
-
-        if (type === 'integer') {
-            return new IntegerProp(name, item, platformMappings);
-        }
-
-        if (type === 'shadow') {
-            return new ShadowProp(name, item, platformMappings);
-        }
-
-        if (type === 'shape') {
-            return new ShapeProp(name, item, platformMappings);
-        }
-
-        if (type === 'dimension') {
-            return new DimensionProp(name, item, platformMappings);
-        }
-
-        if (type === 'typography') {
-            return new TypographyProp(name, item, platformMappings);
-        }
-
-        if (type === 'value') {
-            return new ValueProp(name, item, platformMappings);
-        }
-
-        if (type === 'component_style') {
-            return new StyleReferenceProp(name, item, platformMappings);
-        }
-
-        if (type === 'icon') {
-            return new IconProp(name, item, platformMappings);
-        }
-
-        return null;
+        const Constructor = PROP_CONSTRUCTORS.get(token.type);
+        return Constructor ? new Constructor(token.name, item, token.platformMappings) : null;
     }
 }

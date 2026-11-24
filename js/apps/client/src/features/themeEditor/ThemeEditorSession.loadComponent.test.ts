@@ -13,6 +13,7 @@ const snapshot = (): ThemeEditorSnapshot =>
     ({
         editRevision: 0,
         tokenIdsByName: {},
+        tokenValueRevisionsByKey: {},
         componentsData: [],
         composeComponentsData: [],
     }) as unknown as ThemeEditorSnapshot;
@@ -59,6 +60,23 @@ it('помечает снимок полного чтения компонент
     await session.loadComponent('Accordion');
 
     expect(onSnapshot).toHaveBeenCalledWith(expect.anything(), false, true, 'full');
+});
+
+it('применяет кешированные токены после перехода из журнала и не повторяет тот же scope', async () => {
+    const { session, sections, onSnapshot } = sessionWith();
+    const cached = snapshot();
+    vi.mocked(sections.activate)
+        .mockResolvedValueOnce({ snapshot: cached, tokensChanged: false, componentsChanged: false, tokenTypes: [], activityRevision: 0 })
+        .mockResolvedValue({ snapshot: cached, tokensChanged: true, componentsChanged: false, tokenTypes: ['color', 'gradient'], activityRevision: 0 });
+    try {
+        await session.activateSection('changes');
+        await session.activateSection('colors');
+        await session.activateSection('colors');
+        expect(onSnapshot).toHaveBeenCalledTimes(2);
+        expect(onSnapshot).toHaveBeenLastCalledWith(cached, true, false, 'full');
+    } finally {
+        session.dispose();
+    }
 });
 
 it('неизвестный результат POST выбирает общую сверку без адресного GET', async () => {

@@ -29,4 +29,6 @@ data class ComponentEditorBundle(
     val dependencies: List<ComponentDependency>,
     /** Компоненты по другую сторону [dependencies], привязанные к той же дизайн-системе и имеющие ту же платформу. */
     val dependencyComponents: List<Component>,
+    /** Состояния, которые видит компонент: общие и собственные без «теней» общих, в порядке создания. */
+    val states: List<ComponentState> = emptyList(),
 )

@@ -37,7 +37,7 @@ export class PendingMutation {
     }
 
     watchBrowserWrites(gatewayBaseURL: string, projectId: string): () => void {
-        const scope = new URL(`api/projects/${encodeURIComponent(projectId)}/ds/`, gatewayBaseURL);
+        const scope = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/`, gatewayBaseURL);
         const onRequest = (request: Request) => {
             if (!writeMethods.has(request.method())) return;
             const url = new URL(request.url());

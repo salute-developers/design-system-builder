@@ -8,9 +8,9 @@ import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.docs.application.DocsGenerateUseCase
 import com.dsbuilder.frontend.feature.docs.application.DocsInitUseCase
 import com.dsbuilder.frontend.feature.docs.application.DocsPublishUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import org.koin.core.module.Module
 import org.koin.dsl.module
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Создаёт Koin module для presentation-слоя фичи `docs` в `:cli`.

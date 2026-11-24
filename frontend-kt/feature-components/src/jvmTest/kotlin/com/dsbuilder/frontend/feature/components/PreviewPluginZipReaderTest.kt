@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.components
 
 import com.dsbuilder.frontend.feature.components.data.PreviewPluginZipRead
 import com.dsbuilder.frontend.feature.components.data.PreviewPluginZipReader
+import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.util.zip.ZipEntry
 import java.util.zip.ZipOutputStream
@@ -24,7 +25,7 @@ class PreviewPluginZipReaderTest {
     }
 
     @Test
-    fun readsTheArchiveBytesTheManifestAndTheMeta() {
+    fun readsTheArchiveBytesTheManifestAndTheMeta() = runTest {
         val file = zip(
             mapOf("index.html" to "<html/>", "preview-plugin.json" to """{"version":"a"}""", "api-meta.json" to "[1]"),
         )
@@ -37,7 +38,7 @@ class PreviewPluginZipReaderTest {
     }
 
     @Test
-    fun aMissingManifestOrMetaNamesTheFile() {
+    fun aMissingManifestOrMetaNamesTheFile() = runTest {
         val noMeta = zip(mapOf("preview-plugin.json" to "{}"))
         val noManifest = zip(mapOf("api-meta.json" to "[]"))
 
@@ -52,7 +53,7 @@ class PreviewPluginZipReaderTest {
     }
 
     @Test
-    fun aFileThatIsNotAZipAndAMissingFileFailWithTheirPath() {
+    fun aFileThatIsNotAZipAndAMissingFileFailWithTheirPath() = runTest {
         val text = File.createTempFile("plugin-", ".zip").apply {
             deleteOnExit()
             writeText("not a zip")

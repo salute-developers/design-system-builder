@@ -19,6 +19,7 @@ kotlin {
         }
 
         commonTest.dependencies {
+            implementation(libs.kotlinx.coroutines.test)
             // Тест runner'а собирает ProjectContextReader и WorkspaceFileSystem напрямую.
             implementation(projects.coreApplication)
             implementation(libs.okio)

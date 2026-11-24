@@ -58,7 +58,13 @@ internal class ComponentConfigBuilder(
                             ComponentConfig.VariationValue(
                                 value.name,
                                 targets = listOf(crossedTarget(axes, combination.members, value.styleId, idOf)),
-                                properties = properties(combination.rows, where, exported, underived),
+                                properties = properties(
+                                    combination.rows,
+                                    where,
+                                    exported,
+                                    underived,
+                                    allowStateOnly = true,
+                                ),
                                 authoredId = combination.authoredId.takeIf { exported },
                                 styleId = value.styleId.toString().takeIf { editorIds },
                             )
@@ -313,9 +319,21 @@ internal class ComponentConfigBuilder(
         where: String,
         exported: Boolean,
         underived: MutableSet<String>,
+        allowStateOnly: Boolean = false,
     ): Map<String, ComponentConfig.Property> =
         rows.groupBy { it.propertyName }.toSortedMap().mapNotNull { (name, values) ->
-            val base = values.firstOrNull { it.states.isEmpty() } ?: return@mapNotNull null
+            val base = values.firstOrNull { it.states.isEmpty() }
+                ?: if (allowStateOnly) {
+                    values.first().copy(
+                        value = null,
+                        tokenName = null,
+                        tokenType = null,
+                        alpha = null,
+                        adjustment = null,
+                    )
+                } else {
+                    return@mapNotNull null
+                }
             name to property(base, values, where, exported, underived)
         }.toMap(linkedMapOf())
 

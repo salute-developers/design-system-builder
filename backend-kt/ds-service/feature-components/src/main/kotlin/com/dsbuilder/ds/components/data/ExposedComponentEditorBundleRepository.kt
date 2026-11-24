@@ -12,12 +12,18 @@ import com.dsbuilder.ds.components.application.StyleRepository
 import com.dsbuilder.ds.components.domain.Component
 import com.dsbuilder.ds.components.domain.ComponentEditorBundle
 import com.dsbuilder.ds.components.domain.ComponentEditorPlatform
+import com.dsbuilder.ds.components.domain.ComponentState
+import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.core.data.selectedVersionBelongsTo
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.select
+import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
 /**
@@ -87,8 +93,26 @@ class ExposedComponentEditorBundleRepository(
                 },
                 dependencies = dependencies,
                 dependencyComponents = sameDesignSystemAndPlatform(others, designSystemId, platform),
+                states = visibleStates(componentId),
             ),
         )
+    }
+
+    /** Общие состояния и собственные состояния компонента без «теней» общих (см. [StateNames.visible]). */
+    private fun visibleStates(componentId: UUID): List<ComponentState> {
+        val rows = ComponentStatesTable.selectAll().where {
+            ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId eq componentId)
+        }.orderBy(ComponentStatesTable.createdAt to SortOrder.ASC, ComponentStatesTable.id to SortOrder.ASC).map {
+            ComponentState(
+                it[ComponentStatesTable.id],
+                it[ComponentStatesTable.componentId],
+                it[ComponentStatesTable.name],
+                it[ComponentStatesTable.description],
+                it[ComponentStatesTable.createdAt],
+                it[ComponentStatesTable.updatedAt],
+            )
+        }
+        return StateNames.visible(componentId, rows) { StateNames.Scoped(it.componentId, it.name) }
     }
 
     /** Компоненты по другую сторону связей, привязанные к дизайн-системе и имеющие ту же платформу. */

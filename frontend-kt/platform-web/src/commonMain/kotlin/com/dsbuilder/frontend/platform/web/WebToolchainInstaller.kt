@@ -27,7 +27,7 @@ public class WebToolchainInstaller internal constructor(
 ) : ToolchainInstaller {
     override val toolchain: ToolchainId = ToolchainId("web")
 
-    override fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
+    override suspend fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
         val npm = locator.locateNpm()
             ?: return ToolchainInstallResult.Failed("$MISSING_NPM_HINT Then run dsbuilder toolchain install web.")
         val prefix = locator.managedPrefix()
@@ -43,7 +43,7 @@ public class WebToolchainInstaller internal constructor(
     }
 
     /** Упаковывает каталог в prefix, ставит архив и удаляет его при любом исходе. */
-    private fun installDirectory(npm: String, prefix: String, directory: String): ToolchainInstallResult =
+    private suspend fun installDirectory(npm: String, prefix: String, directory: String): ToolchainInstallResult =
         when (val packed = packDirectory(npm, prefix, directory)) {
             is Packed.Failed -> packed.result
             is Packed.Archive -> try {
@@ -54,7 +54,7 @@ public class WebToolchainInstaller internal constructor(
         }
 
     /** `npm pack --json --pack-destination <prefix> <каталог>`: путь созданного архива или ошибка. */
-    private fun packDirectory(npm: String, prefix: String, directory: String): Packed {
+    private suspend fun packDirectory(npm: String, prefix: String, directory: String): Packed {
         fileSystem.createDirectories(prefix)
         val result = try {
             processRunner.run(
@@ -86,7 +86,7 @@ public class WebToolchainInstaller internal constructor(
     }
 
     /** `npm install --global --prefix <prefix> <spec>` с выводом в терминал; `null` — установка прошла. */
-    private fun installPackage(npm: String, prefix: String, spec: String): ToolchainInstallResult.Failed? {
+    private suspend fun installPackage(npm: String, prefix: String, spec: String): ToolchainInstallResult.Failed? {
         val result = try {
             processRunner.run(
                 ProcessRequest(
@@ -105,7 +105,7 @@ public class WebToolchainInstaller internal constructor(
     }
 
     /** Установленная команда и её версия: делегат найдёт её там же раньше, чем в `PATH`. */
-    private fun installedGenerator(prefix: String): ToolchainInstallResult {
+    private suspend fun installedGenerator(prefix: String): ToolchainInstallResult {
         val executable = locator.managedExecutable()
             ?: return ToolchainInstallResult.Failed(
                 "$WEB_GENERATOR_PACKAGE was installed, but $WEB_GENERATOR_EXECUTABLE was not found in $prefix.",

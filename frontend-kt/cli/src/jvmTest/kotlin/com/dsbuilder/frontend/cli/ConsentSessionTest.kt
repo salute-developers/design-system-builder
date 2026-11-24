@@ -9,6 +9,9 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import java.nio.file.Files
 import kotlin.test.Test
@@ -28,14 +31,23 @@ class ConsentSessionTest {
     )
     private fun fixture(
         lock: com.dsbuilder.frontend.core.auth.CredentialStoreLock = JvmCredentialStoreLock,
-        block: suspend (CliConsentFile) -> Unit,
-    ) = runBlocking {
+        block: suspend TestScope.(CliConsentFile) -> Unit,
+    ) = runTest {
         val directory = Files.createTempDirectory("dsbuilder-consent-test-").toFile()
         val fs = object : CredentialStoreFileSystem by JvmCredentialStoreFileSystem {
             override fun homeDirectory() = directory.path
         }
         val file = CliConsentFile(fs, lock, "test") { "b".repeat(64) }
         try { block(file) } finally { directory.deleteRecursively() }
+    }
+
+    private fun TestScope.engine(
+        handler: suspend io.ktor.client.engine.mock.MockRequestHandleScope.(
+            io.ktor.client.request.HttpRequestData,
+        ) -> io.ktor.client.request.HttpResponseData,
+    ) = MockEngine.create {
+        dispatcher = StandardTestDispatcher(testScheduler)
+        addHandler(handler)
     }
 
     @Test fun oneCheckPerLaunchAndImmediateLocalWithdrawal() = fixture { file ->
@@ -46,7 +58,7 @@ class ConsentSessionTest {
                 file,
                 {
                     HttpClient(
-                        MockEngine {
+                        engine {
                             requests++
                             respond(response())
                         },
@@ -84,7 +96,7 @@ class ConsentSessionTest {
         assertEquals(1, sent)
     }
 
-    @Test fun heldLocalLockCannotDelayAutomaticChecksForThirtySeconds() {
+    @Test fun heldLocalLockCannotDelayAutomaticChecksForThirtySeconds() = runBlocking {
         var held = false
         val lock = object : com.dsbuilder.frontend.core.auth.CredentialStoreLock {
             override suspend fun <T> withLock(lockPath: String, block: suspend () -> T): T {
@@ -122,7 +134,7 @@ class ConsentSessionTest {
             file,
             {
                 HttpClient(
-                    MockEngine { request ->
+                    engine { request ->
                         bodies += (request.body as io.ktor.http.content.TextContent).text
                         respond(response())
                     },
@@ -164,10 +176,13 @@ class ConsentSessionTest {
                 file,
                 {
                     HttpClient(
-                        MockEngine {
-                            requests++
-                            delay(2000)
-                            respond(response())
+                        MockEngine.create {
+                            dispatcher = StandardTestDispatcher(testScheduler)
+                            addHandler {
+                                requests++
+                                delay(2000)
+                                respond(response())
+                            }
                         },
                     )
                 },
@@ -189,7 +204,7 @@ class ConsentSessionTest {
             CliConsentSession(
                 file,
                 {
-                    HttpClient(MockEngine { respond("", HttpStatusCode.ServiceUnavailable) })
+                    HttpClient(engine { respond("", HttpStatusCode.ServiceUnavailable) })
                 },
                 "https://example.test",
                 true,
@@ -211,7 +226,7 @@ class ConsentSessionTest {
                 file,
                 {
                     HttpClient(
-                        MockEngine {
+                        engine {
                             started.complete(Unit)
                             finish.await()
                             respond(response())

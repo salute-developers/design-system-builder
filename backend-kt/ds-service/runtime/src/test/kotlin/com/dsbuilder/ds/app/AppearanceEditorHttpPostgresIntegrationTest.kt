@@ -25,6 +25,7 @@ import io.ktor.client.statement.bodyAsText
 import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
+import io.ktor.http.isSuccess
 import io.ktor.server.testing.ApplicationTestBuilder
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -472,6 +473,161 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `the editor write of a value checks the state set against the state support`() = withService {
+        val fixture = fixture()
+        val padding = property("padding", "dimension")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        declareSupport(padding, combinations = false, "hovered", "pressed")
+
+        val hovered = setValue(fixture.appearance, padding, listOf(styleA), value = "1", states = listOf("hovered"))
+        assertEquals(HttpStatusCode.OK, hovered.status, hovered.bodyAsText())
+        val focused = setValue(fixture.appearance, padding, listOf(styleA), value = "2", states = listOf("focused"))
+        assertEquals("states_not_supported", code(focused))
+        val pair = listOf("hovered", "pressed")
+        val both = setValue(fixture.appearance, padding, listOf(styleA), value = "3", states = pair)
+        assertEquals("states_not_supported", code(both))
+        val stored = valuesOf(fixture.appearance, padding, styleA).map { it.states() }.filter { it.isNotEmpty() }
+        assertEquals(listOf(listOf("hovered")), stored)
+
+        execute("UPDATE properties SET state_combinations = true WHERE id = '$padding'")
+        val combined = setValue(fixture.appearance, padding, listOf(styleA), value = "4", states = pair)
+        assertEquals(HttpStatusCode.OK, combined.status, combined.bodyAsText())
+    }
+
+    @Test
+    fun `autosave routes check the state set on create and on an edit of an existing row`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val path = "/api/design-systems/${fixture.ds}/invariant-property-values"
+        fun body(stateSet: String) = """{"propertyId":"$fill","componentId":"${fixture.component}",""" +
+            """"appearanceId":"${fixture.appearance}","value":"#fff","stateSetId":"$stateSet"}"""
+
+        val hoveredSet = stateSet(commonState("hovered"))
+        val created = post(path, body(hoveredSet))
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        val row = id(created.bodyAsText())
+
+        // The meta narrowed the support after the editor read the bundle.
+        declareSupport(fill, combinations = false)
+        assertEquals("states_not_supported", code(post(path, body(stateSet(commonState("pressed"))))))
+        assertEquals("states_not_supported", code(patch("$path/$row", """{"value":"#000"}""")))
+        assertEquals(HttpStatusCode.OK, delete("$path/$row").status)
+    }
+
+    @Test
+    fun `a state of another component is rejected even without a declared support`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val foreign = query("INSERT INTO states (component_id, name) VALUES ('$child', 'collapsed') RETURNING id")
+        val response = post(
+            "/api/design-systems/${fixture.ds}/invariant-property-values",
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(foreign)}"}""",
+        )
+        assertEquals("state_not_in_component", code(response))
+    }
+
+    @Test
+    fun `variation values check the state set on create and edit`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val styleA = styleOf(model(fixture.appearance), "size", "a")
+        val path = "/api/design-systems/${fixture.ds}/variation-property-values"
+        fun body(stateSet: String) = """{"propertyId":"$fill","styleId":"$styleA",""" +
+            """"appearanceId":"${fixture.appearance}","value":"#fff","stateSetId":"$stateSet"}"""
+        declareSupport(fill, combinations = false, "hovered")
+
+        val created = post(path, body(stateSet(commonState("hovered"))))
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertEquals("states_not_supported", code(post(path, body(stateSet(commonState("pressed"))))))
+
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val foreign = query("INSERT INTO states (component_id, name) VALUES ('$child', 'collapsed') RETURNING id")
+        assertEquals("state_not_in_component", code(post(path, body(stateSet(foreign)))))
+
+        declareSupport(fill, combinations = false)
+        assertEquals("states_not_supported", code(patch("$path/${id(created.bodyAsText())}", """{"value":"#000"}""")))
+    }
+
+    @Test
+    fun `a value stored in a shadow of a common state is found and edited by the common name`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val shadow = query(
+            "INSERT INTO states (component_id, name) VALUES ('${fixture.component}', 'disabled') RETURNING id",
+        )
+        declareSupport(fill, combinations = false, "disabled")
+        val created = post(
+            "/api/design-systems/${fixture.ds}/invariant-property-values",
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(shadow)}"}""",
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+
+        val edited = setValue(fixture.appearance, fill, emptyList(), value = "#000", states = listOf("disabled"))
+        assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
+        val stateful = propertyValues(fixture.appearance)
+            .filter { it.string("propertyId") == fill && it.states().isNotEmpty() }
+        assertEquals(1, stateful.size)
+        assertEquals("#000", stateful.single().string("value"))
+    }
+
+    @Test
+    fun `a name based write cannot update a legacy row with a foreign state`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        val child = query("SELECT id FROM components WHERE name = 'Child'")
+        val shadow = query(
+            "INSERT INTO states (component_id, name) VALUES ('${fixture.component}', 'disabled') RETURNING id",
+        )
+        val path = "/api/design-systems/${fixture.ds}/invariant-property-values"
+        val created = post(
+            path,
+            """{"propertyId":"$fill","componentId":"${fixture.component}","appearanceId":"${fixture.appearance}",""" +
+                """"value":"#fff","stateSetId":"${stateSet(shadow)}"}""",
+        )
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        // Прежний клиент выбирал состояние по имени среди всех компонентов. Воспроизводим такую строку.
+        execute("UPDATE states SET component_id = '$child' WHERE id = '$shadow'")
+
+        val response = setValue(fixture.appearance, fill, emptyList(), value = "#000", states = listOf("disabled"))
+        assertEquals(HttpStatusCode.UnprocessableEntity, response.status)
+        assertEquals("state_not_in_component", code(response))
+        val stored = propertyValues(fixture.appearance).single { it.string("propertyId") == fill }
+        assertEquals("#fff", stored.string("value"))
+        assertEquals(HttpStatusCode.OK, delete("$path/${id(created.bodyAsText())}").status)
+    }
+
+    private fun commonState(name: String) =
+        query("SELECT id FROM states WHERE component_id IS NULL AND name = '$name'")
+
+    private suspend fun stateSet(vararg stateIds: String): String {
+        val ids = stateIds.joinToString(",") { "\"$it\"" }
+        val response = post("/api/design-systems/catalog/state-sets/resolve", """{"stateIds":[$ids]}""")
+        assertTrue(response.status.isSuccess(), response.bodyAsText())
+        return id(response.bodyAsText())
+    }
+
+    /** Признак свойства так, как его записал бы импорт меты: общие состояния по именам. */
+    private fun declareSupport(property: String, combinations: Boolean, vararg states: String) {
+        execute("UPDATE properties SET state_combinations = $combinations WHERE id = '$property'")
+        execute("DELETE FROM property_supported_states WHERE property_id = '$property'")
+        states.forEach { name ->
+            execute(
+                "INSERT INTO property_supported_states (property_id, state_id) " +
+                    "SELECT '$property', id FROM states WHERE component_id IS NULL AND name = '$name'",
+            )
+        }
+    }
+
+    private fun execute(sql: String) = DriverManager.getConnection(
+        service.postgres.jdbcUrl,
+        service.postgres.username,
+        service.postgres.password,
+    ).use { connection -> connection.createStatement().use { it.execute(sql) } }
+
+    @Test
     fun `a token reference stores the token id with an empty value and follows a rename`() = withService {
         val fixture = fixture()
         val fill = property("fill", "color")
@@ -872,6 +1028,133 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.OK, replay.status, replay.bodyAsText())
         assertEquals(first.bodyAsText(), replay.bodyAsText())
         assertEquals(HttpStatusCode.NotFound, delete(path, key = "remove-2").status)
+    }
+
+    @Test
+    fun `export and reimport preserve combination states without a base value`() = withService {
+        val fixture = fixture()
+        val padding = property("padding", "dimension")
+        val model = model(fixture.appearance)
+        val styles = listOf(styleOf(model, "size", "a"), styleOf(model, "view", "default"))
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, padding, styles, value = "55", states = listOf("pressed")).status,
+        )
+        val response = post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+        assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        val config = json.parseToJsonElement(response.bodyAsText()).jsonObject.getValue("components").jsonArray
+            .map { it.jsonObject }.single { it.string("styleName") == "default" }.getValue("config").jsonObject
+        val value = config.getValue("variations").jsonArray.flatMap { axis ->
+            axis.jsonObject.getValue("values").jsonArray.map { it.jsonObject }
+        }.single { it["targets"]?.jsonArray?.isNotEmpty() == true }
+            .getValue("properties").jsonObject.getValue("padding").jsonObject
+        assertTrue(value["default"] == null || value["default"] == JsonNull)
+        assertTrue(value["value"] == null || value["value"] == JsonNull)
+        val state = value.getValue("states").jsonArray.single().jsonObject
+        assertEquals("55", state.getValue("value").jsonPrimitive.content)
+        assertEquals(listOf("pressed"), state.getValue("state").jsonArray.map { it.jsonPrimitive.content })
+        val before = propertyValues(fixture.appearance)
+        repeat(2) {
+            val imported = importConfig(fixture.ds, "default", config.toString())
+            assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+            val report = json.parseToJsonElement(imported.bodyAsText()).jsonObject
+            assertEquals("0", report.string("updated"), imported.bodyAsText())
+            assertEquals("1", report.string("unchanged"), imported.bodyAsText())
+            assertEquals(before, propertyValues(fixture.appearance))
+            val exportedAgain =
+                post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+            assertEquals(HttpStatusCode.OK, exportedAgain.status, exportedAgain.bodyAsText())
+            assertEquals(
+                json.parseToJsonElement(response.bodyAsText()),
+                json.parseToJsonElement(exportedAgain.bodyAsText()),
+            )
+        }
+    }
+
+    @Test
+    fun `null combination base with alpha or adjustment survives export and reimport`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        for (metadata in listOf(
+            "\"alpha\":0.5",
+            "\"alpha\":0",
+            "\"adjustment\":5",
+            "\"adjustment\":0",
+            "\"alpha\":0.5,\"adjustment\":0",
+        )) {
+            val config = """{"colorSchemeVariationId":"view","variations":[
+                {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
+                {"id":"size","name":"size","values":[{"name":"a","targets":[{"properties":[{"id":"view","value":"default"}]}],
+                "properties":{"fill":{"type":"color","value":null,$metadata,"states":[{"state":["pressed"],"value":"#123456"}]}}}]}]}"""
+            val imported = importConfig(fixture.ds, "default", config)
+            assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+            val before = propertyValues(fixture.appearance).filter { it.string("propertyId") == fill }
+            assertEquals(2, before.size, metadata)
+            val base = before.single { it.states().isEmpty() }
+            val expected = json.parseToJsonElement("{$metadata}").jsonObject
+            for ((name, value) in expected) assertEquals(value.jsonPrimitive.content, base.string(name))
+            val exported =
+                post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+            assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
+            val exportedConfig = json.parseToJsonElement(
+                exported.bodyAsText(),
+            ).jsonObject.getValue("components").jsonArray
+                .single().jsonObject.getValue("config").jsonObject
+            repeat(2) {
+                val repeated = importConfig(fixture.ds, "default", exportedConfig.toString())
+                assertEquals(HttpStatusCode.OK, repeated.status, repeated.bodyAsText())
+                val report = json.parseToJsonElement(repeated.bodyAsText()).jsonObject
+                assertEquals("0", report.string("updated"), repeated.bodyAsText())
+                assertEquals("1", report.string("unchanged"), repeated.bodyAsText())
+                assertEquals(before, propertyValues(fixture.appearance).filter { it.string("propertyId") == fill })
+                val again =
+                    post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+                assertEquals(
+                    json.parseToJsonElement(exported.bodyAsText()),
+                    json.parseToJsonElement(again.bodyAsText()),
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `a nested style state of a combination is updated and removed independently`() = withService {
+        val fixture = fixture()
+        val child = importChild(fixture.ds)
+        val nested = property("buttonStyle", "component_style")
+        val editor = model(fixture.appearance)
+        val styles = listOf(styleOf(editor, "size", "a"), styleOf(editor, "view", "default"))
+        val childModel = model(child)
+        val childX = styleOf(childModel, "size", "x")
+        val childY = styleOf(childModel, "size", "y")
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, nested, styles, reference = reference(child, childX)).status,
+        )
+        for (target in listOf(childX, childY)) {
+            val response =
+                setValue(
+                    fixture.appearance,
+                    nested,
+                    styles,
+                    states = listOf("pressed"),
+                    reference = reference(child, target),
+                )
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+        val stored = propertyValues(fixture.appearance).filter { it.string("propertyId") == nested }
+        assertEquals(2, stored.size)
+        assertEquals(setOf("child.x", "child.y"), stored.map { it.string("value") }.toSet())
+        assertTrue(stored.all { it["reference"] is JsonObject })
+        val scope = "propertyId=$nested&styleIds=${styles.joinToString(",")}&states=pressed"
+        assertEquals(
+            HttpStatusCode.OK,
+            delete("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/property-values?$scope").status,
+        )
+        assertEquals(
+            "child.x",
+            propertyValues(fixture.appearance).single { it.string("propertyId") == nested }.string("value"),
+        )
     }
 
     @Test

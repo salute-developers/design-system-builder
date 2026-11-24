@@ -92,7 +92,17 @@ internal object PropertiesTable : Table("properties") {
     val description = text("description").nullable()
     val createdAt = timestamp("created_at")
     val updatedAt = timestamp("updated_at")
+
+    /** Флаг сочетаний признака поддержки состояний; `null` — признак не задан. */
+    val stateCombinations = bool("state_combinations").nullable()
     override val primaryKey = PrimaryKey(id)
+}
+
+/** Список состояний признака поддержки состояний свойства. */
+internal object PropertySupportedStatesTable : Table("property_supported_states") {
+    val propertyId = reference("property_id", PropertiesTable.id)
+    val stateId = uuid("state_id")
+    override val primaryKey = PrimaryKey(propertyId, stateId)
 }
 
 internal object ComponentDependenciesTable : Table("component_deps") {

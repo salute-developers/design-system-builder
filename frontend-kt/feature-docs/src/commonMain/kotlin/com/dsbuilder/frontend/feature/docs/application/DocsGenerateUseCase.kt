@@ -32,7 +32,7 @@ public class DocsGenerateUseCase internal constructor(
      * структуры, пишет `docs.json` и `manifest.json`, валидирует дерево и пакует его в tar.gz.
      */
     @Suppress("ReturnCount")
-    public fun execute(command: DocsGenerateCommand): DocsGenerateResult {
+    public suspend fun execute(command: DocsGenerateCommand): DocsGenerateResult {
         val selection = when (val result = source.selectPlatform(command.platform)) {
             is PlatformSelection.Failure -> return DocsGenerateResult.Failed(result.message)
             is PlatformSelection.Selected -> result

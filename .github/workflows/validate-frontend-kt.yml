@@ -63,8 +63,11 @@ jobs:
           java-version: '17'
       - name: Ensure wget for installer HTTPS contract tests
         run: brew list wget >/dev/null 2>&1 || brew install wget
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build :cli:linkReleaseExecutableMingwX64
+      - run: ./gradlew build :cli:linkReleaseExecutableMingwX64 :cli:npmPackCliNodeSmoke
         working-directory: frontend-kt
 
   cli-windows-installers:
