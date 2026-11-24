@@ -214,12 +214,17 @@ test.describe('Связи палитры', () => {
             paletteApi,
             tokenValues,
             initialTheme,
-            colorData,
+            linkedColor,
             pendingMutation,
             colors,
         }) => {
             const accent = paletteGroup(linkedPaletteBaseline, 'accent');
             const before = await tokenValues.values(initialTheme.id, 'color');
+            const affected = paletteLinkedValues(linkedPaletteBaseline, before, accent.id, '[additional.h130.500]');
+            expect(affected.length, 'Подготовлены зависимости удаляемой растяжки').toBeGreaterThan(0);
+            expect(affected, 'Все подготовленные ссылки входят в зависимости Accent').toEqual(
+                expect.arrayContaining(linkedColor.references.map((reference) => expect.objectContaining(reference))),
+            );
             await palette.open();
             await palette.rampMode.click();
             await palette.removeRamp(accent.label, 'Green', 'Green / Hue 130');
@@ -246,12 +251,6 @@ test.describe('Связи палитры', () => {
             for (const group of linkedPaletteBaseline.groups.filter((group) => group.id !== accent.id))
                 expect(after.groups.find((item) => item.id === group.id)).toEqual(group);
             const values = await tokenValues.values(initialTheme.id, 'color');
-            const affected = before.filter(
-                (value) =>
-                    colorData.family.some((token) => token.id === value.tokenId) &&
-                    value.paletteRef === '[additional.h130.500]',
-            );
-            expect(affected).toHaveLength(36);
             for (const value of affected) {
                 expect(
                     values.find(
@@ -273,16 +272,33 @@ test.describe('Связи палитры', () => {
     test(
         'PLASMABLDR-T606: PAL-042 Отмена Safe Delete сохраняет Palette и dependencies',
         { annotation: { type: 'zephyr', description: 'PLASMABLDR-T606' } },
-        async ({ page, linkedPaletteBaseline, palette, paletteApi, tokenValues, initialTheme, versionsApi }) => {
+        async ({
+            page,
+            environment,
+            systemsApi,
+            createdSystem,
+            linkedPaletteBaseline,
+            palette,
+            paletteApi,
+            tokenValues,
+            initialTheme,
+            versionsApi,
+        }) => {
             const accent = paletteGroup(linkedPaletteBaseline, 'accent');
             const values = await tokenValues.values(initialTheme.id, 'color');
+            const scope = new URL(
+                `api/projects/${encodeURIComponent(systemsApi.projectId)}/design-systems/${encodeURIComponent(createdSystem.id)}`,
+                environment.gatewayBaseURL,
+            );
             const writes: string[] = [];
             const observe = (request: import('@playwright/test').Request) => {
+                const url = new URL(request.url());
                 if (
-                    request.url().startsWith(paletteApi.url + '/') &&
+                    url.origin === scope.origin &&
+                    (url.pathname === scope.pathname || url.pathname.startsWith(scope.pathname + '/')) &&
                     ['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())
                 )
-                    writes.push(request.method() + ' ' + new URL(request.url()).pathname);
+                    writes.push(request.method() + ' ' + url.pathname);
             };
             page.on('request', observe);
             try {

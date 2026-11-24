@@ -42,17 +42,26 @@ export type SizeView = {
 export async function readSizeView(api: TokenValuesApi, themeId: string, session: Session): Promise<SizeView> {
     const raw: unknown = await (await authenticatedRequest(session, api.sizeViewURL(themeId), 'GET', [200])).json();
     expect(raw).toMatchObject({ radii: expect.any(Array), spacing: expect.any(Array), shadows: expect.any(Array) });
-    return raw as SizeView;
+    const view = raw as SizeView;
+    // Порядок каталога GET не является изменением значения. Слои и остальные вложенные массивы сохраняются.
+    const byTokenId = (a: { tokenId: string }, b: { tokenId: string }) => a.tokenId.localeCompare(b.tokenId);
+    return {
+        ...view,
+        radii: [...view.radii].sort(byTokenId),
+        spacing: [...view.spacing].sort(byTokenId),
+        shadows: [...view.shadows].sort(byTokenId),
+    };
 }
 
 /** Только пять токенов RSS-BASE, включая редакции: независимый Owner GET после UI. */
 export async function readSizeValues(api: TokenValuesApi, themeId: string, tokens: SizeTokens): Promise<SavedValue[]> {
     const ids = new Set(Object.values(tokens).map((token) => token.id));
+    const platforms = ['android', 'ios', 'web'];
     const selected = (await api.values(themeId, sizeTypes)).filter((value) => ids.has(value.tokenId));
-    expect(selected).toHaveLength(15);
+    expect(selected).toHaveLength(ids.size * platforms.length);
     for (const token of Object.values(tokens)) {
         const rows = selected.filter((value) => value.tokenId === token.id);
-        expect(rows.map((value) => value.platform).sort()).toEqual(['android', 'ios', 'web']);
+        expect(rows.map((value) => value.platform).sort()).toEqual(platforms);
         for (const row of rows) {
             expect(row.mode).toBeNull();
             expect(row.overridden, 'Нет своих платформенных значений').toBe(false);

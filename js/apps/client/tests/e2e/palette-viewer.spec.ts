@@ -22,7 +22,7 @@ test(
         viewerColors,
     }) => {
         const scope = new URL(
-            `api/projects/${encodeURIComponent(roleProject.id)}/design-systems/${encodeURIComponent(createdSystem.id)}/`,
+            `api/projects/${encodeURIComponent(roleProject.id)}/design-systems/${encodeURIComponent(createdSystem.id)}`,
             environment.gatewayBaseURL,
         );
         const writes: string[] = [];
@@ -30,21 +30,15 @@ test(
             const url = new URL(request.url());
             if (
                 url.origin !== scope.origin ||
-                !url.pathname.startsWith(scope.pathname) ||
+                (url.pathname !== scope.pathname && !url.pathname.startsWith(scope.pathname + '/')) ||
                 !['POST', 'PUT', 'PATCH', 'DELETE'].includes(request.method())
             )
                 return;
-            const path = url.pathname.slice(scope.pathname.length);
-            if (
-                !/^(?:tokens(?:\/|$)|tenants\/[^/]+\/(?:palette|token-values|color-tokens|gradient-tokens)(?:\/|$))/u.test(
-                    path,
-                )
-            )
-                return;
+            const path = url.pathname.slice(scope.pathname.length + 1);
             // rebuild с preview=true рассчитывает предпросмотр, а не записывает палитру.
             if (
                 request.method() === 'POST' &&
-                path.endsWith('/rebuild') &&
+                /^tenants\/[^/]+\/palette\/groups\/[^/]+\/ramps\/[^/]+\/[^/]+\/rebuild$/u.test(path) &&
                 (request.postDataJSON() as { preview?: boolean } | null)?.preview === true
             )
                 return;
@@ -132,7 +126,7 @@ test(
                     await readViewerPalette(paletteApi, tokenValues, initialTheme.id, viewerPaletteData.token.id),
                     'Независимый Owner GET после просмотра',
                 ).toEqual(viewerPaletteData.baseline);
-                expect(writes, 'Нет мутаций палитры и семантических значений своей ДС').toEqual([]);
+                expect(writes, 'Нет мутаций своей ДС').toEqual([]);
             });
         } finally {
             page.off('request', observe);

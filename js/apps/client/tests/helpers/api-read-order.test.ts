@@ -4,8 +4,44 @@ import { TokenValuesApi } from './token-values.api.ts';
 import { PaletteApi, paletteLinkedValues, type ThemePalette } from './palette.api.ts';
 import type { Session } from './authentication.ts';
 import type { TokenValue } from './token-values.api.ts';
+import { readSizeView } from './size-data.ts';
 
 const session = { accessToken: 'unit-test-token' } as Session;
+
+test('Size view compares catalogs by token ID and preserves fields, duplicates and layer order', async (context) => {
+    const layer = { offsetX: 0, offsetY: 4, blur: 8, spread: 0, color: '#00000029' };
+    const otherLayer = { ...layer, offsetY: 12 };
+    const radius = { tokenId: 'a', valuePx: 16, platforms: {}, components: [{ name: 'Button', count: 1 }] };
+    const spacing = { tokenId: 'a', valuePx: 8, platforms: {} };
+    const shadow = { tokenId: 'a', layers: [layer, otherLayer], platforms: { ios: { layers: [layer, otherLayer] } } };
+    const initial = {
+        radii: [radius, radius, { ...radius, tokenId: 'b' }],
+        spacing: [spacing, { ...spacing, tokenId: 'b' }],
+        shadows: [shadow, { ...shadow, tokenId: 'b' }],
+    };
+    let body = initial;
+    context.mock.method(globalThis, 'fetch', async () => Response.json(body));
+    const api = new TokenValuesApi('http://localhost/', 'project', 'system', session);
+    const before = await readSizeView(api, 'theme', session);
+    body = {
+        radii: [...initial.radii].reverse(),
+        spacing: [...initial.spacing].reverse(),
+        shadows: [...initial.shadows].reverse(),
+    };
+    assert.deepEqual(await readSizeView(api, 'theme', session), before);
+    assert.equal(before.radii.length, 3, 'Duplicate rows remain visible');
+    body = { ...initial, radii: initial.radii.map((row) => ({ ...row, valuePx: 24 })) };
+    assert.notDeepEqual(await readSizeView(api, 'theme', session), before, 'Value changes remain visible');
+    body = { ...initial, radii: initial.radii.map((row) => ({ ...row, components: [{ name: 'Button', count: 2 }] })) };
+    assert.notDeepEqual(await readSizeView(api, 'theme', session), before, 'Usage counts remain visible');
+    body = { ...initial, shadows: initial.shadows.map((row) => ({ ...row, layers: [...row.layers].reverse() })) };
+    assert.notDeepEqual(await readSizeView(api, 'theme', session), before, 'Layer order remains significant');
+    body = {
+        ...initial,
+        shadows: initial.shadows.map((row) => ({ ...row, platforms: { ios: { layers: [...row.layers].reverse() } } })),
+    };
+    assert.notDeepEqual(await readSizeView(api, 'theme', session), before, 'Native layer order remains significant');
+});
 
 test('TokenValuesApi compares complete rows independently of response order', async (context) => {
     const row = { tokenId: 'a', tenantId: 'theme', platform: 'web', mode: 'light', value: '#ffffff', editRevision: 2 };
