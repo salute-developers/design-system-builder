@@ -18,7 +18,7 @@ export const typographyPartFor = (paramName: string, part?: string): TypographyP
 /** Начало имени переменной системной группы: `display` → `dspl`, `header` опускается (`h1-bold`). */
 const GROUP_PREFIX: Readonly<Record<string, string>> = { display: 'dspl', text: 'text', body: 'body', header: '' };
 
-/** Вес в имени переменной: `normal` опускается. */
+/** Вес в имени переменной: `normal` опускается, незнакомый вес остаётся как есть. */
 const WEIGHT_SUFFIX: Readonly<Record<string, string>> = { bold: 'bold', medium: 'medium', normal: '' };
 
 /**
@@ -29,6 +29,6 @@ const WEIGHT_SUFFIX: Readonly<Record<string, string>> = { bold: 'bold', medium: 
 export const typographyVariableBase = (tokenId: string): string => {
     const parts = tokenId.split('.');
     parts[0] = Object.hasOwn(GROUP_PREFIX, parts[0]) ? GROUP_PREFIX[parts[0]] : parts[0];
-    if (parts.length > 2) parts[2] = Object.hasOwn(WEIGHT_SUFFIX, parts[2]) ? WEIGHT_SUFFIX[parts[2]] : '';
+    if (parts.length > 2) parts[2] = Object.hasOwn(WEIGHT_SUFFIX, parts[2]) ? WEIGHT_SUFFIX[parts[2]] : parts[2];
     return parts.filter(Boolean).join('-');
 };

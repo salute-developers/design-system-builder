@@ -157,6 +157,11 @@ SHALL использовать `@sddsjs`.
 - **WHEN** вызывается `typographyVariableBase` для `header.h3.bold`, `display.l.normal` и `text.m.bold`
 - **THEN** результат MUST быть `h3-bold`, `dspl-l` и `text-m-bold`, как в `@salutejs/plasma-typo` и сгенерированной теме
 
+#### Scenario: Незнакомый вес в основе имени типографики
+
+- **WHEN** вызывается `typographyVariableBase` для стиля с весом не из `normal`, `medium`, `bold` (`header.h3.semibold`)
+- **THEN** вес MUST остаться в основе как есть (`h3-semibold`), а не выбрасываться: иначе два стиля получают одно имя переменной
+
 #### Scenario: Объект ядра по манифесту
 
 - **WHEN** манифест `TabItem` задаёт `coreTokensExport: "tabsTokens"`, а у `Button` манифеста нет

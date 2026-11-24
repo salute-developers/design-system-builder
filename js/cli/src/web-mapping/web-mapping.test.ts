@@ -73,6 +73,8 @@ describe('web-mapping', () => {
         assert.equal(typographyVariableBase('text.m.medium'), 'text-m-medium');
         assert.equal(typographyVariableBase('body.s'), 'body-s');
         assert.equal(typographyVariableBase('constructor.m.bold'), 'constructor-m-bold');
+        assert.equal(typographyVariableBase('header.h3.semibold'), 'h3-semibold');
+        assert.equal(typographyVariableBase('text.m.toString'), 'text-m-toString');
     });
 
     it('colorVariableName: default опускается', () => {
