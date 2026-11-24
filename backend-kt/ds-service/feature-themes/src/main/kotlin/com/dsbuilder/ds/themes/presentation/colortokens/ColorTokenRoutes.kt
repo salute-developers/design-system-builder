@@ -9,6 +9,7 @@ import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
+import com.dsbuilder.ds.themes.application.colortokens.AddColorTokenState
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenMutation
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
@@ -69,6 +70,35 @@ fun Route.colorTokenRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCa
                 useCases.delete.execute(call.revisionContext(context, body), tenantId, tokenId, body.editRevision),
             )
         }
+        colorTokenStateRoutes(evaluator, useCases)
+    }
+}
+
+/** Добавление и удаление состояния цветового токена: `/{tokenId}/states` и `/{tokenId}/states/{state}`. */
+private fun Route.colorTokenStateRoutes(evaluator: PolicyEvaluator, useCases: ColorTokenUseCases) {
+    post("/{tokenId}/states") {
+        val (context, tenantId) = call.tenantTarget(evaluator) ?: return@post
+        val tokenId = call.tokenId() ?: return@post
+        val command = call.body<AddColorTokenStateRequest>()?.toCommand() ?: return@post call.respondFailure(BODY)
+        call.respondFamily(
+            useCases.addState.execute(call.familyContext(context, command, 201), tenantId, tokenId, command),
+            HttpStatusCode.Created,
+        )
+    }
+    delete("/{tokenId}/states/{state}") {
+        val (context, tenantId) = call.tenantTarget(evaluator) ?: return@delete
+        val tokenId = call.tokenId() ?: return@delete
+        val state = call.parameters["state"].orEmpty()
+        val body = call.body<DeleteColorTokenStateRequest>() ?: return@delete call.respondFailure(BODY)
+        call.respondRevision(
+            useCases.deleteState.execute(
+                call.revisionContext(context, body),
+                tenantId,
+                tokenId,
+                state,
+                body.editRevision,
+            ),
+        )
     }
 }
 
@@ -89,6 +119,17 @@ private fun CreateColorTokenRequest.toCommand(): CreateColorToken? {
         groupId = tokenGroupId,
         position = position,
     )
+}
+
+/** Команда добавления состояния или `null`, если тема, платформа, режим или идентификатор не разобраны. */
+private fun AddColorTokenStateRequest.toCommand(): AddColorTokenState? {
+    // Тема или член, который не разобрался или повторяется, выпадает из карты, и размеры перестают совпадать.
+    val values = tenants.mapNotNull { tenant ->
+        val members = tenant.members.mapNotNull { member -> member.values.toValues()?.let { member.name to it } }
+            .toMap()
+        uuid(tenant.tenantId)?.takeIf { members.size == tenant.members.size }?.let { it to members }
+    }.toMap()
+    return AddColorTokenState(editRevision, state, values).takeIf { values.size == tenants.size }
 }
 
 /** Команда переноса или `null`, если идентификатор группы не разобран. */
@@ -112,6 +153,7 @@ private fun List<ColorTokenValueItem>.toValues(): List<ColorTokenValue>? = map {
         value = item.value,
         baseRevision = item.baseRevision,
         overridden = item.overridden,
+        detached = item.detached,
     )
 }
 

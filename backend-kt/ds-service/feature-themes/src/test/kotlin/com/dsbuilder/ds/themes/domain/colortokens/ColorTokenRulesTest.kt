@@ -21,6 +21,20 @@ class ColorTokenRulesTest {
     private val accent = ColorTokenFamily(ThemeTokenType.COLOR, "text", "accent")
 
     @Test
+    fun `state members follow subgroups of members without state`() {
+        val members = listOf("text.default.accent", "text.on-dark.accent", "text.default.accent-active")
+        assertEquals(
+            setOf("text.default.accent-hover", "text.on-dark.accent-hover"),
+            accent.stateMembers("hover", members),
+        )
+        val primary = ColorTokenFamily(ThemeTokenType.COLOR, "background", "primary")
+        assertEquals(
+            setOf("background.default.primary-brightness", "background.dark.primary-brightness"),
+            primary.stateMembers("brightness", listOf("background.default.primary", "background.dark.primary")),
+        )
+    }
+
+    @Test
     fun `family members cover subgroups and states`() {
         listOf(
             "text.default.accent",

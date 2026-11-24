@@ -7,6 +7,10 @@ import {
     InspectorHeader,
     instancesLabel,
     SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
+    useTokenEnabled,
+    type TokenPlatform,
 } from '../../../components/tokenWorkspace';
 import {
     differingPlatforms,
@@ -25,7 +29,7 @@ import {
     type SizeTokenValue,
 } from '../../../modules/sizeTokens';
 import { derivedLabel, derivedValue } from './SizeTokenBoard';
-import { CommitInput, PlatformAdd } from './fields';
+import { CommitInput } from './fields';
 import { ShadowLayers } from './ShadowLayers';
 
 const PLATFORM_ORDER: readonly NativePlatform[] = ['ios', 'android'];
@@ -33,6 +37,8 @@ const PLATFORM_ORDER: readonly NativePlatform[] = ['ios', 'android'];
 interface InspectorProps {
     /** Токен с несохранёнными правками. */
     token: SizeToken;
+    /** Блок «В других темах» перед разделом «Влияние». */
+    otherThemes?: import('react').ReactNode;
     /** Последнее сохранённое значение токена. */
     saved: SizeToken;
     editable: boolean;
@@ -42,6 +48,9 @@ interface InspectorProps {
     /** Описание токена из определения; `onDescribe` — его правка в шапке, у Viewer её нет. */
     description: string;
     onDescribe?: (value: string) => Promise<void>;
+    /** Признак `enabled` определения токена и его смена; отключённого токена нет в пакете. */
+    enabled: boolean;
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Переименование двойным щелчком по имени в шапке: правится полное имя, префикс раздела можно не вводить. */
     onRename?: (value: string) => Promise<void>;
     /** Сброс изменений токена в черновике (подключается снаружи); без него кнопки нет. */
@@ -59,33 +68,38 @@ interface InspectorProps {
     onDelete: () => void;
     onRetry: () => void;
     onOpenComponent: (name: string) => void;
+    /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
+    platform: TokenPlatform;
 }
 
 const platformsOf = <T,>(platforms: Partial<Record<NativePlatform, T>>) =>
     PLATFORM_ORDER.filter((platform) => platforms[platform] !== undefined);
 
 /** Статус сохранения под шапкой инспектора: у раздела нет шапки рабочей области (осознанное отступление). */
+/** Строка статуса сохранения по состоянию очереди: подпись и класс; «Сохранено» с ошибкой другой операции — своя. */
+const SAVE_LINE: Record<SaveStatus['state'], { label: string; className: string }> = {
+    saved: { label: 'Сохранено', className: '' },
+    pending: { label: 'Сохранение…', className: 'is-saving' },
+    saving: { label: 'Сохранение…', className: 'is-saving' },
+    error: { label: 'Не сохранено', className: 'is-error' },
+};
+const SAVED_WITH_OTHER_ERROR = { label: 'Не все правки сохранены', className: '' };
+
 const SaveLine = ({ save, otherError, onRetry }: Pick<InspectorProps, 'save' | 'otherError' | 'onRetry'>) => {
-    const failed = save.state === 'error' || otherError !== null;
+    const line = save.state === 'saved' && otherError ? SAVED_WITH_OTHER_ERROR : SAVE_LINE[save.state];
+    // Ошибка другой операции красит строку при любом состоянии своей очереди.
+    const otherFailed = otherError === null ? '' : 'is-error';
     // «Повторить» отправляет сразу операцию, которая иначе повторится автоматически; отказ проверки не повторяется.
     const retryable = save.state === 'error' ? Boolean(save.error?.retryable) : otherError !== null;
-    const label =
-        save.state === 'error'
-            ? 'Не сохранено'
-            : save.state === 'saved'
-              ? otherError
-                  ? 'Не все правки сохранены'
-                  : 'Сохранено'
-              : 'Сохранение…';
     return (
         <div className="st-save-row">
             <span
-                className={`st-save ${save.state === 'pending' || save.state === 'saving' ? 'is-saving' : ''} ${failed ? 'is-error' : ''}`}
+                className={`st-save ${line.className} ${otherFailed}`}
                 role="status"
                 data-testid="size-tokens-save-status"
             >
-                {label}
-                {failed && retryable && (
+                {line.label}
+                {retryable && (
                     <button type="button" className="st-inline-action" onClick={onRetry}>
                         Повторить
                     </button>
@@ -185,12 +199,14 @@ const DimensionBody = ({
     saved,
     editable,
     save,
+    platform,
     onChange,
 }: {
     token: DimensionToken;
     saved: DimensionToken;
     editable: boolean;
     save: SaveStatus;
+    platform: TokenPlatform;
     onChange: InspectorProps['onChange'];
 }) => {
     const [errors, setErrors] = useState<Record<string, string | null>>({});
@@ -198,7 +214,12 @@ const DimensionBody = ({
     const serverError = serverErrorOf(save);
     const range = RANGES[token.kind];
     const validate = (raw: string) => validatePx(raw, range);
-    const overridden = platformsOf(token.platforms);
+    // Поле показывает значение платформы предпросмотра: Web, своё значение iOS или Android или значение Web, из
+    // которого платформа строится. Правка такого значения делает его своим значением платформы.
+    const overridden = platformsOf(token.platforms).filter((item) => item === platform);
+    // Без своего значения поле показывает Web; на iOS и Android правка записывает своё значение платформы.
+    const showWeb = !overridden.length;
+    const fromWeb = showWeb && platform !== 'web';
     const setDimension = (change: (value: Extract<SizeTokenValue, { kind: 'dimension' }>) => SizeTokenValue) =>
         onChange((value) => (value.kind === 'dimension' ? change(value) : value));
     const valueError = errors.valuePx ?? serverError('valuePx');
@@ -207,45 +228,46 @@ const DimensionBody = ({
             <section className="st-section tw-section">
                 <SectionHeader title={token.kind === 'radius' ? 'Радиус' : 'Отступ'} />
                 <div className="st-field-block tw-field-block">
-                    <label className="st-field-label tw-field-label" htmlFor={`size-value-${token.tokenId}`}>
-                        Значение, px
-                    </label>
-                    <div className="st-field-row tw-field-line">
-                        {token.fullRounding ? (
-                            <input
-                                id={`size-value-${token.tokenId}`}
-                                className={`st-input ${fieldClass()}`}
-                                value="Full"
-                                aria-label="Значение, px"
-                                disabled
-                                readOnly
-                            />
-                        ) : (
-                            <CommitInput
-                                id={`size-value-${token.tokenId}`}
-                                className={`st-input ${fieldClass(valueError ? 'error' : null)}`}
-                                aria-label="Значение, px"
-                                aria-invalid={Boolean(valueError)}
-                                value={String(token.valuePx ?? '')}
-                                disabled={!editable}
-                                validate={validate}
-                                onIssue={(message) => setError('valuePx', message)}
-                                onCommit={(raw) => setDimension((value) => ({ ...value, valuePx: parsePx(raw) }))}
-                            />
-                        )}
-                        {editable && !token.fullRounding && (
-                            <PlatformAdd
-                                added={overridden}
-                                label="Своё значение платформы"
-                                onAdd={(platform) =>
-                                    setDimension((value) => ({
-                                        ...value,
-                                        platforms: { ...value.platforms, [platform]: value.valuePx },
-                                    }))
-                                }
-                            />
-                        )}
-                    </div>
+                    {showWeb && (
+                        <label className="st-field-label tw-field-label" htmlFor={`size-value-${token.tokenId}`}>
+                            Значение, px
+                        </label>
+                    )}
+                    {showWeb && (
+                        <div className="st-field-row tw-field-line">
+                            {token.fullRounding ? (
+                                <input
+                                    id={`size-value-${token.tokenId}`}
+                                    className={`st-input ${fieldClass()}`}
+                                    value="Full"
+                                    aria-label="Значение, px"
+                                    disabled
+                                    readOnly
+                                />
+                            ) : (
+                                <CommitInput
+                                    id={`size-value-${token.tokenId}`}
+                                    className={`st-input ${fieldClass(valueError ? 'error' : null)}`}
+                                    aria-label="Значение, px"
+                                    aria-invalid={Boolean(valueError)}
+                                    value={String(token.valuePx ?? '')}
+                                    disabled={!editable}
+                                    validate={validate}
+                                    onIssue={(message) => setError('valuePx', message)}
+                                    onCommit={(raw) =>
+                                        setDimension((value) =>
+                                            fromWeb
+                                                ? {
+                                                      ...value,
+                                                      platforms: { ...value.platforms, [platform]: parsePx(raw) },
+                                                  }
+                                                : { ...value, valuePx: parsePx(raw) },
+                                        )
+                                    }
+                                />
+                            )}
+                        </div>
+                    )}
                     {valueError && <FieldMessage>{valueError}</FieldMessage>}
                 </div>
                 {overridden.map((platform) => {
@@ -347,6 +369,7 @@ const ShadowBody = ({
     saved,
     editable,
     save,
+    platform,
     onChange,
     colorLabel,
     picker,
@@ -356,6 +379,7 @@ const ShadowBody = ({
     saved: ShadowToken;
     editable: boolean;
     save: SaveStatus;
+    platform: TokenPlatform;
     onChange: InspectorProps['onChange'];
 } & Pick<InspectorProps, 'colorLabel' | 'picker' | 'onOpenPicker'>) => {
     /** Свойства выбора цвета для слоёв набора [scope]. */
@@ -366,7 +390,10 @@ const ShadowBody = ({
     });
     const [elevationIssue, setElevationIssue] = useState<string | null>(null);
     const serverError = serverErrorOf(save);
-    const overridden = platformsOf(token.platforms);
+    // Слои платформы предпросмотра: свои слои iOS или Android или слои Web, из которых платформа строится.
+    const overridden = platformsOf(token.platforms).filter((item) => item === platform);
+    const showWeb = !overridden.length;
+    const fromWeb = showWeb && platform !== 'web';
     const setShadow = (change: (value: Extract<SizeTokenValue, { kind: 'shadow' }>) => SizeTokenValue) =>
         onChange((value) => (value.kind === 'shadow' ? change(value) : value));
     const setPlatformLayers = (platform: NativePlatform, layers: ShadowLayer[] | null) =>
@@ -380,32 +407,23 @@ const ShadowBody = ({
     return (
         <>
             <section className="st-section tw-section">
-                <SectionHeader
-                    title="Слои"
-                    actions={
-                        editable && (
-                            <PlatformAdd
-                                added={overridden}
-                                label="Свои слои платформы"
-                                onAdd={(platform) =>
-                                    setPlatformLayers(
-                                        platform,
-                                        token.layers.map((layer) => ({ ...layer })),
-                                    )
-                                }
-                            />
-                        )
-                    }
-                />
-                <ShadowLayers
-                    layers={token.layers}
-                    editable={editable}
-                    scope="Веб"
-                    fieldPrefix="layers"
-                    serverError={serverError}
-                    {...colorProps('web')}
-                    onChange={(layers) => setShadow((value) => ({ ...value, layers }))}
-                />
+                <SectionHeader title="Слои" />
+                {showWeb && (
+                    // На iOS и Android без своих слоёв показываются слои Web; правка делает их своими слоями платформы.
+                    <ShadowLayers
+                        layers={token.layers}
+                        editable={editable}
+                        scope="Веб"
+                        fieldPrefix="layers"
+                        serverError={serverError}
+                        {...colorProps(fromWeb ? (platform as NativePlatform) : 'web')}
+                        onChange={(layers) =>
+                            fromWeb
+                                ? setPlatformLayers(platform as NativePlatform, layers)
+                                : setShadow((value) => ({ ...value, layers }))
+                        }
+                    />
+                )}
             </section>
             {overridden.map((platform) => (
                 <section key={platform} className="st-section tw-section" data-testid={`override-layers-${platform}`}>
@@ -476,6 +494,13 @@ const ShadowBody = ({
 export const SizeTokenInspector = (props: InspectorProps) => {
     const { token, saved, editable, canDelete, save } = props;
     const unmatched = save.state === 'error' && save.error && !knownField(token, save.error.field) ? save.error : null;
+    const enabledToggle = useTokenEnabled({
+        subject: token.tokenId,
+        enabled: props.enabled,
+        editable,
+        components: saved.components.map((usage) => usage.name),
+        save: props.onToggleEnabled,
+    });
     return (
         <>
             <InspectorHeader
@@ -486,19 +511,23 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                 onReset={props.onReset}
                 resetDisabled={props.resetDisabled}
                 actions={
-                    canDelete && (
-                        <button
-                            type="button"
-                            className="tw-icon-button"
-                            title="Удалить токен"
-                            aria-label="Удалить токен"
-                            onClick={props.onDelete}
-                        >
-                            <TrashOutline />
-                        </button>
-                    )
+                    <>
+                        <TokenEnabledButton toggle={enabledToggle} />
+                        {canDelete && (
+                            <button
+                                type="button"
+                                className="tw-icon-button"
+                                title="Удалить токен"
+                                aria-label="Удалить токен"
+                                onClick={props.onDelete}
+                            >
+                                <TrashOutline />
+                            </button>
+                        )}
+                    </>
                 }
             />
+            <TokenEnabledNotice toggle={enabledToggle} name={token.name} />
             <div className="st-inspector-body">
                 {!editable && (
                     <div className="viewer-banner" role="status" data-testid="size-tokens-viewer">
@@ -517,6 +546,7 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                         saved={saved}
                         editable={editable}
                         save={save}
+                        platform={props.platform}
                         onChange={props.onChange}
                         colorLabel={props.colorLabel}
                         picker={props.picker}
@@ -528,9 +558,11 @@ export const SizeTokenInspector = (props: InspectorProps) => {
                         saved={saved}
                         editable={editable}
                         save={save}
+                        platform={props.platform}
                         onChange={props.onChange}
                     />
                 ) : null}
+                {props.otherThemes}
                 <Impact token={token} onOpenComponent={props.onOpenComponent} />
             </div>
         </>

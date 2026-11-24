@@ -33,7 +33,7 @@ LEFT JOIN LATERAL (
     ORDER BY revision.version_sequence_number DESC LIMIT 1
 ) previous ON true
 LEFT JOIN LATERAL (
-    SELECT token_value_id, palette_id, value, overridden, deleted FROM token_value_revisions revision
+    SELECT token_value_id, palette_id, value, overridden, detached, deleted FROM token_value_revisions revision
     WHERE revision.token_value_id = entity.id AND revision.version_sequence_number <= scope.current_seq
     ORDER BY revision.version_sequence_number DESC LIMIT 1
 ) current ON true
@@ -49,5 +49,6 @@ WHERE entity.design_system_id = scope.owner
       AND current.palette_id IS NOT DISTINCT FROM baseline.palette_id
       AND COALESCE(current.value, 'null'::jsonb)::text IS NOT DISTINCT FROM COALESCE(baseline.value, 'null'::jsonb)::text
       AND current.overridden IS NOT DISTINCT FROM baseline.overridden
+      AND current.detached IS NOT DISTINCT FROM baseline.detached
   )
 ORDER BY entity.id LIMIT 500

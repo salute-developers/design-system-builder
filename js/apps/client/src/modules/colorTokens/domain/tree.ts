@@ -64,8 +64,11 @@ export const groupCode = (groups: TokenGroupDto[], groupId: string | null): stri
  */
 export const buildTree = (groups: TokenGroupDto[], views: ColorTokenView[], options: TreeOptions): TreeGroup[] => {
     const filtering = Boolean(options.query.trim()) || options.issuesOnly;
+    // Фильтр проблем учитывает и значения состояний: токен виден, если не проходит проверку хотя бы его состояние.
     const visible = views.filter(
-        (token) => matches(token, options.query) && (!options.issuesOnly || token.issues.length),
+        (token) =>
+            matches(token, options.query) &&
+            (!options.issuesOnly || token.issues.length || token.states?.some((state) => state.issues.length)),
     );
     const compare =
         options.sort === 'az'

@@ -158,6 +158,7 @@ private fun tokenValueDraftChangeHandler(listeners: List<TokenRevertListener>): 
             TokenValueRevisionsTable.paletteId,
             TokenValueRevisionsTable.value,
             TokenValueRevisionsTable.overridden,
+            TokenValueRevisionsTable.detached,
         ),
     )
     return object :
@@ -243,7 +244,7 @@ private fun revertToBaseline(delegate: DraftChangeHandler, versionId: UUID, enti
         (TokenValueRevisionsTable.designSystemVersionId eq versionId) and
             (TokenValueRevisionsTable.tokenValueId eq entityId)
     }
-    SubjectMutationPaths.with(setOf("/palette_id", "/value", "/overridden")) {
+    SubjectMutationPaths.with(setOf("/palette_id", "/value", "/overridden", "/detached")) {
         TokenValueRevisionsTable.insert {
             it[tokenValueId] = entityId
             it[designSystemId] = current[TokenValueRevisionsTable.designSystemId]
@@ -252,6 +253,7 @@ private fun revertToBaseline(delegate: DraftChangeHandler, versionId: UUID, enti
             it[paletteId] = baseline[TokenValueCreationBaselinesTable.paletteId]
             it[value] = baseline[TokenValueCreationBaselinesTable.value]
             it[overridden] = baseline[TokenValueCreationBaselinesTable.overridden]
+            it[detached] = baseline[TokenValueCreationBaselinesTable.detached]
             it[deleted] = false
         }
     }

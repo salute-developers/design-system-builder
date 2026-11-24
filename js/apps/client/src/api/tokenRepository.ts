@@ -212,6 +212,11 @@ export const tokenRepository = {
                     .filter((value) => value.overridden === true)
                     .map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), true]),
             ),
+            tokenValueDetachedByKey: Object.fromEntries(
+                values.data
+                    .filter((value) => value.detached === true)
+                    .map((value) => [tokenValueKey(value.tokenId, value.platform, value.mode), true]),
+            ),
         };
     },
 
@@ -348,6 +353,26 @@ export const tokenRepository = {
         return (await readEditor<PaletteDto[]>(`${apiRoot(context.projectId)}/palette`, { signal })).data;
     },
 
+    /**
+     * Значения выбранных токенов во всех темах дизайн-системы на границе версии контекста, по одной группе на тему;
+     * `GET /token-values?tokenIds=` разрешает цвета по палитре каждой темы. Кэш — по адресу.
+     */
+    async loadValuesByTenant(
+        context: EditorContextKey,
+        tokenIds: string[],
+        signal?: AbortSignal,
+    ): Promise<Map<string, TenantTokenValueDto[]>> {
+        const request = readRequest(context, signal);
+        const values = (
+            await readEditor<TenantTokenValueDto[]>(
+                `${apiRoot(context.projectId, context.designSystemId)}/token-values`,
+                { ...request, params: { ...request.params, tokenIds: tokenIds.join(',') } },
+            )
+        ).data;
+        const byTenant = new Map<string, TenantTokenValueDto[]>();
+        for (const value of values) byTenant.set(value.tenantId, [...(byTenant.get(value.tenantId) ?? []), value]);
+        return byTenant;
+    },
     async listDefinitions(context: EditorContextKey, signal?: AbortSignal) {
         return (
             await readEditor<TokenDefinitionDto[]>(

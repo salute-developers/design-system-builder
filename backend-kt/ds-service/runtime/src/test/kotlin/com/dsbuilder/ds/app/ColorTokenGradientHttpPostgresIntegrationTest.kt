@@ -29,6 +29,7 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
@@ -765,6 +766,289 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 val stalePage = api.call("POST", targetPath, VIEWER, next.toString())
                 assertEquals(HttpStatusCode.Conflict, stalePage.status, stalePage.bodyAsText())
                 assertEquals("TARGET_SNAPSHOT_CHANGED", api.body(stalePage).text("code"))
+            }
+        }
+    }
+
+    /**
+     * Признак отвязанной подтемы `detached`: хранится путём `/detached`, сохраняется правками значения другими
+     * маршрутами, переносится копией темы, сравнивается журналом с основой создания и восстанавливается откатом.
+     */
+    @Test
+    @Suppress("LongMethod")
+    fun `state is added with values of each theme, journaled, reverted and deleted`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"states","projectName":"states"}""")
+                val tenantA = api.createTenant(system, "a")
+                val tenantB = api.createTenant(system, "b")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(single = "glow"),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val base = api.body(
+                    created,
+                ).jsonObject.getValue("value").jsonObject.array("members").single().text("tokenId")
+                val path = "/api/design-systems/$system/tenants/$tenantA/color-tokens/$base/states"
+                api.publish(postgres, system, "1.0.0")
+                fun member(color: String, detached: Boolean) =
+                    """{"name":"text.default.glow-hover","values":[""" + PLATFORMS.flatMap { platform ->
+                        MODES.map { mode ->
+                            """{"platform":"$platform","mode":"$mode","value":["$color"],"detached":$detached}"""
+                        }
+                    }.joinToString(",") + "]}"
+                fun body(vararg tenants: Pair<String, String>, state: String = "hover") =
+                    """{"editRevision":0,"state":"$state","tenants":[""" + tenants.joinToString(",") { (tenant, color) ->
+                        """{"tenantId":"$tenant","members":[${member(color, tenant == tenantA)}]}"""
+                    } + "]}"
+
+                // Отказы до записи: нет темы B, неизвестное состояние, Viewer без права.
+                api.reject("POST", path, body(tenantA to "#111111"), "INVALID_TOKEN_FAMILY")
+                api.reject(
+                    "POST",
+                    path,
+                    body(tenantA to "#111111", tenantB to "#222222", state = "focus"),
+                    "INVALID_TOKEN_STATE",
+                )
+                val forbidden = api.call("POST", path, VIEWER, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Forbidden, forbidden.status, forbidden.bodyAsText())
+                assertEquals(
+                    0,
+                    count(
+                        postgres,
+                        tokenIdSql(system, "text.default.glow-hover").replace("SELECT id", "SELECT count(*)"),
+                    ),
+                )
+
+                // Добавление: у каждой темы свой цвет, признак ручного значения только в теме A.
+                val added = api.call("POST", path, EDITOR, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
+                // Совместимое поле: технические редакции — в `X-DS-Mutation-Metadata`.
+                assertEquals(0, api.body(added).jsonObject.getValue("editRevision").jsonPrimitive.int)
+                val members = api.body(added).jsonObject.getValue("value").jsonObject.array("members")
+                    .associate { it.text("name") to it.text("tokenId") }
+                assertEquals(setOf("text.default.glow", "text.default.glow-hover"), members.keys)
+                val hover = members.getValue("text.default.glow-hover")
+                val lightA = value(api.values(system, tenantA), hover, "web", "light")
+                val lightB = value(api.values(system, tenantB), hover, "web", "light")
+                assertEquals(JsonArray(listOf(JsonPrimitive("#111111"))), lightA.getValue("value"))
+                assertEquals(JsonArray(listOf(JsonPrimitive("#222222"))), lightB.getValue("value"))
+                assertTrue(lightA.getValue("detached").jsonPrimitive.boolean)
+                assertFalse(lightB.getValue("detached").jsonPrimitive.boolean)
+                val conflict = api.call("POST", path, EDITOR, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Conflict, conflict.status, conflict.bodyAsText())
+                assertEquals("TOKEN_NAME_CONFLICT", api.body(conflict).text("code"))
+
+                // Журнал показывает создание определения состояния и его значений; откат убирает их из черновика.
+                val valueIds = listOf(tenantA, tenantB).flatMap { tenant ->
+                    api.values(system, tenant).filter { it.text("tokenId") == hover }.map { it.text("id") }
+                }.toSet()
+                val journal = api.journal(system)
+                // Откат одной записи определения без значений не каскадируется: значения тем A и B остаются.
+                val definitionOnly = api.revert(system, journal.single { it.text("entityId") == hover })
+                assertEquals(HttpStatusCode.Conflict, definitionOnly.status, definitionOnly.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(definitionOnly).text("code"))
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    val left = api.values(system, tenant).count { it.text("tokenId") == hover }
+                    assertEquals(MODES.size * PLATFORMS.size, left)
+                }
+                // Значения откатываются раньше определения, на которое они ссылаются.
+                val creation = journal.filter { it.text("entityId") == hover || it.text("entityId") in valueIds }
+                    .sortedBy { it.text("entityId") == hover }
+                assertEquals(1 + valueIds.size, creation.size)
+                val targets = creation.joinToString(",") { change ->
+                    """{"entityType":"${change.text("entityType")}","entityId":"${change.text("entityId")}",""" +
+                        """"expectedRevision":${change.getValue("editRevision")}}"""
+                }
+                val reverted = api.call(
+                    "POST",
+                    "/api/design-systems/$system/changes/revert-by-address",
+                    OWNER,
+                    """{"draftId":"${creation.first().text("versionId")}","targets":[$targets]}""",
+                    idempotencyKey = "state-revert",
+                )
+                assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    assertTrue(api.values(system, tenant).none { it.text("tokenId") == hover })
+                }
+
+                // Состояние отключённого токена создаётся отключённым.
+                val disabled = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/tokens/$base",
+                    EDITOR,
+                    """{"enabled":false}""",
+                )
+                assertEquals(HttpStatusCode.OK, disabled.status, disabled.bodyAsText())
+
+                // Удаление: Editor не может, Maintainer удаляет состояние, член без состояния остаётся.
+                val again = api.call("POST", path, EDITOR, body(tenantA to "#333333", tenantB to "#444444"))
+                assertEquals(HttpStatusCode.Created, again.status, again.bodyAsText())
+                val revived = api.body(again).jsonObject.getValue("value").jsonObject.array("members")
+                    .single { it.text("name") == "text.default.glow-hover" }.text("tokenId")
+                val revivedDefinition = api.read("/api/design-systems/$system/tokens/$revived")
+                assertFalse(revivedDefinition.getValue("enabled").jsonPrimitive.boolean)
+
+                // Единственный градиент семейства — у Hover темы A: после удаления Hover семейство снова `color`.
+                val gradient = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenantA/color-tokens/$revived/values",
+                    EDITOR,
+                    gradientBody(revived, emptyMap()),
+                )
+                assertEquals("gradient", api.body(gradient).jsonObject.text("type"), gradient.bodyAsText())
+                val deletePath = "$path/hover"
+                val editorDelete = api.call("DELETE", deletePath, EDITOR, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.Forbidden, editorDelete.status, editorDelete.bodyAsText())
+                val deleted = api.call("DELETE", deletePath, MAINTAINER, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
+                assertEquals("color", api.read("/api/design-systems/$system/tokens/$base").text("type"))
+                assertEquals(
+                    listOf("color"),
+                    api.body(deleted).jsonObject.getValue("structure").jsonObject.array("definitions")
+                        .map { it.text("type") }.distinct(),
+                )
+                assertTrue(api.values(system, tenantB).none { it.text("tokenId") == revived })
+                assertTrue(api.values(system, tenantB).any { it.text("tokenId") == base })
+                val missing = api.call("DELETE", "$path/active", MAINTAINER, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.NotFound, missing.status, missing.bodyAsText())
+            }
+        }
+    }
+
+    @Test
+    fun `detached flag round-trips, survives other routes, is copied and restored by revert`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"detach","projectName":"detach"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val base = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .single { it.text("name") == "text.default.highlight" }.text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                fun detachBody(tokenId: String, color: String, revision: Long, detached: Boolean) =
+                    """{"editRevision":0,"members":[{"tokenId":"$tokenId","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["$color"],"baseRevision":$revision,"detached":$detached}]}]}"""
+                fun colorPath(tenantId: String) =
+                    "/api/design-systems/$system/tenants/$tenantId/color-tokens/$base/values"
+                suspend fun light(tenantId: String) = value(api.values(system, tenantId), base, "web", "light")
+                fun JsonObject.detached() = getValue("detached").jsonPrimitive.boolean
+                fun solid(color: String) = JsonArray(listOf(JsonPrimitive(color)))
+
+                // Отвязка без смены значения: новая редакция только с путём /detached.
+                val detach = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), true),
+                )
+                assertEquals(HttpStatusCode.OK, detach.status, detach.bodyAsText())
+                val confirmed = api.body(detach).jsonObject.getValue("confirmedValues").jsonArray.map { it.jsonObject }
+                assertTrue(value(JsonArray(confirmed), base, "web", "light").detached())
+                val values = api.values(system, tenant)
+                assertTrue(values.all { "detached" in it.jsonObject }, "признак отдаётся у каждого значения")
+                val sourceLight = value(values, base, "web", "light")
+                assertTrue(sourceLight.detached())
+                assertFalse(value(values, base, "web", "dark").detached())
+                assertFalse(value(values, base, "ios", "light").detached())
+                val detachChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(listOf("/detached"), detachChange.array("changedPaths").map { it.jsonPrimitive.content })
+
+                // Старый клиент или MCP шлёт значения цветового токена без поля: признак остаётся прежним.
+                val omittedRevision = api.revisions(system, tenant, base).getValue("web:light")
+                val omitted = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    """{"editRevision":0,"members":[{"tokenId":"$base","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["#FEFEFE"],"baseRevision":$omittedRevision}]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, omitted.status, omitted.bodyAsText())
+                assertTrue(light(tenant).detached(), "PUT color-tokens без detached сохраняет признак")
+
+                // Правка значения общим маршрутом и пакетным сохранением темы признак не снимает.
+                val patched = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/token-values/${sourceLight.text("id")}",
+                    EDITOR,
+                    """{"value":["#123456"]}""",
+                )
+                assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+                assertEquals(solid("#123456"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PATCH token-values сохраняет detached")
+                val batch = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenant/token-values",
+                    EDITOR,
+                    """{"editRevision":0,"values":[{"tokenId":"$base","platform":"web","mode":"light",""" +
+                        """"value":["#654321"]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, batch.status, batch.bodyAsText())
+                assertTrue(api.body(batch).array("values").single().jsonObject.detached())
+                assertEquals(solid("#654321"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PUT tenants/{id}/token-values сохраняет detached")
+
+                // Копия темы переносит признак; её значения совпадают с основой создания и не видны в журнале.
+                val copy = api.create(
+                    "/api/design-systems/$system/tenants/$tenant/duplicates",
+                    EDITOR,
+                    """{"name":"copy"}""",
+                )
+                val copyLight = light(copy)
+                assertTrue(copyLight.detached())
+                assertEquals(solid("#654321"), copyLight.getValue("value"))
+                val copyIds = api.values(system, copy).map { it.text("id") }.toSet()
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Связь в копии восстановлена: журнал показывает /detached относительно основы создания, откат
+                // возвращает отвязку из основы.
+                val relinkCopy = api.call(
+                    "PUT",
+                    colorPath(copy),
+                    EDITOR,
+                    detachBody(base, "#654321", api.revisions(system, copy, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relinkCopy.status, relinkCopy.bodyAsText())
+                assertFalse(light(copy).detached())
+                val copyChange = api.journal(system).single { it.text("entityId") == copyLight.text("id") }
+                assertEquals(listOf("/detached"), copyChange.array("changedPaths").map { it.jsonPrimitive.content })
+                assertEquals(HttpStatusCode.OK, api.revert(system, copyChange).status)
+                assertTrue(light(copy).detached(), "откат к основе создания возвращает detached")
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Опубликованная отвязка: связь в новом черновике восстанавливается, откат правки возвращает
+                // значение и признак опубликованной версии.
+                api.publish(postgres, system, "2.0.0")
+                val relink = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relink.status, relink.bodyAsText())
+                assertFalse(light(tenant).detached())
+                val relinkChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(
+                    setOf("/detached", "/value"),
+                    relinkChange.array("changedPaths").map { it.jsonPrimitive.content }.toSet(),
+                )
+                assertEquals(HttpStatusCode.OK, api.revert(system, relinkChange).status)
+                val restored = light(tenant)
+                assertTrue(restored.detached(), "откат возвращает detached опубликованной версии")
+                assertEquals(solid("#654321"), restored.getValue("value"))
             }
         }
     }

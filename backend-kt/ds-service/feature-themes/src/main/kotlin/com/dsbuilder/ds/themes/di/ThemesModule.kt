@@ -10,13 +10,16 @@ import com.dsbuilder.ds.core.application.TokenValueReadPolicy
 import com.dsbuilder.ds.core.application.TokenValueWritePolicy
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
+import com.dsbuilder.ds.themes.application.DuplicateTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
 import com.dsbuilder.ds.themes.application.SaveTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.TenantRepository
+import com.dsbuilder.ds.themes.application.TenantTokenValueCopier
 import com.dsbuilder.ds.themes.application.TenantTokenValueInitializer
 import com.dsbuilder.ds.themes.application.UpdateTenantUseCase
+import com.dsbuilder.ds.themes.application.colortokens.AddColorTokenStateUseCase
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenFamilyTypeSync
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRepository
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenRevertListener
@@ -24,6 +27,7 @@ import com.dsbuilder.ds.themes.application.colortokens.ColorTokenUseCases
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueReadPolicy
 import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValueWritePolicy
 import com.dsbuilder.ds.themes.application.colortokens.CreateColorTokenUseCase
+import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenStateUseCase
 import com.dsbuilder.ds.themes.application.colortokens.DeleteColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.MoveColorTokenUseCase
 import com.dsbuilder.ds.themes.application.colortokens.UpdateColorTokenValuesUseCase
@@ -71,6 +75,7 @@ import com.dsbuilder.ds.themes.data.ExposedSizeTokenRepository
 import com.dsbuilder.ds.themes.data.ExposedSizeTokenUsageRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantPaletteRepository
 import com.dsbuilder.ds.themes.data.ExposedTenantRepository
+import com.dsbuilder.ds.themes.data.ExposedTenantTokenValueCopier
 import com.dsbuilder.ds.themes.data.ExposedTokenGroupRepository
 import com.dsbuilder.ds.themes.data.ExposedTypographyStyleRepository
 import com.dsbuilder.ds.themes.data.ExposedTypographyUsageRepository
@@ -120,6 +125,19 @@ val themesModule = module {
             get(),
         )
     }
+    single<TenantTokenValueCopier> { ExposedTenantTokenValueCopier() }
+    factory {
+        DuplicateTenantUseCase(
+            get(),
+            get(),
+            get(),
+            get(),
+            get(),
+            IdempotentCreateExecutor(get()),
+            get(),
+            get(),
+        )
+    }
     factory { UpdateTenantUseCase(get(), get(), get(), get()) }
     factory { DeleteTenantUseCase(get(), get(), get(), get()) }
     factory { GetTenantTokenValuesUseCase(get(), get(), get(), get()) }
@@ -151,7 +169,9 @@ val themesModule = module {
     factory { UpdateColorTokenValuesUseCase(get(), get(), get(), get(), get()) }
     factory { DeleteColorTokenUseCase(get(), get(), get()) }
     factory { MoveColorTokenUseCase(get(), get(), get(), get()) }
-    factory { ColorTokenUseCases(get(), get(), get(), get()) }
+    factory { AddColorTokenStateUseCase(get(), get(), get(), get(), get()) }
+    factory { DeleteColorTokenStateUseCase(get(), get(), get()) }
+    factory { ColorTokenUseCases(get(), get(), get(), get(), get(), get()) }
     factory { ListTokenGroupsUseCase(get(), get(), get()) }
     factory { CreateTokenGroupUseCase(get(), get(), get(), get()) }
     factory { UpdateTokenGroupUseCase(get(), get(), get(), get()) }

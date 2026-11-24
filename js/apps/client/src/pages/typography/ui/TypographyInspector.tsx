@@ -8,14 +8,18 @@ import {
     type ReactNode,
     type RefObject,
 } from 'react';
-import { ChevronDownOutline, CloseOutline, PlusOutline, TrashOutline } from '@salutejs/sdds-icons/16';
+import { ChevronDownOutline, CloseOutline, TrashOutline } from '@salutejs/sdds-icons/16';
 
 import {
     FieldMessage,
     InspectorHeader,
     instancesLabel,
     SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
     fieldClass,
+    useTokenEnabled,
+    type TokenPlatform,
 } from '../../../components/tokenWorkspace';
 import {
     TYPOGRAPHY_OVERRIDE_PLATFORMS,
@@ -27,6 +31,7 @@ import {
     parseNumber,
     screenLabel,
     styleLabel,
+    styleTokenName,
     styleVariant,
     type TypographyField,
     type TypographyOverridePlatform,
@@ -38,6 +43,8 @@ import {
 
 interface TypographyInspectorProps {
     style: TypographyStyle;
+    /** Блок «В других темах» под разделом «Стиль». */
+    otherThemes?: ReactNode;
     families: TypographyFamily[];
     themeCount: number;
     editable: boolean;
@@ -48,6 +55,9 @@ interface TypographyInspectorProps {
     /** Подсказка пустого описания — образец текста группы. */
     descriptionPlaceholder?: string;
     onDescribe?: (description: string) => Promise<void>;
+    /** Признак `enabled` стиля и его смена для всех начертаний на всех экранах. */
+    enabled: boolean;
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Переименование двойным щелчком по имени: правится размер стиля, группа не меняется. */
     onRename?: (size: string) => Promise<void>;
     /** Удаление стиля на всех экранах; без него кнопки нет. */
@@ -55,10 +65,11 @@ interface TypographyInspectorProps {
     /** Сброс изменений стиля в черновике: кнопку подключает экран, когда действие задано. */
     onReset?: () => void;
     resetDisabled?: boolean;
-    onVariantChange: (variant: TypographyVariant) => void;
     error: (field: TypographyField, platform?: TypographyOverridePlatform) => string | null;
     onChange: (change: TypographyStyleChange) => void;
     onOpenComponent: (name: string) => void;
+    /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
+    platform: TokenPlatform;
 }
 
 /** Значки полей `Inspector/TypographyPropertyIcon`: буквы «Tt», «B», «Aa» и знаки размеров из прототипа. */
@@ -258,57 +269,9 @@ const FIELD_LABELS: Record<OverridableField, string> = {
     weight: 'Weight',
 };
 
-/** «+» у поля: кнопка-иконка 24×24 видна всегда, меню — платформы, у которых ещё нет своего значения. */
-const OverrideAdd = ({
-    platforms,
-    onAdd,
-}: {
-    platforms: ReadonlyArray<{ id: TypographyOverridePlatform; label: string }>;
-    onAdd: (platform: TypographyOverridePlatform) => void;
-}) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    const close = useCallback(() => setOpen(false), []);
-    useDismiss(ref, open, close);
-    return (
-        <div className="typography-override-add" ref={ref}>
-            <button
-                type="button"
-                className="tw-icon-button"
-                aria-label="Своё значение платформы"
-                title="Своё значение платформы"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                disabled={!platforms.length}
-                onClick={() => setOpen((value) => !value)}
-            >
-                <PlusOutline />
-            </button>
-            {open && platforms.length > 0 && (
-                <div className="tw-menu typography-menu typography-override-menu" role="menu">
-                    {platforms.map((platform) => (
-                        <button
-                            key={platform.id}
-                            type="button"
-                            role="menuitem"
-                            className="tw-menu-item"
-                            onClick={() => {
-                                setOpen(false);
-                                onAdd(platform.id);
-                            }}
-                        >
-                            {platform.label}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
-
 /**
  * Веса прототипа; вес темы вне списка добавляется, чтобы поле показывало текущее значение. Половинное поле веса
- * рядом с «+» показывает только число: подпись «400 / Regular» видна в списке и подсказке поля.
+ * показывает только число: подпись «400 / Regular» видна в списке и подсказке поля.
  */
 const weightOptions = (weight: number | undefined) =>
     (weight === undefined || TYPOGRAPHY_WEIGHTS.some((option) => option.value === weight)
@@ -345,23 +308,17 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const variantLabel = TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant;
     const weight = style.variants[variant]?.weight;
 
-    // Строки своих значений, добавленные «+» и ещё не сохранённые: значение платформы пока равно вебу.
-    const [added, setAdded] = useState<string[]>([]);
-    useEffect(() => setAdded([]), [style.screen, style.group, style.size, variant]);
     const baseOf = (field: OverridableField) => (field === 'weight' ? weight : style[OVERRIDE_PROPS[field]]);
     const overrideOf = (platform: TypographyOverridePlatform, field: OverridableField) =>
         field === 'weight'
             ? style.overrides?.[platform]?.weights?.[variant]
             : style.overrides?.[platform]?.[OVERRIDE_PROPS[field]];
     const platformsWith = (field: OverridableField) =>
-        TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(
-            ({ id }) => overrideOf(id, field) !== undefined || added.includes(`${field}:${id}`),
-        );
+        TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => overrideOf(id, field) !== undefined);
     const commitOverride = (platform: TypographyOverridePlatform, field: OverridableField, value: number) =>
         onChange(field === 'weight' ? { platform, weights: { [variant]: value } } : { platform, [field]: value });
     /** «×»: своё значение снимается записью значения веба, после неё поле снова строится из веба. */
     const removeOverride = (platform: TypographyOverridePlatform, field: OverridableField) => {
-        setAdded((keys) => keys.filter((key) => key !== `${field}:${platform}`));
         const base = baseOf(field);
         if (overrideOf(platform, field) !== undefined && base !== undefined) commitOverride(platform, field, base);
     };
@@ -385,21 +342,21 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
             return warning ? [{ tone: 'warning' as const, text: warning }] : [];
         });
 
-    /** Поле с «+» и строками своих значений iOS и Android под ним. */
-    const overridable = (field: OverridableField, base: ReactNode) => {
-        const rows = platformsWith(field);
-        const addable = TYPOGRAPHY_OVERRIDE_PLATFORMS.filter(({ id }) => !rows.some((row) => row.id === id));
+    /**
+     * Поле платформы предпросмотра: у Web — значение стиля; у iOS и Android — своё значение платформы, а без него
+     * значение Web, из которого платформа строится. Правка такого значения записывает своё значение платформы.
+     */
+    const overridable = (
+        field: OverridableField,
+        commitWeb: (value: number) => void,
+        base: (commit: (value: number) => void) => ReactNode,
+    ) => {
+        const platform = props.platform;
+        const rows = platformsWith(field).filter(({ id }) => id === platform);
+        const commit = platform === 'web' ? commitWeb : (value: number) => commitOverride(platform, field, value);
         return (
             <div className="typography-overridable">
-                <div className="typography-value-line">
-                    {base}
-                    {!disabled && (
-                        <OverrideAdd
-                            platforms={addable}
-                            onAdd={(platform) => setAdded((keys) => [...keys, `${field}:${platform}`])}
-                        />
-                    )}
-                </div>
+                {!rows.length && <div className="typography-value-line">{base(commit)}</div>}
                 {rows.map(({ id, label }) => {
                     const lead = <span className="typography-override-label">↳ {label}</span>;
                     const remove = !disabled && (
@@ -464,6 +421,13 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
     const family = families.find((item) => item.name === style.fontFamily);
     const familyError = error('fontFamily');
     const instances = style.components.reduce((sum, component) => sum + component.count, 0);
+    const enabledToggle = useTokenEnabled({
+        subject: `${style.group}.${style.size}.${variant}`,
+        enabled: props.enabled,
+        editable,
+        components: style.components.map((component) => component.name),
+        save: props.onToggleEnabled,
+    });
 
     return (
         <>
@@ -472,7 +436,7 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                 style={{ '--ty-screen-prefix': `"${screenLabel(style.screen)} экраны · "` } as CSSProperties}
             >
                 <InspectorHeader
-                    title={`${groupLabel(style.group)} / ${styleLabel(style)}`}
+                    title={`${groupLabel(style.group)} / ${styleLabel(style)} ${variantLabel}`}
                     description={props.description}
                     descriptionPlaceholder={props.descriptionPlaceholder}
                     onDescribe={editable ? props.onDescribe : undefined}
@@ -481,24 +445,54 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                     onReset={props.onReset}
                     resetDisabled={props.resetDisabled || disabled}
                     actions={
-                        props.onDelete && (
-                            <button
-                                type="button"
-                                className="tw-icon-button"
-                                title="Удалить стиль"
-                                aria-label="Удалить стиль"
-                                onClick={props.onDelete}
-                            >
-                                <TrashOutline />
-                            </button>
-                        )
+                        <>
+                            <TokenEnabledButton toggle={enabledToggle} />
+                            {props.onDelete && (
+                                <button
+                                    type="button"
+                                    className="tw-icon-button"
+                                    title="Удалить стиль"
+                                    aria-label="Удалить стиль"
+                                    onClick={props.onDelete}
+                                >
+                                    <TrashOutline />
+                                </button>
+                            )}
+                        </>
                     }
                 />
             </div>
+            <TokenEnabledNotice
+                toggle={enabledToggle}
+                name={`${groupLabel(style.group)} / ${styleLabel(style)} ${variantLabel}`}
+            />
             {props.banners}
             <section className="typography-section tw-section">
                 <SectionHeader title="Стиль" />
                 <div className="typography-section-body tw-field-stack">
+                    <div className="typography-variant-token" title="Токен открытого начертания">
+                        {styleTokenName(style, variant)}
+                    </div>
+                    <div className="typography-field-row">
+                        {overridable(
+                            'weight',
+                            (value) => onChange({ weights: { [variant]: value } }),
+                            (commit) => (
+                                <SelectField
+                                    icon="weight"
+                                    label={`Weight ${variantLabel}`}
+                                    value={String(weight ?? '')}
+                                    display={weight === undefined ? undefined : String(weight)}
+                                    disabled={disabled || weight === undefined}
+                                    tone={toneOf('weight')}
+                                    options={weightOptions(weight)}
+                                    onChange={(value) => commit(Number(value))}
+                                />
+                            ),
+                        )}
+                    </div>
+                    <RowMessages messages={messagesOf('weight')} />
+                    <p className="typography-shared-note">Общие для Regular, Medium и Bold</p>
                     <SelectField
                         icon="family"
                         label="Семейство шрифта"
@@ -522,51 +516,30 @@ export const TypographyInspector = (props: TypographyInspectorProps) => {
                         onChange={(fontFamily) => onChange({ fontFamily })}
                     />
                     {familyError && <FieldMessage>{familyError}</FieldMessage>}
-                    <SelectField
-                        icon="variant"
-                        label="Начертание"
-                        value={variant}
-                        disabled={disabled}
-                        tone={null}
-                        options={TYPOGRAPHY_VARIANTS.filter(({ id }) => style.variants[id]).map(({ id, label }) => ({
-                            value: id,
-                            label,
-                        }))}
-                        onChange={(value) => props.onVariantChange(value as TypographyVariant)}
-                    />
                     <div className="typography-field-row">
                         {overridable(
-                            'weight',
-                            <SelectField
-                                icon="weight"
-                                label={`Weight ${variantLabel}`}
-                                value={String(weight ?? '')}
-                                display={weight === undefined ? undefined : String(weight)}
-                                disabled={disabled || weight === undefined}
-                                tone={toneOf('weight')}
-                                options={weightOptions(weight)}
-                                onChange={(value) => onChange({ weights: { [variant]: Number(value) } })}
-                            />,
-                        )}
-                        {overridable(
                             'size',
-                            numberField('size', (size) => onChange({ size })),
+                            (size) => onChange({ size }),
+                            (commit) => numberField('size', commit),
                         )}
                     </div>
-                    <RowMessages messages={[...messagesOf('weight'), ...messagesOf('size')]} />
+                    <RowMessages messages={messagesOf('size')} />
                     <div className="typography-field-row">
                         {overridable(
                             'lineHeight',
-                            numberField('lineHeight', (lineHeight) => onChange({ lineHeight })),
+                            (lineHeight) => onChange({ lineHeight }),
+                            (commit) => numberField('lineHeight', commit),
                         )}
                         {overridable(
                             'letterSpacing',
-                            numberField('letterSpacing', (letterSpacing) => onChange({ letterSpacing })),
+                            (letterSpacing) => onChange({ letterSpacing }),
+                            (commit) => numberField('letterSpacing', commit),
                         )}
                     </div>
                     <RowMessages messages={[...messagesOf('lineHeight'), ...messagesOf('letterSpacing')]} />
                 </div>
             </section>
+            {props.otherThemes}
             <section className="typography-section tw-section">
                 <SectionHeader title="Влияние" />
                 <div className="typography-impact-row tw-list-row">

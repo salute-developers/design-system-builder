@@ -1,5 +1,11 @@
 import type { Config, Props } from '../../../controllers';
-import { parseMemberName, type ColorTokenKey, type ComponentStyleSource, type StyleColorProp } from '../domain';
+import {
+    parseMemberName,
+    type ColorState,
+    type ColorTokenKey,
+    type ComponentStyleSource,
+    type StyleColorProp,
+} from '../domain';
 
 const colorProps = (props: Props | undefined): StyleColorProp[] =>
     (props?.getList() ?? []).flatMap((prop) => {
@@ -32,12 +38,17 @@ export const componentStyleSources = (configs: readonly Config[]): ComponentStyl
     );
 
 /** Компоненты, в стилях или общих свойствах которых используется любое определение токена [key]. */
-export const componentsUsingToken = (configs: readonly Config[], key: ColorTokenKey): string[] => {
+export const componentsUsingToken = (
+    configs: readonly Config[],
+    key: ColorTokenKey,
+    /** Только члены состояния; без него — любые члены семейства. */
+    state?: ColorState,
+): string[] => {
     const uses = (props: Props | undefined) =>
         colorProps(props).some((prop) =>
-            [prop.token, ...prop.states.map((state) => state.token)].some((token) => {
+            [prop.token, ...prop.states.map((item) => item.token)].some((token) => {
                 const parsed = token ? parseMemberName(token) : null;
-                return parsed?.group === key.group && parsed.name === key.name;
+                return parsed?.group === key.group && parsed.name === key.name && (!state || parsed.state === state);
             }),
         );
     return configs

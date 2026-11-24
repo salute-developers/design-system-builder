@@ -29,6 +29,7 @@ internal object TokenValueRevisionsTable : Table("token_value_revisions") {
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
     val overridden = bool("overridden").default(false)
+    val detached = bool("detached").default(false)
     val deleted = bool("deleted")
     val updatedAt = timestamp("updated_at")
 }
@@ -40,5 +41,6 @@ internal object TokenValueCreationBaselinesTable : Table("token_value_creation_b
     val paletteId = uuid("palette_id").nullable()
     val value = jsonb<JsonElement>("value", Json.Default).nullable()
     val overridden = bool("overridden").default(false)
+    val detached = bool("detached").default(false)
     override val primaryKey = PrimaryKey(designSystemVersionId, tokenValueId)
 }

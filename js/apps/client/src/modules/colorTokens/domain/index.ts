@@ -8,4 +8,4 @@ export * from './contrast';
 export * from './gradient';
 export * from './nativeGradient';
 export * from './paint';
-export { buildColorTokenViews, type ThemeTokenSource, type ViewDeps } from './view';
+export { buildColorTokenViews, viewForPlatform, type ThemeTokenSource, type ViewDeps } from './view';

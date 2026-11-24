@@ -182,6 +182,8 @@ class OpenApiDocumentResourceTest {
         val item = schemas.getValue("ColorTokenValueItem").jsonObject
         assertTrue("overridden" in item.getValue("properties").jsonObject)
         assertFalse(item.getValue("required").jsonArray.any { it.jsonPrimitive.content == "overridden" })
+        assertTrue("detached" in item.getValue("properties").jsonObject)
+        assertFalse(item.getValue("required").jsonArray.any { it.jsonPrimitive.content == "detached" })
         assertTrue("NativeColorLayer" in item.getValue("properties").jsonObject.getValue("value").toString())
         val values = schemas.getValue("ColorTokenValues").jsonObject
         assertEquals(
@@ -195,6 +197,7 @@ class OpenApiDocumentResourceTest {
         assertTrue("ColorTokenValues" in response)
         val tenantValue = schemas.getValue("TenantTokenValue").toString()
         assertTrue("overridden" in tenantValue && "#/components/schemas/TokenValue" in tenantValue)
+        assertTrue("detached" in tenantValue)
         // sourceValue и paletteRef — в общей схеме: общий GET /api/design-systems/{designSystemId}/token-values
         // отдаёт ту же форму, что чтение темы.
         val tokenValue = schemas.getValue("TokenValue").jsonObject.getValue("properties").jsonObject
@@ -294,9 +297,10 @@ class OpenApiDocumentResourceTest {
     fun `contains the complete included operation set`() {
         val operationCount = paths.values.sumOf { it.jsonObject.size }
 
-        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора
-        // и каталог иконок.
-        assertEquals(200, operationCount)
+        // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
+        // каталог иконок, дублирование темы и состояния цветового токена.
+        assertEquals(203, operationCount)
+        assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)
         assertTrue("/api/design-systems/catalog/web-preview/plugin" in paths)
@@ -304,6 +308,39 @@ class OpenApiDocumentResourceTest {
         assertTrue("/api/design-systems/{designSystemId}/component-config/import" in paths)
         assertTrue("/api/design-systems/{designSystemId}/component-config/web-adapter" in paths)
         assertFalse("/api/design-systems/{designSystemId}/component-configurations" in paths)
+    }
+
+    @Test
+    fun `theme duplicate and token values by token document their contracts`() {
+        val duplicate = paths.getValue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates").jsonObject
+            .getValue("post").jsonObject
+        assertEquals("tenants:write", duplicate.getValue("x-permission").jsonPrimitive.content)
+        assertEquals(
+            setOf("201", "400", "404", "409"),
+            duplicate.getValue("responses").jsonObject.keys,
+        )
+        val list = paths.getValue("/api/design-systems/{designSystemId}/token-values").jsonObject
+            .getValue("get").jsonObject
+        val tokenIds = list.getValue("parameters").jsonArray.map { it.jsonObject }
+            .single { it["name"]?.jsonPrimitive?.content == "tokenIds" }
+        assertEquals("query", tokenIds.getValue("in").jsonPrimitive.content)
+        assertEquals("20", tokenIds.getValue("schema").jsonObject.getValue("maxItems").jsonPrimitive.content)
+    }
+
+    @Test
+    fun `color token states document their contracts`() {
+        val prefix = "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states"
+        val add = paths.getValue(prefix).jsonObject.getValue("post").jsonObject
+        assertEquals("tenants:write", add.getValue("x-permission").jsonPrimitive.content)
+        assertEquals(setOf("201", "400", "403", "404", "409", "500"), add.getValue("responses").jsonObject.keys)
+        val delete = paths.getValue("$prefix/{state}").jsonObject.getValue("delete").jsonObject
+        assertEquals("tenants:write", delete.getValue("x-permission").jsonPrimitive.content)
+        val state = delete.getValue("parameters").jsonArray.map { it.jsonObject }
+            .single { it["name"]?.jsonPrimitive?.content == "state" }
+        assertEquals(
+            listOf("hover", "active", "brightness"),
+            state.getValue("schema").jsonObject.getValue("enum").jsonArray.map { it.jsonPrimitive.content },
+        )
     }
 
     /** Операции групп манифеста с `origin: ds-service` есть в документе с тем же методом и правом. */

@@ -10,11 +10,13 @@ import {
     normalizeStyleSize,
     mergeChanges,
     parseNumber,
+    parseStyleTokenName,
     screenGroups,
     screenStyles,
     styleLabel,
     styleSizeRequest,
     styleTitle,
+    styleTokenName,
     validateChange,
     TYPOGRAPHY_MESSAGES,
 } from '.';
@@ -148,5 +150,27 @@ describe('домен стилей типографии', () => {
         expect(parseNumber(' -0.02 ')).toBe(-0.02);
         expect(parseNumber('abc')).toBeNull();
         expect(parseNumber('')).toBeNull();
+    });
+});
+
+describe('имя нового стиля', () => {
+    it('не принимает имя, которое заканчивается начертанием', () => {
+        for (const input of ['M normal', 'm-regular', 'XL Medium', 'bold']) {
+            expect(styleSizeRequest('body', input, [])).toEqual({
+                error: 'Начертание указывать не нужно: у стиля всегда есть Regular, Medium и Bold.',
+            });
+        }
+    });
+
+    it('принимает начертание внутри имени', () => {
+        expect(styleSizeRequest('body', 'bold-title', [])).toEqual({ size: 'bold-title' });
+    });
+});
+
+describe('имя токена начертания', () => {
+    it('собирается из экрана, группы, размера и начертания и разбирается обратно', () => {
+        const name = styleTokenName({ screen: 'screen-l', group: 'header', size: 'h3' }, 'medium');
+        expect(name).toBe('screen-l.header.h3.medium');
+        expect(parseStyleTokenName(name)).toEqual({ screen: 'screen-l', key: 'header.h3', variant: 'medium' });
     });
 });

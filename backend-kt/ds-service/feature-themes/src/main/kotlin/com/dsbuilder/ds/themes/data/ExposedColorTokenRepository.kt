@@ -136,6 +136,7 @@ class ExposedColorTokenRepository(
                 value = row[ThemeTokenValueRevisionsTable.value],
                 editRevision = revisions[row[ThemeTokenValuesTable.id]] ?: 0,
                 overridden = row[ThemeTokenValueRevisionsTable.overridden],
+                detached = row[ThemeTokenValueRevisionsTable.detached],
                 createdAt = row[ThemeTokenValuesTable.createdAt],
                 updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
                 tokenName = definitions[row[ThemeTokenValuesTable.tokenId]]?.get(ThemeTokenRevisionsTable.name),
@@ -224,6 +225,7 @@ class ExposedColorTokenRepository(
         description: String?,
         groupId: UUID?,
         position: Int,
+        enabled: Boolean,
     ): Map<String, UUID> = names.associateWith { name ->
         val entity = UUID.randomUUID()
         ThemeTokensTable.insert {
@@ -240,7 +242,7 @@ class ExposedColorTokenRepository(
                 family.type,
                 displayName.takeIf { isDefault },
                 description.takeIf { isDefault },
-                true,
+                enabled,
                 groupId,
                 position,
             ),
@@ -285,6 +287,7 @@ class ExposedColorTokenRepository(
         requireNotNull(row[ThemeTokenRevisionsTable.type]),
         row[ThemeTokenRevisionsTable.groupId],
         row[ThemeTokenRevisionsTable.position],
+        row[ThemeTokenRevisionsTable.enabled],
     )
 
     override suspend fun insertValues(tenantIds: Collection<UUID>, values: Map<UUID, List<ColorTokenValue>>) {
@@ -347,7 +350,8 @@ class ExposedColorTokenRepository(
                 }
             }
             val before = existing.firstOrNull { it[ThemeTokenValuesTable.id] == entity }
-            val paths = changedValuePaths(before, item)
+            val kept = item.keepingDetached(before)
+            val paths = changedValuePaths(before, kept)
             if (paths.isNotEmpty()) {
                 writeThemeValueRevision(
                     entity,
@@ -355,6 +359,7 @@ class ExposedColorTokenRepository(
                     item.paletteId,
                     item.value,
                     item.overridden,
+                    detached = kept.detached == true,
                     paths = paths,
                     baseRevision = item.baseRevision,
                 )
@@ -362,12 +367,13 @@ class ExposedColorTokenRepository(
         }
     }
 
-    /** Изменённые пути значения: `/palette_id` и `/value` вместе, как прежде, и `/overridden` отдельно. */
+    /** Изменённые пути значения: `/palette_id` и `/value` вместе, как прежде, `/overridden` и `/detached` отдельно. */
     private fun changedValuePaths(before: ResultRow?, item: ColorTokenValue): Set<String> = buildSet {
         val valueChanged = before == null || before[ThemeTokenValueRevisionsTable.paletteId] != item.paletteId ||
             before[ThemeTokenValueRevisionsTable.value] != item.value
         if (valueChanged) addAll(listOf("/palette_id", "/value"))
         if (before == null || before[ThemeTokenValueRevisionsTable.overridden] != item.overridden) add("/overridden")
+        if (before == null || before[ThemeTokenValueRevisionsTable.detached] != item.detached) add("/detached")
     }
 
     private companion object {

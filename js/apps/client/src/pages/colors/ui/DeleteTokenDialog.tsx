@@ -4,7 +4,10 @@ interface DeleteTokenDialogProps {
     displayName: string;
     /** Удаление группы или подгруппы: число её токенов; `null` — удаление токена. */
     group?: { tokens: number } | null;
-    components: string[];
+    /** Удаление состояния токена, а не токена целиком. */
+    state?: boolean;
+    /** Компоненты со ссылками; `null` — полный список компонентов ещё читается, удаление недоступно. */
+    components: string[] | null;
     busy: boolean;
     error: string | null;
     onCancel: () => void;
@@ -23,6 +26,7 @@ const tokensLabel = (count: number) => {
 export const DeleteTokenDialog = ({
     displayName,
     group = null,
+    state = false,
     components,
     busy,
     error,
@@ -31,10 +35,11 @@ export const DeleteTokenDialog = ({
 }: DeleteTokenDialogProps) => (
     <ConfirmDeleteDialog
         titleId="delete-token-title"
-        title={group ? 'Удалить группу?' : 'Удалить токен?'}
+        title={group ? 'Удалить группу?' : state ? 'Удалить состояние?' : 'Удалить токен?'}
         meta={displayName}
-        confirmLabel={group ? 'Удалить группу' : 'Удалить токен'}
+        confirmLabel={group ? 'Удалить группу' : state ? 'Удалить состояние' : 'Удалить токен'}
         busy={busy}
+        confirmDisabled={components === null}
         error={error}
         onCancel={onCancel}
         onConfirm={onConfirm}
@@ -47,18 +52,32 @@ export const DeleteTokenDialog = ({
                     : 'Группа пустая: токенов в ней нет.'}{' '}
                 Удаление нельзя отменить.
             </p>
+        ) : state ? (
+            <p>
+                Вы уверены, что хотите удалить состояние {displayName}? Оно удалится во всех подтемах и темах
+                дизайн-системы, токен останется. Удаление нельзя отменить.
+            </p>
         ) : (
             <p>
                 Вы уверены, что хотите удалить токен {displayName}? Токен удалится из дизайн-системы вместе со
                 значениями во всех темах. Удаление нельзя отменить.
             </p>
         )}
-        {components.length > 0 ? (
+        {components === null ? (
+            <p>Проверяем, используется ли {group ? 'группа' : state ? 'состояние' : 'токен'} в компонентах…</p>
+        ) : components.length > 0 ? (
             <p data-testid="delete-token-components">
                 Используется в компонентах: {components.join(', ')}. Ссылки компонентов на токен будут сброшены.
             </p>
         ) : (
-            <p>{group ? 'Токены группы не используются' : 'Токен не используется'} в компонентах дизайн-системы.</p>
+            <p>
+                {group
+                    ? 'Токены группы не используются'
+                    : state
+                      ? 'Состояние не используется'
+                      : 'Токен не используется'}{' '}
+                в компонентах дизайн-системы.
+            </p>
         )}
     </ConfirmDeleteDialog>
 );

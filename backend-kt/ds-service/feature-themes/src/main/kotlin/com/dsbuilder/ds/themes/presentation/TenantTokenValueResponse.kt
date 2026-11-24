@@ -36,6 +36,9 @@ data class TenantTokenValueResponse(
     /** Своё значение iOS или Android, а не построенное клиентом из web. */
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val overridden: Boolean = false,
+    /** Значение подтемы (OnDark, OnLight, Inverse), отвязанное пользователем от значений режимов. */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val detached: Boolean = false,
     /** Хранимое значение, если `value` отдан в другой форме: со ссылками, раскрытыми в HEX, или слоем `color`. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val sourceValue: JsonElement? = null,
@@ -55,7 +58,8 @@ data class TenantTokenValueResponse(
             value.updatedAt.toString(),
             value.paletteRef,
             value.overridden,
-            value.sourceValueElement(),
+            sourceValue = value.sourceValueElement(),
+            detached = value.detached,
         )
     }
 }

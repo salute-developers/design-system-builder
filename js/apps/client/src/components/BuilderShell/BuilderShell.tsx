@@ -13,12 +13,15 @@ import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg'
 
 export type SettingsSection =
     | 'Основное'
+    | 'Темы'
     | 'Участники и роли'
     | 'Администрирование'
     | 'Удаление'
+    | 'Опасная зона'
     | 'Personal Access Token'
     | 'Общее';
-export type BreadcrumbSegment = { label: string; to: string };
+/** `render` заменяет ссылку сегмента своим элементом, например переключателем тем. */
+export type BreadcrumbSegment = { label: string; to: string; render?: ReactNode };
 export const settingsSectionIds: Record<SettingsSection, string> = {
     Основное: 'general',
     Общее: 'user-general',
@@ -26,6 +29,9 @@ export const settingsSectionIds: Record<SettingsSection, string> = {
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
     Удаление: 'delete',
+    Темы: 'themes',
+    // Удаление дизайн-системы: `delete` в настройках, открытых из темы, означает удаление этой темы.
+    'Опасная зона': 'danger',
 };
 /** Единое определение активного раздела по URL с возвратом к первому доступному. */
 export const useActiveSettingsSection = (sections: readonly SettingsSection[]) => {
@@ -222,9 +228,11 @@ export const BuilderHierarchyBar = ({
                             : [])
                     ).map((segment, index) => (
                         <span className="hierarchy-linked-segment" key={`${segment.to}:${segment.label}`}>
-                            <Link aria-label={index === 0 ? `Проект ${segment.label}` : undefined} to={segment.to}>
-                                {segment.label}
-                            </Link>
+                            {segment.render ?? (
+                                <Link aria-label={index === 0 ? `Проект ${segment.label}` : undefined} to={segment.to}>
+                                    {segment.label}
+                                </Link>
+                            )}
                             <span className="hierarchy-separator">/</span>
                         </span>
                     ))}

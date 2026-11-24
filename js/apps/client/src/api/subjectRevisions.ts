@@ -8,13 +8,21 @@ interface Revisions {
     byAddress: Map<string, number>;
     /** Признак своего значения платформы по ключу `tokenValueKey` из прочитанного или подтверждённого состояния. */
     overridden: Map<string, boolean>;
+    /** Явно отвязанные значения подтем по ключу `tokenValueKey`. */
+    detached: Map<string, boolean>;
 }
 const contexts = new Map<string, Revisions>();
 const revisionsOf = (context: EditorContextKey) => {
     const key = JSON.stringify([context.projectId, context.designSystemId, context.tenantId, context.versionId]);
     let value = contexts.get(key);
     if (!value) {
-        value = { byEntity: new Map(), valueEntities: new Map(), byAddress: new Map(), overridden: new Map() };
+        value = {
+            byEntity: new Map(),
+            valueEntities: new Map(),
+            byAddress: new Map(),
+            overridden: new Map(),
+            detached: new Map(),
+        };
         // Сессия браузера не хранит неограниченную историю посещённых тем.
         if (contexts.size >= 32) contexts.delete(contexts.keys().next().value!);
         contexts.set(key, value);
@@ -28,7 +36,10 @@ export const observeTokenValueRevisions = (
     context: EditorContextKey,
     snapshot: Pick<
         ThemeEditorTokenSnapshot,
-        'tokenValueRevisionsByKey' | 'tokenValueEntityIdsByKey' | 'tokenValueOverriddenByKey'
+        | 'tokenValueRevisionsByKey'
+        | 'tokenValueEntityIdsByKey'
+        | 'tokenValueOverriddenByKey'
+        | 'tokenValueDetachedByKey'
     >,
 ) => {
     const revisions = revisionsOf(context);
@@ -37,7 +48,21 @@ export const observeTokenValueRevisions = (
         revisions.byEntity.set(`token-value:${id}`, snapshot.tokenValueRevisionsByKey[key] ?? 0);
     }
     revisions.overridden = new Map(Object.entries(snapshot.tokenValueOverriddenByKey ?? {}));
+    revisions.detached = new Map(Object.entries(snapshot.tokenValueDetachedByKey ?? {}));
 };
+
+/** Связь значения подтемы явно разорвана в последнем прочитанном или подтверждённом состоянии. */
+export const tokenValueDetached = (context: EditorContextKey, tokenId: string, platform: string, mode: string) =>
+    revisionsOf(context).detached.get(tokenValueKey(tokenId, platform, mode)) === true;
+
+/** Запоминает подтверждённый сервером признак разорванной связи подтемы. */
+export const acceptTokenValueDetached = (
+    context: EditorContextKey,
+    tokenId: string,
+    platform: string,
+    mode: string,
+    detached: boolean,
+) => revisionsOf(context).detached.set(tokenValueKey(tokenId, platform, mode), detached);
 
 /** Признак своего значения платформы в последнем прочитанном или подтверждённом состоянии. */
 export const tokenValueOverridden = (context: EditorContextKey, tokenId: string, platform: string, mode: string) =>
@@ -102,5 +127,6 @@ export const observeConfirmedTokenValues = (context: EditorContextKey, values: T
         revisions.valueEntities.set(key, value.id);
         revisions.byEntity.set(`token-value:${value.id}`, value.editRevision);
         revisions.overridden.set(key, value.overridden === true);
+        revisions.detached.set(key, value.detached === true);
     }
 };

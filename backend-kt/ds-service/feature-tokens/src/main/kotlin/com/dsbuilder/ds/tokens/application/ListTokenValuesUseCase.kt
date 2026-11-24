@@ -7,6 +7,7 @@ import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TokenValueReadPolicy
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.tokens.domain.TokenValue
+import java.util.UUID
 
 /**
  * Lists token values reachable through project-visible tokens. Значения отдаются в форме для чтения по правилам
@@ -18,13 +19,19 @@ class ListTokenValuesUseCase(
     private val repository: TokenValueRepository,
     private val readPolicies: List<TokenValueReadPolicy> = emptyList(),
 ) {
-    /** Performs the execute operation. */
-    suspend fun execute(context: DsRequestContext): DsResult<List<TokenValue>> =
+    /**
+     * Значения токенов дизайн-системы во всех темах; непустой [tokenIds] оставляет только значения этих токенов —
+     * так инспектор сравнивает один токен между темами одним запросом.
+     */
+    suspend fun execute(context: DsRequestContext, tokenIds: Set<UUID> = emptySet()): DsResult<List<TokenValue>> =
         when (val allowed = policy.require(context, ProjectScope.TOKENS_READ)) {
             is DsResult.Failure -> allowed
             is DsResult.Success -> transactions.readOnly(context) {
                 DsResult.Success(
-                    readPolicies.published(context.projectId, repository.listAccessible(context.projectId)),
+                    readPolicies.published(
+                        context.projectId,
+                        repository.listAccessible(context.projectId, tokenIds),
+                    ),
                 )
             }
         }

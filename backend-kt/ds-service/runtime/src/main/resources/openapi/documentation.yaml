@@ -1179,6 +1179,68 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: tenants:delete
+  "/api/design-systems/{designSystemId}/tenants/{id}/duplicates":
+    post:
+      tags:
+        - Tenants
+      summary: Duplicate tenant
+      description: >-
+        Создаёт тему копией темы {id} активного черновика: описание и colorConfig, значения всех токенов всех платформ и
+        режимов с признаком своего значения платформы, палитра темы (шаблон, группы, растяжки, ступени и привязки
+        токенов к группам) с новыми идентификаторами. Копия создаётся в одной транзакции; в журнале черновика —
+        создание темы без изменений значений, части палитры могут показываться отдельными записями создания. Название
+        нормализуется, занятое название — 409 TENANT_NAME_CONFLICT, пустое или длиннее 80 символов — 400.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                  description: Название копии.
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          description: Invalid name
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Source tenant not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Name conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
   "/api/design-systems/{designSystemId}/tenants/{id}/token-values":
     get:
       tags:
@@ -1192,7 +1254,8 @@ paths:
         <HEX> }], типа color — строкой. Ссылки цветов слоёв тени заменены #RRGGBBAA
         на своём месте. Если value отличается от хранимого значения, хранимое значение
         — в sourceValue; при ссылке на всё значение (paletteRef) sourceValue не отдаётся.
-        overridden — своё значение платформы. Ссылка, которую палитра темы не раскрывает,
+        overridden — своё значение платформы, detached — значение подтемы (OnDark,
+        OnLight, Inverse), отвязанное пользователем от значений режимов. Ссылка, которую палитра темы не раскрывает,
         остаётся в значении без paletteRef; форма значения по типу токена применяется
         всегда. Необязательный types ограничивает чтение типами текущего раздела;
         без него сохраняется полный ответ. Необязательный platforms оставляет значения
@@ -2428,6 +2491,169 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Tenant edit conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states":
+    post:
+      tags:
+        - Color tokens
+      summary: Add a state (hover, active or brightness) to a color token family with values of every theme
+      description: Требует tenants:write и tokens:write. Создаёт определения состояния во всех подгруппах семейства
+        на месте семейства в его группе и записывает каждой теме дизайн-системы её значения из запроса. Набор тем
+        должен совпадать с темами дизайн-системы. editRevision оставлен для совместимости и равен 0.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - $ref: '#/components/parameters/OptionalIdempotencyKey'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddColorTokenStateRequest'
+      responses:
+        '201':
+          description: Color token family with the new state members
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ColorTokenMutation'
+        '400':
+          description: Invalid request, unknown state (INVALID_TOKEN_STATE), themes or members that do not match the state (INVALID_TOKEN_FAMILY) or token value (INVALID_TOKEN_VALUE)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant or token not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Tenant edit conflict or existing state (TOKEN_NAME_CONFLICT)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: tenants:write
+  "/api/design-systems/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states/{state}":
+    delete:
+      tags:
+        - Color tokens
+      summary: Delete a state of a color token family in every subgroup and theme
+      description: Требует tenants:write и tokens:delete. Логическое удаление сохраняет опубликованные данные; члены
+        без состояния и другие состояния остаются. editRevision оставлен для совместимости и равен 0.
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/OptionalBaseRevision'
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tenantId
+          in: path
+        - schema:
+            type: string
+            format: uuid
+          required: true
+          name: tokenId
+          in: path
+        - schema:
+            type: string
+            enum:
+              - hover
+              - active
+              - brightness
+          required: true
+          name: state
+          in: path
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DeleteColorTokenStateRequest'
+      responses:
+        '200':
+          description: New theme revision
+          headers:
+            X-DS-Mutation-Metadata:
+              $ref: '#/components/headers/MutationMetadata'
+            X-DS-Mutation-Metadata-Truncated:
+              $ref: '#/components/headers/MutationMetadataTruncated'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ColorTokenRevision'
+        '400':
+          description: Invalid request, unknown state (INVALID_TOKEN_STATE) or token outside of a color token family (INVALID_TOKEN_FAMILY)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Tenant, token or state not found
           content:
             application/json:
               schema:
@@ -3896,6 +4122,21 @@ paths:
             type: string
             format: uuid
         - $ref: '#/components/parameters/VersionId'
+        - name: tokenIds
+          in: query
+          required: false
+          description: >-
+            Идентификаторы токенов через запятую, от одного до двадцати: ответ содержит значения только этих токенов во
+            всех темах дизайн-системы. Нечисловые или лишние идентификаторы отклоняются с 400 invalid_token_ids. Без
+            параметра ответ прежний — значения всех токенов.
+          schema:
+            type: array
+            maxItems: 20
+            items:
+              type: string
+              format: uuid
+          style: form
+          explode: false
       responses:
         '200':
           description: List of items
@@ -13619,6 +13860,12 @@ components:
           description: >-
             Своё значение ios или android, а не построенное клиентом из web; хранится путём /overridden редакции
             значения. Для web допустимо только false, иначе 400 INVALID_TOKEN_VALUE.
+        detached:
+          type: boolean
+          description: >-
+            Значение подтемы (OnDark, OnLight, Inverse), связь которого со значениями режимов явно разорвана
+            пользователем; хранится путём /detached редакции значения. Без поля признак остаётся прежним, у нового
+            значения он false. Правки значения другими маршрутами признак сохраняют.
       required:
         - platform
         - mode
@@ -13754,6 +14001,50 @@ components:
       required:
         - editRevision
         - members
+    AddColorTokenStateRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+        state:
+          type: string
+          enum:
+            - hover
+            - active
+            - brightness
+        tenants:
+          type: array
+          description: Значения членов состояния для каждой темы дизайн-системы.
+          items:
+            $ref: '#/components/schemas/ColorTokenStateTenantValues'
+      required:
+        - editRevision
+        - state
+        - tenants
+    ColorTokenStateTenantValues:
+      type: object
+      properties:
+        tenantId:
+          type: string
+          format: uuid
+        members:
+          type: array
+          description: Члены `<group>.<subgroup>.<name>-<state>` для каждой подгруппы, где у семейства есть член без
+            состояния.
+          items:
+            $ref: '#/components/schemas/ColorTokenMemberValues'
+      required:
+        - tenantId
+        - members
+    DeleteColorTokenStateRequest:
+      type: object
+      properties:
+        editRevision:
+          type: integer
+          minimum: 0
+      required:
+        - editRevision
     DeleteColorTokenRequest:
       type: object
       properties:
@@ -14201,9 +14492,13 @@ components:
             overridden:
               type: boolean
               description: Своё значение ios или android, а не построенное клиентом из web.
+            detached:
+              type: boolean
+              description: Значение подтемы (OnDark, OnLight, Inverse), отвязанное пользователем от значений режимов.
           required:
             - editRevision
             - overridden
+            - detached
     DraftChange:
       type: object
       properties:

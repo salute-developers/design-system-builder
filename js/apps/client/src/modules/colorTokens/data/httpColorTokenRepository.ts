@@ -37,6 +37,11 @@ const confirmedValues = (
                         .find((member) => member.tokenId === id)
                         ?.values.find((item) => item.platform === value.platform && item.mode === value.mode)
                         ?.overridden,
+                detached:
+                    value.detached ??
+                    update?.members
+                        .find((member) => member.tokenId === id)
+                        ?.values.find((item) => item.platform === value.platform && item.mode === value.mode)?.detached,
             })),
     }));
 };
@@ -190,6 +195,38 @@ export const createHttpColorTokenRepository = (): ColorTokenRepository => ({
                     { ...input, editRevision },
                     { headers: subjectMutationHeaders() },
                 ),
+            ),
+        ),
+    addState: (context, tokenId, state, tenants, editRevision) =>
+        call(() =>
+            tokenMutation(context, tokensPath(context, `/${encodeURIComponent(tokenId)}/states`), () =>
+                http.post(
+                    tokensPath(context, `/${encodeURIComponent(tokenId)}/states`),
+                    {
+                        state,
+                        tenants: tenants.map((tenant) => ({
+                            ...tenant,
+                            members: tenant.members.map((member) => ({
+                                ...member,
+                                values: member.values.map((value) => ({
+                                    ...value,
+                                    value: normalizedColorValue(value.value),
+                                })),
+                            })),
+                        })),
+                        editRevision,
+                    },
+                    { headers: subjectMutationHeaders() },
+                ),
+            ),
+        ),
+    deleteState: (context, tokenId, state, editRevision) =>
+        call(() =>
+            tokenMutation(context, tokensPath(context, `/${encodeURIComponent(tokenId)}/states/${state}`), () =>
+                http.delete(tokensPath(context, `/${encodeURIComponent(tokenId)}/states/${state}`), {
+                    data: { editRevision },
+                    headers: subjectMutationHeaders(),
+                }),
             ),
         ),
     describe: async (context, tokenId, description) => {

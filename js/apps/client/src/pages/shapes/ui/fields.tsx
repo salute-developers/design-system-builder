@@ -1,7 +1,4 @@
-import { useEffect, useRef, useState, type InputHTMLAttributes } from 'react';
-import { PlusOutline } from '@salutejs/sdds-icons/16';
-
-import { NATIVE_PLATFORMS, PLATFORM_LABELS, type NativePlatform } from '../../../modules/sizeTokens';
+import { useEffect, useState, type InputHTMLAttributes } from 'react';
 
 interface CommitInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'value' | 'onChange' | 'onBlur'> {
     /** Сохранённое или несохранённое значение поля. */
@@ -40,68 +37,5 @@ export const CommitInput = ({ value, validate, onCommit, onIssue, ...input }: Co
                 }
             }}
         />
-    );
-};
-
-interface PlatformAddProps {
-    /** Платформы, у которых уже есть своё значение. */
-    added: ReadonlyArray<NativePlatform>;
-    label: string;
-    onAdd: (platform: NativePlatform) => void;
-}
-
-/**
- * «+» своего значения платформы — кнопка-иконка 24×24, видна всегда, одного вида на экранах токенов. Меню iOS /
- * Android без уже добавленных платформ; когда добавлены обе, «+» недоступен.
- */
-export const PlatformAdd = ({ added, label, onAdd }: PlatformAddProps) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLSpanElement>(null);
-    const free = NATIVE_PLATFORMS.filter((platform) => !added.includes(platform));
-    useEffect(() => {
-        if (!open) return;
-        const close = (event: Event) => {
-            if (event instanceof KeyboardEvent ? event.key === 'Escape' : !ref.current?.contains(event.target as Node))
-                setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [open]);
-    return (
-        <span className="st-platform-add" ref={ref}>
-            <button
-                type="button"
-                className="tw-icon-button"
-                title={label}
-                aria-label={label}
-                aria-expanded={open}
-                disabled={!free.length}
-                onClick={() => setOpen((current) => !current)}
-            >
-                <PlusOutline />
-            </button>
-            {open && free.length > 0 && (
-                <div className="tw-menu st-platform-menu" role="menu">
-                    {free.map((platform) => (
-                        <button
-                            key={platform}
-                            type="button"
-                            role="menuitem"
-                            className="tw-menu-item"
-                            onClick={() => {
-                                setOpen(false);
-                                onAdd(platform);
-                            }}
-                        >
-                            {PLATFORM_LABELS[platform]}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </span>
     );
 };

@@ -5,16 +5,34 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { locateColorToken, locateLegacyToken, useAddressedToken } from './useAddressedToken';
 
+const definitions = vi.hoisted(() => ({
+    created: [] as Array<{ id: string; name: string }>,
+}));
+
 vi.mock('../api/tokenRepository', () => ({
     tokenRepository: {
         async listDefinitions() {
             return [
                 { id: 'first', name: 'surface.first' },
                 { id: 'second', name: 'surface.second' },
+                ...definitions.created,
             ];
         },
     },
 }));
+
+it('перечитывает определения, если выбран токен, созданный после их загрузки', async () => {
+    const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
+    const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(MemoryRouter, { initialEntries: ['/?tokenId=first'] }, children);
+    const { result } = renderHook(() => useAddressedToken(context), { wrapper });
+    await waitFor(() => expect(result.current.requestedTokenName).toBe('surface.first'));
+    definitions.created = [{ id: 'third', name: 'surface.third' }];
+    act(() => result.current.selectTokenName('surface.third'));
+    await waitFor(() => expect(result.current.tokenId).toBe('third'));
+    await waitFor(() => expect(result.current.requestedTokenName).toBe('surface.third'));
+    definitions.created = [];
+});
 
 it('обновляет tokenId при выборе редакторского имени с режимом', async () => {
     const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
@@ -36,6 +54,24 @@ it('обновляет tokenId при выборе редакторского и
     );
     await waitFor(() => expect(result.current.requestedTokenName).toBe('surface.first'));
     act(() => result.current.selectTokenName('dark.surface.second'));
+    await waitFor(() => expect(result.current.tokenId).toBe('second'));
+    expect(result.current.query).toContain('versionId=published');
+});
+
+it('пишет tokenId при выборе, даже если экран открыт без адреса', async () => {
+    const context = { projectId: 'project', designSystemId: 'ds', tenantId: 'theme' };
+    const wrapper = ({ children }: PropsWithChildren) =>
+        createElement(MemoryRouter, { initialEntries: ['/?versionId=published'] }, children);
+    const { result } = renderHook(
+        () => {
+            const addressed = useAddressedToken(context);
+            const [params] = useSearchParams();
+            return { ...addressed, query: params.toString() };
+        },
+        { wrapper },
+    );
+    expect(result.current.tokenId).toBeUndefined();
+    act(() => result.current.selectTokenName('surface.second'));
     await waitFor(() => expect(result.current.tokenId).toBe('second'));
     expect(result.current.query).toContain('versionId=published');
 });

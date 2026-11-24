@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.lockDraftSubjects
 import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import kotlinx.serialization.json.JsonElement
+import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
@@ -83,9 +84,12 @@ internal fun writeThemeValueRevision(
     removed: Boolean = false,
     paths: Set<String> = setOf("/palette_id", "/value"),
     baseRevision: Long? = null,
+    detached: Boolean? = null,
 ) {
     lockDraftSubject(owner, "token-value", entity)
     val draft = requireNotNull(themeDraft(owner))
+    // Запись без явного признака сохраняет отвязку подтемы: правка значения другим маршрутом её не снимает.
+    val keptDetached = detached ?: latestThemeValueDetached(entity)
     ThemeTokenValueRevisionsTable.deleteWhere {
         (tokenValueId eq entity) and (designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
     }
@@ -99,6 +103,7 @@ internal fun writeThemeValueRevision(
             it[paletteId] = palette
             it[value] = data
             it[ThemeTokenValueRevisionsTable.overridden] = overridden
+            it[ThemeTokenValueRevisionsTable.detached] = keptDetached
             it[deleted] = removed
             it[updatedAt] = Instant.now()
         }
@@ -137,13 +142,16 @@ internal fun deleteThemeValues(tokenIds: Set<UUID>) {
     }
 }
 
-/** Признак своего значения платформы в последней редакции значения [entity]; у нового значения — `false`. */
-internal fun latestThemeValueOverridden(entity: UUID): Boolean = ThemeTokenValueRevisionsTable.selectAll()
+/** Последняя редакция значения [entity] (признаки своего значения платформы и отвязанной подтемы) или `null`. */
+internal fun latestThemeValueRevision(entity: UUID): ResultRow? = ThemeTokenValueRevisionsTable.selectAll()
     .where { ThemeTokenValueRevisionsTable.tokenValueId eq entity }
     .orderBy(ThemeTokenValueRevisionsTable.versionSequenceNumber, SortOrder.DESC)
     .limit(1)
     .singleOrNull()
-    ?.get(ThemeTokenValueRevisionsTable.overridden) ?: false
+
+/** Признак отвязанной подтемы в последней редакции значения [entity]; у нового значения — `false`. */
+internal fun latestThemeValueDetached(entity: UUID): Boolean =
+    latestThemeValueRevision(entity)?.get(ThemeTokenValueRevisionsTable.detached) ?: false
 
 /** Устойчивая строка значения токена в теме и платформе без режима; создаётся, если её нет. */
 internal fun stableThemeValue(

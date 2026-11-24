@@ -17,6 +17,7 @@
         .catalog-dialog-scrim,
         .modal,
         .styled-select-popover,
+        .theme-switcher-popover,
         .account-popover,
         .ps-member-actions-popover
     )
@@ -29,6 +30,7 @@
         .catalog-dialog-scrim,
         .modal,
         .styled-select-popover,
+        .theme-switcher-popover,
         .account-popover,
         .ps-member-actions-popover
     )
@@ -285,6 +287,12 @@
     letter-spacing: -0.24px;
     text-overflow: ellipsis;
     white-space: nowrap;
+}
+/* Пояснения в формах создания темы и настроек переносятся целиком: однострочная подпись — только у карточек. */
+.create-theme-panel .catalog-meta,
+.settings .catalog-meta {
+    overflow: visible;
+    white-space: normal;
 }
 .catalog-role {
     position: absolute;
@@ -555,7 +563,9 @@
 .settings-content[data-active-section='delete'] #settings-delete,
 .ps-content[data-active-section='delete'] #settings-delete,
 .settings-content[data-active-section='personal-access-token'] #settings-personal-access-token,
-.ps-content[data-active-section='personal-access-token'] #settings-personal-access-token {
+.ps-content[data-active-section='personal-access-token'] #settings-personal-access-token,
+.ps-content[data-active-section='themes'] #settings-themes,
+.ps-content[data-active-section='danger'] #settings-danger {
     display: block;
 }
 .settings-main {
@@ -1523,6 +1533,159 @@ button:disabled {
     text-decoration: underline;
     text-underline-offset: 2px;
 }
+/* Крошка «Тема» — переключатель тем: выглядит как ссылка крошки, открывает список тем дизайн-системы. */
+.theme-switcher {
+    display: inline-flex;
+    min-width: 0;
+    align-items: center;
+    gap: 8px;
+}
+.builder-hierarchy-path .theme-switcher-trigger {
+    display: inline-flex;
+    min-width: 0;
+    height: 16px;
+    align-items: center;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #b6b7b9;
+    font: 400 12px/16px Inter;
+    cursor: pointer;
+}
+.builder-hierarchy-path .theme-switcher-trigger > span:first-child {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.builder-hierarchy-path .theme-switcher-trigger:hover,
+.builder-hierarchy-path .theme-switcher-trigger:focus-visible,
+.builder-hierarchy-path .theme-switcher-trigger[aria-expanded='true'] {
+    color: #f3f3f3;
+    outline: 0 !important;
+}
+.builder-hierarchy-path .theme-switcher-trigger:focus-visible > span:first-child {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+.theme-switcher-chevron {
+    width: 5px;
+    height: 5px;
+    flex: none;
+    margin: -3px 0 0 6px;
+    border-right: 1px solid currentColor;
+    border-bottom: 1px solid currentColor;
+    transform: rotate(45deg);
+}
+.theme-switcher-error {
+    color: var(--p-danger);
+    font: 400 12px/16px Inter;
+    white-space: nowrap;
+}
+.theme-switcher-popover {
+    z-index: 1600;
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border: 1px solid #ffffff1a;
+    border-radius: 6px;
+    background: #212327;
+    box-shadow: 0 8px 24px #0008;
+    color: #dbdbdc;
+    font: 400 12px/16px Inter;
+}
+/* Шапка списка тем с кнопкой поиска — та же `TreeHeader`, что у дерева токенов, но ниже: 32 px по ширине панели.
+ * Два класса, потому что `token-workspace.css` подключается после этого файла. */
+.tw-tree-header.theme-switcher-header {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 4px 0 8px;
+}
+.theme-switcher-list {
+    max-height: 320px;
+    overflow-y: auto;
+}
+.theme-switcher-option {
+    display: flex;
+    width: 100%;
+    height: 32px;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 8px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #dbdbdc;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.theme-switcher-option.is-active,
+.theme-switcher-option:focus-visible {
+    background: #ffffff14;
+    color: #fff;
+}
+.theme-switcher-option[aria-selected='true'] .theme-switcher-name {
+    color: #fff;
+    font-weight: 500;
+}
+.theme-switcher-option[aria-selected='true']::after {
+    width: 8px;
+    height: 4px;
+    flex: none;
+    margin: -2px 2px 0 0;
+    border-bottom: 1.5px solid var(--p-accent);
+    border-left: 1.5px solid var(--p-accent);
+    content: '';
+    transform: rotate(-45deg);
+}
+.theme-switcher-swatch {
+    display: inline-flex;
+    width: 28px;
+    height: 16px;
+    flex: none;
+    overflow: hidden;
+    border: 1px solid #ffffff1f;
+    border-radius: 3px;
+}
+.theme-switcher-swatch > span {
+    display: flex;
+    flex: 1;
+    align-items: center;
+    justify-content: center;
+}
+.theme-switcher-swatch i {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+}
+.theme-switcher-name {
+    min-width: 0;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.theme-switcher-profile {
+    flex: none;
+    color: #8b8c8e;
+}
+.theme-switcher-note {
+    margin: 0;
+    padding: 8px;
+    color: #8b8c8e;
+}
+.theme-switcher-create {
+    display: block;
+    margin-top: 4px;
+    padding: 8px;
+    border-top: 1px solid #ffffff14;
+    color: var(--p-accent);
+    text-decoration: none;
+}
+.theme-switcher-create:hover,
+.theme-switcher-create:focus-visible {
+    color: #fff;
+}
 .builder-hierarchy-path .hierarchy-separator {
     color: #b6b7b9;
     opacity: 0.2;
@@ -1781,6 +1944,240 @@ button:disabled {
 }
 .create-project-dialog.has-error {
     height: 362px;
+}
+/* Блок инспектора «В других темах»: значения токена в остальных темах, только для чтения. */
+.other-themes {
+    margin: 0 12px 16px;
+    border-top: 0.5px solid #3d3f42;
+    color: #dbdbdc;
+    font: 400 12px/16px Inter;
+}
+.other-themes-toggle {
+    display: flex;
+    width: 100%;
+    height: 36px;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: #f3f3f3;
+    font: 500 12px/16px Inter;
+    cursor: pointer;
+}
+.other-themes-chevron {
+    width: 6px;
+    height: 6px;
+    margin: -3px 4px 0 0;
+    border-right: 1px solid #b8b9ba;
+    border-bottom: 1px solid #b8b9ba;
+    transform: rotate(45deg);
+}
+.other-themes-chevron.is-open {
+    margin-top: 3px;
+    transform: rotate(-135deg);
+}
+/* Шапка списка тем блока с кнопкой поиска: `TreeHeader` без собственных отступов, их задаёт блок. */
+.tw-tree-header.other-themes-header {
+    height: 32px;
+    min-height: 32px;
+    padding: 0 0 0 6px;
+}
+.other-themes-table {
+    max-height: 320px;
+    overflow-y: auto;
+}
+.other-themes-row {
+    display: grid;
+    width: 100%;
+    min-height: 28px;
+    grid-template-columns: minmax(0, 1fr) repeat(var(--other-themes-columns, 2), 78px);
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #dbdbdc;
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.other-themes-row:hover {
+    background: #ffffff14;
+}
+.other-themes-row.is-head {
+    min-height: 22px;
+    color: #8b8c8e;
+    cursor: default;
+}
+.other-themes-row.is-head:hover {
+    background: transparent;
+}
+.other-themes-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.other-themes-name small {
+    color: #8b8c8e;
+}
+/* Ячейки — элементы сетки: без `min-width: 0` длинная подпись раздвинула бы колонку шириной 78 px. */
+.other-themes-row > [role='cell'] {
+    min-width: 0;
+}
+.other-themes-color {
+    display: flex;
+    min-width: 0;
+    align-items: center;
+    gap: 4px;
+    font-variant-numeric: tabular-nums;
+}
+/* Подпись градиента («Линейный · 45°») длиннее колонки: обрезается, полная — в подсказке. */
+.other-themes-color span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.other-themes-color i {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    border: 0.5px solid #ffffff2a;
+    border-radius: 3px;
+}
+.other-themes-note {
+    margin: 4px 0 8px;
+    color: #8b8c8e;
+}
+.other-themes-note button,
+.form-error-retry {
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--p-accent);
+    font: inherit;
+    cursor: pointer;
+}
+/* Инспектор типографики: табы начертаний стиля, имя токена открытого таба, подпись общих полей. */
+.typography-variant-tabs {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: #17181b;
+}
+.typography-variant-tabs button {
+    flex: 1;
+    height: 24px;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: #b6b7b9;
+    font: 400 12px/16px Inter;
+    cursor: pointer;
+}
+.typography-variant-tabs button:hover {
+    color: #f3f3f3;
+}
+.typography-variant-tabs button.is-active {
+    background: #3d3f42;
+    color: #fff;
+}
+.typography-variant-token {
+    overflow: hidden;
+    color: #8b8c8e;
+    font: 400 11px/14px Inter;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.typography-shared-note {
+    margin: 4px 0 0;
+    color: #8b8c8e;
+    font: 400 11px/14px Inter;
+}
+/* Раздел «Темы» настроек дизайн-системы: строка темы с названием, профилем и действиями. */
+.ps-content[data-active-section='themes'] #settings-themes,
+.ds-themes {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+.ds-theme-row {
+    padding: 8px 10px;
+    border: 1px solid #ffffff14;
+    border-radius: 6px;
+}
+.ds-theme-row.is-highlighted {
+    border-color: var(--p-accent);
+}
+.ds-theme-main {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ds-theme-name {
+    min-width: 0;
+    flex: 1;
+}
+.ds-theme-name.is-static {
+    color: #f3f3f3;
+}
+.ds-theme-profile {
+    width: 72px;
+    flex: none;
+    color: #8b8c8e;
+    font: 400 12px/16px Inter;
+}
+/* Действия строки темы — нейтральные, как ссылка «Открыть»; синяя только кнопка подтверждения удаления. */
+.project-settings .settings-section .ds-theme-main button.ps-button {
+    border: 1px solid #3d3f42;
+    background: #27282c;
+}
+.project-settings .settings-section .ds-theme-main button.ps-button:hover:not(:disabled) {
+    background: #3d3f42;
+}
+.project-settings .settings-section .ds-theme-main .ds-theme-delete {
+    color: #ff6b80;
+}
+.ds-theme-error {
+    margin: 6px 0 0;
+}
+.ds-theme-confirm {
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #ffffff14;
+}
+.ds-settings-readonly {
+    display: block;
+    margin-top: 6px;
+    color: #f3f3f3;
+    font-weight: 500;
+}
+/* Форма создания темы: список исходных тем копии. */
+.create-theme-sources {
+    flex: none;
+    max-height: 232px;
+    overflow-y: auto;
+    grid-auto-rows: 40px;
+}
+.create-theme-sources .theme-option {
+    height: 40px;
+    gap: 10px;
+}
+.create-theme-source-profile {
+    margin-left: auto;
+    color: #8b8c8e;
+}
+/* Окно копирования темы: одно поле, высота по содержимому. */
+.create-project-dialog.duplicate-theme-dialog {
+    height: auto;
+}
+.duplicate-theme-dialog footer {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
 }
 .create-project-dialog.is-team {
     width: 560px;

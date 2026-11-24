@@ -200,6 +200,7 @@ export class EditorSectionData {
         const entityIds = { ...this.snapshot.tokenValueEntityIdsByKey };
         let paletteReferencesChanged = false;
         const overridden = { ...this.snapshot.tokenValueOverriddenByKey };
+        const detached = { ...this.snapshot.tokenValueDetachedByKey };
         const definitionsByName = { ...this.snapshot.tokenDefinitionsByName };
         let metaTokens = this.snapshot.themeData.meta.tokens;
         for (const { update, token } of entries) {
@@ -241,6 +242,7 @@ export class EditorSectionData {
                     value.revision ??
                     tokenValueBaseRevision(this.context, update.tokenId, value.platform, value.mode ?? '');
                 if (value.overridden !== undefined) overridden[key] = value.overridden;
+                if (value.detached !== undefined) detached[key] = value.detached;
             }
         }
         this.snapshot = {
@@ -254,6 +256,7 @@ export class EditorSectionData {
             tokenValueRevisionsByKey: revisions,
             tokenValueEntityIdsByKey: entityIds,
             tokenValueOverriddenByKey: overridden,
+            tokenValueDetachedByKey: detached,
         };
         if (paletteReferencesChanged) this.invalidated.set('palette', ++this.generation);
         return true;
@@ -366,6 +369,11 @@ export class EditorSectionData {
             ),
             tokenValueOverriddenByKey: Object.fromEntries(
                 Object.entries(this.snapshot.tokenValueOverriddenByKey ?? {}).filter(
+                    ([key]) => !removed.has(key.split(':')[0]),
+                ),
+            ),
+            tokenValueDetachedByKey: Object.fromEntries(
+                Object.entries(this.snapshot.tokenValueDetachedByKey ?? {}).filter(
                     ([key]) => !removed.has(key.split(':')[0]),
                 ),
             ),

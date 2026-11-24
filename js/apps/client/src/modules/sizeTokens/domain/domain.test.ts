@@ -366,11 +366,15 @@ describe('цвет слоя тени', () => {
         expect(layerWithOpacity(hex, 24).color).toBe('#0000003D');
     });
 
-    it('меняет слой веба или своих слоёв платформы', () => {
+    it('меняет слой веба или слоёв платформы, делая их своими', () => {
         const value = { kind: 'shadow' as const, layers: [hex], fallbackElevation: 2, platforms: { ios: [hex] } };
         const changed = withLayer(value, 'ios', 0, (layer) => ({ ...layer, offsetX: 3 }));
         expect(changed).toEqual({ ...value, platforms: { ios: [{ ...hex, offsetX: 3 }] } });
-        expect(withLayer(value, 'android', 0, (layer) => layer)).toBe(value);
+        // Правка слоя платформы без своих слоёв делает своими слои Web с этой правкой.
+        expect(withLayer(value, 'android', 0, (layer) => ({ ...layer, offsetX: 5 }))).toEqual({
+            ...value,
+            platforms: { ios: [hex], android: [{ ...hex, offsetX: 5 }] },
+        });
         expect(withLayer(value, 'web', 0, () => linked)).toEqual({ ...value, layers: [linked] });
     });
 });
