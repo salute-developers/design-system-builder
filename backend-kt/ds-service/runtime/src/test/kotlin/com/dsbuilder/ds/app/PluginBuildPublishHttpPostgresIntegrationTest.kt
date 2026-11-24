@@ -285,7 +285,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `the publisher role opens nothing except the publication`() = withService {
         val import = service.builder.client.post("/api/admin/component-config/import-api-meta") {
-            actor(Actor.ADMIN)
+            actor(Actor.PUBLISHER)
             contentType(ContentType.Application.Json)
             setBody(metaBody())
         }

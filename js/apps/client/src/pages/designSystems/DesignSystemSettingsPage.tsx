@@ -22,6 +22,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     const [params, setParams] = useSearchParams();
     // Настройки из опубликованной версии: темы этой версии и только чтение.
     const versionId = params.get('versionId') ?? undefined;
+    const pinnedCore = versionId && !embedded && params.get('section') === 'core';
     const [coreSaveState, setCoreSaveState] = useState<CoreSaveState>({ disabled: true, saving: false });
     const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
     const system = useLoad(
@@ -33,6 +34,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
         (signal) => designSystemsApi.tenants(projectId, designSystemId, signal, versionId),
         [projectId, designSystemId, versionId],
         themesCacheKey({ projectId, designSystemId, tenantId: tenantId ?? '', versionId }),
+        !pinnedCore,
     );
     const [message, setMessage] = useState('');
     const [confirmation, setConfirmation] = useState('');
@@ -80,7 +82,21 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                 }}
             />
         );
-    if (!project.data || !system.data || !themes.data)
+    if (pinnedCore && project.data && system.data && !system.data.isTechnical)
+        return (
+            <SettingsFrame
+                title="Библиотеки опубликованной версии"
+                sections={['Версии библиотек']}
+                saveForm={false}
+                entity={system.data.name}
+                projectName={project.data.name}
+                projectId={projectId}
+                back={back}
+            >
+                <CoreSettingsPanel projectId={projectId} designSystemId={designSystemId} versionId={versionId} />
+            </SettingsFrame>
+        );
+    if (!project.data || !system.data || (!themes.data && !system.data.isTechnical))
         return (
             <State
                 text="Загружаем настройки…"
@@ -109,9 +125,15 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
     // Изменения доступны в действующем проекте и черновике; опубликованная версия только для чтения.
     const allowed = (permission: Parameters<typeof can>[1]) => active && can(role, permission);
     const canWriteSystem = allowed('designSystems:write');
+    const loadedThemes = themes.data ?? [];
     const canDeleteSystem = allowed('designSystems:delete');
-    const themeCount = themes.data.length;
-    const sections: SettingsSection[] = ['Основное', 'Темы', 'Версии библиотек', ...(canDeleteSystem ? ['Опасная зона' as const] : [])];
+    const themeCount = loadedThemes.length;
+    const sections: SettingsSection[] = [
+        'Основное',
+        'Темы',
+        'Версии библиотек',
+        ...(canDeleteSystem ? ['Опасная зона' as const] : []),
+    ];
     const save = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!canWriteSystem) return;
@@ -193,7 +215,7 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                 <ThemesSettingsSection
                     projectId={projectId}
                     designSystemId={designSystemId}
-                    themes={themes.data}
+                    themes={loadedThemes}
                     canWrite={allowed('tenants:write')}
                     canDelete={allowed('tenants:delete')}
                     highlightedId={params.get('theme')}

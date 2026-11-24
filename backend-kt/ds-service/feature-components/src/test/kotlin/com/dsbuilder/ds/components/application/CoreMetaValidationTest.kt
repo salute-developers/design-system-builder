@@ -111,9 +111,9 @@ class CoreMetaValidationTest {
             "api-meta.json",
             false,
             components,
-            CoreReleaseRef("uikit-compose", "compose", "1.0"),
-            Base64.getEncoder().encodeToString(bytes),
-            MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) },
+            coreRelease = CoreReleaseRef("uikit-compose", "compose", "1.0"),
+            sourceMetaBase64 = Base64.getEncoder().encodeToString(bytes),
+            metaSha256 = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) },
             channel = "stable",
         )
     }

@@ -158,7 +158,12 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `only the publisher role or a system administrator publishes the web plugin`() = withService {
         assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, webArchive(), actor = Actor.USER).status)
-        assertEquals(HttpStatusCode.OK, publish(PluginKind.WEB, webArchive(), actor = Actor.ADMIN).status)
+        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, webArchive(), actor = Actor.PUBLISHER).status)
+        assertEquals(
+            HttpStatusCode.OK,
+            publish(PluginKind.WEB, webArchive(), dryRun = false, actor = Actor.ADMIN).status,
+        )
+        assertEquals(HttpStatusCode.OK, publish(PluginKind.WEB, webArchive(), actor = Actor.PUBLISHER).status)
         assertEquals(HttpStatusCode.Forbidden, service.builder.client.get(PluginKind.WEB.active).status)
     }
 
@@ -189,7 +194,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         kind: PluginKind,
         bytes: ByteArray,
         dryRun: Boolean = true,
-        actor: Actor = Actor.PUBLISHER,
+        actor: Actor = Actor.ADMIN,
         meta: String = if (kind == PluginKind.WEB) webMeta() else composeMeta(),
     ): HttpResponse = service.builder.client.post("${kind.publish}?dryRun=$dryRun") {
         actor(actor)

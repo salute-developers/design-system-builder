@@ -25,7 +25,7 @@ class CoreChannelMigrationPostgresIntegrationTest {
                 if (target != null) configuration.target(target)
                 return configuration.load()
             }
-            flyway("24").migrate()
+            flyway("26").migrate()
             DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                 val insert = "INSERT INTO core_releases(library_id, platform, version, source_meta, " +
                     "meta_sha256, normalized_meta, provenance%s) VALUES " +

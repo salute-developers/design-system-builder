@@ -24,11 +24,13 @@ export const CoreSettingsPanel = ({
     projectId,
     designSystemId,
     versionId,
+    readOnly = Boolean(versionId),
     onSaveStateChange,
 }: {
     projectId: string;
     designSystemId: string;
     versionId?: string;
+    readOnly?: boolean;
     onSaveStateChange?: (state: CoreSaveState) => void;
 }) => {
     const root = apiRoot(projectId, designSystemId);
@@ -86,7 +88,7 @@ export const CoreSettingsPanel = ({
         : [];
     const canSave = Boolean(
         report?.context.draftId &&
-        !versionId &&
+        !readOnly &&
         !saving &&
         changes.length &&
         changes.every(([platform]) => selections[platform].releaseId),
@@ -169,7 +171,7 @@ export const CoreSettingsPanel = ({
                                 label={label}
                                 current={report.context.coreReleases.find((r) => r.platform === platform)}
                                 selection={selections[platform]}
-                                readOnly={Boolean(versionId)}
+                                readOnly={readOnly}
                                 disabled={saving}
                                 onChange={(selection) => {
                                     setSelections((old) => ({ ...old, [platform]: selection }));

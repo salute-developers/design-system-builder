@@ -100,7 +100,7 @@ internal object PropertiesTable : PropertyCatalogTable(
         "properties",
         "core_release_properties",
         "property_id",
-        listOf("component_id", "name", "type", "default_value", "description"),
+        listOf("component_id", "name", "type", "default_value", "description", "state_combinations"),
     ),
 )
 
@@ -126,6 +126,27 @@ internal object PropertySupportedStatesTable : Table("property_supported_states"
     val propertyId = reference("property_id", PropertiesTable.id)
     val stateId = uuid("state_id")
     override val primaryKey = PrimaryKey(propertyId, stateId)
+}
+
+/** Поддерживаемые состояния из той же границы Core, что и флаг свойства. */
+internal object SelectedPropertySupportedStatesTable : ResolvedRevisionTable(
+    "selected_property_supported_states",
+    """
+    WITH selected_core AS MATERIALIZED (
+        SELECT ds_selected_core_release(platform) AS release_id
+        FROM unnest(enum_range(NULL::component_platform)) platform
+        WHERE NULLIF(current_setting('ds.design_system_id', true), '') IS NOT NULL
+    )
+    SELECT support.property_id, support.state_id FROM property_supported_states support
+    JOIN properties p ON p.id = support.property_id
+    WHERE NULLIF(current_setting('ds.design_system_id', true), '') IS NULL OR p.component_id IS NULL
+    UNION ALL
+    SELECT p.property_id, unnest(p.supported_state_ids) AS state_id
+    FROM selected_core selected JOIN core_release_properties p USING (release_id)
+    """.trimIndent(),
+) {
+    val propertyId = uuid("property_id")
+    val stateId = uuid("state_id")
 }
 
 internal object ComponentDependenciesTable : Table("component_deps") {

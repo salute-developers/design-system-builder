@@ -67,7 +67,7 @@ class PluginBuildPlatformUseCaseTest {
         storages: PluginBuildStorages = storages(),
     ) = publisher(storages).execute(
         platform,
-        PUBLISHER,
+        ADMIN,
         PublishPluginBuild(archive(platform, commit), meta(metaPlatform), dryRun = false),
     )
 
@@ -111,7 +111,7 @@ class PluginBuildPlatformUseCaseTest {
         // a dry run reports the same conflict
         val dryRun = publisher().execute(
             PreviewPluginPlatform.WEB,
-            PUBLISHER,
+            ADMIN,
             PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A), meta("web"), dryRun = true),
         )
         assertIs<DsFailure.Conflict>(assertIs<DsResult.Failure>(dryRun).error)
@@ -157,7 +157,7 @@ class PluginBuildPlatformUseCaseTest {
         suspend fun dev(commit: String, html: String): PublishResult = assertIs<DsResult.Success<PublishResult>>(
             publisher(storages).execute(
                 PreviewPluginPlatform.WEB,
-                PUBLISHER,
+                ADMIN,
                 PublishPluginBuild(
                     archive(PreviewPluginPlatform.WEB, commit, html),
                     meta("web").copy(channel = "dev"),
@@ -188,7 +188,7 @@ class PluginBuildPlatformUseCaseTest {
         }
         val result = publisher(apiMeta = rejecting).execute(
             PreviewPluginPlatform.WEB,
-            PUBLISHER,
+            ADMIN,
             PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A), meta("web").copy(channel = "dev"), false),
         )
         assertEquals(DsFailure.Conflict("CORE_RELEASE_IMMUTABLE"), assertIs<DsResult.Failure>(result).error)
@@ -201,7 +201,7 @@ class PluginBuildPlatformUseCaseTest {
         val command =
             PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A), meta("web").copy(channel = "dev"), false)
         val first = assertIs<DsResult.Success<PublishResult>>(
-            publisher().execute(PreviewPluginPlatform.WEB, PUBLISHER, command),
+            publisher().execute(PreviewPluginPlatform.WEB, ADMIN, command),
         ).value
         val rejecting = object : ApiMetaRepository {
             override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt {
@@ -212,7 +212,7 @@ class PluginBuildPlatformUseCaseTest {
         }
         val result = publisher(apiMeta = rejecting).execute(
             PreviewPluginPlatform.WEB,
-            PUBLISHER,
+            ADMIN,
             PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A, "changed preview"), command.meta, false),
         )
         assertIs<DsResult.Failure>(result)
@@ -228,7 +228,7 @@ class PluginBuildPlatformUseCaseTest {
             false,
         )
         val first = assertIs<DsResult.Success<PublishResult>>(
-            publisher().execute(PreviewPluginPlatform.WEB, PUBLISHER, command),
+            publisher().execute(PreviewPluginPlatform.WEB, ADMIN, command),
         ).value
         builds.versionPinned += first.build.buildId
         webStorage.putCalls = 0
@@ -237,7 +237,7 @@ class PluginBuildPlatformUseCaseTest {
         val result = assertIs<DsResult.Failure>(
             publisher().execute(
                 PreviewPluginPlatform.WEB,
-                PUBLISHER,
+                ADMIN,
                 PublishPluginBuild(
                     archive(PreviewPluginPlatform.WEB, COMMIT_A, "changed preview"),
                     command.meta,
@@ -440,8 +440,8 @@ class PluginBuildPlatformUseCaseTest {
         const val COMMIT_B = "bbbbbbbbbbbb2222222222222222222222222222"
         const val COMMIT_C = "cccccccccccc3333333333333333333333333333"
 
-        val PUBLISHER = DsRequestContext(
-            ProjectPrincipal(ProjectActorType.USER, "compose-publisher", "global", composePreviewPublisher = true),
+        val ADMIN = DsRequestContext(
+            ProjectPrincipal(ProjectActorType.USER, "integration-admin", "global", systemAdmin = true),
             "correlation-1",
         )
         val USER = DsRequestContext(

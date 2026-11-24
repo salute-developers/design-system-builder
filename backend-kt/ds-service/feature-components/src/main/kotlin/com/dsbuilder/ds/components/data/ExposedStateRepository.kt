@@ -150,7 +150,9 @@ class ExposedStateRepository : StateRepository {
             it[componentId] = command.componentId
             it[name] = command.name
             it[description] = command.description
-        }.single().let { componentState(it, StableComponentStatesTable) }.also { PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
+        }.single().let {
+            componentState(it, StableComponentStatesTable)
+        }.also { PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
 
     override suspend fun update(id: UUID, command: StateRepository.Update): ComponentState? =
         StableComponentStatesTable.updateReturning(where = { StableComponentStatesTable.id eq id }) {

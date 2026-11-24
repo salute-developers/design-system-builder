@@ -61,6 +61,7 @@ describe('componentStructureRepository: пересечения', () => {
         );
         await repository.removeCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', ['pressed']);
         expect(http.delete).toHaveBeenCalledWith(url, {
+            headers: { 'X-DS-Core-Selection-Revision': '5' },
             params: { propertyId: 'height', styleIds: 's-l,s-pilled', states: 'pressed' },
         });
     });

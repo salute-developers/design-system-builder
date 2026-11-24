@@ -45,6 +45,15 @@ private fun propertyProjection(properties: List<ImportApiMeta.Property>) = build
     put("type", property.type)
     put("description", property.description)
     put("defaultValue", property.defaultValue)
+    property.stateSupport?.let { support ->
+        put(
+            "stateSupport",
+            buildJsonObject {
+                put("states", JsonArray(support.states.distinct().sorted().map(::JsonPrimitive)))
+                put("combinations", support.combinations)
+            },
+        )
+    }
     put("componentTargets", JsonArray(property.componentTargets.distinct().sorted().map(::JsonPrimitive)))
     put(
         "aliases",

@@ -254,7 +254,9 @@ class ExposedComponentModelRepository : ComponentModelRepository {
             if (command.defaultValuePresent) it[defaultValue] = command.defaultValue
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let { propertyModel(it, StablePropertiesTable) }?.let { PropertyStateSupportStore.attach(listOf(it)).single() }
+        }.singleOrNull()?.let {
+            propertyModel(it, StablePropertiesTable)
+        }?.let { PropertyStateSupportStore.attach(listOf(it)).single() }
     }
 
     override suspend fun deleteProperty(projectId: ProjectId, systemAdmin: Boolean, id: UUID): Boolean =

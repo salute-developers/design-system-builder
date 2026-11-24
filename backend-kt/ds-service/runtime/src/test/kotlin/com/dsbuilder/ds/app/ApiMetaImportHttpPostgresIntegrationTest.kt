@@ -282,14 +282,12 @@ class ApiMetaImportHttpPostgresIntegrationTest {
     @Test
     fun `state support is written, changed only on difference and unresolved names are reported`() = withService {
         val support = """{"states":["pressed","dragging-over","unknown"],"combinations":true}"""
-        val request = metaWithStates(
-            "",
-            """[{"name":"DropZone","states":["dragging-over","disabled"],"properties":[
+        val components = """[{"name":"DropZone","states":["dragging-over","disabled"],"properties":[
                 {"name":"paddingStart","type":"dimension","platformNames":["paddingStart"],"stateSupport":$support},
                 {"name":"orientation","type":"value","platformNames":["orientation"],
                  "stateSupport":{"states":[],"combinations":false}},
-                {"name":"legacy","type":"color","platformNames":["legacy"]}]}]""",
-        )
+                {"name":"legacy","type":"color","platformNames":["legacy"]}]}]"""
+        val request = metaWithStates("", components)
         val first = importMeta(request).report()
         assertEquals(0, first.ints("stateSupportChanged").single())
         assertEquals(listOf("DropZone.paddingStart: unknown"), first.strings("unresolvedStates"))
@@ -307,7 +305,8 @@ class ApiMetaImportHttpPostgresIntegrationTest {
 
         assertEquals(0, importMeta(request).report().ints("stateSupportChanged").single())
 
-        val narrowed = request.replace(support, """{"states":["pressed"],"combinations":false}""")
+        val narrowed =
+            metaWithStates("", components.replace(support, """{"states":["pressed"],"combinations":false}"""))
         val dry = importMeta(narrowed.replace(""""dryRun":false""", """"dryRun":true""")).report()
         assertEquals(1, dry.ints("stateSupportChanged").single())
         assertEquals(2, supportedCount("paddingStart"))
@@ -315,8 +314,15 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         assertEquals(1, supportedCount("paddingStart"))
 
         // A manifest without the field keeps the stored support.
-        importMeta(request.replace(""","stateSupport":$support""", "")).report()
+        importMeta(metaWithStates("", components.replace(""","stateSupport":$support""", ""))).report()
         assertEquals(1, supportedCount("paddingStart"))
+        assertEquals(
+            "true:2",
+            query(
+                "SELECT state_combinations::text || ':' || cardinality(supported_state_ids)::text " +
+                    "FROM core_release_properties WHERE name = 'paddingStart' AND state_combinations",
+            ),
+        )
     }
 
     @Test
@@ -417,7 +423,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
     }
 
     private fun metaWithStates(extra: String, components: String, platform: String = "compose") =
-        """{"platform":"$platform","meta":{"source":"meta.json"},"dryRun":false,$extra"components":$components}"""
+        body(platform, dryRun = false, components = components, extra = extra)
 
     private fun supportedCount(property: String) = count(
         "property_supported_states ps JOIN properties p ON p.id = ps.property_id WHERE p.name = '$property'",
@@ -448,14 +454,17 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         dryRun: Boolean = true,
         components: String = """[{"name":"A","properties":[{"name":"p","type":"color","platformNames":["p"]}]}]""",
         source: String = "meta.json",
+        extra: String = "",
     ): String {
         val bytes = (if (platform == "xml") """{"components":$components}""" else components).toByteArray()
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
+        val version = MessageDigest.getInstance("SHA-256").digest(bytes + extra.toByteArray())
+            .joinToString("") { "%02x".format(it) }
         val encoded = Base64.getEncoder().encodeToString(bytes)
         return """{"platform":"$platform","meta":{"source":${JsonPrimitive(source)}},""" +
-            """"dryRun":$dryRun,"components":$components,"sourceMetaBase64":"$encoded","metaSha256":"$hash",""" +
+            """"dryRun":$dryRun,$extra"components":$components,"sourceMetaBase64":"$encoded","metaSha256":"$hash",""" +
             """"channel":"stable","coreRelease":{"libraryId":"fixture-$platform",""" +
-            """"platform":"$platform","version":"$hash"}}"""
+            """"platform":"$platform","version":"$version"}}"""
     }
 
     private fun prop(name: String, type: String, names: String) =

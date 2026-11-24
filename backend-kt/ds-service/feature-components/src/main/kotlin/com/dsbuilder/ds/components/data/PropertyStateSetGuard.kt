@@ -52,13 +52,13 @@ internal object PropertyStateSetGuard {
     private val EMPTY_STATE_SET_ID: UUID = UUID.fromString("00000000-0000-4000-8000-0000000000ff")
 
     /** Состояния списка признака одним соединением с `states`. */
-    private fun supportedStates(propertyId: UUID) = PropertySupportedStatesTable.join(
+    private fun supportedStates(propertyId: UUID) = SelectedPropertySupportedStatesTable.join(
         ComponentStatesTable,
         JoinType.INNER,
-        PropertySupportedStatesTable.stateId,
+        SelectedPropertySupportedStatesTable.stateId,
         ComponentStatesTable.id,
     ).select(ComponentStatesTable.componentId, ComponentStatesTable.name)
-        .where { PropertySupportedStatesTable.propertyId eq propertyId }
+        .where { SelectedPropertySupportedStatesTable.propertyId eq propertyId }
         .map { StateNames.Scoped(it[ComponentStatesTable.componentId], it[ComponentStatesTable.name]) }
 
     private fun scoped(ids: List<UUID>): List<StateNames.Scoped> {

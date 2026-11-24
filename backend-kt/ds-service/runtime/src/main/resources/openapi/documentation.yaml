@@ -11441,7 +11441,8 @@ x-admin-preview-publication:
       tags: [Preview]
       summary: Загрузить или заменить dev-preview
       description: >-
-        Доступно системному администратору или роли публикации preview.
+        Системный администратор может зарегистрировать Core вместе с preview.
+        Роль публикации preview может загрузить сборку только для ранее зарегистрированного Core.
         Канал обязателен в meta запроса, задаётся CLI --channel, не читается из ZIP и не выводится из URL.
         Обычная загрузка заменяет изменённый dev-ZIP под прежним build ID без специального флага.
         Замена разрешена только для dev с прежними Core/метой/протоколом и базовым commit,
@@ -11482,7 +11483,7 @@ x-admin-preview-publication:
                   pluginUrl: {type: string, description: URL полной редакции, меняется при замене}
                   report: {$ref: '#/components/schemas/ImportApiMetaResponse'}
         '400': {description: Некорректный запрос или архив}
-        '403': {description: Нет права публикации}
+        '403': {description: Нет права публикации или новый Core требует регистрации администратором}
         '409': {description: Недопустимая замена, закреплённая сборка или неизменяемый Core}
         '413': {description: Превышен размер запроса}
         '422': {description: Ошибка меты}
@@ -11492,7 +11493,8 @@ x-admin-preview-publication:
       tags: [Preview]
       summary: Загрузить или заменить dev-preview
       description: >-
-        Доступно системному администратору или роли публикации preview.
+        Системный администратор может зарегистрировать Core вместе с preview.
+        Роль публикации preview может загрузить сборку только для ранее зарегистрированного Core.
         Канал обязателен в meta запроса, задаётся CLI --channel, не читается из ZIP и не выводится из URL.
         Обычная загрузка заменяет изменённый dev-ZIP под прежним build ID без специального флага.
         Замена разрешена только для dev с прежними Core/метой/протоколом и базовым commit,
@@ -11533,7 +11535,7 @@ x-admin-preview-publication:
                   pluginUrl: {type: string, description: URL полной редакции, меняется при замене}
                   report: {$ref: '#/components/schemas/ImportApiMetaResponse'}
         '400': {description: Некорректный запрос или архив}
-        '403': {description: Нет права публикации}
+        '403': {description: Нет права публикации или новый Core требует регистрации администратором}
         '409': {description: Недопустимая замена, закреплённая сборка или неизменяемый Core}
         '413': {description: Превышен размер запроса}
         '422': {description: Ошибка меты}

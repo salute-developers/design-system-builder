@@ -24,7 +24,7 @@ import kotlin.test.assertTrue
  */
 class PlatformCommandsCliTest {
     @Test
-    fun localGenerationUsesSavedCoreAWithUnreleasedCoreBAndNeverCallsTheServer() {
+    fun localGenerationUsesSavedCoreAWithUnreleasedCoreBAndNeverCallsTheServer() = runTest {
         val snapshot = """{"coreReleases":[{"libraryId":"uikit-compose","version":"A"}]}"""
         val files = RecordingFileSystem(
             mapOf(

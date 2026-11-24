@@ -102,7 +102,8 @@ internal class ExposedCoreReleaseImport {
             """
                 INSERT INTO core_release_properties
                 SELECT r.id, p.id, c.component_id, prop->>'name', (prop->>'type')::property_type,
-                    prop->>'defaultValue', prop->>'description', prop->'componentTargets'
+                    prop->>'defaultValue', prop->>'description', prop->'componentTargets', p.state_combinations,
+                    ARRAY(SELECT state_id FROM property_supported_states WHERE property_id = p.id)
                 FROM core_releases r CROSS JOIN LATERAL jsonb_array_elements(r.normalized_meta) item
                 JOIN core_release_components c ON c.release_id = r.id AND c.name = item->>'name'
                 CROSS JOIN LATERAL jsonb_array_elements(item->'properties') prop

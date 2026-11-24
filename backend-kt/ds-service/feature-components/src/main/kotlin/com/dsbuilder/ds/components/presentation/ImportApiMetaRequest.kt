@@ -117,7 +117,9 @@ data class ImportApiMetaRequest(
     /** Checks alias DTO shape before mapping; release and catalog rules belong to CoreMetaValidation. */
     fun valid(): Boolean = platform in componentPlatforms &&
         interactionStates.orEmpty().none(String::isBlank) &&
-        components.flatMap { it.properties }.all { it.aliases() != null && it.stateSupport?.states.orEmpty().none(String::isBlank) }
+        components.flatMap {
+            it.properties
+        }.all { it.aliases() != null && it.stateSupport?.states.orEmpty().none(String::isBlank) }
 
     /** Performs the to command operation. */
     fun toCommand() = ImportApiMeta(
@@ -133,11 +135,11 @@ data class ImportApiMetaRequest(
                         it.type,
                         requireNotNull(it.aliases()),
                         it.description,
-                        it.stateSupport?.let { support ->
+                        defaultValue = it.defaultValue,
+                        componentTargets = it.componentTargets,
+                        stateSupport = it.stateSupport?.let { support ->
                             ImportApiMeta.StateSupport(support.states, support.combinations)
                         },
-                        it.defaultValue,
-                        it.componentTargets,
                     )
                 },
                 component.states,

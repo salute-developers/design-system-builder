@@ -37,6 +37,8 @@ CREATE TABLE core_release_properties (
     default_value text,
     description text,
     component_targets jsonb NOT NULL DEFAULT '[]',
+    state_combinations boolean,
+    supported_state_ids uuid[] NOT NULL DEFAULT '{}',
     PRIMARY KEY (release_id, property_id),
     FOREIGN KEY (release_id, component_id) REFERENCES core_release_components(release_id, component_id),
     UNIQUE (release_id, component_id, name)
@@ -105,7 +107,8 @@ INSERT INTO core_current_releases SELECT platform, id FROM core_releases;
 INSERT INTO core_release_components
 SELECT r.id, c.id, c.name, c.description FROM core_releases r JOIN components c ON c.platform = r.platform;
 INSERT INTO core_release_properties
-SELECT r.id, p.id, p.component_id, p.name, p.type, p.default_value, p.description, '[]'
+SELECT r.id, p.id, p.component_id, p.name, p.type, p.default_value, p.description, '[]',
+    p.state_combinations, ARRAY(SELECT state_id FROM property_supported_states WHERE property_id = p.id)
 FROM core_releases r JOIN components c ON c.platform = r.platform JOIN properties p ON p.component_id = c.id;
 INSERT INTO core_release_states
 SELECT r.id, s.id, s.component_id, s.name, s.description
