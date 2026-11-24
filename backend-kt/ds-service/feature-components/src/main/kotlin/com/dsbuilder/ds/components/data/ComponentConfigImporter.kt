@@ -1240,7 +1240,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
         allowStateOnly: Boolean,
     ): List<Expanded> {
         val stateOnly = allowStateOnly && p.value == ComponentConfig.Scalar.Null &&
-            p.states.any { it.state.isNotEmpty() }
+            p.alpha?.raw() == null && p.adjustment?.raw() == null && p.states.any { it.state.isNotEmpty() }
         return listOfNotNull(
             Expanded(
                 p.value.raw(),

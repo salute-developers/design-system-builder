@@ -350,6 +350,45 @@ describe('assembleComposePreviewPayload', () => {
             });
         });
 
+        it('keeps styleRef states and their transitive styles and token closure', () => {
+            const d = draft();
+            d.invariantProperties.push(
+                prop({
+                    name: 'nestedStyle',
+                    type: 'component_style',
+                    styleRef: 'base',
+                    states: [
+                        { names: ['pressed'], value: 'pressed' },
+                        { names: ['pressed', 'hovered'], value: 'pair' },
+                    ],
+                }),
+            );
+            d.styles = [
+                { id: 'base', componentId: 'divider', properties: [] },
+                { id: 'pressed', componentId: 'divider', properties: [prop({ name: 'inner', styleRef: 'inner' })] },
+                { id: 'inner', componentId: 'divider', properties: [prop({ name: 'color', value: 'color.pressed' })] },
+                { id: 'pair', componentId: 'divider', properties: [] },
+            ];
+            const payload = assembled(d);
+            expect(payload.component.properties.nestedStyle.states).toEqual([
+                { when: ['pressed', 'hovered'], source: { type: 'styleRef', styleId: 'pair' } },
+                { when: ['pressed'], source: { type: 'styleRef', styleId: 'pressed' } },
+            ]);
+            expect(Object.keys(payload.styles!).sort()).toEqual(['base', 'inner', 'pair', 'pressed']);
+            expect(payload.theme['color.pressed']).toBeTruthy();
+            d.styles = d.styles.filter((style) => style.id !== 'pair');
+            expect(assembleComposePreviewPayload(d)).toMatchObject({
+                ok: false,
+                diagnostics: [{ code: 'invalid_reference' }],
+            });
+            d.styles.push({
+                id: 'pair',
+                componentId: 'divider',
+                properties: [prop({ name: 'again', styleRef: 'pair' })],
+            });
+            expect(assembleComposePreviewPayload(d)).toMatchObject({ ok: false, diagnostics: [{ code: 'cycle' }] });
+        });
+
         it('rejects unknown style references and style cycles without a partial payload', () => {
             const unknown = draft();
             unknown.invariantProperties.push(prop({ name: 'dividerStyle', styleRef: 'missing' }));
@@ -373,7 +412,11 @@ describe('assembleComposePreviewPayload', () => {
             d.invariantProperties.push(prop({ name: 'icon', type: 'icon', value: 'plus.16' }));
             const payload = assembled(d);
             expect(payload.component.properties.icon.base).toEqual({ type: 'literal', value: 'plus.16' });
-            expect(payload.assets).toContainEqual({ id: 'icon:plus.16', type: 'SVG', url: 'https://example.test/Plus.svg' });
+            expect(payload.assets).toContainEqual({
+                id: 'icon:plus.16',
+                type: 'SVG',
+                url: 'https://example.test/Plus.svg',
+            });
         });
 
         it('includes referenced assets and rejects a missing one', () => {

@@ -48,7 +48,8 @@ const sourceFor = (
     web = false,
 ): PreviewPropertySource | AssemblyDiagnostic => {
     if (raw === undefined) return diagnostic('incompatible_value', `Property ${property.id} has no value`, property.id);
-    const numeric = typeof raw === 'number' ? raw : Number(raw);
+    if (property.type === 'component_style' && typeof raw === 'string') return { type: 'styleRef', styleId: raw };
+    const numeric = Number(raw);
     if (
         !adjusted &&
         (property.type === 'dimension' || property.type === 'float' || property.type === 'integer') &&
@@ -94,9 +95,10 @@ const isEmptyIcon = (property: PreviewPropertyDraft) =>
     property.type === 'icon' && (property.value === undefined || property.value === '');
 
 const effectiveProperty = (property: PreviewPropertyDraft, web = false): PreviewPropertyValue | AssemblyDiagnostic => {
-    if (property.styleRef) return { base: { type: 'styleRef', styleId: property.styleRef } };
     if (property.assetRef) return { base: { type: 'assetRef', assetId: property.assetRef } };
-    const plainBase = sourceFor(property, property.value, property.adjustment !== undefined, web);
+    const plainBase: PreviewPropertySource | AssemblyDiagnostic = property.styleRef
+        ? { type: 'styleRef', styleId: property.styleRef }
+        : sourceFor(property, property.value, property.adjustment !== undefined, web);
     if ('code' in plainBase) return plainBase;
     const base = withAlpha(plainBase, property.alpha, property.id);
     if ('code' in base) return base;
@@ -528,7 +530,11 @@ const normalizeWebToken = (
 ): PreviewThemeValue | AssemblyDiagnostic => {
     const normalized = normalizeWebTokenValue(token.type, raw, token.id);
     if (!normalized.ok) {
-        return diagnostic('incompatible_value', `Invalid ${token.type} value for ${token.id}: ${normalized.message}`, token.id);
+        return diagnostic(
+            'incompatible_value',
+            `Invalid ${token.type} value for ${token.id}: ${normalized.message}`,
+            token.id,
+        );
     }
     if (normalized.value.type === 'typography') {
         const error = resolve(normalized.value.fontFamilyTokenId);

@@ -1072,6 +1072,52 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `null combination base with alpha or adjustment survives export and reimport`() = withService {
+        val fixture = fixture()
+        val fill = property("fill", "color")
+        for (metadata in listOf(
+            "\"alpha\":0.5",
+            "\"alpha\":0",
+            "\"adjustment\":5",
+            "\"adjustment\":0",
+            "\"alpha\":0.5,\"adjustment\":0",
+        )) {
+            val config = """{"colorSchemeVariationId":"view","variations":[
+                {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
+                {"id":"size","name":"size","values":[{"name":"a","targets":[{"properties":[{"id":"view","value":"default"}]}],
+                "properties":{"fill":{"type":"color","value":null,$metadata,"states":[{"state":["pressed"],"value":"#123456"}]}}}]}]}"""
+            val imported = importConfig(fixture.ds, "default", config)
+            assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+            val before = propertyValues(fixture.appearance).filter { it.string("propertyId") == fill }
+            assertEquals(2, before.size, metadata)
+            val base = before.single { it.states().isEmpty() }
+            val expected = json.parseToJsonElement("{$metadata}").jsonObject
+            for ((name, value) in expected) assertEquals(value.jsonPrimitive.content, base.string(name))
+            val exported =
+                post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+            assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())
+            val exportedConfig = json.parseToJsonElement(
+                exported.bodyAsText(),
+            ).jsonObject.getValue("components").jsonArray
+                .single().jsonObject.getValue("config").jsonObject
+            repeat(2) {
+                val repeated = importConfig(fixture.ds, "default", exportedConfig.toString())
+                assertEquals(HttpStatusCode.OK, repeated.status, repeated.bodyAsText())
+                val report = json.parseToJsonElement(repeated.bodyAsText()).jsonObject
+                assertEquals("0", report.string("updated"), repeated.bodyAsText())
+                assertEquals("1", report.string("unchanged"), repeated.bodyAsText())
+                assertEquals(before, propertyValues(fixture.appearance).filter { it.string("propertyId") == fill })
+                val again =
+                    post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+                assertEquals(
+                    json.parseToJsonElement(exported.bodyAsText()),
+                    json.parseToJsonElement(again.bodyAsText()),
+                )
+            }
+        }
+    }
+
+    @Test
     fun `a nested style state of a combination is updated and removed independently`() = withService {
         val fixture = fixture()
         val child = importChild(fixture.ds)
