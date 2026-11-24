@@ -8,6 +8,7 @@ export class ColorEditorPage {
     readonly navigationButton: Locator;
     readonly tokenName: Locator;
     readonly light: Locator;
+    readonly lightOpacity: Locator;
     readonly lightSwatch: Locator;
     readonly manualTab: Locator;
     readonly libraryTab: Locator;
@@ -35,6 +36,7 @@ export class ColorEditorPage {
             .filter({ has: page.getByRole('heading', { name: 'Темы по умолчанию', exact: true }) });
         this.lightSwatch = defaults.getByRole('button', { name: 'Выбор цвета: Light', exact: true });
         this.light = defaults.getByRole('textbox', { name: 'Light', exact: true });
+        this.lightOpacity = defaults.getByRole('textbox', { name: 'Light, прозрачность в процентах', exact: true });
         this.dark = defaults.getByRole('textbox', { name: 'Dark', exact: true });
         this.picker = page.getByRole('dialog', { name: /^Color picker: /u });
         this.manualTab = this.picker.getByRole('button', { name: 'Вручную', exact: true });

@@ -13,6 +13,7 @@ test(
 
         await test.step('Пустой черновик недоступен для публикации', async () => {
             await versions.navigationButton.click();
+            await versions.waitForContent();
             await expect(versions.draftButton).toHaveAttribute('aria-pressed', 'true');
             await expect(versions.emptyMessage).toBeVisible();
             await expect(versions.publishButton).toBeDisabled();
@@ -22,7 +23,7 @@ test(
         await test.step('Вернуться в редактор той же темы', async () => {
             await versions.editorButton.click();
             await expect(page).toHaveURL(editorURL);
-            await expect(versions.editorReady).toBeVisible();
+            await versions.waitForEditor();
             await expect(versions.editorVersionButton).toHaveText('Черновик');
             expect(publications(), 'Публикация пустого черновика не отправлялась').toBe(0);
         });
@@ -114,6 +115,7 @@ test(
 
         await test.step('Выбрать старую публикацию только в истории', async () => {
             await versions.version(history.first.version).click();
+            await versions.waitForContent();
             await expect(page).toHaveURL(
                 (url) =>
                     url.searchParams.get('historyVersionId') === history.first.id && !url.searchParams.has('versionId'),
@@ -128,7 +130,7 @@ test(
         await test.step('Редактор сохранил актуальный черновик и доступность правки', async () => {
             await versions.editorButton.click();
             await expect(page).toHaveURL(editorURL);
-            await expect(versions.editorReady).toBeVisible();
+            await versions.waitForEditor();
             await expect(versions.editorVersionButton).toHaveText('Черновик');
             await expect(
                 page

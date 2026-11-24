@@ -2,18 +2,31 @@ import { test as base, expect } from './colors.ts';
 import { PaletteApi, paletteGroup, paletteStep, green, blue } from '../helpers/palette.api.ts';
 import { PalettePage } from '../pages/palette.page.ts';
 import type { ThemePalette } from '../helpers/palette.api.ts';
+import type { TokenValue } from '../helpers/token-values.api.ts';
 
 type Fixtures = {
     paletteApi: PaletteApi;
     paletteData: ThemePalette;
     palette: PalettePage;
     paletteBaseline: ThemePalette;
-    linkedColor: Readonly<{ greenHex: string; blueHex: string }>;
+    linkedColor: Readonly<{
+        greenHex: string;
+        blueHex: string;
+        references: readonly Pick<TokenValue, 'tokenId' | 'platform' | 'mode'>[];
+    }>;
 };
 
 export const test = base.extend<Fixtures>({
     paletteApi: async ({ environment, systemsApi, createdSystem, initialTheme, setupSession }, use) => {
-        await use(new PaletteApi(environment.gatewayBaseURL, systemsApi.projectId, createdSystem.id, initialTheme.id, setupSession));
+        await use(
+            new PaletteApi(
+                environment.gatewayBaseURL,
+                systemsApi.projectId,
+                createdSystem.id,
+                initialTheme.id,
+                setupSession,
+            ),
+        );
     },
     paletteData: async ({ paletteApi }, use) => {
         await use(await test.step('Подготовить точные слоты PAL-BASE через API', () => paletteApi.prepare()));
@@ -48,7 +61,8 @@ export const test = base.extend<Fixtures>({
             initialTheme.id,
             inheritedLight.map((current) => ({ current, value: '[additional.h130.500]' })),
         );
-        await use({ greenHex, blueHex });
+        const references = inheritedLight.map(({ tokenId, platform, mode }) => ({ tokenId, platform, mode }));
+        await use({ greenHex, blueHex, references });
     },
 });
 

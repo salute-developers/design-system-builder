@@ -33,7 +33,10 @@ function baseURL(value: string): string {
 }
 
 /** Настройки читаются только при выполнении теста; types/--list не требуют стенда. */
-export async function readEnvironment(input: NodeJS.ProcessEnv = process.env): Promise<Environment> {
+export async function readEnvironment(
+    input: NodeJS.ProcessEnv = process.env,
+    account: 'owner' | 'member' = 'owner',
+): Promise<Environment> {
     let values = { ...input };
     const file = input.DSB_E2E_CREDENTIALS_FILE ?? new URL('../../.env.e2e.local', import.meta.url);
     try {
@@ -57,6 +60,6 @@ export async function readEnvironment(input: NodeJS.ProcessEnv = process.env): P
         gatewayBaseURL: baseURL(values.DSB_E2E_GATEWAY_BASE_URL?.trim() || 'http://localhost:8080/'),
         clientId: values.DSB_E2E_CLIENT_ID?.trim() || 'dsbuilder-api',
         projectName,
-        credentials: readCredentials(values),
+        credentials: readCredentials(values, account),
     };
 }

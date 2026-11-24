@@ -1,13 +1,15 @@
 import { expect } from '@playwright/test';
 import { authenticatedRequest } from './authentication.ts';
 import type { Session } from './authentication.ts';
+import type { TokenValue } from './token-values.api.ts';
 
 export type PaletteSlot = Readonly<{ type: 'general' | 'additional'; shade: string }>;
-export type PaletteStep = Readonly<{ step: number; value: string; overridden: boolean }>;
+export type PaletteStep = Readonly<{ step: number; value: string; overridden: boolean; linkedCount: number }>;
 export type PaletteRamp = Readonly<{
     slot: PaletteSlot;
     displayName: string;
     modified: boolean;
+    linkedCount: number;
     steps: readonly PaletteStep[];
 }>;
 export type PaletteGroup = Readonly<{ id: string; label: string; systemKey: string; ramps: readonly PaletteRamp[] }>;
@@ -16,6 +18,7 @@ export type ThemePalette = Readonly<{
     editRevision: number;
     groups: readonly PaletteGroup[];
     template: readonly (PaletteSlot & { steps: readonly { step: number; value: string }[] })[];
+    tokens: readonly Readonly<{ tokenId: string; tokenName: string; groupId: string; assignment: string }>[];
 }>;
 
 export const green: PaletteSlot = { type: 'additional', shade: 'h130' };
@@ -37,6 +40,17 @@ export function paletteStep(group: PaletteGroup, slot: PaletteSlot, step: number
     const matches = paletteRamp(group, slot).steps.filter((item) => item.step === step);
     expect(matches, 'Точная ступень ' + group.label + '/' + slot.shade + '/' + step).toHaveLength(1);
     return matches[0]!;
+}
+
+/** Ссылки выбранной группы: одинаковый адрес в другой группе не является её зависимостью. */
+export function paletteLinkedValues(
+    palette: ThemePalette,
+    values: readonly TokenValue[],
+    groupId: string,
+    reference: string,
+): TokenValue[] {
+    const ids = new Set(palette.tokens.filter((token) => token.groupId === groupId).map((token) => token.tokenId));
+    return values.filter((value) => ids.has(value.tokenId) && value.paletteRef === reference);
 }
 
 /** Публичные чтения и подготовка палитры только собственной темы сценария. */
@@ -67,9 +81,15 @@ export class PaletteApi {
             tenantId: this.themeId,
             groups: expect.any(Array),
             template: expect.any(Array),
+            tokens: expect.any(Array),
             editRevision: expect.any(Number),
         });
-        return raw as ThemePalette;
+        const palette = raw as ThemePalette;
+        // Каталог токенов не упорядочен; порядок групп, растяжек и ступеней сохраняется.
+        return {
+            ...palette,
+            tokens: [...palette.tokens].sort((left, right) => left.tokenId.localeCompare(right.tokenId)),
+        };
     }
 
     async seedStep(groupId: string, slot: PaletteSlot, step: number, value: string): Promise<void> {

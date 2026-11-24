@@ -1,5 +1,10 @@
+import { within } from '../helpers/pending-mutation.ts';
 import { test as base, expect } from '@playwright/test';
-import { resourceFixtureTimeoutMs, sessionFixtureTimeoutMs } from '../config/timeouts.ts';
+import {
+    resourceFixtureTimeoutMs,
+    sessionFixtureTimeoutMs,
+    systemCreationSettlementTimeoutMs,
+} from '../config/timeouts.ts';
 import { PageReadiness } from '../helpers/page-readiness.ts';
 import { readEnvironment } from '../config/environment.ts';
 import type { Environment } from '../config/environment.ts';
@@ -32,6 +37,7 @@ export const test = base.extend<Fixtures>({
             try {
                 await use(readiness);
             } finally {
+                if (info.status !== info.expectedStatus) await readiness.report('Падение сценария');
                 readiness.dispose();
             }
         },
@@ -62,13 +68,15 @@ export const test = base.extend<Fixtures>({
         await use(new DesignSystemsPage(page, environment.clientBaseURL, systemsApi.projectId));
     },
     systemData: [
-        async ({ systemsApi }, use) => {
+        async ({ systemsApi }, use, info) => {
             const name = uniqueSystemName();
             const expected = { name, projectId: systemsApi.projectId, isTechnical: false };
             const baseline = await systemsApi.list();
-            test.info().annotations.push({ type: 'baseline-count', description: String(baseline.length) });
+            info.annotations.push({ type: 'baseline-count', description: String(baseline.length) });
             let createdId: string | undefined;
             let attempted = false;
+            let creation: Promise<unknown> | undefined;
+            let settlementDeadline = 0;
             const cleanup = () =>
                 test.step('Очистка своего ID и проверка исходных систем', async () => {
                     if (!createdId) {
@@ -100,6 +108,12 @@ export const test = base.extend<Fixtures>({
                 await use({
                     name,
                     projectId: systemsApi.projectId,
+                    observeCreation: (operation) => {
+                        if (creation) throw new Error('Повторное UI-создание ДС запрещено.');
+                        creation = operation;
+                        settlementDeadline = performance.now() + systemCreationSettlementTimeoutMs;
+                        void operation.catch(() => {});
+                    },
                     creationAttempted: () => {
                         attempted = true;
                     },
@@ -120,11 +134,31 @@ export const test = base.extend<Fixtures>({
                         ).toBe(false);
                         expect(createdId, 'Повторная регистрация создания запрещена').toBeUndefined();
                         createdId = id as string;
-                        test.info().annotations.push({ type: 'created-design-system', description: createdId });
+                        info.annotations.push({ type: 'created-design-system', description: createdId });
                     },
                 });
             } finally {
+                let settlementError: unknown;
+                if (creation) {
+                    try {
+                        await within(
+                            creation,
+                            Math.max(0, settlementDeadline - performance.now()),
+                            'Результат UI-создания ДС не подтверждён за 60 секунд.',
+                        );
+                    } catch (error) {
+                        settlementError = error;
+                        if (!createdId) {
+                            info.annotations.push({ type: 'unconfirmed-design-system-creation', description: name });
+                            throw new Error('ID созданной ДС не подтверждён; DELETE по имени запрещён. Имя: ' + name, {
+                                cause: error,
+                            });
+                        }
+                    }
+                }
+                // Только пилот: дождаться позднего ID до cleanup и завершения fixture.
                 await cleanup();
+                if (settlementError) throw settlementError;
             }
         },
         { timeout: resourceFixtureTimeoutMs },
