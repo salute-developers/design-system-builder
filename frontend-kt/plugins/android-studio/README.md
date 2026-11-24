@@ -34,7 +34,7 @@ Windows x64 и Linux x64.
 Из `frontend-kt`:
 
 ```bash
-./gradlew :plugins:android-studio:test :plugins:android-studio:buildPlugin -PidePluginVersion=0.1.0
+./gradlew :plugins:android-studio:test :plugins:android-studio:buildPlugin -PidePluginVersion=0.1.1
 ```
 
 Архив появится в `plugins/android-studio/build/distributions`. Workflow

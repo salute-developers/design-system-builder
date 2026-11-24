@@ -26,7 +26,7 @@ def plugin(path, version):
 
 class ReleaseTests(unittest.TestCase):
     def test_tag_rejects_nonrelease_and_shell_metacharacters(self):
-        for tag in ["cli-v1.2.3", "idea-plugin-v01.2.3", "idea-plugin-v1.2.3-beta", "idea-plugin-v1.2.3;echo x"]:
+        for tag in ["cli-v1.2.3", "idea-plugin-v01.2.3", "idea-plugin-v1.2.3-beta", "idea-plugin-v1.2.3;echo x", "idea-plugin-v1٢.2.3"]:
             with self.subTest(tag=tag), self.assertRaises(ValueError):
                 release.version(tag)
 
@@ -44,7 +44,7 @@ class ReleaseTests(unittest.TestCase):
             plugin(root / "plugin.zip", "1.2.3")
             release.package("idea-plugin-v1.2.3", root, root / "out")
             before = {p.name: p.read_bytes() for p in (root / "out").iterdir()}
-            with patch.object(release, "gh", return_value=subprocess.CompletedProcess([], 0, "{}", "")) as gh:
+            with patch.object(release, "gh", return_value=subprocess.CompletedProcess([], 0, "123\n", "")) as gh:
                 with self.assertRaisesRegex(ValueError, "уже существует"):
                     release.publish("idea-plugin-v1.2.3", root / "out", "owner/repo")
                 self.assertEqual(gh.call_count, 1)
@@ -61,6 +61,16 @@ class ReleaseTests(unittest.TestCase):
                     release.publish("idea-plugin-v1.2.3", root / "out", "owner/repo")
                 self.assertEqual(gh.call_count, 1)
 
+    def test_draft_discovery_uses_paginated_list_and_rejects_ambiguous_ids(self):
+        with patch.object(release, "gh", return_value=subprocess.CompletedProcess([], 0, "456\n", "")) as gh:
+            self.assertEqual("456", release.find_release("idea-plugin-v1.2.3", "owner/repo"))
+            self.assertIn("--paginate", gh.call_args.args)
+            self.assertIn("repos/owner/repo/releases?per_page=100", gh.call_args.args)
+        for value in ["123\n456\n", "not-an-id\n"]:
+            with self.subTest(value=value), patch.object(release, "gh", return_value=subprocess.CompletedProcess([], 0, value, "")):
+                with self.assertRaises(ValueError):
+                    release.find_release("idea-plugin-v1.2.3", "owner/repo")
+
     def test_only_verified_assets_are_published(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
@@ -69,14 +79,17 @@ class ReleaseTests(unittest.TestCase):
             assets = [{"name": p.name, "size": p.stat().st_size,
                        "digest": "sha256:" + release.hashlib.sha256(p.read_bytes()).hexdigest()}
                       for p in (root / "out").iterdir()]
-            responses = [subprocess.CompletedProcess([], 1, '{"status":"404"}', ""),
+            responses = [subprocess.CompletedProcess([], 0, "", ""),
                          subprocess.CompletedProcess([], 0, "", ""),
+                         subprocess.CompletedProcess([], 0, "123\n", ""),
                          subprocess.CompletedProcess([], 0, json.dumps({"assets": assets}), ""),
                          subprocess.CompletedProcess([], 0, "", "")]
             with patch.object(release, "gh", side_effect=responses) as gh:
                 release.publish("idea-plugin-v1.2.3", root / "out", "owner/repo")
-                self.assertIn("--draft=false", gh.call_args.args)
-                self.assertIn("--latest=false", gh.call_args.args)
+                self.assertIn("draft=false", gh.call_args.args)
+                self.assertIn("make_latest=false", gh.call_args.args)
+                self.assertIn("repos/owner/repo/releases/123", gh.call_args_list[3].args)
+                self.assertFalse(any("/releases/tags/" in str(call) for call in gh.call_args_list))
 
 
 if __name__ == "__main__":

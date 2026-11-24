@@ -14,7 +14,7 @@ import zipfile
 
 
 def version(tag):
-    match = re.fullmatch(r"idea-plugin-v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)", tag)
+    match = re.fullmatch(r"idea-plugin-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", tag)
     if not match:
         raise ValueError("Ожидается тег idea-plugin-vMAJOR.MINOR.PATCH")
     return tag.removeprefix("idea-plugin-v")
@@ -53,6 +53,18 @@ def gh(*args):
     return subprocess.run(["gh", *args], text=True, capture_output=True)
 
 
+def find_release(tag, repository):
+    # The tag endpoint returns only published releases; list also includes our drafts.
+    result = gh("api", "--paginate", f"repos/{repository}/releases?per_page=100",
+                "--jq", f".[] | select(.tag_name == {json.dumps(tag)}) | .id")
+    if result.returncode:
+        raise ValueError("Не удалось проверить существование выпуска")
+    ids = [line.strip() for line in result.stdout.splitlines() if line.strip()]
+    if len(ids) > 1 or any(not value.isascii() or not value.isdecimal() for value in ids):
+        raise ValueError("GitHub вернул неоднозначный идентификатор выпуска")
+    return ids[0] if ids else None
+
+
 def publish(tag, directory, repository):
     release_version = version(tag)
     if not re.fullmatch(r"[A-Za-z0-9_.-]+/[A-Za-z0-9_.-]+", repository):
@@ -63,15 +75,8 @@ def publish(tag, directory, repository):
     digest = hashlib.sha256(archive.read_bytes()).hexdigest()
     if sums.read_text() != f"{digest}  {archive.name}\n":
         raise ValueError("Контрольная сумма ZIP не совпадает с SHA256SUMS")
-    existing = gh("api", f"repos/{repository}/releases/tags/{tag}")
-    if existing.returncode == 0:
+    if find_release(tag, repository) is not None:
         raise ValueError("Выпуск уже существует; его файлы не изменены. Используйте новый тег")
-    try:
-        response = json.loads(existing.stdout)
-    except json.JSONDecodeError as error:
-        raise ValueError("Не удалось проверить существование выпуска") from error
-    if str(response.get("status")) != "404":
-        raise ValueError("GitHub не подтвердил отсутствие выпуска")
     notes = (
         "Установка: скачайте ZIP и SHA256SUMS, проверьте сумму командой "
         "`shasum -a 256 -c SHA256SUMS` (Windows: `Get-FileHash <архив> -Algorithm SHA256`), "
@@ -83,7 +88,10 @@ def publish(tag, directory, repository):
                  "--verify-tag", "--draft", "--title", f"DS Builder IDE Plugin {release_version}", "--notes", notes)
     if created.returncode:
         raise ValueError("Не удалось создать черновик выпуска: " + created.stderr)
-    remote = gh("api", f"repos/{repository}/releases/tags/{tag}")
+    release_id = find_release(tag, repository)
+    if release_id is None:
+        raise ValueError("GitHub не вернул созданный черновик; выпуск не опубликован")
+    remote = gh("api", f"repos/{repository}/releases/{release_id}")
     if remote.returncode:
         raise ValueError("Не удалось проверить файлы черновика; выпуск не опубликован")
     assets = {item["name"]: item for item in json.loads(remote.stdout).get("assets", [])}
@@ -92,7 +100,8 @@ def publish(tag, directory, repository):
         expected = "sha256:" + hashlib.sha256(file.read_bytes()).hexdigest()
         if asset.get("size") != file.stat().st_size or asset.get("digest") != expected:
             raise ValueError("Контрольная сумма файла на GitHub не совпадает; черновик не опубликован")
-    promoted = gh("release", "edit", tag, "--repo", repository, "--draft=false", "--latest=false")
+    promoted = gh("api", "--method", "PATCH", f"repos/{repository}/releases/{release_id}",
+                  "-F", "draft=false", "-f", "make_latest=false")
     if promoted.returncode:
         raise ValueError("Не удалось опубликовать проверенный черновик")
 
