@@ -15,4 +15,6 @@ data class PlacedToken(
     val groupId: UUID?,
     /** Позиция в группе. */
     val position: Int,
+    /** Доступность определения. */
+    val enabled: Boolean = true,
 )

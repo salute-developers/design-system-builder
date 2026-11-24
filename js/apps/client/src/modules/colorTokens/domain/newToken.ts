@@ -11,7 +11,7 @@ import type { ColorMode, ColorState, ColorTokenKey } from './types';
 
 export const NEW_TOKEN_MESSAGES = {
     name: 'Введите имя: латиница и цифры.',
-    state: 'Имя не может оканчиваться на -hover, -active или -brightness.',
+    state: 'Имя не может оканчиваться на -hover, -active или -brightness. Состояние добавляется кнопкой «+» у токена.',
     exists: (name: string) => `Имя ${name} уже занято.`,
 } as const;
 
@@ -64,12 +64,14 @@ export interface NewMemberValues {
 
 /**
  * Определения нового токена: значения Light и Dark, подтемы с унаследованными значениями и состояния `-hover` и
- * `-active` для групп, у которых редактор их пересчитывает.
+ * `-active` для групп, у которых редактор их пересчитывает. [only] — определения одного состояния (`null` — токена)
+ * во всех подгруппах: так заполняется неполное состояние.
  */
 export const newTokenMembers = (
     key: ColorTokenKey,
     defaults: Record<ColorMode, string>,
     stateValue: StateValue,
+    only?: ColorState | null,
 ): NewMemberValues[] => {
     const subgroups = [
         { subgroup: 'default', value: (mode: ColorMode) => defaults[mode] },
@@ -78,7 +80,8 @@ export const newTokenMembers = (
             value: (mode: ColorMode) => defaults[inheritedMode(context, mode)],
         })),
     ];
-    const states: Array<ColorState | null> = STATEFUL_GROUPS.has(key.group) ? [null, ...CREATED_STATES] : [null];
+    const created: Array<ColorState | null> = STATEFUL_GROUPS.has(key.group) ? [null, ...CREATED_STATES] : [null];
+    const states = only === undefined ? created : [only];
     return subgroups.flatMap(({ subgroup, value }) =>
         states.map((state) => ({
             name: memberName(key, subgroup, state),

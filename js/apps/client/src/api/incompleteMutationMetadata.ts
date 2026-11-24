@@ -33,7 +33,9 @@ export const colorStructureConfirmation = (response: {
     data?: unknown;
     config?: { url?: string };
 }): ConfirmedColorStructure | undefined => {
-    const match = response.config?.url?.match(/\/tenants\/[^/]+\/color-tokens(?:\/[^/]+(?:\/move)?)?(?:\?|$)/);
+    const match = response.config?.url?.match(
+        /\/tenants\/[^/]+\/color-tokens(?:\/[^/]+(?:\/move|\/states(?:\/[^/]+)?)?)?(?:\?|$)/,
+    );
     const structure = (response.data as { structure?: ConfirmedColorStructure } | undefined)?.structure;
     if (
         !match ||

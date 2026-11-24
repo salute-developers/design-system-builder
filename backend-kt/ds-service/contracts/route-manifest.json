@@ -84,7 +84,9 @@
         ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens", "CreateColorTokenRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
         ["PUT", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/values", "UpdateColorTokenValuesRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
         ["DELETE", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}", "DeleteColorTokenRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"],
-        ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/move", "MoveColorTokenRequest", "ColorTokenMutation", 200, "tenants:write", "tenant-edit-revision"]
+        ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/move", "MoveColorTokenRequest", "ColorTokenMutation", 200, "tenants:write", "tenant-edit-revision"],
+        ["POST", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states", "AddColorTokenStateRequest", "ColorTokenMutation", 201, "tenants:write", "tenant-edit-revision"],
+        ["DELETE", "/{designSystemId}/tenants/{tenantId}/color-tokens/{tokenId}/states/{state}", "DeleteColorTokenStateRequest", "ColorTokenRevision", 200, "tenants:write", "tenant-edit-revision"]
       ]
     },
     {
