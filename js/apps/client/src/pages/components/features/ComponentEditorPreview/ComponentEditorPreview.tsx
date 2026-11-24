@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { usePreviewLocationStatus } from '../../../../composePreview/ComposePreviewHost';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 
 import { Config, DesignSystem, Theme } from '../../../../controllers';
 import { isDebugMode } from '../../../../utils/debugMode';
@@ -136,6 +137,8 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
     const webStoryId = selectedWebStory?.owner === componentName ? selectedWebStory.id : undefined;
     const coreCompose = useComposePreviewHost('compose');
     const composePluginUrl = coreCompose?.pluginUrl;
+    const composeLocationStatus = usePreviewLocationStatus('compose');
+    const webLocationStatus = usePreviewLocationStatus('web');
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
     // Compose-компонент существует только в Compose-плагине.
     const isComposeComponent = config.getPlatform() === 'compose';
@@ -166,6 +169,7 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
         ? rendererMode
         : (rendererModes.find((item) => item.value === rendererMode.value) ?? rendererModes[0]);
     const activeRenderer = activeRendererItem.value;
+    const locationStatus = activeRenderer === 'compose' ? composeLocationStatus : webLocationStatus;
     const composeAssembly = useMemo(() => {
         // После переключения компонента `args` ещё держат стили предыдущего: payload с ними не собираем,
         // последний актуальный остаётся в превью, пока редактор не принесёт выборы нового компонента.
@@ -414,10 +418,64 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
 
     const webPayload = webAssembly?.payload;
     // Отладочный блок с payload: только в debug-режиме и только для рендереров-плагинов.
-    const debugPayload =
-        activeRenderer === 'compose' ? currentComposePayload : activeRenderer === 'web-plugin' ? webPayload : undefined;
+    const debugPayloads: Record<string, PreviewPayloadInput | undefined> = {
+        compose: currentComposePayload,
+        'web-plugin': webPayload,
+    };
+    const debugPayload = debugPayloads[activeRenderer];
     const webUnavailableReason = webPlugin.status === 'unavailable' ? webPlugin.reason : webAssembly?.error;
     const showPayloadDebug = debugMode && Boolean(debugPayload);
+
+    const previewViews: Record<string, ReactNode> = {
+        compose:
+            composePluginUrl && composeEnvironmentSupported ? (
+                <>
+                    {!missingFromPlugin && (currentComposePayload || (isComposeComponent && !composeDiagnostic)) ? (
+                        // Iframe плагина живёт в хосте раздела: область только показывает его над собой.
+                        <ComposePreviewSlot
+                            pluginUrl={composePluginUrl}
+                            owner={composeOwner}
+                            payload={currentComposePayload}
+                            onDescription={onComposeDescription}
+                            onDescriptionError={onComposeDescriptionError}
+                        />
+                    ) : null}
+                    {composeDiagnostic && <div role="alert">{composeDiagnostic}</div>}
+                </>
+            ) : null,
+        'web-plugin':
+            isWebComponent && webUnavailableReason ? (
+                <StyledPreviewUnavailable role="alert" data-testid="preview-unavailable">
+                    Превью недоступно: {webUnavailableReason}
+                </StyledPreviewUnavailable>
+            ) : webPlugin.status === 'available' ? (
+                <>
+                    {webPayload && (
+                        // Iframe web-плагина живёт в хосте web-платформы раздела, независимо от Compose.
+                        <ComposePreviewSlot
+                            platform="web"
+                            pluginUrl={webPlugin.pluginUrl}
+                            owner={composeOwner}
+                            payload={webPayload}
+                            storyId={webStoryId}
+                            onDescription={onWebDescription}
+                            onDescriptionError={onWebDescriptionError}
+                        />
+                    )}
+                    {webDescriptionError && <div role="alert">{webDescriptionError}</div>}
+                    {webStoryItems.length > 1 && (
+                        <StyledStorySelector>
+                            <SelectButton
+                                label="История"
+                                items={webStoryItems}
+                                selected={selectedWebStoryItem ?? webStoryItems[0]}
+                                onItemSelect={onWebStorySelect}
+                            />
+                        </StyledStorySelector>
+                    )}
+                </>
+            ) : null,
+    };
 
     return (
         <Root>
@@ -439,56 +497,19 @@ export const ComponentEditorPreview = (props: ComponentEditorPreviewProps) => {
                             : { items: rendererModes, selected: activeRendererItem, onSelect: setRendererMode }
                     }
                 />
-                {composePluginUrl && hasComposeMetadata && !composeEnvironmentSupported && (
+                {hasComposeMetadata && !composeEnvironmentSupported && (
                     <div role="status">Compose-preview недоступен в этом браузере.</div>
                 )}
                 <StyledComponentWrapper background={surfaceColor}>
-                    {activeRenderer === 'compose' && composePluginUrl && composeEnvironmentSupported ? (
-                        <>
-                            {!missingFromPlugin &&
-                            (currentComposePayload || (isComposeComponent && !composeDiagnostic)) ? (
-                                // Iframe плагина живёт в хосте раздела: область только показывает его над собой.
-                                <ComposePreviewSlot
-                                    pluginUrl={composePluginUrl}
-                                    owner={composeOwner}
-                                    payload={currentComposePayload}
-                                    onDescription={onComposeDescription}
-                                    onDescriptionError={onComposeDescriptionError}
-                                />
-                            ) : null}
-                            {composeDiagnostic && <div role="alert">{composeDiagnostic}</div>}
-                        </>
-                    ) : activeRenderer === 'web-plugin' && isWebComponent && webUnavailableReason ? (
+                    {locationStatus.loading ? (
+                        <div role="status">Загрузка preview…</div>
+                    ) : locationStatus.error ? (
                         <StyledPreviewUnavailable role="alert" data-testid="preview-unavailable">
-                            Превью недоступно: {webUnavailableReason}
+                            Превью недоступно: {locationStatus.error}
                         </StyledPreviewUnavailable>
-                    ) : activeRenderer === 'web-plugin' && webPlugin.status === 'available' ? (
-                        <>
-                            {webPayload && (
-                                // Iframe web-плагина живёт в хосте web-платформы раздела, независимо от Compose.
-                                <ComposePreviewSlot
-                                    platform="web"
-                                    pluginUrl={webPlugin.pluginUrl}
-                                    owner={composeOwner}
-                                    payload={webPayload}
-                                    storyId={webStoryId}
-                                    onDescription={onWebDescription}
-                                    onDescriptionError={onWebDescriptionError}
-                                />
-                            )}
-                            {webDescriptionError && <div role="alert">{webDescriptionError}</div>}
-                            {webStoryItems.length > 1 && (
-                                <StyledStorySelector>
-                                    <SelectButton
-                                        label="История"
-                                        items={webStoryItems}
-                                        selected={selectedWebStoryItem ?? webStoryItems[0]}
-                                        onItemSelect={onWebStorySelect}
-                                    />
-                                </StyledStorySelector>
-                            )}
-                        </>
-                    ) : null}
+                    ) : (
+                        previewViews[activeRenderer]
+                    )}
                 </StyledComponentWrapper>
                 {showPayloadDebug && debugPayload && <ComposePayloadDebug payload={debugPayload} />}
             </StyledPreviewShadow>

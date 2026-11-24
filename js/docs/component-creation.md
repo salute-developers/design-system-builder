@@ -19,7 +19,8 @@ $ ./setup-local.sh
 ```
 $ cd js/cli
 $ npm run generate:api-meta -- --package @salutejs/plasma-new-hope     # пишет .sdds/web/web-api-meta.json
-$ dsbuilder components import-api --platform react --from .sdds/web/web-api-meta.json --api-url http://localhost:8080 --apply
+# DSBUILDER_API_URL=http://localhost:8080; используйте точную версию пакета, из которого получена мета
+$ dsbuilder components import-api --platform react --from .sdds/web/web-api-meta.json --library-id plasma-new-hope --core-version <version> --channel dev --apply
 ```
 
 Компонент, токены которого ядро не аннотировало (в выводе `generate:api-meta` он среди «without annotations skipped»), в глобальный слой положить нечем: `components push` отклонит его пакет.

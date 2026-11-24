@@ -4,7 +4,8 @@ import {
     requireSameComponentCore,
     requireSameCoreSelectionRevision,
 } from './componentCoreContext';
-import { isAxiosError } from 'axios';
+import { isAxiosError, type AxiosRequestConfig } from 'axios';
+import { authService } from './authService';
 import { http } from './http';
 import { readEditor, invalidateEditorReads } from './editorReads';
 import type { Meta } from '../controllers/componentBuilder/type';
@@ -692,7 +693,13 @@ export const componentRepository = {
         baseRevisions: Record<string, number>,
         onPendingUpdate?: (revisions: Record<string, number>) => void,
         resolveReference?: (value: string) => StyleReferenceInput | undefined,
+        signal = authService.getSessionSignal(),
     ): Promise<Record<string, number>> {
+        authService.assertSession(signal);
+        const sessionRequest = (headers: AxiosRequestConfig['headers']) => {
+            authService.assertSession(signal);
+            return { headers, signal };
+        };
         // Правка пишется в конфигурацию, открытую в редакторе; старые операции без неё — в основную.
         const binding = meta.serverBinding && {
             ...meta.serverBinding,
@@ -702,7 +709,7 @@ export const componentRepository = {
             throw new Error('COMPONENT_SERVER_BINDING_REQUIRED');
         const stableBinding = binding as { componentId: string; appearanceId: string };
         const root = apiRoot(context.projectId, context.designSystemId);
-        const request = { params: context.versionId ? { versionId: context.versionId } : undefined };
+        const request = { params: context.versionId ? { versionId: context.versionId } : undefined, signal };
         const [axes, axisValues, invariantValues, variationValues, states, stateSets, tokens] = await Promise.all([
             readEditor<AppearanceVariationDto[]>(`${root}/appearance-variations`, request),
             readEditor<AppearanceVariationValueDto[]>(`${root}/appearance-variation-values`, request),
@@ -718,6 +725,7 @@ export const componentRepository = {
             readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId)}/state-sets`, request),
             readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
         ]);
+        authService.assertSession(signal);
         const revisions = { ...baseRevisions };
         const axisByVariation = new Map(
             axes.data
@@ -763,6 +771,7 @@ export const componentRepository = {
             ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
         });
         const acceptMetadata = (headers: unknown) => {
+            authService.assertSession(signal);
             invalidateEditorReads(context);
             const raw = (headers as Record<string, unknown> | undefined)?.['x-ds-mutation-metadata'];
             parseMutationMetadata(raw).forEach((item) => {
@@ -819,7 +828,7 @@ export const componentRepository = {
                 const entityType = change.styleId ? 'variation-property-value' : 'invariant-property-value';
                 const response = await http.delete(
                     `${root}/${change.styleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
-                    { headers: entityHeaders(entityType, existing.id) },
+                    sessionRequest(entityHeaders(entityType, existing.id)),
                 );
                 acceptMetadata(response.headers);
             },
@@ -838,7 +847,7 @@ export const componentRepository = {
                         variationId: change.variationId,
                         name: change.name,
                     },
-                    { headers: entityHeaders('style', originalStyleId, idempotency(`style:${originalStyleId}`)) },
+                    sessionRequest(entityHeaders('style', originalStyleId, idempotency(`style:${originalStyleId}`))),
                 );
                 aliases[originalStyleId] = created.data.id;
                 createdStyleIds.set(change.styleId, created.data.id);
@@ -858,9 +867,9 @@ export const componentRepository = {
                 const linked = await http.post<AppearanceVariationValueDto>(
                     `${root}/appearance-variation-values`,
                     bodies[operationKey],
-                    {
-                        headers: entityHeaders('appearance-variation-value', change.styleId, idempotency(operationKey)),
-                    },
+                    sessionRequest(
+                        entityHeaders('appearance-variation-value', change.styleId, idempotency(operationKey)),
+                    ),
                 );
                 acceptMetadata(linked.headers);
                 axisValueByStyle.set(created.data.id, linked.data);
@@ -876,7 +885,7 @@ export const componentRepository = {
                 const response = await http.patch(
                     `${root}/appearance-variations/${axis.id}`,
                     { defaultStyleId: change.styleId ? actualStyleId(change.styleId) : null },
-                    { headers: entityHeaders('appearance-variation', axis.id) },
+                    sessionRequest(entityHeaders('appearance-variation', axis.id)),
                 );
                 acceptMetadata(response.headers);
             },
@@ -895,7 +904,7 @@ export const componentRepository = {
                 await http.post<{ id: string }>(
                     `${apiRoot(context.projectId)}/state-sets/resolve`,
                     { stateIds },
-                    { headers: { ...coreHeaders, 'Idempotency-Key': idempotency(`state-set:${key}`) } },
+                    sessionRequest({ ...coreHeaders, 'Idempotency-Key': idempotency(`state-set:${key}`) }),
                 )
             ).data.id;
         };
@@ -929,7 +938,7 @@ export const componentRepository = {
                                     states: change.stateNames,
                                     reference,
                                 },
-                                { headers: { ...coreHeaders, 'Idempotency-Key': idempotency(operationKey) } },
+                                sessionRequest({ ...coreHeaders, 'Idempotency-Key': idempotency(operationKey) }),
                             );
                             acceptMetadata(response.headers);
                         } catch (error) {
@@ -957,7 +966,7 @@ export const componentRepository = {
                         const response = await http.patch(
                             `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
                             body,
-                            { headers: entityHeaders(entityType, existing.id) },
+                            sessionRequest(entityHeaders(entityType, existing.id)),
                         );
                         acceptMetadata(response.headers);
                         return;
@@ -985,7 +994,7 @@ export const componentRepository = {
                     const response = await http.post<PropertyValueDto>(
                         `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
                         createBody,
-                        { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
+                        sessionRequest(entityHeaders(entityType, operationKey, idempotency(operationKey))),
                     );
                     acceptMetadata(response.headers);
                 } catch (error) {
@@ -1007,14 +1016,16 @@ export const componentRepository = {
                 const serverStyleId = actualStyleId(change.styleId);
                 const axisValue = axisValueByStyle.get(serverStyleId);
                 if (axisValue) {
-                    const unlinked = await http.delete(`${root}/appearance-variation-values/${axisValue.id}`, {
-                        headers: entityHeaders('appearance-variation-value', axisValue.id),
-                    });
+                    const unlinked = await http.delete(
+                        `${root}/appearance-variation-values/${axisValue.id}`,
+                        sessionRequest(entityHeaders('appearance-variation-value', axisValue.id)),
+                    );
                     acceptMetadata(unlinked.headers);
                 }
-                const deleted = await http.delete(`${root}/styles/${serverStyleId}`, {
-                    headers: entityHeaders('style', serverStyleId),
-                });
+                const deleted = await http.delete(
+                    `${root}/styles/${serverStyleId}`,
+                    sessionRequest(entityHeaders('style', serverStyleId)),
+                );
                 acceptMetadata(deleted.headers);
             },
         );

@@ -1,6 +1,8 @@
 import { afterEach, expect, it } from 'vitest';
 import { Config } from '../../controllers/componentBuilder/config';
 import { setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
+import { buttonMeta } from '../../composePreview/nestedStyleFixture';
+import { keepUnchangedComponents } from './keepLoadedComponents';
 import { preservePendingComponents } from './preservePendingComponents';
 
 const context = { projectId: 'pending-components', designSystemId: 'ds', tenantId: 'theme' };
@@ -31,4 +33,26 @@ it('не путает платформы и удерживает неподтв�
     const web = component('A');
     setDraftAutosaveActivity(context, 'component:compose-A', 'error');
     expect(preservePendingComponents(context, [local], [web])).toEqual([web, local]);
+});
+
+it('reads a new Core model while an older configuration retains its own recovery head', () => {
+    const local = new Config({
+        ...structuredClone(buttonMeta()),
+        name: 'A',
+        platform: 'web',
+        serverBinding: { componentId: 'a', appearanceId: '', coreReleaseId: 'same', coreSelectionRevision: 1 },
+    });
+    const server = new Config({
+        ...structuredClone(buttonMeta()),
+        name: 'A',
+        platform: 'web',
+        serverBinding: { componentId: 'a', appearanceId: '', coreReleaseId: 'same', coreSelectionRevision: 2 },
+    });
+    setDraftAutosaveActivity(context, 'component:A', 'error');
+    expect(local.getConfigurations().length).toBeGreaterThan(0);
+    expect(server.getMeta()).toEqual(local.getMeta());
+    const merged = keepUnchangedComponents([local], [server]);
+    const result = preservePendingComponents(context, [local], merged);
+    expect(result[0]).toBe(server);
+    expect(result[0].getCoreSelectionRevision()).toBe(2);
 });

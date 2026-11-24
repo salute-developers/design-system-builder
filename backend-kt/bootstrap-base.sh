@@ -4,13 +4,14 @@
 # Повторный запуск не импортирует пользовательские значения и конфигурации компонентов.
 # К базе напрямую скрипт не обращается.
 #
-# Environment (всё необязательно):
+# Environment:
 #   DSBUILDER_GATEWAY_URL        Gateway, default http://localhost:8080
 #   DSBUILDER_PROJECT_USERNAME   пользователь Keycloak (системный администратор), default admin@example.com
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
-#   DSBUILDER_WEB_CORE_VERSION / DSBUILDER_WEB_CORE_CHANNEL  точные версия и stable/dev (default stable)
+#   DSBUILDER_WEB_CORE_VERSION    обязательная точная версия исходной меты
+#   DSBUILDER_WEB_CORE_CHANNEL    stable/dev (default stable)
 #   DSBUILDER_WEB_API_META       web-api-meta.json; default js/cli/.sdds/web/web-api-meta.json, генерируется при отсутствии
 set -euo pipefail
 
@@ -29,6 +30,7 @@ require() { command -v "$1" >/dev/null 2>&1 || fail "Required command '$1' not f
 
 require curl
 require python3
+[[ -n "${DSBUILDER_WEB_CORE_VERSION:-}" ]] || fail "Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate $WEB_API_META; node_modules is not proof of this meta's origin"
 
 json_field() {
     python3 -c '
@@ -143,11 +145,6 @@ for project in json.load(sys.stdin):
 import_global_layer() {
     log "Importing the web component layer from $WEB_API_META"
     local version="${DSBUILDER_WEB_CORE_VERSION:-}"
-    if [[ -z "$version" ]]; then
-        [[ -z "${DSBUILDER_WEB_API_META:-}" ]] || fail "Set DSBUILDER_WEB_CORE_VERSION for a custom API meta"
-        version="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' \
-            "$ROOT_DIR/js/cli/node_modules/@salutejs/plasma-new-hope/package.json")"
-    fi
     python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" \
         --library-id "${DSBUILDER_WEB_CORE_LIBRARY:-plasma-new-hope}" --core-version "$version" \
         --channel "${DSBUILDER_WEB_CORE_CHANNEL:-stable}" > "$IMPORT_BODY_FILE" \

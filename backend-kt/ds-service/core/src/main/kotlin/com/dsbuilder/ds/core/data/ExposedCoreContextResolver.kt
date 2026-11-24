@@ -49,16 +49,24 @@ internal val expectedCoreSelectionRevision = Key<Long>()
 internal class CoreSelectionStaleException : RuntimeException()
 
 /** Блокирует только выбранную ДС: границу, затем её привязки по платформам. */
-fun lockDraftCoreSelection(designSystemId: UUID? = null) {
+fun lockDraftCoreSelection(designSystemId: UUID? = null, exclusive: Boolean = false) {
     val tx = TransactionManager.current()
     val system = designSystemId ?: tx.exec("SELECT NULLIF(current_setting('ds.design_system_id', true), '')") {
             rows ->
         if (rows.next()) rows.getString(1)?.let(UUID::fromString) else null
     } ?: return
     requireRequestDesignSystemMutable()
-    lockDesignSystemPublication(system)
+    if (exclusive) {
+        lockDesignSystemPublication(system)
+    } else {
+        tx.exec(
+            "SELECT pg_advisory_xact_lock_shared(hashtextextended(CAST(? AS text), 684313))",
+            listOf(UUIDColumnType() to system),
+        )
+    }
+    val rowLock = if (exclusive) " FOR UPDATE" else " FOR KEY SHARE"
     tx.exec(
-        "SELECT id FROM design_system_versions WHERE design_system_id = ? AND status = 'draft' FOR UPDATE",
+        "SELECT id FROM design_system_versions WHERE design_system_id = ? AND status = 'draft'" + rowLock,
         listOf(UUIDColumnType() to system),
     )
     tx.getUserData(expectedCoreSelectionRevision)?.let { expected ->
@@ -73,7 +81,7 @@ fun lockDraftCoreSelection(designSystemId: UUID? = null) {
         "SELECT binding.release_id FROM design_system_version_core_releases binding " +
             "JOIN design_system_versions boundary ON boundary.id = binding.version_id " +
             "WHERE boundary.design_system_id = ? AND boundary.status = 'draft' " +
-            "ORDER BY binding.platform FOR UPDATE OF binding",
+            "ORDER BY binding.platform" + if (exclusive) " FOR UPDATE OF binding" else " FOR KEY SHARE OF binding",
         listOf(UUIDColumnType() to system),
     )
 }

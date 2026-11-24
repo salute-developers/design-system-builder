@@ -55,7 +55,8 @@ export const issueEditorHref = (issue: CoreIssue, base: string, search: string) 
 
 export const formatProblemCount = (count: number) => {
     const form = new Intl.PluralRules('ru').select(count);
-    return `${count} ${form === 'one' ? 'проблема' : form === 'few' ? 'проблемы' : 'проблем'}`;
+    const forms: Record<string, string> = { one: 'проблема', few: 'проблемы' };
+    return `${count} ${forms[form] ?? 'проблем'}`;
 };
 export const validationLabel = (count: number) => `Валидация (${formatProblemCount(count)})`;
 

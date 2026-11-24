@@ -22,9 +22,19 @@ export class AutosaveRejection extends Error {
 export const autosaveErrorMessage = (error: unknown): string | undefined =>
     error instanceof AutosaveRejection ? error.message : undefined;
 
+/** Общая проверка HTTP-отказа, включая исходную ошибку внутри пользовательского объяснения. */
+const hasAutosaveHttpError = (error: unknown, status: number, code: string) => {
+    const source = error instanceof AutosaveRejection ? error.source : error;
+    if (!isAxiosError(source)) return false;
+    const response = source.response;
+    return response?.status === status && [response.data?.code, response.data?.error].includes(code);
+};
+
 /** Сервис отклонил значение иконки, которого нет в каталоге (`400 unknown_icon`). */
-export const isUnknownIconError = (error: unknown) =>
-    isAxiosError(error) && error.response?.status === 400 && error.response.data?.code === 'unknown_icon';
+export const isUnknownIconError = (error: unknown) => hasAutosaveHttpError(error, 400, 'unknown_icon');
+
+/** Сервер сменил Core после чтения модели: сохранённая операция требует явного восстановления. */
+export const isCoreSelectionStaleError = (error: unknown) => hasAutosaveHttpError(error, 409, 'CORE_SELECTION_STALE');
 
 /** Тексты отказов записи значения по признаку поддержки состояний свойства (`422`). */
 const STATE_REJECTIONS: Record<string, string> = {

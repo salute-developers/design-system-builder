@@ -53,7 +53,7 @@ internal class ExposedCoreSettingsRepository : CoreSettingsRepository {
     @Suppress("ReturnCount") // Guards reject the transaction before any binding or revision can be changed.
     override suspend fun select(context: DsRequestContext, command: SelectCoreRelease): DsResult<Unit> {
         lockCoreReleasePlatform(command.platform)
-        lockDraftCoreSelection()
+        lockDraftCoreSelection(exclusive = true)
         val tx = TransactionManager.current()
         val args = listOf(
             UUIDColumnType() to context.designSystemId,

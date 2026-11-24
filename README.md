@@ -137,14 +137,18 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 Для первоначальной настройки и запуска общего локального контура выполните из корня репозитория:
 
 ```bash
+export DSBUILDER_WEB_CORE_VERSION="<версия пакета, из которого сгенерирована Web API-мета>"
 ./setup-local.sh
 ```
 
 На Windows используйте PowerShell и Docker Desktop в режиме Linux-контейнеров:
 
 ```powershell
+$env:DSBUILDER_WEB_CORE_VERSION = '<версия пакета, из которого сгенерирована Web API-мета>'
 .\setup-local.ps1
 ```
+
+Укажите точную версию исходной Web API-меты. Версия произвольного установленного пакета не подтверждает происхождение уже существующего файла. Полная настройка, включая `--reset` / `-Reset`, проверяет эту переменную до изменения контейнеров или томов. Для `--down` / `-Down` и Bash-режима `--backend-only` она не требуется.
 
 Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
 Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
@@ -223,7 +227,7 @@ Kotlin backend можно запускать отдельно, затем под
 
 ```bash
 ./backend-kt/start-local.sh --detach
-./backend-kt/bootstrap-base.sh
+DSBUILDER_WEB_CORE_VERSION="<версия исходной меты>" ./backend-kt/bootstrap-base.sh
 ```
 
 Клиент отдельно: `docker compose -f js/docker-compose.dev.yml up -d --build client` или `npm run dev` в `js/apps/client`.

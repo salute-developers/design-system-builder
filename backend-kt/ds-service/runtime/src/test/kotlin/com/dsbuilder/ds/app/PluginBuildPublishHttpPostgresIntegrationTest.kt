@@ -571,6 +571,15 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         }
         assertEquals(files, storage.files.keys)
         assertEquals(replaced.string("pluginUrl"), active(Actor.USER).ok().string("pluginUrl"))
+        val beforePinnedUpload = storage.puts
+        val alreadyPinned = publish(
+            archive(channel = "dev", extra = mapOf("third.txt" to "third")),
+            Actor.ADMIN,
+            dryRun = false,
+        )
+        assertEquals(HttpStatusCode.Conflict, alreadyPinned.status)
+        assertTrue(alreadyPinned.bodyAsText().contains("PREVIEW_BUILD_PINNED"))
+        assertEquals(beforePinnedUpload, storage.puts)
     }
 
     @Test

@@ -142,8 +142,13 @@ const designSystem = { getParameters: () => ({ projectId: 'project-1', designSys
 const SelectedWebPreview = ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
     const selected = useCorePreview('web', designSystem.getParameters(), enabled);
     return (
-        <ComposePreviewHostProvider platform="web" pluginUrl={selected.pluginUrl} scope={selected.key}>
-            {selected.error && <p role="alert">{selected.error}</p>}
+        <ComposePreviewHostProvider
+            platform="web"
+            pluginUrl={selected.pluginUrl}
+            scope={selected.key}
+            error={selected.error}
+            loading={selected.loading}
+        >
             {children}
         </ComposePreviewHostProvider>
     );
@@ -377,10 +382,8 @@ describe('ComponentEditorPreview web plugin', () => {
 
         render(previewElement());
 
-        expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: Для выбранного Core пока нет preview',
-        );
-        expect(await screen.findByText('Не удалось загрузить preview')).toBeInTheDocument();
+        expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить preview');
+        expect(screen.queryByText('Для выбранного Core пока нет preview')).not.toBeInTheDocument();
         expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });

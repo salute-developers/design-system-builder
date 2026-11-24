@@ -156,10 +156,8 @@ class PublishPluginBuildUseCase(
     ): DsResult<PublishResult> {
         val existing = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }.valueOr { return it }
         val kind = classify(existing, newBuild, command.meta.channel == "dev").valueOr { return it }
-        if (kind == PublishKind.REPLACED) {
-            transactions.readOnly { builds.validateReplacement(newBuild) }.valueOr { return it }
-        }
         val predicted = if (kind == PublishKind.REPLACED) {
+            transactions.readOnly { builds.validateReplacement(newBuild) }.valueOr { return it }
             predicted(replacement(newBuild))
         } else {
             existing ?: predicted(newBuild)
@@ -199,7 +197,7 @@ class PublishPluginBuildUseCase(
         return written
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "ReturnCount")
     private suspend fun register(
         target: Target,
         command: PublishPluginBuild,
@@ -208,18 +206,16 @@ class PublishPluginBuildUseCase(
         existing: PluginBuild?,
         kind: PublishKind,
     ): DsResult<PublishResult> {
-        if (kind == PublishKind.REPLACED) return replace(target, command, archive, newBuild)
-        if (existing == null) {
-            val uploaded = upload(target, archive, newBuild.storageKey)
-            if (uploaded is DsResult.Failure) return uploaded
+        if (kind == PublishKind.REPLACED && builds.isVersionPinned(newBuild.buildId)) {
+            return DsResult.Failure(DsFailure.Conflict("PREVIEW_BUILD_PINNED"))
         }
-        return when (val report = apiMeta.import(command.meta.copy(dryRun = false)).toDsResult()) {
-            is DsResult.Failure -> report
-            is DsResult.Success -> {
-                val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
-                DsResult.Success(PublishResult(kind, build, target.settings.pluginUrl(build.storageKey), report.value))
-            }
+        if (kind in setOf(PublishKind.PUBLISHED, PublishKind.REPLACED)) {
+            upload(target, archive, newBuild.storageKey).valueOr { return it }
         }
+        if (kind == PublishKind.REPLACED) return replace(target, command, newBuild)
+        val report = apiMeta.import(command.meta.copy(dryRun = false)).toDsResult().valueOr { return it }
+        val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
+        return DsResult.Success(PublishResult(kind, build, target.settings.pluginUrl(build.storageKey), report))
     }
 
     private fun replacement(build: NewPluginBuild) = build.copy(storageKey = "${build.buildId}-${build.zipSha256}")
@@ -227,22 +223,16 @@ class PublishPluginBuildUseCase(
     private suspend fun replace(
         target: Target,
         command: PublishPluginBuild,
-        archive: PluginArchive,
         build: NewPluginBuild,
     ): DsResult<PublishResult> {
         // Барьер импорта платформы всегда берётся раньше эксклюзивного барьера Core.
         val report = apiMeta.import(command.meta.copy(dryRun = false)).toDsResult().valueOr { return it }
         builds.validateReplacement(build).valueOr { return it }
         val next = replacement(build)
-        return when (val uploaded = upload(target, archive, next.storageKey)) {
-            is DsResult.Failure -> uploaded
-            is DsResult.Success -> {
-                val saved = builds.replaceActive(next)
-                DsResult.Success(
-                    PublishResult(PublishKind.REPLACED, saved, target.settings.pluginUrl(saved.storageKey), report),
-                )
-            }
-        }
+        val saved = builds.replaceActive(next)
+        return DsResult.Success(
+            PublishResult(PublishKind.REPLACED, saved, target.settings.pluginUrl(saved.storageKey), report),
+        )
     }
 
     private suspend fun discardUnused(target: Target, storageKey: String) {

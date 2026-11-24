@@ -13,18 +13,24 @@ export const componentCoreRelease = (
     return context.coreReleases?.find((release) => release.platform === platform)?.releaseId;
 };
 
-/** Смена выбора Core между списочными чтениями требует нового чтения всей модели. */
-export const requireSameComponentCore = (
-    context: EditorContextKey,
-    releases: Array<string | undefined>,
-): string | undefined => {
-    const known = [...new Set(releases.filter((release): release is string => Boolean(release)))];
+const requireSingleCoreValue = <T>(context: EditorContextKey, values: T[]): T | undefined => {
+    const known = [...new Set(values)];
     if (known.length > 1) {
         invalidateEditorReads(context, { includeMetadata: true });
         throw new Error('Core изменился во время чтения. Повторите загрузку компонента.');
     }
     return known[0];
 };
+
+/** Смена выбора Core между списочными чтениями требует нового чтения всей модели. */
+export const requireSameComponentCore = (
+    context: EditorContextKey,
+    releases: Array<string | undefined>,
+): string | undefined =>
+    requireSingleCoreValue(
+        context,
+        releases.filter((release): release is string => Boolean(release)),
+    );
 
 /** Ревизия относится к загруженной модели и не заменяется ревизией другого экрана. */
 export const componentCoreSelectionRevision = (response: {
@@ -41,12 +47,8 @@ export const requireSameCoreSelectionRevision = (
     context: EditorContextKey,
     responses: Array<{ data?: unknown; headers?: AxiosResponse['headers'] }>,
 ): number | undefined => {
-    const revisions = [
-        ...new Set(responses.map(componentCoreSelectionRevision).filter((revision) => revision !== undefined)),
-    ];
-    if (revisions.length > 1) {
-        invalidateEditorReads(context, { includeMetadata: true });
-        throw new Error('Core изменился во время чтения. Повторите загрузку компонента.');
-    }
-    return revisions[0];
+    return requireSingleCoreValue(
+        context,
+        responses.map(componentCoreSelectionRevision).filter((revision) => revision !== undefined),
+    );
 };

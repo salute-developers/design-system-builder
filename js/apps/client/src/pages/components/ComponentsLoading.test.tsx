@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
     fetchWebPreviewPluginDescriptor: vi.fn(),
     problems: vi.fn(),
     coreReleaseId: undefined as string | undefined,
+    coreRevision: undefined as number | undefined,
+    reportRevision: undefined as number | undefined,
     config: {
         getName: () => 'Button',
         getComponentId: () => 'web-Button',
@@ -14,6 +16,7 @@ const mocks = vi.hoisted(() => ({
         getCoreReleaseId: () => mocks.coreReleaseId,
         getMeta: () => ({}),
         getConfigurationId: () => undefined,
+        getCoreSelectionRevision: () => mocks.coreRevision,
         getConfigurations: () => [],
     },
 }));
@@ -45,7 +48,10 @@ vi.mock('../../api/http', () => ({
             if (url.endsWith('/compatibility'))
                 return {
                     data: {
-                        context: { coreReleases: [] },
+                        context: {
+                            coreSelectionRevision: mocks.reportRevision,
+                            coreReleases: [{ releaseId: mocks.coreReleaseId, platform: 'web' }],
+                        },
                         items: [],
                         blockingCount: 0,
                         warningCount: 0,
@@ -103,6 +109,8 @@ const renderPage = (
 
 beforeEach(() => {
     mocks.coreReleaseId = undefined;
+    mocks.coreRevision = undefined;
+    mocks.reportRevision = undefined;
     resetWebPreviewPluginLocation();
     vi.stubEnv('VITE_WEB_PREVIEW_PLUGIN_URL', '');
     mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue(undefined);
@@ -171,6 +179,22 @@ describe('Components: загрузка выбранного компонента
         renderPage({ componentLoading: true });
         expect(await screen.findByTestId('web-preview-host')).toBeInTheDocument();
         expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(2);
+    });
+
+    it('reloads an older model on the first report even if the Core release did not change', async () => {
+        mocks.coreReleaseId = 'same-core';
+        mocks.coreRevision = 1;
+        mocks.reportRevision = 2;
+        mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue({
+            buildId: 'same-build',
+            pluginUrl: 'https://preview.test/same/',
+            coreRelease: { releaseId: 'same-core' },
+        });
+        const reload = renderPage({});
+        await vi.waitFor(() => expect(reload).toHaveBeenCalledOnce());
+        fireEvent.focus(window);
+        await vi.waitFor(() => expect(mocks.fetchWebPreviewPluginDescriptor).toHaveBeenCalledTimes(2));
+        expect(reload).toHaveBeenCalledOnce();
     });
 
     it('не передаёт модель A в preview B и запрашивает новую модель', async () => {

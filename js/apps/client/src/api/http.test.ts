@@ -10,6 +10,7 @@ const session = vi.hoisted(() => ({
 }));
 vi.mock('./authService', () => ({
     authService: {
+        getSessionSignal: () => undefined,
         getValidAccessToken: session.access,
         refreshAccessToken: session.refresh,
         logout: session.logout,
@@ -53,6 +54,17 @@ afterEach(() => {
 });
 
 describe('повтор временно недоступных предметных команд', () => {
+    it('does not obtain new credentials or send a command whose original session signal is already aborted', async () => {
+        const controller = new AbortController();
+        controller.abort();
+        const adapter = vi.fn(success);
+        await expect(http.post('/properties', {}, { signal: controller.signal, adapter })).rejects.toMatchObject({
+            code: 'ERR_CANCELED',
+        });
+        expect(session.access).not.toHaveBeenCalled();
+        expect(adapter).not.toHaveBeenCalled();
+    });
+
     it.each(['before-request', 'after-401'])('направляет на вход при отказе refresh token: %s', async (stage) => {
         const location = { href: 'http://localhost/editor', pathname: '/editor' };
         vi.stubGlobal('window', { location });

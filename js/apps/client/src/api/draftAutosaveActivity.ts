@@ -1,5 +1,6 @@
 import type { TokenDefinitionDto, EditorContextKey } from './editorContracts';
 import type { AutosaveStatus } from './tokenAutosaveQueue';
+import { readPendingComponentMutation } from './componentRecovery';
 import { authService } from './authService';
 
 const statuses = new Map<string, Map<string, AutosaveStatus>>();
@@ -102,8 +103,9 @@ export const registerDraftAutosaveSource = (context: EditorContextKey, source: s
         else sourceOwners.delete(key);
         const values = [...owners.values()].map((current) => current.status);
         const aggregate = (['error', 'saving', 'pending'] as const).find((value) => values.includes(value)) ?? 'saved';
-        const message = [...owners.values()].find((current) => current.status === 'error' && current.errorMessage)
-            ?.errorMessage;
+        const message = [...owners.values()].find(
+            (current) => current.status === 'error' && current.errorMessage,
+        )?.errorMessage;
         setDraftAutosaveActivity(context, source, owners.size ? aggregate : null, message);
     };
     return Object.assign(update, {
@@ -282,7 +284,7 @@ export const hasPersistedComponentMutation = (context: EditorContextKey) => {
     try {
         for (let index = 0; index < localStorage.length; index += 1) {
             const key = localStorage.key(index);
-            if (key?.startsWith(prefix) && key.endsWith(':request') && localStorage.getItem(key)) return true;
+            if (key?.startsWith(prefix) && key.endsWith(':request') && readPendingComponentMutation(key)) return true;
         }
         return false;
     } catch {

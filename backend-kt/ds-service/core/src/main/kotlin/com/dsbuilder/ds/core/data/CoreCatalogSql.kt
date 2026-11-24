@@ -22,10 +22,11 @@ fun coreCatalogSql(table: String, projection: String, idColumn: String, fields: 
         SELECT entity.id, $diagnosticFields,
                COALESCE(release.created_at, entity.created_at) AS created_at,
                COALESCE(release.created_at, entity.created_at) AS updated_at
-        FROM components entity LEFT JOIN core_releases release ON release.id = ds_selected_core_release(entity.platform)
+        FROM components entity LEFT JOIN selected_core selected ON selected.platform = entity.platform
+        LEFT JOIN core_releases release ON release.id = selected.release_id
         WHERE $scoped AND NOT EXISTS (
             SELECT 1 FROM core_release_components api
-            WHERE api.release_id = ds_selected_core_release(entity.platform) AND api.component_id = entity.id
+            WHERE api.release_id = selected.release_id AND api.component_id = entity.id
         ) AND EXISTS (
             SELECT 1 FROM design_system_components link
             JOIN design_system_versions boundary ON boundary.design_system_id = link.design_system_id
@@ -40,15 +41,19 @@ fun coreCatalogSql(table: String, projection: String, idColumn: String, fields: 
         ""
     }
     return """
+        WITH selected_core AS MATERIALIZED (
+            SELECT platform, ds_selected_core_release(platform) AS release_id
+            FROM unnest(enum_range(NULL::component_platform)) platform WHERE $scoped
+        )
         SELECT entity.id, $originalFields, entity.created_at, entity.updated_at FROM $table entity WHERE NOT
         ($scoped)$common
         UNION ALL
         SELECT entity.id, $selectedFields, release.created_at AS created_at, release.created_at AS updated_at
-        FROM $table entity $ownerJoin
-        JOIN $projection api ON api.$idColumn = entity.id
-        JOIN core_releases release ON release.id = api.release_id
-        WHERE $scoped AND release.id = ds_selected_core_release(release.platform)
-          AND release.platform = $platform
+        FROM selected_core selected
+        JOIN core_releases release ON release.id = selected.release_id
+        JOIN $projection api ON api.release_id = release.id
+        JOIN $table entity ON entity.id = api.$idColumn $ownerJoin
+        WHERE release.platform = $platform
         $missingComponents
     """.trimIndent()
 }

@@ -211,6 +211,8 @@ export class ThemeEditorSession {
         const sections = this.options.sections;
         if (!sections) return;
         if (force) {
+            // Явное восстановление должно применить и уже прочитанный снимок после снятия pending-барьера.
+            this.lastAppliedSectionSnapshot = undefined;
             sections.invalidate(new Set(['component-configurations']));
             invalidateEditorReads(this.context);
         }

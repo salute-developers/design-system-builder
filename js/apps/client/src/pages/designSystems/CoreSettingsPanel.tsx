@@ -237,17 +237,17 @@ const PlatformCore = ({
             });
         return () => controller.abort();
     }, [root, platform, channel, pageRequest, readOnly]);
+    const currentInChannel = current?.channel === channel ? current : undefined;
     const includeCurrent =
-        current &&
-        current.provenance !== 'migration-snapshot' &&
-        current.channel === channel &&
-        !releases.some((r) => r.releaseId === current.releaseId);
-    const latest =
-        releases[0] ?? (current?.selectionMode === 'latest' && current.channel === channel ? current : undefined);
+        currentInChannel?.provenance !== 'migration-snapshot' &&
+        currentInChannel !== undefined &&
+        !releases.some((r) => r.releaseId === currentInChannel.releaseId);
+    const latest = releases[0] ?? (currentInChannel?.selectionMode === 'latest' ? currentInChannel : undefined);
+    const versionDisabled = loading || disabled;
     const releaseOptions = [
         { value: '', label: loading ? 'Загружаем версии…' : 'Выберите версию' },
         ...(latest ? [{ value: 'latest', label: `Последняя (${latest.version})` }] : []),
-        ...(includeCurrent ? [{ value: current.releaseId, label: releaseLabel(current) }] : []),
+        ...(includeCurrent ? [{ value: currentInChannel.releaseId, label: releaseLabel(currentInChannel) }] : []),
         ...releases.map((release) => ({ value: release.releaseId, label: releaseLabel(release) })),
     ];
     return (
@@ -292,7 +292,7 @@ const PlatformCore = ({
                                     : releaseId
                             }
                             savedValue={selectionOf(current).releaseId}
-                            disabled={loading || disabled}
+                            disabled={versionDisabled}
                             onChange={(value) => onChange({ ...selection, releaseId: value })}
                             options={releaseOptions}
                         />
@@ -300,7 +300,7 @@ const PlatformCore = ({
                             <button
                                 type="button"
                                 className="ps-button ps-core-more"
-                                disabled={loading || disabled}
+                                disabled={versionDisabled}
                                 onClick={() => setPageRequest({ offset: releases.length })}
                             >
                                 Ещё версии

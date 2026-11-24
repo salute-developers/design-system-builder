@@ -50,6 +50,13 @@ const hostContexts: Record<PreviewPluginPlatform, Context<ComposePreviewHost | u
 export const useComposePreviewHost = (platform: PreviewPluginPlatform = 'compose') =>
     useContext(hostContexts[platform]);
 
+/** Состояние разрешения URL отдельно от работающего iframe. */
+const locationContexts = {
+    compose: createContext<{ error?: string; loading?: boolean }>({}),
+    web: createContext<{ error?: string; loading?: boolean }>({}),
+};
+export const usePreviewLocationStatus = (platform: PreviewPluginPlatform) => useContext(locationContexts[platform]);
+
 type FrameOptions = Pick<ComposePreviewFrameProps, 'timeoutMs' | 'loadManifest' | 'createSession'>;
 
 interface ComposePreviewHostProviderProps extends FrameOptions {
@@ -59,6 +66,8 @@ interface ComposePreviewHostProviderProps extends FrameOptions {
     pluginUrl?: string;
     /** Контекст дизайн-системы: при смене сессия и iframe создаются заново. */
     scope?: string;
+    error?: string;
+    loading?: boolean;
     /** Запустить плагин сразу, до первой области превью: у дизайн-системы есть Compose-компоненты. */
     preload?: boolean;
     children: ReactNode;
@@ -74,6 +83,8 @@ export const ComposePreviewHostProvider = ({
     platform = 'compose',
     pluginUrl,
     scope = '',
+    error,
+    loading,
     preload = false,
     children,
     ...frameOptions
@@ -92,26 +103,32 @@ export const ComposePreviewHostProvider = ({
                 setActive({ request, slot, layerKey });
                 setRequestedKey(layerKeyRef.current);
             },
-            hide: (owner) => setActive((current) => (current?.layerKey === layerKey && current.request.owner === owner ? undefined : current)),
+            hide: (owner) =>
+                setActive((current) =>
+                    current?.layerKey === layerKey && current.request.owner === owner ? undefined : current,
+                ),
         }),
         [pluginUrl, layerKey],
     );
 
     const HostContext = hostContexts[platform];
+    const LocationContext = locationContexts[platform];
 
     return (
-        <HostContext.Provider value={pluginUrl ? host : undefined}>
-            {children}
-            {pluginUrl && (preload || requestedKey === layerKey) && (
-                <ComposePreviewHostFrame
-                    key={layerKey}
-                    platform={platform}
-                    pluginUrl={pluginUrl}
-                    active={active?.layerKey === layerKey ? active : undefined}
-                    {...frameOptions}
-                />
-            )}
-        </HostContext.Provider>
+        <LocationContext.Provider value={{ error, loading }}>
+            <HostContext.Provider value={pluginUrl ? host : undefined}>
+                {children}
+                {pluginUrl && (preload || requestedKey === layerKey) && (
+                    <ComposePreviewHostFrame
+                        key={layerKey}
+                        platform={platform}
+                        pluginUrl={pluginUrl}
+                        active={active?.layerKey === layerKey ? active : undefined}
+                        {...frameOptions}
+                    />
+                )}
+            </HostContext.Provider>
+        </LocationContext.Provider>
     );
 };
 

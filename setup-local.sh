@@ -43,6 +43,9 @@ Options:
            Do not create the design system and do not load the components.
   --help   Show this help.
 
+Full setup requires DSBUILDER_WEB_CORE_VERSION: the exact version used to generate the Web API meta.
+--down and --backend-only do not import metadata and do not require it.
+
 The setup starts the Kotlin backend, whose ds-service creates the schema of its own database
 with Flyway, prepares a project and global Web API through the gateway (backend-kt/bootstrap-base.sh)
 and starts the client.
@@ -161,6 +164,11 @@ done
 
 if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" == "0" && ( "${#THEME_PACKAGE_ARGS[@]}" -gt 0 || "${#PUBLISH_VERSION_ARGS[@]}" -gt 0 ) && "$COMPONENTS_PACKAGE_EXPLICIT" == "0" ]]; then
   echo "[local-setup] --theme-package/--publish-version require --components-package (or COMPOSE_COMPONENTS_PACKAGE)" >&2
+  exit 2
+fi
+
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && ! "${DSBUILDER_WEB_CORE_VERSION:-}" =~ [^[:space:]] ]]; then
+  echo "[local-setup] Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate the Web API meta before setup" >&2
   exit 2
 fi
 

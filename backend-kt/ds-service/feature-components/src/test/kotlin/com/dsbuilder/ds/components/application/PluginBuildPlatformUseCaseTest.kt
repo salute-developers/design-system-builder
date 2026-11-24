@@ -197,6 +197,61 @@ class PluginBuildPlatformUseCaseTest {
     }
 
     @Test
+    fun `dev replacement files are uploaded before Core import and rejected upload preserves the active build`() = runBlocking<Unit> {
+        val command =
+            PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A), meta("web").copy(channel = "dev"), false)
+        val first = assertIs<DsResult.Success<PublishResult>>(
+            publisher().execute(PreviewPluginPlatform.WEB, PUBLISHER, command),
+        ).value
+        val rejecting = object : ApiMetaRepository {
+            override suspend fun import(command: ImportApiMeta): ApiMetaRepository.ImportAttempt {
+                assertTrue(webStorage.files.keys.any { !it.startsWith(first.build.storageKey + "/") })
+                assertEquals(first.build.storageKey, builds.find(first.build.buildId)?.storageKey)
+                return ApiMetaRepository.ImportAttempt.Conflict("CORE_RELEASE_IMMUTABLE")
+            }
+        }
+        val result = publisher(apiMeta = rejecting).execute(
+            PreviewPluginPlatform.WEB,
+            PUBLISHER,
+            PublishPluginBuild(archive(PreviewPluginPlatform.WEB, COMMIT_A, "changed preview"), command.meta, false),
+        )
+        assertIs<DsResult.Failure>(result)
+        assertEquals(first.build, builds.find(first.build.buildId))
+        assertTrue(webStorage.files.keys.all { it.startsWith(first.build.storageKey + "/") })
+    }
+
+    @Test
+    fun `an already pinned dev preview is rejected without uploading even when storage fails`() = runBlocking<Unit> {
+        val command = PublishPluginBuild(
+            archive(PreviewPluginPlatform.WEB, COMMIT_A),
+            meta("web").copy(channel = "dev"),
+            false,
+        )
+        val first = assertIs<DsResult.Success<PublishResult>>(
+            publisher().execute(PreviewPluginPlatform.WEB, PUBLISHER, command),
+        ).value
+        builds.versionPinned += first.build.buildId
+        webStorage.putCalls = 0
+        webStorage.failPut = true
+
+        val result = assertIs<DsResult.Failure>(
+            publisher().execute(
+                PreviewPluginPlatform.WEB,
+                PUBLISHER,
+                PublishPluginBuild(
+                    archive(PreviewPluginPlatform.WEB, COMMIT_A, "changed preview"),
+                    command.meta,
+                    false,
+                ),
+            ),
+        )
+
+        assertEquals(DsFailure.Conflict("PREVIEW_BUILD_PINNED"), result.error)
+        assertEquals(0, webStorage.putCalls)
+        assertEquals(first.build, builds.find(first.build.buildId))
+    }
+
+    @Test
     fun `publication without the storage of its platform is unavailable`() = runBlocking<Unit> {
         val storages = storages(web = UnconfiguredStorage)
 
@@ -283,7 +338,9 @@ class PluginBuildPlatformUseCaseTest {
     private class InMemoryBuilds : PluginBuildRepository {
         val rows = linkedMapOf<String, PluginBuild>()
         val pinned = mutableSetOf<String>()
-        override suspend fun pinnedBuildIds(): Set<String> = pinned
+        val versionPinned = mutableSetOf<String>()
+        override suspend fun pinnedBuildIds(): Set<String> = pinned + versionPinned
+        override suspend fun isVersionPinned(buildId: String): Boolean = buildId in versionPinned
         private var clock = Instant.parse("2026-10-01T00:00:00Z")
 
         override suspend fun lockPublications() = Unit
@@ -333,6 +390,8 @@ class PluginBuildPlatformUseCaseTest {
 
     private class InMemoryStorage : PluginBuildStorage {
         val files = linkedMapOf<String, Instant>()
+        var putCalls = 0
+        var failPut = false
 
         override val configured = true
 
@@ -347,6 +406,8 @@ class PluginBuildPlatformUseCaseTest {
             contentType: String,
             cacheControl: String,
         ) {
+            putCalls += 1
+            check(!failPut) { "storage unavailable" }
             files["$buildId/$path"] = Instant.now()
         }
 

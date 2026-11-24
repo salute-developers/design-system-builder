@@ -1261,12 +1261,12 @@ describe('Editor repositories', () => {
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-1',
             { defaultStyleId: 'style-2' },
-            { headers: { 'X-DS-Base-Revision': '2' } },
+            { headers: { 'X-DS-Base-Revision': '2' }, signal: expect.any(AbortSignal) },
         );
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
             { tokenId: null, value: '48', adjustment: null },
-            { headers: { 'X-DS-Base-Revision': '4' } },
+            { headers: { 'X-DS-Base-Revision': '4' }, signal: expect.any(AbortSignal) },
         );
         expect(revisions['variation-property-value:value-1']).toBe(5);
         expect(post.mock.calls.some(([url]) => String(url).includes('/component-config/import'))).toBe(false);

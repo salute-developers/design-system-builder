@@ -30,10 +30,12 @@ export function keepUnchangedComponents(current: Config[] | null, next: Config[]
 /**
  * Содержимое компонента для сравнения: значения открытой конфигурации (`getMeta`), а также то, что меняют структурные
  * операции и чего нет в `getMeta`: список конфигураций (дублирование, удаление, переименование), имена вариаций и
- * пересечения. Без них экземпляр после структурной операции оставался прежним и показывал старый состав.
+ * пересечения. Ревизия и релиз Core также принадлежат загруженной модели. Без них экземпляр после структурной операции оставался прежним и показывал старый состав.
  */
 const contentKey = (config: Config) =>
     JSON.stringify({
+        coreReleaseId: config.getCoreReleaseId(),
+        coreSelectionRevision: config.getCoreSelectionRevision(),
         meta: config.getMeta(),
         configurations: config.getConfigurations(),
         variations: config.getVariations().map((variation) => [variation.getID(), variation.getName()]),

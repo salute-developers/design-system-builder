@@ -148,6 +148,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             ? {}
             : undefined);
     const focused = issues.find((i) => i.issueId === compatibility?.focused) ?? issues[0];
+    const issueAttributes = focused ? { id: issueNodeId(focused), tabIndex: -1, 'data-core-invalid': true } : {};
 
     const isCombination = source.kind === 'combination';
     const composeStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
@@ -384,9 +385,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
             className={`component-variation-property-group-row ${props.inheritedFrom ? 'is-inherited' : ''}`}
-            id={focused ? issueNodeId(focused) : undefined}
-            tabIndex={issues.length ? -1 : undefined}
-            data-core-invalid={issues.length ? true : undefined}
+            {...issueAttributes}
             data-core-deprecated={deprecated ? true : undefined}
             data-property={prop.getName()}
             data-property-type={type}

@@ -41,7 +41,7 @@ it('reloads the model when Core changes without changing the draft revision', as
     act(() => window.dispatchEvent(new Event('focus')));
     await waitFor(() => expect(result.current.report?.context.coreReleases[0].releaseId).toBe('B'));
     expect(result.current.report?.context.draftRevision).toBe(7);
-    expect(reload).toHaveBeenCalledTimes(2);
+    expect(reload).toHaveBeenCalledTimes(1);
     expect(mocks.invalidate).toHaveBeenLastCalledWith(context, { includeMetadata: true });
 });
 
@@ -70,10 +70,82 @@ it('refreshes the report without invalidating the same Core or reloading the mod
     const reload = vi.fn();
     const { result } = renderHook(() => useCoreCompatibility(context, undefined, reload));
     await waitFor(() => expect(result.current.report).toBeDefined());
-    expect(reload).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
     act(() => result.current.reload());
     await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
     await waitFor(() => expect(result.current.report).toBeDefined());
-    expect(reload).toHaveBeenCalledOnce();
+    expect(reload).not.toHaveBeenCalled();
+    expect(mocks.invalidate).not.toHaveBeenCalled();
+});
+
+it('shares polling and keeps the last report visible during a refresh', async () => {
+    mocks.read.mockResolvedValueOnce(report('A'));
+    const first = renderHook(() => useCoreCompatibility(context));
+    const second = renderHook(() => useCoreCompatibility(context));
+    await waitFor(() => expect(first.result.current.report).toBeDefined());
+    expect(second.result.current.report).toBe(first.result.current.report);
+    expect(mocks.read).toHaveBeenCalledOnce();
+    let finish!: (value: CoreCompatibilityReport) => void;
+    mocks.read.mockImplementationOnce(
+        () =>
+            new Promise((resolve) => {
+                finish = resolve;
+            }),
+    );
+    act(() => window.dispatchEvent(new Event('focus')));
+    expect(mocks.read).toHaveBeenCalledTimes(2);
+    expect(first.result.current.report?.context.coreReleases[0].releaseId).toBe('A');
+    await act(async () => finish(report('B')));
+    expect(second.result.current.report?.context.coreReleases[0].releaseId).toBe('B');
     expect(mocks.invalidate).toHaveBeenCalledOnce();
+});
+
+it('reloads on the first report only if its Core revision differs from the loaded model', async () => {
+    const current = report('B');
+    current.context.coreSelectionRevision = 2;
+    mocks.read.mockResolvedValue(current);
+    const reload = vi.fn();
+    renderHook(() => useCoreCompatibility(context, undefined, reload, 1));
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(mocks.invalidate).toHaveBeenCalledWith(context, { includeMetadata: true });
+});
+
+it('does not restart requests from a late save callback after the last subscriber leaves', async () => {
+    mocks.read.mockResolvedValue(report('A'));
+    const view = renderHook(() => useCoreCompatibility(context));
+    await waitFor(() => expect(view.result.current.report).toBeDefined());
+    const refresh = view.result.current.reload;
+    view.unmount();
+    act(() => refresh());
+    expect(mocks.read).toHaveBeenCalledOnce();
+});
+
+it('refreshes once when a late model has an older Core than the already loaded report', async () => {
+    const current = report('B');
+    current.context.coreSelectionRevision = 2;
+    mocks.read.mockResolvedValue(current);
+    const reload = vi.fn();
+    const view = renderHook(
+        ({ revision }: { revision?: number }) => useCoreCompatibility(context, undefined, reload, revision),
+        { initialProps: { revision: undefined } },
+    );
+    await waitFor(() => expect(view.result.current.report).toBeDefined());
+    expect(reload).not.toHaveBeenCalled();
+    view.rerender({ revision: 1 });
+    await waitFor(() => expect(reload).toHaveBeenCalledOnce());
+    expect(mocks.invalidate).toHaveBeenCalledOnce();
+    act(() => window.dispatchEvent(new Event('focus')));
+    await waitFor(() => expect(mocks.read).toHaveBeenCalledTimes(2));
+    expect(reload).toHaveBeenCalledOnce();
+});
+
+it.each([401, 403, 500])('clears a previously visible report only on access denial (%s)', async (status) => {
+    mocks.read.mockResolvedValueOnce(report('A'));
+    const view = renderHook(() => useCoreCompatibility(context));
+    await waitFor(() => expect(view.result.current.report).toBeDefined());
+    const previous = view.result.current.report;
+    mocks.read.mockRejectedValueOnce({ isAxiosError: true, response: { status } });
+    act(() => view.result.current.reload());
+    await waitFor(() => expect(view.result.current.error).toBeDefined());
+    expect(view.result.current.report).toBe(status === 500 ? previous : undefined);
 });

@@ -29,6 +29,9 @@ interface PluginBuildRepository {
     /** Записывает новый билд и делает его единственным активным билдом платформы. */
     suspend fun insertActive(build: NewPluginBuild): PluginBuild
 
+    /** Проверяет историческое закрепление без барьера Core; выбор только черновиком замену не запрещает. */
+    suspend fun isVersionPinned(buildId: String): Boolean
+
     /** Проверяет неизменный dev-Core и отсутствие исторического закрепления под барьером Core. */
     suspend fun validateReplacement(build: NewPluginBuild): DsResult<Unit> =
         DsResult.Failure(

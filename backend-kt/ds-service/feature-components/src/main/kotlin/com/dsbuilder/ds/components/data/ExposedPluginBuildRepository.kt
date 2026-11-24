@@ -116,11 +116,7 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
             )
         }
         com.dsbuilder.ds.core.data.CorePreviewLocks.lockRegistration(bound.first)
-        val pinned = tx.exec(
-            "SELECT EXISTS(SELECT 1 FROM design_system_version_preview_builds WHERE build_id = ?)",
-            listOf(TextColumnType() to build.buildId),
-        ) { rows -> rows.next() && rows.getBoolean(1) } ?: true
-        return if (pinned) {
+        return if (isVersionPinned(build.buildId)) {
             DsResult.Failure(
                 DsFailure.Conflict("PREVIEW_BUILD_PINNED"),
             )
@@ -128,6 +124,11 @@ internal class ExposedPluginBuildRepository : PluginBuildRepository {
             DsResult.Success(Unit)
         }
     }
+
+    override suspend fun isVersionPinned(buildId: String): Boolean = TransactionManager.current().exec(
+        "SELECT EXISTS(SELECT 1 FROM design_system_version_preview_builds WHERE build_id = ?)",
+        listOf(TextColumnType() to buildId),
+    ) { rows -> rows.next() && rows.getBoolean(1) } ?: true
 
     override suspend fun replaceActive(build: NewPluginBuild): PluginBuild {
         deactivateOthers(build.platform.toDb(), build.buildId)

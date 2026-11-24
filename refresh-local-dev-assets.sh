@@ -71,10 +71,10 @@ done
 PLASMA_ANDROID="$(cd "$PLASMA_ANDROID" && pwd)"
 
 if [[ "$BUILD_PLUGIN" == "1" ]]; then
-  core_flags=()
-  [[ -z "$CORE_VERSION" ]] || core_flags+=("-PpreviewCoreVersion=$CORE_VERSION")
+  set --
+  [[ -z "$CORE_VERSION" ]] || set -- "-PcoreVersion=$CORE_VERSION"
   log "Building the plugin archive"
-  (cd "$PLASMA_ANDROID" && ./gradlew --quiet -p integration-core :preview-compose-plugin:previewPluginArtifact "${core_flags[@]}") \
+  (cd "$PLASMA_ANDROID" && ./gradlew --quiet -p integration-core :preview-compose-plugin:previewPluginArtifact "$@") \
     || fail "The plugin build failed"
 fi
 

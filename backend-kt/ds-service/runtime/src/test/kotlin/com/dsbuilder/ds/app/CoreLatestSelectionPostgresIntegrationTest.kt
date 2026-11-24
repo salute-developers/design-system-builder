@@ -16,6 +16,8 @@ import io.ktor.http.contentType
 import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
@@ -211,6 +213,43 @@ class CoreLatestSelectionPostgresIntegrationTest {
                 val raceRelease = raceContext.getValue("coreReleases").jsonArray.single().jsonObject
                 assertEquals("race-E", raceRelease.getValue("version").jsonPrimitive.content)
                 assertEquals("latest", raceRelease.getValue("selectionMode").jsonPrimitive.content)
+                // The waiting importer starts before the barrier owner's registration, but registers last.
+                DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { owner ->
+                    owner.autoCommit = false
+                    owner.createStatement().use {
+                        it.execute(
+                            "SELECT pg_advisory_xact_lock(hashtextextended('core-release:compose', 0))",
+                        )
+                    }
+                    coroutineScope {
+                        val waiting = async { import("1.2.1") }
+                        withTimeout(10_000) {
+                            while (sql("SELECT count(*) FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock' AND query LIKE '%pg_advisory_xact_lock%'").toInt() == 0) delay(
+                                20,
+                            )
+                        }
+                        owner.createStatement().use {
+                            it.execute(
+                                "INSERT INTO core_releases(library_id, platform, version, source_meta, meta_sha256, normalized_meta, provenance, channel, created_at) SELECT library_id, platform, '1.3.0-peer', source_meta, meta_sha256, normalized_meta, provenance, channel, clock_timestamp() FROM core_releases WHERE version = 'race-E' AND platform = 'compose'",
+                            )
+                        }
+                        owner.commit()
+                        val result = waiting.await()
+                        assertEquals(HttpStatusCode.OK, result.status, result.bodyAsText())
+                    }
+                }
+                assertEquals(
+                    "1.2.1",
+                    sql(
+                        "SELECT version FROM core_releases WHERE platform = 'compose' AND channel = 'stable' ORDER BY created_at DESC, id LIMIT 1",
+                    ),
+                )
+                assertEquals(
+                    "1.2.1",
+                    context(
+                        read(),
+                    ).getValue("coreReleases").jsonArray.single().jsonObject.getValue("version").jsonPrimitive.content,
+                )
                 val emptyImport =
                     post("/api/admin/component-config/import-api-meta", coreReleasePayload("empty-F", "[]"))
                 assertEquals(HttpStatusCode.OK, emptyImport.status, emptyImport.bodyAsText())

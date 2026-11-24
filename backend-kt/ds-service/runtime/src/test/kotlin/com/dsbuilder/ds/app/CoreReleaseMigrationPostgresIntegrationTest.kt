@@ -30,12 +30,16 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                 val archived = UUID.randomUUID()
                 val component = UUID.randomUUID()
                 val property = UUID.randomUUID()
+                val parameter = UUID.randomUUID()
                 connection.createStatement().use { statement ->
                     statement.execute(
                         "INSERT INTO components(id, name, platform) VALUES ('$component', 'OldButton', 'compose')",
                     )
                     statement.execute(
                         "INSERT INTO properties(id, component_id, name, type) VALUES ('$property', '$component', 'fill', 'color')",
+                    )
+                    statement.execute(
+                        "INSERT INTO property_platform_params(id, property_id, name, platform) VALUES ('$parameter', '$property', 'fill', 'compose')",
                     )
                     statement.execute(
                         "INSERT INTO design_systems(id, project_name, project_id) VALUES ('$ds', 'migration', 'project')",
@@ -60,7 +64,7 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                         "INSERT INTO design_system_versions(id, design_system_id, version, snapshot, status, sequence_number, revision) VALUES ('$archived', '$ds', '0.9.0', '{\"legacy\":true}', NULL, NULL, NULL)",
                     )
                 }
-                assertEquals(6, config.target("latest").load().migrate().migrationsExecuted)
+                assertEquals(7, config.target("latest").load().migrate().migrationsExecuted)
                 val release =
                     scalar(
                         connection,
@@ -118,6 +122,8 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                 for (sql in listOf(
                     "UPDATE components SET name = 'Renamed' WHERE id = '$component'",
                     "UPDATE properties SET name = 'renamed' WHERE id = '$property'",
+                    "UPDATE property_platform_params SET platform = 'web' WHERE id = '$parameter'",
+                    "UPDATE property_platform_params SET property_id = gen_random_uuid() WHERE id = '$parameter'",
                     "UPDATE core_release_properties SET type = 'integer' WHERE release_id = '$release'",
                     "DELETE FROM core_releases WHERE id = '$release'",
                     "UPDATE design_system_version_core_releases SET release_id = release_id WHERE version_id = '$archived'",

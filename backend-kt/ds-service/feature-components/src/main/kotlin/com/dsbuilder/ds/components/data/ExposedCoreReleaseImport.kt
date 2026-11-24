@@ -52,8 +52,8 @@ internal class ExposedCoreReleaseImport {
         TransactionManager.current().exec(
             """
                 INSERT INTO core_releases(id, library_id, platform, version, source_meta, meta_sha256,
-                normalized_meta, provenance, channel)
-                VALUES (?, ?, ?::component_platform, ?, decode(?, 'base64'), ?, ?::jsonb, 'imported', ?)
+                normalized_meta, provenance, channel, created_at)
+                VALUES (?, ?, ?::component_platform, ?, decode(?, 'base64'), ?, ?::jsonb, 'imported', ?, clock_timestamp())
             """.trimIndent(),
             listOf(UUIDColumnType() to id) +
                 listOf(

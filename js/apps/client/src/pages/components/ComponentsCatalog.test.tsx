@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => {
         getPlatform: () => platform,
         getMeta: () => ({}),
         getConfigurationId: () => undefined,
+        getCoreSelectionRevision: () => undefined,
         getConfigurations: () => [],
         getComponentId: () => undefined,
     });
@@ -356,7 +357,7 @@ describe('панель компонентов', () => {
 
         fireEvent.keyDown(resizer, { key: 'ArrowRight', shiftKey: true });
         expect(resizer.getAttribute('aria-valuenow')).toBe('296');
-        expect(JSON.parse(localStorage.getItem('ds_components_panel')!)).toEqual({ left: 296 });
+        expect(JSON.parse(localStorage.getItem('ds_components_panel')!)).toMatchObject({ left: 296 });
 
         for (let step = 0; step < 10; step += 1) fireEvent.keyDown(resizer, { key: 'ArrowRight', shiftKey: true });
         expect(resizer.getAttribute('aria-valuenow')).toBe('320');

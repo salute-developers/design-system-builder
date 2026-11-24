@@ -20,7 +20,9 @@ export const useCorePreview = (platform: 'web' | 'compose', parameters?: Partial
         pluginUrl?: string;
         coreRelease?: CoreRelease;
         buildId?: string;
-        error?: string; developmentOverride?: boolean;
+        error?: string;
+        developmentOverride?: boolean;
+        loading?: boolean;
     }>({ key: '' });
     useEffect(() => {
         if (!enabled || override || !projectId || !designSystemId) return;
@@ -35,12 +37,13 @@ export const useCorePreview = (platform: 'web' | 'compose', parameters?: Partial
                     { params: { versionId }, signal: attempt.signal },
                 )
                 .then(({ data }) => {
-                    if (!attempt.signal.aborted) setState({ key, ...data });
+                    if (!attempt.signal.aborted) setState({ key, ...data, loading: false });
                 })
                 .catch((error: unknown) => {
                     if (!attempt.signal.aborted)
                         setState({
                             key,
+                            loading: false,
                             error:
                                 isAxiosError(error) && error.response?.status === 404
                                     ? 'Для выбранного Core пока нет preview'
@@ -59,5 +62,5 @@ export const useCorePreview = (platform: 'web' | 'compose', parameters?: Partial
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [key, override]);
     if (override) return { pluginUrl: override, key, developmentOverride: true };
-    return state.key === key ? state : { key };
+    return state.key === key ? state : { key, loading: enabled };
 };

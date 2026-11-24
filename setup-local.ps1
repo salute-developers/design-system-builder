@@ -187,6 +187,9 @@ function Invoke-SetupTool([string]$script, [string[]]$arguments, [string[]]$moun
 }
 
 Import-LocalEnvironment
+if (-not $Down -and [string]::IsNullOrWhiteSpace($env:DSBUILDER_WEB_CORE_VERSION)) {
+    throw 'Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate the Web API meta before setup'
+}
 Invoke-Checked 'Docker Compose availability' 'docker' @('compose', 'version')
 
 if ($Down) {

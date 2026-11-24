@@ -86,7 +86,7 @@ describe('сохранение ссылки на стиль вложенного
         expect(put).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/appearances/appearance/property-values',
             { propertyId: 'button-style', styleIds: [], states: [], reference },
-            { headers: { 'Idempotency-Key': expect.any(String) } },
+            { headers: { 'Idempotency-Key': expect.any(String) }, signal: expect.any(AbortSignal) },
         );
         expect(post).not.toHaveBeenCalled();
         expect(patch).not.toHaveBeenCalled();
@@ -197,9 +197,7 @@ describe('сохранение ссылки на стиль вложенного
                 undefined,
                 () => reference,
             ),
-        ).rejects.toSatisfy(
-            (error) => autosaveErrorMessage(error)?.includes('цикл') === true,
-        );
+        ).rejects.toSatisfy((error) => autosaveErrorMessage(error)?.includes('цикл') === true);
     });
 
     it('не сохраняет ссылку, которую не удалось развернуть', async () => {

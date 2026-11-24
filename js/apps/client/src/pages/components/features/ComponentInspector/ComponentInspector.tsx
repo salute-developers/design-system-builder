@@ -66,6 +66,7 @@ type InspectorTab = 'style' | 'tree' | 'problems';
 const TABS: Array<{ id: InspectorTab; label: string }> = [
     { id: 'style', label: 'Стилизация' },
     { id: 'tree', label: 'Структура' },
+    { id: 'problems', label: 'Проблемы' },
 ];
 const TAB_STORAGE_KEY = 'ds_component_inspector_tab';
 
@@ -98,20 +99,10 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
         props.compatibility?.report.items.filter((i) => i.location.componentId === config.getComponentId()) ?? [];
     const problems = componentIssues.filter((i) => i.severity === 'blocking');
     const requested = query.get('section');
-    const tabs = [
-        ...(structure ? TABS : TABS.slice(0, 1)),
-        ...(problems.length ? [{ id: 'problems' as const, label: 'Проблемы' }] : []),
-    ];
+    const enabledTabs = { style: true, tree: Boolean(structure), problems: problems.length > 0 };
+    const tabs = TABS.filter((item) => enabledTabs[item.id]);
     const tab =
-        requested === 'problems' && problems.length
-            ? 'problems'
-            : requested === 'style'
-              ? 'style'
-              : requested === 'tree' && structure
-                ? 'tree'
-                : tabs.some((item) => item.id === storedTab)
-                  ? storedTab
-                  : 'style';
+        tabs.find((item) => item.id === requested)?.id ?? tabs.find((item) => item.id === storedTab)?.id ?? 'style';
     const focused = problems.find(
         (i) => i.issueId === query.get('issueId') && i.location.appearanceId === config.getConfigurationId(),
     );

@@ -4,8 +4,12 @@ import { refreshTokens, logoutOnServer, loginWithPassword } from './keycloak';
 let refreshPromise: Promise<string> | null = null;
 const sessionResetListeners = new Set<() => void>();
 let sessionGeneration = 0;
+let sessionController = new AbortController();
 const notifySessionReset = () => {
     sessionGeneration += 1;
+    observedIdentity = readAuthorizationIdentity();
+    sessionController.abort();
+    sessionController = new AbortController();
     refreshPromise = null;
     sessionResetListeners.forEach((listener) => listener());
 };
@@ -22,7 +26,10 @@ const decodeAccessToken = (token: string): Record<string, unknown> | null => {
     try {
         const payload = token.split('.')[1];
         if (!payload) return null;
-        const padded = payload.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(payload.length / 4) * 4, '=');
+        const padded = payload
+            .replace(/-/g, '+')
+            .replace(/_/g, '/')
+            .padEnd(Math.ceil(payload.length / 4) * 4, '=');
         const bytes = Uint8Array.from(atob(padded), (character) => character.charCodeAt(0));
         return JSON.parse(new TextDecoder().decode(bytes)) as Record<string, unknown>;
     } catch {
@@ -40,7 +47,37 @@ const userInitials = (displayName: string, username?: string, email?: string) =>
     return source.slice(0, 2).toLocaleUpperCase('ru-RU');
 };
 
+/** Только наблюдение за прежними токенами: формат и запись credentials остаются в tokenStore. */
+const authorizationIdentityOf = (access: string | null) => {
+    if (!access) return null;
+    const claims = decodeAccessToken(access);
+    return claims?.sub ? JSON.stringify([claims.iss, claims.sub, claims.sid ?? claims.session_state]) : access;
+};
+const readAuthorizationIdentity = () => authorizationIdentityOf(tokenStore.access);
+let observedIdentity = readAuthorizationIdentity();
+const observeUserChange = () => {
+    if (observedIdentity !== readAuthorizationIdentity()) notifySessionReset();
+};
+window.addEventListener('storage', (event) => {
+    if (event.key === null || event.key.startsWith('auth.')) observeUserChange();
+});
+
 export const authService = {
+    getSessionSignal() {
+        observeUserChange();
+        return sessionController.signal;
+    },
+
+    assertSession(signal: AbortSignal) {
+        observeUserChange();
+        signal.throwIfAborted();
+    },
+
+    getUserKey(): string | null {
+        const claims = decodeAccessToken(tokenStore.access ?? '');
+        return claims?.sub ? JSON.stringify([claims.iss, claims.sub]) : null;
+    },
+
     isAuthenticated() {
         return Boolean(tokenStore.access && tokenStore.refresh);
     },
@@ -69,8 +106,8 @@ export const authService = {
 
     async login(username: string, password: string) {
         const tokens = await loginWithPassword(username, password);
-        notifySessionReset();
         tokenStore.save(tokens);
+        notifySessionReset();
     },
 
     async logout() {
@@ -84,6 +121,7 @@ export const authService = {
     },
 
     async getValidAccessToken(): Promise<string | null> {
+        observeUserChange();
         if (!tokenStore.refresh) {
             return null;
         }
@@ -96,6 +134,7 @@ export const authService = {
     },
 
     refreshAccessToken(): Promise<string> {
+        observeUserChange();
         if (refreshPromise) {
             return refreshPromise;
         }
@@ -107,13 +146,24 @@ export const authService = {
         }
 
         const generation = sessionGeneration;
+        const initialIdentity = this.getUserKey() ? readAuthorizationIdentity() : null;
         const pending = refreshTokens(refresh)
             .then((tokens) => {
+                observeUserChange();
                 if (generation !== sessionGeneration) throw new Error('Session changed during refresh');
                 tokenStore.save(tokens);
+                const responseIdentity = authorizationIdentityOf(tokens.access_token);
+                if (initialIdentity !== null && initialIdentity !== responseIdentity) {
+                    notifySessionReset();
+                    throw new Error('Session changed during refresh');
+                }
+                observedIdentity = responseIdentity;
+                observeUserChange();
+                if (generation !== sessionGeneration) throw new Error('Session changed during refresh');
                 return tokens.access_token;
             })
             .catch((err) => {
+                observeUserChange();
                 if (generation === sessionGeneration) {
                     tokenStore.clear();
                     notifySessionReset();
@@ -129,6 +179,8 @@ export const authService = {
 
     onSessionReset(listener: () => void) {
         sessionResetListeners.add(listener);
-        return () => sessionResetListeners.delete(listener);
+        return () => {
+            sessionResetListeners.delete(listener);
+        };
     },
 };

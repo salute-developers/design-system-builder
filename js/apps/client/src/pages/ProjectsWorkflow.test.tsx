@@ -1411,7 +1411,13 @@ describe('design system and Theme workflow', () => {
         );
         // Публикации в npm нет: ни блока статуса, ни запросов к npm registry.
         expect(screen.queryByText('Публикация в npm')).not.toBeInTheDocument();
-        expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('registry.npmjs.org'))).toBe(false);
+        expect(
+            fetchSpy.mock.calls.some(
+                ([url]) =>
+                    new URL(url instanceof Request ? url.url : String(url), window.location.href).hostname ===
+                    'registry.npmjs.org',
+            ),
+        ).toBe(false);
         expect(screen.queryByText('Перенос')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Опасная зона' }));
         expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();

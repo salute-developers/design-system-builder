@@ -7,6 +7,7 @@ import {
     isRetryableAutosaveError,
     isUnknownIconError,
     stateRejection,
+    isCoreSelectionStaleError,
 } from './autosaveHttp';
 
 const failure = (status: number, data: unknown) =>
@@ -54,4 +55,15 @@ describe('stateRejection', () => {
         expect(stateRejection(other)).toBe(other);
         expect(stateRejection(failure(500, { error: 'states_not_supported' }))).not.toBeInstanceOf(StateRejection);
     });
+});
+
+it('recognizes only the Core selection conflict, including wrapped and legacy responses', () => {
+    for (const data of [{ code: 'CORE_SELECTION_STALE' }, { error: 'CORE_SELECTION_STALE' }]) {
+        const error = failure(409, data);
+        expect(isCoreSelectionStaleError(error)).toBe(true);
+        expect(isCoreSelectionStaleError(new AutosaveRejection('Core changed', error))).toBe(true);
+    }
+    expect(isCoreSelectionStaleError(failure(409, { code: 'revision_conflict' }))).toBe(false);
+    expect(isCoreSelectionStaleError(failure(500, { code: 'CORE_SELECTION_STALE' }))).toBe(false);
+    expect(isCoreSelectionStaleError(new Error('CORE_SELECTION_STALE'))).toBe(false);
 });
