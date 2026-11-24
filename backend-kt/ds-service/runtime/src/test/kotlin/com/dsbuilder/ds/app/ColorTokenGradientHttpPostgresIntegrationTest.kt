@@ -778,7 +778,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `state is added with values of each theme, journaled, reverted and deleted`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"states","projectName":"states"}""")

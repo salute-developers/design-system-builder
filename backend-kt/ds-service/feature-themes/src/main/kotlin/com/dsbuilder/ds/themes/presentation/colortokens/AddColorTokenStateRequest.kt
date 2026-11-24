@@ -12,12 +12,3 @@ data class AddColorTokenStateRequest(
     /** Значения членов состояния для каждой темы дизайн-системы. */
     val tenants: List<ColorTokenStateTenantValues>,
 )
-
-/** Значения членов состояния в одной теме. */
-@Serializable
-data class ColorTokenStateTenantValues(
-    /** Тема дизайн-системы. */
-    val tenantId: String,
-    /** Члены состояния `<group>.<subgroup>.<name>-<state>` со значениями. */
-    val members: List<ColorTokenMemberValues>,
-)
