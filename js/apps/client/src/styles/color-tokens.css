@@ -2649,14 +2649,37 @@
 }
 
 /*
- * Состояния токена (`add-color-token-states`): стрелка раскрытия стоит в отступе строки токена слева от чипа, строки
- * Hover, Active и Brightness — на шаг правее строки токена.
+ * Строки токенов дерева цветов (`add-color-token-states`) стоят на шаг правее стрелки своей группы: в начале строки
+ * место под стрелку состояний, за ним чип. Иначе стрелка состояний вставала на линию стрелки группы и токен выглядел
+ * соседней подгруппой. Место под стрелку есть и у токенов без состояний, чтобы чипы группы стояли ровно. Строки Hover,
+ * Active и Brightness — ещё на шаг правее, под чипом токена. `--ct-token-level` — уровень строк токенов: 0 у
+ * результатов поиска, 1 в группе, 2 в подгруппе.
  */
+.color-tokens-screen .token-tree {
+    --ct-token-level: 0;
+}
+
+.color-tokens-screen .token-tree .tw-tree-branch {
+    --ct-token-level: 1;
+}
+
+.color-tokens-screen .token-tree .tw-tree-branch .tw-tree-nested {
+    --ct-token-level: 2;
+}
+
+.color-tokens-screen .token-tree .tw-tree-row .tw-tree-item {
+    padding-left: calc(2 * var(--tw-space-xs) + (var(--ct-token-level) + 1) * var(--tw-tree-indent));
+}
+
+.color-tokens-screen .token-tree .ct-state-row .tw-tree-item {
+    padding-left: calc(2 * var(--tw-space-xs) + (var(--ct-token-level) + 2) * var(--tw-tree-indent));
+}
+
 .color-tokens-screen .ct-state-toggle {
     position: absolute;
     z-index: 2;
     top: calc((var(--tw-row-height) - var(--tw-icon-size)) / 2);
-    left: calc(var(--tw-space-m) + var(--tw-space-xs) + var(--tw-tree-indent) - var(--tw-icon-size) - 2px);
+    left: calc(var(--tw-space-l) + var(--ct-token-level) * var(--tw-tree-indent));
     display: inline-flex;
     width: var(--tw-icon-size);
     height: var(--tw-icon-size);
@@ -2667,10 +2690,6 @@
     cursor: pointer;
 }
 
-.color-tokens-screen .tw-tree-nested .ct-state-toggle {
-    left: calc(var(--tw-space-m) + var(--tw-space-xs) + 2 * var(--tw-tree-indent) - var(--tw-icon-size) - 2px);
-}
-
 .color-tokens-screen .ct-state-toggle > svg {
     width: var(--tw-icon-size);
     height: var(--tw-icon-size);
@@ -2679,14 +2698,6 @@
 .color-tokens-screen .ct-state-toggle:focus-visible {
     border-radius: var(--tw-radius-s);
     outline: 1px solid var(--tw-accent);
-}
-
-.color-tokens-screen .tw-tree-branch .ct-state-row .tw-tree-item {
-    padding-left: calc(var(--tw-space-xs) + 2 * var(--tw-tree-indent));
-}
-
-.color-tokens-screen .tw-tree-branch .tw-tree-nested .ct-state-row .tw-tree-item {
-    padding-left: calc(var(--tw-space-xs) + 3 * var(--tw-tree-indent));
 }
 
 /* Переключатель «По формуле» инспектора состояния: поля панели свойств растягивают `input`, здесь он своего размера. */
