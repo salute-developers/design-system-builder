@@ -5,17 +5,22 @@ TBD - created by archiving change add-web-preview-plugin-pilot. Update Purpose a
 ## Requirements
 ### Requirement: Web-плагин превью — самостоятельное приложение
 
-В репозитории SHALL быть приложение `js/apps/preview-web-plugin`, которое собирается в статический
-бандл с `index.html`, `preview-plugin.json` и своими JS и CSS. Плагин SHALL содержать собственные
-React, `styled-components`, `@salutejs/plasma-new-hope` и `@salutejs/plasma-icons` и SHALL NOT
-импортировать код из `js/apps/client`. Общие правила маппинга свойств на параметры ядра и данные `web-adapter.json`
+Web-плагин SHALL быть приватным пакетом `packages/sdds-preview-web-plugin` (`@salutejs/sdds-preview-web-plugin`)
+репозитория plasma, который собирается в статический бандл с `index.html`, `preview-plugin.json` и своими JS и CSS. Плагин SHALL подключать `@salutejs/plasma-new-hope`,
+`@salutejs/plasma-b2c` и `@salutejs/plasma-icons` из workspace plasma, SHALL содержать собственные React и
+`styled-components` в единственном экземпляре в бандле и SHALL NOT читать файлы и импортировать код репозитория DS Builder. Общие правила маппинга свойств на параметры ядра и данные `web-adapter.json`
 плагин SHALL брать из модуля `web-mapping` npm-пакета `@sddsjs/design-system-builder-generator`, объявленного в
 `dependencies` точной версией, и SHALL NOT ссылаться на каталог `js/cli` путём.
 
 #### Scenario: Сборка плагина
 
-- **WHEN** в `js/apps/preview-web-plugin` выполняется `npm run build`
+- **WHEN** в `packages/sdds-preview-web-plugin` выполняется `npm run build`
 - **THEN** каталог сборки MUST содержать `index.html`, `preview-plugin.json` и все файлы, на которые они ссылаются
+
+#### Scenario: Нет копии в DS Builder
+
+- **WHEN** проверяется репозиторий DS Builder
+- **THEN** в нём MUST NOT быть каталога `js/apps/preview-web-plugin`
 
 ### Requirement: Манифест web-плагина
 
@@ -24,8 +29,8 @@ React, `styled-components`, `@salutejs/plasma-new-hope` и `@salutejs/plasma-ico
 компонентов `components`. Список SHALL совпадать с реестром компонентов плагина и SHALL содержать `Button`. Рядом с манифестом SHALL лежать
 `api-meta.json` — web API-мета, построенная при сборке подкомандой `dsbuilder-web-generator api-meta` из
 `@salutejs/plasma-new-hope`, установленного в плагине, то есть из той же версии, что входит в бандл. Мета SHALL NOT
-храниться в Git. Манифест SHALL объявлять эту версию в `plasmaNewHopeVersion`; sha256 файла меты в `apiMetaSha256`
-SHALL дописываться в манифест сборки при упаковке.
+храниться в Git. Версия ядра в `plasmaNewHopeVersion` и sha256 файла меты в `apiMetaSha256` SHALL дописываться в
+манифест сборки при упаковке из установленного ядра; в закоммиченном `public/preview-plugin.json` этих полей SHALL NOT быть.
 
 #### Scenario: Клиент читает манифест
 
@@ -41,9 +46,9 @@ SHALL дописываться в манифест сборки при упак�
 
 #### Scenario: Мета строится перед сборкой, разработкой и тестами
 
-- **WHEN** в `js/apps/preview-web-plugin` выполняется `npm run build`, `npm run dev` или `npm test` на чистом клоне
+- **WHEN** в `packages/sdds-preview-web-plugin` выполняется `npm run build`, `npm run dev` или `npm test` на чистом клоне plasma с собранным ядром
 - **THEN** перед запуском MUST быть построен `public/api-meta.json` из установленного ядра
-- **THEN** построенная мета MUST побайтно совпадать с результатом `npm run generate:api-meta -- --package @salutejs/plasma-new-hope` в `js/cli` при той же версии ядра
+- **THEN** построенная мета MUST побайтно совпадать с результатом `dsbuilder-web-generator api-meta` для того же собранного ядра
 
 ### Requirement: Мост сообщений совместим с хостом превью
 
@@ -96,8 +101,8 @@ story как пропсы.
 ### Requirement: Локальная раздача web-плагина
 
 Для разработки плагин SHALL раздаваться dev-сервером на отдельном порту (отдельный origin от клиента)
-с разрешением CORS для чтения манифеста клиентом. Адрес по умолчанию SHALL быть задан в
-`js/docker-compose.dev.yml`.
+с разрешением CORS для чтения манифеста клиентом (`npm run dev` пакета в plasma, порт 3011). Адрес по умолчанию SHALL быть задан в
+`js/docker-compose.dev.yml` DS Builder.
 
 #### Scenario: Локальный контур
 
@@ -106,8 +111,8 @@ story как пропсы.
 
 ### Requirement: Реестр web-плагина покрывает все web-компоненты с story
 
-Реестр web-плагина SHALL содержать все компоненты, для которых в клиенте есть story (`componentMapper`
-в `js/apps/client/src/hooks/useStory.ts`), с их story, аргументами и отрисовкой. Отображение web-параметров
+Реестр web-плагина SHALL содержать web-компоненты с story, аргументами и отрисовкой; список SHALL поддерживаться в
+плагине и SHALL NOT сверяться тестами с кодом клиента DS Builder. Отображение web-параметров
 в CSS-переменные ядра SHALL учитывать объекты токенов и конфиги ядра не по имени компонента (`TabItem` → `tabsTokens`,
 `Skeleton` → `lineSkeletonConfig`). Имена SHALL браться функциями `coreTokensExportName` и `coreConfigExportName`
 модуля `web-mapping` по манифестам генератора из подкоманды `manifests`; собственных таблиц соответствий плагин SHALL NOT
@@ -116,7 +121,7 @@ story как пропсы.
 #### Scenario: Манифест перечисляет все компоненты
 
 - **WHEN** клиент читает манифест web-плагина
-- **THEN** `components` MUST совпадать с ключами реестра плагина и содержать все компоненты `componentMapper` клиента
+- **THEN** `components` MUST совпадать с ключами реестра плагина в том же порядке
 
 #### Scenario: Каждый компонент рисуется
 
@@ -200,7 +205,7 @@ Web-плагин SHALL переводить payload общего формата 
 
 #### Scenario: В плагине нет копий общих данных и правил
 
-- **WHEN** проверяется исходный код `js/apps/preview-web-plugin`
+- **WHEN** проверяется исходный код `packages/sdds-preview-web-plugin` репозитория plasma
 - **THEN** в нём MUST NOT быть файла `web-adapter.json`, закоммиченного `api-meta.json` и собственных реализаций подстановки шаблонов, перевода px в `rem`, выбора поля типографики, имён переменных цвета и типографики темы, таблиц объектов ядра по компонентам
 - **THEN** эти функции MUST импортироваться из `@sddsjs/design-system-builder-generator/web-mapping`
 
