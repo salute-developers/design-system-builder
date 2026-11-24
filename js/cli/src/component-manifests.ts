@@ -31,7 +31,7 @@ export async function readComponentManifests(directory = TEMPLATES_DIRECTORY): P
 }
 
 export async function main(argv: string[]) {
-    const { values } = parseArgs({ args: argv, options: { out: { type: 'string' }, help: { type: 'boolean' } } });
+    const { values } = parseArgs({ args: argv, options: { out: { type: 'string' }, help: { type: 'boolean', short: 'h' } } });
     if (values.help) {
         console.log(usage);
         return;

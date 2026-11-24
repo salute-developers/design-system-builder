@@ -44,7 +44,7 @@ const withWorkingDirectoryDefaults = (args) => {
 /** `--out` обязателен; у `api-meta` пакет компонентов по умолчанию — ядро plasma. */
 const dataCommandArgs = (command, args) => {
     const given = (name) => args.some((arg) => arg === `--${name}` || arg.startsWith(`--${name}=`));
-    if (!given('out') && !given('help')) {
+    if (!given('out') && !given('help') && !args.includes('-h')) {
         throw new Error(`${command}: --out <file> is required.`);
     }
     return command === 'api-meta' && !given('package') && !given('source')
