@@ -44,6 +44,7 @@ class ComponentsImportApiCliCommandTest {
         assertTrue(!body.contains("designSystemId"), body)
         assertTrue(body.contains("\"source\":\"uikit-compose-api-meta.json\""), body)
         assertTrue(result.output.contains("Status: dry run"), result.output)
+        assertTrue(!result.output.contains("Core release ID:"), result.output)
         assertTrue(result.output.contains("Components: 2"), result.output)
         assertTrue(result.output.contains("Properties: 3"), result.output)
         assertTrue(result.output.contains("Created components: 1"), result.output)
@@ -66,6 +67,9 @@ class ComponentsImportApiCliCommandTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(requests.single().second.contains("\"dryRun\":false"), requests.single().second)
         assertTrue(result.output.contains("Status: API meta imported"), result.output)
+        assertTrue(result.output.contains("Core: test-library/compose/1.0.0"), result.output)
+        assertTrue(result.output.contains("Channel: stable"), result.output)
+        assertTrue(result.output.contains("Core release ID: release-123"), result.output)
     }
 
     @Test
@@ -525,7 +529,7 @@ class ComponentsImportApiCliCommandTest {
         """
 
         const val REPORT = """
-            {"createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,
+            {"releaseId":"release-123","createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,
              "unchangedProperties":0,"rejected":[],"typeMismatches":[]}
         """
 

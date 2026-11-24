@@ -151,6 +151,7 @@ internal data class ApiMetaImportReportResponse(
     val typeMismatches: List<String> = emptyList(),
     val absent: List<String> = emptyList(),
     val unresolvedStates: List<String> = emptyList(),
+    val releaseId: String? = null,
 ) {
     fun toDomain(): ApiMetaImportReport = ApiMetaImportReport(
         createdComponents = createdComponents,
@@ -166,6 +167,7 @@ internal data class ApiMetaImportReportResponse(
         typeMismatches = typeMismatches,
         absent = absent,
         unresolvedStates = unresolvedStates,
+        releaseId = releaseId,
     )
 }
 

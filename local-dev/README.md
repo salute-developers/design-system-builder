@@ -135,6 +135,16 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 в историю репозитория, поэтому обновляйте файлы только когда меняется протокол плагина, версия `uikit-compose` или
 состав компонентов.
 
+### Первый preview для нового Core
+
+На чистом стенде или при смене Core сначала зарегистрируйте мету администратором.
+Возьмите `api-meta.json` и координаты `coreRelease` из ZIP, войдите через
+`DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login` и выполните
+`dsbuilder components import-api --from ./api-meta.json --platform <compose|react> --library-id <libraryId> --core-version <version> --channel stable --apply`
+на том же API URL. Затем запустите `publish-preview-plugin.sh` с тем же каналом.
+С сессией администратора можно вместо двух вызовов выполнить `dsbuilder preview-plugin publish`
+напрямую с `--apply`, указав архив, платформу, канал и API URL.
+
 ### Web-плагин
 
 Web-плагин живёт в репозитории plasma (`packages/sdds-preview-web-plugin`). Архив собирается там:

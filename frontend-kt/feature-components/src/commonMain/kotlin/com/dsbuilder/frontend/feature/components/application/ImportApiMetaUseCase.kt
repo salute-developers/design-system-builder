@@ -125,26 +125,26 @@ public class ImportApiMetaUseCase internal constructor(
         )
         onTarget(target)
 
-        val imported = remoteSource.import(
-            ImportApiMetaRemoteCommand(
-                apiUrl = ProjectApiUrl(apiUrl.value),
-                credential = credential,
-                platform = command.platform.toApiMetaPlatform(),
-                source = file.path.substringAfterLast('/').substringAfterLast('\\'),
-                dryRun = command.dryRun,
-                manifest = normalized.manifest,
-                coreRelease = requireNotNull(command.coreRelease).copy(platform = command.platform.toApiMetaPlatform()),
-                sourceBytes = file.bytes,
-                channel = command.channel,
-            ),
+        val request = ImportApiMetaRemoteCommand(
+            apiUrl = ProjectApiUrl(apiUrl.value),
+            credential = credential,
+            platform = command.platform.toApiMetaPlatform(),
+            source = file.path.substringAfterLast('/').substringAfterLast('\\'),
+            dryRun = command.dryRun,
+            manifest = normalized.manifest,
+            coreRelease = requireNotNull(command.coreRelease).copy(platform = command.platform.toApiMetaPlatform()),
+            sourceBytes = file.bytes,
+            channel = command.channel,
         )
 
-        return when (imported) {
+        return when (val imported = remoteSource.import(request)) {
             is ImportApiMetaRemoteResult.Failed -> ImportApiMetaResult.Failed(imported.message, target)
             is ImportApiMetaRemoteResult.Imported -> ImportApiMetaResult.Imported(
                 report = imported.report,
                 target = target,
                 dryRun = command.dryRun,
+                coreRelease = requireNotNull(request.coreRelease),
+                channel = requireNotNull(request.channel),
                 conflicts = normalized.conflicts,
                 skipped = normalized.skipped,
             )
@@ -244,6 +244,8 @@ public sealed interface ImportApiMetaResult {
      * @property report отчёт импорта.
      * @property target цель запроса и состав манифеста.
      * @property dryRun выполнялся ли импорт без сохранения изменений.
+     * @property coreRelease отправленные координаты Core в обозначениях сервера.
+     * @property channel канал из запроса импорта.
      * @property conflicts повторы свойства с другим типом внутри меты: побеждало первое вхождение.
      * @property skipped то, что нормализатор сознательно не включил в манифест, по категориям.
      */
@@ -251,6 +253,8 @@ public sealed interface ImportApiMetaResult {
         public val report: ApiMetaImportReport,
         override val target: ImportApiMetaTarget,
         public val dryRun: Boolean,
+        public val coreRelease: CoreReleaseRef,
+        public val channel: String,
         public val conflicts: List<String> = emptyList(),
         public val skipped: List<ApiMetaSkipped> = emptyList(),
     ) : ImportApiMetaResult

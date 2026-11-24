@@ -38,6 +38,8 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
             } else {
                 ApiMetaRepository.ImportAttempt.Conflict("CORE_RELEASE_IMMUTABLE")
             }
+        } else if (command.existingReleaseOnly) {
+            ApiMetaRepository.ImportAttempt.RegistrationForbidden
         } else {
             val report = importMeta(command)
             val releaseId = releases.insert(command, projection)

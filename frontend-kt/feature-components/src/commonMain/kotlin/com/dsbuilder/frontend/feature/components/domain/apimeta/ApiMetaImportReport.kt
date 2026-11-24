@@ -22,6 +22,7 @@ package com.dsbuilder.frontend.feature.components.domain.apimeta
  * есть в базе и отсутствуют в мете; ничего не удаляется.
  * @property unresolvedStates имена состояний признака, не найденные ни среди общих, ни среди состояний компонента:
  * `Компонент.свойство: имя`.
+ * @property releaseId идентификатор Core из ответа сервера.
  */
 public data class ApiMetaImportReport(
     public val createdComponents: Int = 0,
@@ -37,6 +38,7 @@ public data class ApiMetaImportReport(
     public val absent: List<String> = emptyList(),
     public val stateSupportChanged: Int = 0,
     public val unresolvedStates: List<String> = emptyList(),
+    public val releaseId: String? = null,
 )
 
 /**

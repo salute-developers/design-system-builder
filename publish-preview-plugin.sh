@@ -17,7 +17,7 @@ Usage:
 
 Local dev helper for the stack started by ./setup-local.sh. It sends a prebuilt preview plugin to the local backend,
 exactly as CI does: the backend stores the files in the local MinIO bucket of the platform (compose-preview or
-web-preview), imports the API meta from the archive into the component layer of the platform and makes the build
+web-preview), verifies the archive against the registered Core release and makes the build
 active, so the component editor shows the preview.
 
 Archives bundled in this repository (setup-local.sh uses them by default):
@@ -36,7 +36,8 @@ Options:
   --help                    Show this help.
 
 The publication signs in as the local service account of the Keycloak dev realm. Override it with
-DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. A repeated publication of the same build is harmless.
+DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. Register a new Core as a system administrator first
+(see local-dev/README.md). A repeated publication of the same build is harmless.
 USAGE
 }
 
@@ -125,6 +126,6 @@ export DSBUILDER_CLIENT_SECRET="${DSBUILDER_CLIENT_SECRET:-dev-preview-publisher
 
 log "Publishing the $PLATFORM plugin $ARCHIVE to $GATEWAY_URL"
 "$CLI" preview-plugin publish --platform "$PLATFORM" --channel "$CHANNEL" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
-  || fail "The publication failed. Is the stack running (./setup-local.sh)?"
+  || fail "The publication failed. Check that the stack is running and the archive Core is registered in the chosen channel."
 
 log "Done. The component editor loads the plugin from the local MinIO bucket."

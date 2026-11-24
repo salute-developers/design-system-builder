@@ -70,7 +70,14 @@ class PublishPluginBuildUseCase(
                 manifest.version
             },
         )
-        return if (command.dryRun) dryRun(target, command, newBuild) else publish(target, command, archive, newBuild)
+        val meta = command.meta.copy(existingReleaseOnly = !context.principal.globalAdmin)
+        val publication = PublishPluginBuild(command.archive, meta, command.dryRun)
+        if (command.dryRun) return dryRun(target, publication, newBuild)
+        if (meta.existingReleaseOnly) {
+            // Короткая транзакция завершается до S3. Повторная проверка остаётся при записи билда.
+            transactions.readOnly { apiMeta.import(meta).toDsResult() }.valueOr { return it }
+        }
+        return publish(target, publication, archive, newBuild)
     }
 
     private fun matchesCore(meta: ImportApiMeta, prepared: Prepared): Boolean {

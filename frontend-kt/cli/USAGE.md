@@ -535,6 +535,8 @@ Rejected: 0
 ```
 
 Импорт создаёт неизменяемый релиз Core с координатами `(libraryId, platform, version)`.
+При успешном `--apply` CLI выводит координаты, канал и `Core release ID` из ответа сервера.
+Dry run показывает координаты и канал без ID регистрации.
 CLI передаёт координаты отдельно, исходные байты меты и их SHA-256, а также нормализованный состав.
 Формат файла сохраняется: массив для Compose/React/SwiftUI, объект с `components` для Android View.
 Одна платформа в каталоге соответствует одной библиотеке; смена `libraryId` отклоняется.
@@ -653,10 +655,10 @@ Absent from meta (informational, nothing was removed): 2
 
 ```bash
 # Пробная отправка: бэкенд проверяет архив и мету и ничего не записывает.
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com
 
 # Запись билда.
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com --apply
 ```
 
 Manifest архива содержит `coreRelease: {libraryId, platform, version}`; `version` этих координат
@@ -665,7 +667,7 @@ Manifest архива содержит `coreRelease: {libraryId, platform, versi
 
 Перед отправкой CLI проверяет архив локально: в нём должны быть `preview-plugin.json` и `api-meta.json`, а sha256
 файла меты обязан совпасть с `apiMetaSha256` manifest. Мета нормализуется так же, как в `components import-api`.
-Поддержаны платформы `compose` и `react`, а `--api-url` обязателен, потому что команда пишет на бэкенд.
+Поддержаны платформы `compose` и `react`. Укажите `--api-url` и `--channel stable|dev`.
 
 Итог: `published` (новый билд записан и активен), `activated` (ранее опубликованный билд снова активен: так
 выполняется откат повторной публикацией старого билда) или `unchanged` (билд уже опубликован и активен). Если
@@ -674,12 +676,15 @@ Manifest архива содержит `coreRelease: {libraryId, platform, versi
 
 ### Авторизация
 
-В CI команда входит служебной учёткой Keycloak с ролью публикации (без прав системного администратора):
+В CI команда входит служебной учёткой Keycloak с ролью публикации. Системный администратор сначала
+регистрирует Core через `components import-api --apply` с исходной метой из ZIP, её координатами
+и тем же каналом. Служебная учётка публикует preview для этого релиза. Системный администратор
+также может зарегистрировать новый Core вместе с первым preview за один вызов `--apply`.
 
 ```bash
 export DSBUILDER_CLIENT_ID=dsbuilder-preview-publisher
 export DSBUILDER_CLIENT_SECRET=...   # секрет передаётся только через окружение
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com --apply
 ```
 
 CLI получает короткоживущий токен (`client_credentials`) через `/auth/token` и не сохраняет его на диск. Секрет

@@ -209,11 +209,15 @@ cd frontend-kt
 администратору (`dsbuilder auth login --username admin@example.com`).
 
 ```bash
-dsbuilder components import-api --from <файл меты> --platform swiftui          # dry run
-dsbuilder components import-api --from <файл меты> --platform swiftui --apply
-dsbuilder components import-api --from <файл меты> --platform swiftui --apply # повтор
+# Dry run.
+dsbuilder components import-api --from ./swiftui-api-meta.json --platform swiftui \
+  --library-id my-swiftui-library --core-version 1.0.0 --channel dev
+# Запись. Повтор той же команды возвращает тот же Core release ID.
+dsbuilder components import-api --from ./swiftui-api-meta.json --platform swiftui \
+  --library-id my-swiftui-library --core-version 1.0.0 --channel dev --apply
 ```
 
+В отчёте `--apply` сверьте координаты, канал и `Core release ID`.
 Ожидаемо: на чистой платформе все счётчики `Created` растут, на повторе нули, `Rejected: 0`, раздел
 `Absent from meta` пуст, `Property type mismatches` пуст (у каждой платформы свои компоненты, конфликтовать
 не с чем). Затем сверьте базу с метой своим скриптом: каждому `(компонент, id)` из меты соответствует

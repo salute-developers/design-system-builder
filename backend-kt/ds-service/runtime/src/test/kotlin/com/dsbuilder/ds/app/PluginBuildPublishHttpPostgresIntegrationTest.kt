@@ -56,7 +56,6 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `only the publisher role or a system administrator is admitted and the role is checked before the body`() =
         withService {
-            assertEquals(HttpStatusCode.OK, publish(archive(), Actor.PUBLISHER).status)
             assertEquals(HttpStatusCode.OK, publish(archive(), Actor.ADMIN).status)
             assertEquals(HttpStatusCode.Forbidden, publish(archive(), Actor.USER).status)
             // a refused caller never gets a 400 for a malformed body
@@ -72,8 +71,28 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         }
 
     @Test
+    fun `publisher can replace a preview for registered Core but cannot register a release`() = withService {
+        val original = archive(channel = "dev")
+        assertEquals(HttpStatusCode.Forbidden, publish(original, Actor.PUBLISHER).status)
+        assertEquals(HttpStatusCode.Forbidden, publish(original, Actor.PUBLISHER, dryRun = false).status)
+        assertEquals(0, count("core_releases WHERE provenance = 'imported'"))
+        assertEquals(0, count("compose_preview_plugin_builds"))
+        assertEquals(0, storage.puts)
+
+        service.builder.client.post("/api/admin/component-config/import-api-meta") {
+            actor(Actor.ADMIN)
+            contentType(ContentType.Application.Json)
+            setBody(releaseMetaBody(metaBody().replace("\"dryRun\":true", "\"dryRun\":false"), original))
+        }.ok()
+        assertEquals("published", publish(original, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        val changed = archive(channel = "dev", extra = mapOf("changed.txt" to "new preview"))
+        assertEquals("replaced", publish(changed, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals(1, count("core_releases WHERE provenance = 'imported'"))
+    }
+
+    @Test
     fun `an unconfigured storage answers 503 and writes nothing`() = withService(storage = null) {
-        assertEquals(HttpStatusCode.ServiceUnavailable, publish(archive(), Actor.PUBLISHER, dryRun = false).status)
+        assertEquals(HttpStatusCode.ServiceUnavailable, publish(archive(), Actor.ADMIN, dryRun = false).status)
         assertEquals(0, count("compose_preview_plugin_builds"))
         assertEquals(0, count("components"))
         // The state of an environment without the plugin storage: no address, so the client shows no Compose preview.
@@ -83,7 +102,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
 
     @Test
     fun `a dry run validates everything and writes nothing`() = withService {
-        val response = publish(archive(), Actor.PUBLISHER, dryRun = true)
+        val response = publish(archive(), Actor.ADMIN, dryRun = true)
         val body = response.ok()
         assertEquals("published", body.string("outcome"))
         assertEquals(true, body.getValue("dryRun").jsonPrimitive.content.toBoolean())
@@ -95,14 +114,14 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `a publication stores files with explicit headers imports the meta and activates the build`() = withService {
         val first = archive(commit = COMMIT_A, uikit = "0.55.0")
-        val body = publish(first, Actor.PUBLISHER, dryRun = false).ok()
+        val body = publish(first, Actor.ADMIN, dryRun = false).ok()
         assertEquals("published", body.string("outcome"))
         assertEquals(COMMIT_A.take(12), body.string("buildId"))
         assertEquals("0.55.0", body.string("uikitComposeVersion"))
         assertTrue(body.string("pluginUrl").endsWith("/builds/${COMMIT_A.take(12)}/"))
         assertEquals(1, count("compose_preview_plugin_builds WHERE active"))
         assertEquals(1, count("components WHERE name = 'Avatar' AND platform = 'compose'"))
-        assertEquals("compose-publisher", query("SELECT published_by FROM compose_preview_plugin_builds"))
+        assertEquals("integration-admin", query("SELECT published_by FROM compose_preview_plugin_builds"))
 
         val wasm = storage.files.getValue("${COMMIT_A.take(12)}/app.wasm")
         assertEquals("application/wasm", wasm.contentType)
@@ -119,24 +138,24 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     fun `a repeated archive is unchanged and the previous build can be activated again`() = withService {
         val a = archive(commit = COMMIT_A)
         val b = archive(commit = COMMIT_B)
-        publish(a, Actor.PUBLISHER, dryRun = false).ok()
+        publish(a, Actor.ADMIN, dryRun = false).ok()
         val putsAfterFirst = storage.puts
-        assertEquals("unchanged", publish(a, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals("unchanged", publish(a, Actor.ADMIN, dryRun = false).ok().string("outcome"))
         assertEquals(putsAfterFirst, storage.puts)
 
-        assertEquals("published", publish(b, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals("published", publish(b, Actor.ADMIN, dryRun = false).ok().string("outcome"))
         assertEquals(COMMIT_B.take(12), query("SELECT build_id FROM compose_preview_plugin_builds WHERE active"))
         assertEquals(1, count("compose_preview_plugin_builds WHERE active"))
 
-        assertEquals("activated", publish(a, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals("activated", publish(a, Actor.ADMIN, dryRun = false).ok().string("outcome"))
         assertEquals(COMMIT_A.take(12), query("SELECT build_id FROM compose_preview_plugin_builds WHERE active"))
     }
 
     @Test
     fun `the same build with another archive is rejected and nothing changes`() = withService {
-        publish(archive(commit = COMMIT_A), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(commit = COMMIT_A), Actor.ADMIN, dryRun = false).ok()
         val changed = archive(commit = COMMIT_A, extra = mapOf("extra.txt" to "x"))
-        val response = publish(changed, Actor.PUBLISHER, dryRun = false)
+        val response = publish(changed, Actor.ADMIN, dryRun = false)
         assertEquals(HttpStatusCode.Conflict, response.status, response.bodyAsText())
         assertEquals("BUILD_CONTENT_CHANGED", json.parseToJsonElement(response.bodyAsText()).jsonObject.string("code"))
         assertEquals(1, count("compose_preview_plugin_builds"))
@@ -149,7 +168,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         val big = withBlob(archive(commit = COMMIT_A), blob)
         assertTrue(big.size > 16 * 1024 * 1024, "the fixture must exceed the former 16 MiB parser limit")
 
-        assertEquals("published", publish(big, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        assertEquals("published", publish(big, Actor.ADMIN, dryRun = false).ok().string("outcome"))
         assertEquals(1, count("compose_preview_plugin_builds WHERE active"))
         assertTrue("${COMMIT_A.take(12)}/blob.bin" in storage.files)
     }
@@ -160,7 +179,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         val changed = archive(commit = COMMIT_A, extra = mapOf("extra.txt" to "x"))
 
         val responses = coroutineScope {
-            listOf(plain, changed).map { async { publish(it, Actor.PUBLISHER, dryRun = false) } }.awaitAll()
+            listOf(plain, changed).map { async { publish(it, Actor.ADMIN, dryRun = false) } }.awaitAll()
         }
         val statuses = responses.map { it.status }
         val details = responses.map { "${it.status}: ${it.bodyAsText()}" }.joinToString()
@@ -177,13 +196,13 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `the old builds cleanup keeps the build a concurrent rollback activates`() = withService(keepBuilds = 1) {
         val a = archive(commit = COMMIT_A)
-        publish(a, Actor.PUBLISHER, dryRun = false).ok()
-        publish(archive(commit = COMMIT_B), Actor.PUBLISHER, dryRun = false).ok()
-        publish(archive(commit = COMMIT_C), Actor.PUBLISHER, dryRun = false).ok()
+        publish(a, Actor.ADMIN, dryRun = false).ok()
+        publish(archive(commit = COMMIT_B), Actor.ADMIN, dryRun = false).ok()
+        publish(archive(commit = COMMIT_C), Actor.ADMIN, dryRun = false).ok()
 
         // A is the oldest and is already beyond keepBuilds; a rollback to it and a new publication race.
         val statuses = coroutineScope {
-            listOf(a, archive(commit = COMMIT_D)).map { async { publish(it, Actor.PUBLISHER, dryRun = false).status } }
+            listOf(a, archive(commit = COMMIT_D)).map { async { publish(it, Actor.ADMIN, dryRun = false).status } }
                 .awaitAll()
         }
 
@@ -205,7 +224,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             "PLUGIN_ARCHIVE_INVALID" to "not a zip".toByteArray(),
         )
         bad.forEach { (code, bytes) ->
-            val response = publish(bytes, Actor.PUBLISHER, dryRun = false)
+            val response = publish(bytes, Actor.ADMIN, dryRun = false)
             assertEquals(HttpStatusCode.BadRequest, response.status, "$code: ${response.bodyAsText()}")
             assertEquals(code, json.parseToJsonElement(response.bodyAsText()).jsonObject.string("code"))
         }
@@ -216,10 +235,10 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
 
     @Test
     fun `a storage failure leaves the active build and the meta untouched`() = withService {
-        publish(archive(commit = COMMIT_A), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(commit = COMMIT_A), Actor.ADMIN, dryRun = false).ok()
         storage.failOnPut = true
         val response =
-            publish(archive(commit = COMMIT_B, uikit = "0.56.0", avatar = "Badge"), Actor.PUBLISHER, dryRun = false)
+            publish(archive(commit = COMMIT_B, uikit = "0.56.0", avatar = "Badge"), Actor.ADMIN, dryRun = false)
         assertEquals(HttpStatusCode.ServiceUnavailable, response.status)
         assertEquals(COMMIT_A.take(12), query("SELECT build_id FROM compose_preview_plugin_builds WHERE active"))
         assertEquals(1, count("compose_preview_plugin_builds"))
@@ -231,7 +250,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         storage.preload("orphan0000001", Instant.now().minusSeconds(3 * 24 * 3600))
         storage.preload("fresh0000001", Instant.now())
         listOf(COMMIT_A, COMMIT_B, COMMIT_C).forEach {
-            publish(archive(commit = it), Actor.PUBLISHER, dryRun = false).ok()
+            publish(archive(commit = it), Actor.ADMIN, dryRun = false).ok()
         }
         // active (C) plus one most recent inactive build (B); A is removed
         assertEquals(setOf(COMMIT_B.take(12), COMMIT_C.take(12)), buildIds())
@@ -243,7 +262,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `the active build address is served to project members and ignores the design system version`() = withService {
         assertEquals(HttpStatusCode.NotFound, active(Actor.USER).status)
-        publish(archive(commit = COMMIT_A, uikit = "0.56.1"), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(commit = COMMIT_A, uikit = "0.56.1"), Actor.ADMIN, dryRun = false).ok()
         val body = active(Actor.USER).ok()
         assertEquals(COMMIT_A.take(12), body.string("buildId"))
         assertEquals("0.56.1", body.string("uikitComposeVersion"))
@@ -258,7 +277,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `a publication does not write design system journals or versions`() = withService {
         val before = count("design_system_versions")
-        publish(archive(), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(), Actor.ADMIN, dryRun = false).ok()
         assertEquals(before, count("design_system_versions"))
         assertEquals(0, count("information_schema.tables WHERE table_name = 'design_system_changes'"))
     }
@@ -266,7 +285,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     @Test
     fun `the publisher role opens nothing except the publication`() = withService {
         val import = service.builder.client.post("/api/admin/component-config/import-api-meta") {
-            actor(Actor.PUBLISHER)
+            actor(Actor.ADMIN)
             contentType(ContentType.Application.Json)
             setBody(metaBody())
         }
@@ -337,7 +356,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
             "/api/design-systems/$system/preview/compose" + (version?.let { "?versionId=$it" } ?: ""),
         ) { actor(Actor.ADMIN) }
 
-        publish(archive(), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(), Actor.ADMIN, dryRun = false).ok()
         val (systemA, versionA) = createPublished("preview-a", "0.55.0")
         assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
         val b = archive(COMMIT_B, uikit = "0.56.0")
@@ -351,9 +370,9 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.NotFound, selected(systemB, versionB).status)
         assertEquals(COMMIT_A.take(12), selected(systemA).ok().string("buildId"))
         assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))
-        publish(b, Actor.PUBLISHER, dryRun = false).ok()
+        publish(b, Actor.ADMIN, dryRun = false).ok()
         assertEquals(COMMIT_B.take(12), selected(systemB, versionB).ok().string("buildId"))
-        publish(archive(COMMIT_C, uikit = "0.56.0"), Actor.PUBLISHER, dryRun = false).ok()
+        publish(archive(COMMIT_C, uikit = "0.56.0"), Actor.ADMIN, dryRun = false).ok()
         assertEquals(COMMIT_B.take(12), selected(systemB, versionB).ok().string("buildId"))
         assertEquals(COMMIT_C.take(12), selected(systemB).ok().string("buildId"))
         assertEquals(COMMIT_A.take(12), selected(systemA, versionA).ok().string("buildId"))

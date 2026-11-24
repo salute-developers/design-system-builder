@@ -82,7 +82,7 @@ CLI SHALL регистрировать Core-релиз одним запросо
 - **THEN** CLI MUST напечатать счётчики созданных компонентов, свойств, состояний и платформенных имён и число неизменённых свойств
 - **THEN** CLI MUST напечатать счётчики `deprecatedMarked`, `deprecatedMessageChanged` и `deprecatedCleared`, если хотя бы один из них не равен нулю
 - **THEN** CLI MUST NOT печатать строку о привязках к дизайн-системе
-- **THEN** CLI MUST напечатать releaseId/CoreReleaseRef/channel и диагностику с причинами; успешная регистрация MUST NOT содержать частично отклонённый состав
+- **THEN** CLI MUST напечатать CoreReleaseRef/channel и диагностику с причинами, а при `--apply` — также releaseId из ответа сервера; успешная регистрация MUST NOT содержать частично отклонённый состав
 - **THEN** CLI MUST напечатать справочный раздел `Absent from meta` со списком `absent`, если он не пуст
 
 #### Scenario: Строгий режим

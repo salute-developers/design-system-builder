@@ -116,6 +116,9 @@ private fun ImportApiMetaTarget.render(): String = """
 """.trimIndent()
 
 private fun ImportApiMetaResult.Imported.render(): String = buildString {
+    appendLine("Core: ${coreRelease.libraryId}/${coreRelease.platform}/${coreRelease.version}")
+    appendLine("Channel: $channel")
+    if (!dryRun) report.releaseId?.let { appendLine("Core release ID: $it") }
     appendLine(report.render())
     appendSection("Conflicting duplicates in the API meta (the first kept)", conflicts)
     if (conflicts.isNotEmpty()) appendLine()

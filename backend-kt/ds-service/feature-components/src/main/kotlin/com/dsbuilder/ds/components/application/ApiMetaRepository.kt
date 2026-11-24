@@ -12,6 +12,9 @@ interface ApiMetaRepository {
         /** The manifest was written; [value] is the report. */
         data class Success(/** Report of the run. */ val value: ApiMetaImportReport) : ImportAttempt
 
+        /** Требуется регистрация релиза системным администратором. */
+        data object RegistrationForbidden : ImportAttempt
+
         /** Координаты уже заняты другим содержимым или библиотекой. */
         data class Conflict(
             /** Машиночитаемая причина проблемы. */

@@ -23,6 +23,8 @@ data class ImportApiMeta(
     val metaSha256: String? = null,
     /** Явный канал поставки; не выводится из версии библиотеки. */
     val channel: String? = null,
+    /** Издатель preview может использовать только уже зарегистрированный Core. */
+    val existingReleaseOnly: Boolean = false,
 ) {
     /** One component of the manifest. */
     data class Component(
