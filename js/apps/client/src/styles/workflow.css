@@ -288,6 +288,12 @@
     text-overflow: ellipsis;
     white-space: nowrap;
 }
+/* Пояснения в формах создания темы и настроек переносятся целиком: однострочная подпись — только у карточек. */
+.create-theme-panel .catalog-meta,
+.settings .catalog-meta {
+    overflow: visible;
+    white-space: normal;
+}
 .catalog-role {
     position: absolute;
     top: 12px;
