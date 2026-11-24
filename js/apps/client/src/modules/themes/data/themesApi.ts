@@ -3,6 +3,7 @@ import { invalidateQueryCache } from '../../../shared/data/useLoad';
 import { http } from '../../../api/http';
 import { apiRequest } from '../../../shared/data/apiRequest';
 import type { ThemeTenant } from '../domain/theme';
+import { byThemeName } from '../domain/themeProfiles';
 
 /** Значение темы в форме `values` создания темы и пакета `PUT tenants/{id}/token-values`. */
 export interface TenantTokenValueInput {
@@ -28,23 +29,27 @@ const changed = async (projectId: string, operation: () => Promise<{ data: Theme
 };
 
 export const themesApi = {
-    /** Темы активного черновика или, с [versionId], опубликованной версии. */
-    list: (projectId: string, designSystemId: string, signal?: AbortSignal, versionId?: string) =>
-        apiRequest<ThemeTenant[]>(() =>
-            readEditor<ThemeTenant[]>(
-                dsPath(projectId, designSystemId, "/tenants"),
-                versionId ? { signal, params: { versionId } } : { signal },
-                undefined,
-                30_000,
-            ),
-        ),
+    /** Темы активного черновика или, с [versionId], опубликованной версии, в натуральном порядке названий. */
+    list: async (projectId: string, designSystemId: string, signal?: AbortSignal, versionId?: string) =>
+        [
+            ...(await apiRequest<ThemeTenant[]>(() =>
+                readEditor<ThemeTenant[]>(
+                    dsPath(projectId, designSystemId, '/tenants'),
+                    versionId ? { signal, params: { versionId } } : { signal },
+                    undefined,
+                    30_000,
+                ),
+            )),
+        ].sort(byThemeName),
     create: (projectId: string, body: Record<string, unknown> & { designSystemId: string }) => {
         const { designSystemId, ...data } = body;
         return changed(projectId, () => http.post(dsPath(projectId, designSystemId, '/tenants'), data));
     },
     /** Копия темы `sourceId`: значения всех токенов, палитра и профиль; название нормализует сервер. */
     duplicate: (projectId: string, designSystemId: string, sourceId: string, name: string) =>
-        changed(projectId, () => http.post(dsPath(projectId, designSystemId, `/tenants/${sourceId}/duplicates`), { name })),
+        changed(projectId, () =>
+            http.post(dsPath(projectId, designSystemId, `/tenants/${sourceId}/duplicates`), { name }),
+        ),
     update: (projectId: string, id: string, body: { name: string }, designSystemId: string) =>
         changed(projectId, () => http.patch(dsPath(projectId, designSystemId, `/tenants/${id}`), body)),
     remove: async (projectId: string, id: string, designSystemId: string) => {

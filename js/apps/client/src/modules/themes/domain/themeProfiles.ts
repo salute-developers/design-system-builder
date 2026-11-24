@@ -36,6 +36,13 @@ export const themeProfilePreviews: Record<Exclude<ThemeProfile, 'custom'>, Recor
 
 export const normalizeThemeName = (name: string) => name.trim().replace(/\s+/g, ' ');
 
+// Латиница раньше кириллицы, как в прежнем порядке сервера; меняется только сравнение чисел.
+const themeNameCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
+
+/** Натуральный порядок тем по названию: числа сравниваются как числа (Theme2 раньше Theme10), регистр не важен. */
+export const byThemeName = (left: { name: string }, right: { name: string }) =>
+    themeNameCollator.compare(left.name, right.name);
+
 export const validateCustomThemePalette = (palette: PreviewPalette) =>
     palette.some((color) => !/^#[0-9A-Fa-f]{6}$/.test(color)) ? 'Введите цвета в формате #RRGGBB.' : '';
 
