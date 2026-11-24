@@ -43,6 +43,12 @@ private const val CLIENT_ID = "dsbuilder-studio-plugin"
  * и `feature-auth` поэтому конструируются здесь напрямую, а не через их Koin-модули.
  */
 public object PluginServices {
+    internal val componentCatalog by lazy {
+        com.dsbuilder.frontend.plugin.androidstudio.components.ComponentCatalog(authenticatedApiClient)
+    }
+    internal val componentStyleReferences by lazy {
+        com.dsbuilder.frontend.plugin.androidstudio.components.ComponentStyleReferences(authenticatedApiClient)
+    }
     private val environmentReader = EnvironmentReader { name -> System.getenv(name) }
     private val apiUrlResolver by lazy { ApiUrlResolver(environmentReader) }
     private val apiUrl by lazy { apiUrlResolver.resolve(override = null).value }

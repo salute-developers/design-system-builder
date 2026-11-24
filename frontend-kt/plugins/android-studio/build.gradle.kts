@@ -47,9 +47,18 @@ dependencies {
 intellijPlatform {
     pluginConfiguration {
         name = "DS Builder"
+        version = providers.gradleProperty("idePluginVersion").orElse("0.1.0-dev")
         ideaVersion {
             sinceBuild = "243"
             untilBuild = "243.*"
         }
     }
 }
+
+tasks.register<Exec>("releaseToolsTest") {
+    group = "verification"
+    description = "Проверяет упаковку и неизменяемость выпуска IDEA-плагина."
+    commandLine("python3", "-m", "unittest", "discover", "-s", "distribution/tests")
+}
+
+tasks.named("check") { dependsOn("releaseToolsTest") }
