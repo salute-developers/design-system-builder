@@ -168,9 +168,10 @@ export const collectStyleReferenceValues = (config: ComponentConfig, api: Compon
 
     return [
         ...new Set(
-            props.flatMap((prop) =>
-                ids.has(prop.id) && typeof prop.value === 'string' && prop.value !== '' ? [prop.value] : [],
-            ),
+            props
+                .filter((prop) => ids.has(prop.id))
+                .flatMap((prop) => [prop.value, ...(prop.states ?? []).map((state) => state.value)])
+                .filter((value): value is string => typeof value === 'string' && value !== ''),
         ),
     ];
 };

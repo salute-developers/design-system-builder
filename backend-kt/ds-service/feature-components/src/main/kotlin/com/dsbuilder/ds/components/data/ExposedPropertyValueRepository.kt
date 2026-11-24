@@ -165,6 +165,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
         val appearance = appearanceRow(command.appearanceId) ?: return null
         IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
+        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val id = StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
@@ -229,6 +230,10 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             current[VariationPropertyValuesTable.value],
             command.valuePresent,
         )
+        PropertyStateSetGuard.requireAllowedSet(
+            current[VariationPropertyValuesTable.propertyId],
+            command.stateSetId ?: current[VariationPropertyValuesTable.stateSetId],
+        )
         writeVariationRevision(current, command, deleted = false)
         return VariationPropertyValuesTable.selectAll().where { VariationPropertyValuesTable.id eq id }
             .singleOrNull()?.let(::variationPropertyValue)
@@ -285,6 +290,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
         IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
+        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
             it[designSystemId] = command.designSystemId
@@ -347,6 +353,10 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             command.value,
             current[InvariantPropertyValuesTable.value],
             command.valuePresent,
+        )
+        PropertyStateSetGuard.requireAllowedSet(
+            current[InvariantPropertyValuesTable.propertyId],
+            command.stateSetId ?: current[InvariantPropertyValuesTable.stateSetId],
         )
         writeInvariantRevision(current, command, deleted = false)
         return InvariantPropertyValuesTable.selectAll().where { InvariantPropertyValuesTable.id eq id }

@@ -26,10 +26,11 @@ import type {
 } from './editorContracts';
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
-import { AutosaveRejection, isUnknownIconError } from './autosaveHttp';
+import { AutosaveRejection, isStateRejection, isUnknownIconError, stateRejection } from './autosaveHttp';
 import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
 import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
 import { camelToKebab } from '../utils/text';
+import { resolveStateId, stateSupportOf } from './componentStates';
 import {
     collectDependencies,
     enrichApi,
@@ -68,9 +69,11 @@ const toLegacyComponentConfig = (
         id: value.id ?? propertyByName.get(name)?.id ?? name,
         value: legacyScalar(value.default ?? value.value),
         adjustment: legacyScalar(value.adjustment),
+        alpha: value.alpha == null ? undefined : Number(unwrapValue(value.alpha)),
         states: value.states?.map((state) => ({
             state: state.state as never,
             value: legacyScalar(state.value)?.toString(),
+            alpha: state.alpha == null ? undefined : Number(unwrapValue(state.alpha)),
         })),
     });
     const variations = config.variations.map((axis) => {
@@ -162,6 +165,8 @@ interface ComponentSources {
     params: PropertyPlatformParamDto[];
     propertyVariations: PropertyVariationDto[];
     dependencies: ComponentDependencyDto[];
+    /** Состояния, которые видит компонент; есть только у editor-bundle. */
+    states?: ComponentStateDto[];
     details: (component: ComponentDto) => Promise<{
         properties: ComponentPropertyDto[];
         variations: ComponentVariationDto[];
@@ -291,6 +296,7 @@ const readEditorBundle = async (
         params: data.platformParams,
         propertyVariations: data.propertyVariations,
         dependencies: data.dependencies,
+        states: data.states,
         details: async () => ({
             properties: data.properties,
             variations: data.variations,
@@ -540,6 +546,7 @@ export const componentRepository = {
                                     ios: null,
                                     web: null,
                                 },
+                                stateSupport: stateSupportOf(property, sources.states),
                             })),
                             webParams,
                             variationNamesByProperty(
@@ -634,7 +641,6 @@ export const componentRepository = {
         );
         const axisValueByStyle = new Map(axisValues.data.map((value) => [value.styleId, value]));
         const stateNameById = new Map(states.data.map((state) => [state.id, state.name]));
-        const stateIdByName = new Map(states.data.map((state) => [state.name, state.id]));
         const stateNamesBySet = new Map(
             stateSets.data.map((set) => [
                 set.id,
@@ -783,12 +789,15 @@ export const componentRepository = {
             },
         );
 
+        // Набор ищется по идентификаторам, а имена разрешаются в пределах компонента (сначала общее состояние, затем
+        // собственное), как у ds-service: одноимённое состояние другого компонента в набор не попадает.
+        const setIdByStates = new Map(stateSets.data.map((set) => [[...set.stateIds].sort().join(','), set.id]));
         const resolveStateSet = async (stateNames: string[]) => {
-            const key = [...stateNames].sort().join('+');
-            const existing = [...stateNamesBySet.entries()].find(([, names]) => names === key)?.[0];
-            if (existing) return existing;
-            const stateIds = stateNames.map((name) => stateIdByName.get(name));
+            const stateIds = stateNames.map((name) => resolveStateId(name, stableBinding.componentId, states.data));
             if (stateIds.some((id) => !id)) throw new Error('COMPONENT_STATE_NOT_FOUND');
+            const key = [...new Set(stateIds as string[])].sort().join(',');
+            const existing = setIdByStates.get(key);
+            if (existing) return existing;
             return (
                 await http.post<{ id: string }>(
                     `${apiRoot(context.projectId)}/state-sets/resolve`,
@@ -797,7 +806,7 @@ export const componentRepository = {
                 )
             ).data.id;
         };
-        let rejectedIcon: unknown;
+        let deferredRejection: unknown;
         await applySequentially(
             changes.filter(
                 (item): item is Extract<ComponentChange, { kind: 'property' }> & { action: 'upsert' } =>
@@ -887,10 +896,11 @@ export const componentRepository = {
                     );
                     acceptMetadata(response.headers);
                 } catch (error) {
-                    // Иконки нет в каталоге: остальные правки того же окна автосохранения всё равно записываются, а
-                    // отказ поднимается после них, чтобы редактор вернул прежнее значение иконки.
-                    if (!isUnknownIconError(error)) throw error;
-                    rejectedIcon ??= error;
+                    // Иконки нет в каталоге или признак свойства не допускает набор состояний: остальные правки окна
+                    // всё равно записываются, а отказ поднимается после них, чтобы редактор вернул прежнее значение.
+                    const rejection = stateRejection(error);
+                    if (!isUnknownIconError(error) && !isStateRejection(rejection)) throw error;
+                    deferredRejection ??= rejection;
                 }
             },
         );
@@ -915,7 +925,7 @@ export const componentRepository = {
                 acceptMetadata(deleted.headers);
             },
         );
-        if (rejectedIcon) throw rejectedIcon;
+        if (deferredRejection) throw deferredRejection;
         return revisions;
     },
 };

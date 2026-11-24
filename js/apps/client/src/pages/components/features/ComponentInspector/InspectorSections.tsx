@@ -26,7 +26,7 @@ interface InspectorSectionsProps {
     /** Привязка свойства к вариации стиля перед первым значением. */
     onLinkProperty?: (propertyId: string, variationId: string) => Promise<void>;
     /** Запись значения пересечения: источник правки — пересечение, когда в «Variants» выбрано два стиля и больше. */
-    onCombinationChange?: (propertyId: string, value: string | null) => void;
+    onCombinationChange?: (propertyId: string, value: string | null, states?: string[], alpha?: number) => void;
     /** Только просмотр: поля значений неактивны, заголовки, фильтр и сворачивание секций работают. */
     readOnly?: boolean;
 }
@@ -64,7 +64,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         [config, api, selection, updated],
     );
 
-    const row = ({ prop, source, isSet, linked, inheritedFrom }: InspectorProperty) => (
+    const row = ({ prop, source, isSet, linked, inheritedFrom, inheritedStateSources }: InspectorProperty) => (
         <InspectorPropertyRow
             key={`${sourceKey(source)}:${prop.getID()}`}
             config={config}
@@ -74,6 +74,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             isSet={isSet}
             linked={linked}
             inheritedFrom={inheritedFrom}
+            inheritedStateSources={inheritedStateSources}
             onLinkProperty={onLinkProperty}
             tokens={tokens}
             onConfigUpdate={onConfigUpdate}

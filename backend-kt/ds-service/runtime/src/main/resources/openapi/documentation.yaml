@@ -7145,7 +7145,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: Rule violation, the operation is rejected with a stable code
+          description: Rule violation, the operation is rejected with a stable code (including `states_not_supported` and `state_not_in_component`)
           content:
             application/json:
               schema:
@@ -8169,6 +8169,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >-
+            Набор состояний значения недопустим для свойства: `states_not_supported` — признак поддержки состояний
+            свойства не допускает набор, `state_not_in_component` — в наборе состояние другого компонента
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -8260,7 +8268,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
+          description: >-
+            После изменения у значения не осталось ни токена, ни значения (`property_value_empty`), либо набор
+            состояний строки недопустим для свойства (`states_not_supported`, `state_not_in_component`)
           content:
             application/json:
               schema:
@@ -8460,6 +8470,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: >-
+            Набор состояний значения недопустим для свойства: `states_not_supported` — признак поддержки состояний
+            свойства не допускает набор, `state_not_in_component` — в наборе состояние другого компонента
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '500':
           description: Server error
           content:
@@ -8551,7 +8569,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
         '422':
-          description: После изменения у значения не осталось ни токена, ни значения (property_value_empty)
+          description: >-
+            После изменения у значения не осталось ни токена, ни значения (`property_value_empty`), либо набор
+            состояний строки недопустим для свойства (`states_not_supported`, `state_not_in_component`)
           content:
             application/json:
               schema:
@@ -10667,6 +10687,11 @@ components:
           type: string
           format: date-time
           example: 2024-01-01T00:00:00.000Z
+        stateSupport:
+          allOf:
+            - $ref: '#/components/schemas/PropertyStateSupport'
+          nullable: true
+          description: Признак поддержки состояний из меты платформы; `null` — признак ещё не задан
       required:
         - id
         - componentId
@@ -10676,6 +10701,23 @@ components:
         - description
         - createdAt
         - updatedAt
+        - stateSupport
+    PropertyStateSupport:
+      type: object
+      description: >-
+        Состояния, в которых генератор платформы выражает значение свойства, и допустимость их сочетаний. Пустой
+        список — свойство значения по состояниям не принимает
+      properties:
+        stateIds:
+          type: array
+          items:
+            type: string
+            format: uuid
+        combinations:
+          type: boolean
+      required:
+        - stateIds
+        - combinations
     PropertyPlatformParam:
       type: object
       properties:
@@ -11168,6 +11210,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Component'
+        states:
+          type: array
+          description: Общие состояния и собственные состояния компонента без «теней» общих, в порядке создания
+          items:
+            $ref: '#/components/schemas/State'
       required:
         - component
         - appearances
@@ -11180,6 +11227,7 @@ components:
         - webAdapter
         - dependencies
         - dependencyComponents
+        - states
     AppearanceEditorModel:
       type: object
       properties:

@@ -20,13 +20,13 @@ export class TokenValuesApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, systemId: string, session: Session) {
-        this.root = new URL(`api/projects/${encodeURIComponent(projectId)}/ds/`, gatewayBaseURL);
+        this.root = new URL(`api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(systemId)}/`, gatewayBaseURL);
         this.systemId = systemId;
         this.session = session;
     }
 
     async definitions(): Promise<TokenDefinition[]> {
-        const url = new URL(`design-systems/${encodeURIComponent(this.systemId)}/tokens`, this.root).href;
+        const url = new URL('tokens', this.root).href;
         const raw: unknown = await (await authenticatedRequest(this.session, url, 'GET', [200])).json();
         expect(Array.isArray(raw), 'Определения собственной ДС').toBe(true);
         for (const item of raw as unknown[]) {

@@ -21,4 +21,6 @@ data class ComponentPropertySummary(
     val createdAt: Instant,
     /** Updated at carried by this contract. */
     val updatedAt: Instant,
+    /** Признак поддержки состояний; `null` — мета его ещё не сообщила. */
+    val stateSupport: PropertyStateSupport? = null,
 )

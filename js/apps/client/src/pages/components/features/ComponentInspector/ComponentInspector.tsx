@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { Config, DesignSystem, Theme } from '../../../../controllers';
+import {
+    resolveStyleReference,
+    toStyleReferenceInput,
+    type Config,
+    type DesignSystem,
+    type Theme,
+} from '../../../../controllers';
 import { usePanelWidth } from '../../../../hooks';
 import { INSPECTOR_PANEL } from '../../panelWidths';
 
@@ -20,6 +26,7 @@ import { InspectorConfiguration } from './InspectorConfiguration';
 import { InspectorVariants } from './InspectorVariants';
 import { StyleReferenceContext } from './StyleReferenceContext';
 import { ComponentStructurePanel, type StructureAccess } from '../ComponentStructure';
+import { structureErrorText } from '../ComponentStructure/structureErrorText';
 import { componentStructureRepository } from '../../../../api/componentStructureRepository';
 import { editSource, type Selection } from './inspectorModel';
 import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
@@ -100,10 +107,25 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     const source = editSource(config, selection);
     const combination = source.kind === 'combination' ? source.styleIDs : undefined;
     const [combinationError, setCombinationError] = useState<string>();
+    const [combinationReset, setCombinationReset] = useState(0);
+    const scope = `${configurationId}:${combination?.join('+')}`;
+    const currentScope = useRef(scope);
+    currentScope.current = scope;
     useEffect(() => setCombinationError(undefined), [configurationId, combination?.join('+')]);
-    const changeCombination = (propertyId: string, value: string | null) => {
+    const changeCombination = (propertyId: string, value: string | null, states?: string[], alpha?: number) => {
         if (!structure || !combination || !configurationId) return;
         setCombinationError(undefined);
+        const property = designSystem.getComponentData(config)?.sources.api.find((item) => item.id === propertyId);
+        const isReference =
+            value !== null && config.getPlatform() === 'compose' && property?.type === 'component_style';
+        const resolved = isReference
+            ? resolveStyleReference(designSystem.getComposeComponentsData(), value)
+            : undefined;
+        const reference = resolved ? toStyleReferenceInput(resolved) : undefined;
+        if (isReference && !reference) {
+            setCombinationError('Не удалось найти выбранный вложенный стиль');
+            return;
+        }
         structure
             .run((context) =>
                 value === null
@@ -112,6 +134,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                           configurationId,
                           combination,
                           propertyId,
+                          states,
                       )
                     : componentStructureRepository.setCombinationValue(
                           context,
@@ -119,9 +142,22 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                           combination,
                           propertyId,
                           value,
+                          undefined,
+                          states,
+                          alpha,
+                          reference,
                       ),
             )
-            .catch(() => setCombinationError('Не удалось сохранить значение пересечения'));
+            .catch((error: unknown) => {
+                if (currentScope.current !== scope) return;
+                setCombinationError(
+                    structureErrorText(error, {
+                        states_not_supported: 'Это состояние больше не поддерживается свойством',
+                        state_not_in_component: 'Состояние не принадлежит этому компоненту',
+                    }),
+                );
+                setCombinationReset((value) => value + 1);
+            });
     };
     const panel = usePanelWidth(INSPECTOR_PANEL);
     const api = useMemo(() => designSystem.getComponentData(config)?.sources.api ?? [], [config, designSystem]);
@@ -223,6 +259,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                         <div className="component-inspector-sections">
                             <StyleReferenceContext.Provider value={styleReferenceAccess}>
                                 <InspectorSections
+                                    key={combinationReset}
                                     config={config}
                                     api={api}
                                     selection={selection}

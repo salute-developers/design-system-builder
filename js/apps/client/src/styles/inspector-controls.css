@@ -431,6 +431,9 @@
         sans-serif;
     text-transform: capitalize;
 }
+.component-variation-state-row.is-inherited > .sdds-style-role-label {
+    color: #7f8a98;
+}
 .component-variation-state-row > .component-color-control {
     width: 0;
     flex: 1 1 0;

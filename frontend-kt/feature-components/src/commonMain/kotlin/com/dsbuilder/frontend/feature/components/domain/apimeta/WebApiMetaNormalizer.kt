@@ -27,7 +27,10 @@ import kotlinx.serialization.json.Json
  *   `deprecated`; генератор пишет `{}` без сообщения, если в `@deprecated` нет `{@link}`;
  * - компонент без токенов (файл без словаря: `AvatarGroup`, `Image`) попадает в манифест без свойств: в пакете
  *   он есть, и в базе он нужен как компонент, к которому привязывается оформление. Мета пуста (`Empty`),
- *   только если в ней нет ни одного компонента.
+ *   только если в ней нет ни одного компонента;
+ * - признак поддержки состояний задаётся всегда и выводится из формата меты: список — состояния токенов свойства
+ *   (`state` в kebab-case), сочетания запрещены, потому что у токена одно поле `state` и значение для сочетания в
+ *   web-мете описать нельзя. Поля `stateSupport` у web-меты нет, и `interactionStates` в манифест не идут.
  *
  * Мета Compose тоже список `{componentName, params}`, поэтому `paramName` обязателен: без него файл
  * Compose, переданный с `--platform react`, разобрался бы в манифест из чужих имён.
@@ -98,8 +101,10 @@ internal class WebApiMetaNormalizer : ApiMetaNormalizer {
     private class MutableProperty(val type: String) {
         private val tokens = LinkedHashSet<String>()
         private val deprecations = LinkedHashMap<String, ApiMetaDeprecation>()
+        private val states = LinkedHashSet<String>()
 
         fun addToken(param: WebMetaParam) {
+            param.state?.toKebabCase()?.takeIf(String::isNotBlank)?.let(states::add)
             if (param.state != null || param.paramName.isBlank()) return
             tokens += param.paramName
             if (param.deprecated != null && param.paramName !in deprecations) {
@@ -115,6 +120,7 @@ internal class WebApiMetaNormalizer : ApiMetaNormalizer {
                 platformNames = it.toList(),
                 description = it.joinToString("/", prefix = "token: "),
                 deprecations = deprecations.toMap(),
+                stateSupport = ApiMetaStateSupport.of(states, combinations = false),
             )
         }
     }

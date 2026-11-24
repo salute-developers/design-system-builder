@@ -12,10 +12,10 @@ export class ThemesApi {
     private readonly session: Session;
 
     constructor(gatewayBaseURL: string, projectId: string, designSystemId: string, session: Session) {
-        const root = `api/projects/${encodeURIComponent(projectId)}/ds/`;
+        const root = `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}/`;
         this.createURL = new URL(root + 'tenants', gatewayBaseURL).href;
         this.listURL = new URL(
-            root + `design-systems/${encodeURIComponent(designSystemId)}/tenants`,
+            root + 'tenants',
             gatewayBaseURL,
         ).href;
         this.designSystemId = designSystemId;
@@ -38,7 +38,6 @@ export class ThemesApi {
 
     async create(name: string): Promise<ThemeIdentity> {
         const response = await authenticatedRequest(this.session, this.createURL, 'POST', [201], {
-            designSystemId: this.designSystemId,
             name,
             profile: 'malachite',
         });

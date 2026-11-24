@@ -376,6 +376,23 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
+    fun printsStateSupportChangesAndUnresolvedStatesWithoutFailingStrict() = runTest {
+        val quiet = run(base())
+        val busy = run(
+            base() + "--strict",
+            report = """{"createdComponents":0,"createdProperties":0,"createdStates":0,"createdAliases":0,
+                "unchangedProperties":3,"rejected":[],"typeMismatches":[],"stateSupportChanged":7,
+                "unresolvedStates":["Box.fill: text-inlined"]}""",
+        )
+
+        assertTrue(!quiet.output.contains("State support") && !quiet.output.contains("Unresolved"), quiet.output)
+        assertEquals(0, busy.exitCode, busy.output)
+        assertTrue(busy.output.contains("State support changed: 7"), busy.output)
+        assertTrue(busy.output.contains("Unresolved states of state support (informational): 1"), busy.output)
+        assertTrue(busy.output.contains("  Box.fill: text-inlined"), busy.output)
+    }
+
+    @Test
     fun noAbsentSectionWhenNothingIsAbsent() = runTest {
         assertTrue(!run(base()).output.contains("Absent from meta"))
     }

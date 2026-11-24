@@ -2,14 +2,13 @@ package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.application.StateRepository
+import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
-import org.jetbrains.exposed.v1.core.isNull
-import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import java.util.UUID
 
@@ -62,7 +61,7 @@ internal object EditorSupport {
     }
 
     /** Имя без регистра и разделителей: так состояния сопоставляются в конфигурациях. */
-    fun canonical(name: String): String = name.lowercase().filter(Char::isLetterOrDigit)
+    fun canonical(name: String): String = StateNames.canonical(name)
 
     /** Имена состояний наборов, упорядоченные по имени. */
     fun stateNames(setIds: Collection<UUID>): Map<UUID, List<String>> {
@@ -75,6 +74,13 @@ internal object EditorSupport {
         return sets.mapValues { (_, ids) -> ids.mapNotNull(names::get).sorted() }
     }
 
+    /**
+     * Ключ набора по каноническим именам состояний. Наборы с одинаковым ключом в пределах компонента — одно и то же
+     * состояние значения: так значение, записанное в «тень» общего состояния, находится по общему.
+     */
+    fun stateKeys(setIds: Collection<UUID>): Map<UUID, String> =
+        stateNames(setIds).mapValues { (_, names) -> names.map(::canonical).distinct().sorted().joinToString("+") }
+
     /** Идентификатор набора без состояний; создаёт набор при отсутствии. */
     suspend fun emptyStateSet(states: StateRepository): UUID = resolveStateSet(states, emptyList())
 
@@ -86,15 +92,15 @@ internal object EditorSupport {
                 throw EditorRuleViolationException("unknown_state", resolution.reason)
         }
 
-    /** Идентификаторы состояний по именам; неизвестное имя отклоняется кодом `unknown_state`. */
+    /**
+     * Идентификаторы состояний по именам по общему правилу [StateNames.resolve]: сначала общее состояние, затем
+     * собственное состояние компонента. Неизвестное имя отклоняется кодом `unknown_state`.
+     */
     fun stateIds(componentId: UUID, names: List<String>): List<UUID> {
         if (names.isEmpty()) return emptyList()
-        val available = ComponentStatesTable.selectAll().where {
-            ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId eq componentId)
-        }.toList()
+        val available = PropertyStateSupportStore.scopedStates(componentId)
         return names.map { name ->
-            available.firstOrNull { canonical(it[ComponentStatesTable.name]) == canonical(name) }
-                ?.get(ComponentStatesTable.id)
+            StateNames.resolve(name, componentId, available, PropertyStateSupportStore.ScopedState::scope)?.id
                 ?: throw EditorRuleViolationException("unknown_state", "State '$name' is not declared")
         }.distinct().sorted()
     }

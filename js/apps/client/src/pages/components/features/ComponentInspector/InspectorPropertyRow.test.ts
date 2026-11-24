@@ -7,11 +7,11 @@ describe('compareStates', () => {
         const added = [['focused'], ['pressed', 'hovered'], ['pressed'], ['hovered'], ['focused', 'hovered']];
 
         expect([...added].sort(compareStates).map((state) => state.join('+'))).toEqual([
-            'hovered',
-            'pressed',
             'focused',
-            'pressed+hovered',
+            'pressed',
+            'hovered',
             'focused+hovered',
+            'pressed+hovered',
         ]);
         expect([...added].reverse().sort(compareStates)).toEqual([...added].sort(compareStates));
     });

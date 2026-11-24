@@ -143,12 +143,14 @@ class ExposedStateRepository : StateRepository {
         }
     }
 
+    // Новое или переименованное состояние может сделать «тенью» одноимённое собственное состояние: списки признака
+    // переходят на общее, как при импорте меты.
     override suspend fun create(command: StateRepository.Create): ComponentState =
         ComponentStatesTable.insertReturning {
             it[componentId] = command.componentId
             it[name] = command.name
             it[description] = command.description
-        }.single().let(::componentState)
+        }.single().let(::componentState).also { PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
 
     override suspend fun update(id: UUID, command: StateRepository.Update): ComponentState? =
         ComponentStatesTable.updateReturning(where = { ComponentStatesTable.id eq id }) {
@@ -156,6 +158,7 @@ class ExposedStateRepository : StateRepository {
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
         }.singleOrNull()?.let(::componentState)
+            ?.also { if (command.name != null) PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
 
     override suspend fun delete(id: UUID): Boolean =
         ComponentStatesTable.deleteWhere { ComponentStatesTable.id eq id } > 0

@@ -21,9 +21,11 @@ import io.ktor.http.isSuccess
 import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import kotlinx.serialization.json.put
 import org.koin.core.Koin
 import org.koin.ktor.ext.getKoin
 import org.testcontainers.containers.PostgreSQLContainer
@@ -98,13 +100,17 @@ class InProcessChatToolsIntegrationTest {
 
                 // Запись значения размера: повтор по ключу, другой ключ, другая команда, отказ use case.
                 val radius = sizeToken(client, system, tenant)
-                val sizeArgs = """{"tenantId":"$tenant","tokenId":"$radius","valuePx":21}"""
-                val first = run.ok("size_token_value_update", sizeArgs, key = "size-key")
-                val replay = run.ok("size_token_value_update", sizeArgs, key = "size-key")
+                fun sizeArgs(valuePx: Int) = buildJsonObject {
+                    put("tenantId", tenant)
+                    put("tokenId", radius)
+                    put("valuePx", valuePx)
+                }.toString()
+                val first = run.ok("size_token_value_update", sizeArgs(21), key = "size-key")
+                val replay = run.ok("size_token_value_update", sizeArgs(21), key = "size-key")
                 assertEquals(first.content, replay.content, "Replay returns the stored result")
-                val reused = run.call("size_token_value_update", sizeArgs.replace("21", "22"), key = "size-key")
+                val reused = run.call("size_token_value_update", sizeArgs(22), key = "size-key")
                 assertEquals("CONFLICT" to "IDEMPOTENCY_KEY_REUSED", reused.code to reused.backendCode)
-                val denied = run.call("size_token_value_update", sizeArgs.replace("21", "23"), principal = VIEWER)
+                val denied = run.call("size_token_value_update", sizeArgs(23), principal = VIEWER)
                 assertEquals("FORBIDDEN", denied.code)
                 assertEquals(21, sizeValue(client, system, tenant, radius))
 
@@ -159,7 +165,7 @@ class InProcessChatToolsIntegrationTest {
                 publish(client, system)
                 val next = tools.activeDraftId(OWNER, system)
                 assertNotEquals(draft, next)
-                val stale = run.call("size_token_value_update", sizeArgs.replace("21", "30"), expectedDraft = draft)
+                val stale = run.call("size_token_value_update", sizeArgs(30), expectedDraft = draft)
                 assertEquals("CONFLICT" to "draft_changed", stale.code to stale.backendCode)
                 assertNotEquals(30, sizeValue(client, system, tenant, radius))
             }

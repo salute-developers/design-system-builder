@@ -167,7 +167,8 @@ const projectWithReferences = (
 
     if (!addReferencedStyle(reference, context, trail)) return;
 
-    return { ...projected, value: undefined, styleRef: reference };
+    const states = projected.states.filter(({ value }) => addReferencedStyle(String(value ?? ''), context, trail));
+    return { ...projected, value: undefined, styleRef: reference, states };
 };
 
 /**

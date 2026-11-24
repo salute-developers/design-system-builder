@@ -6,6 +6,7 @@ import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.ConfigurationName
 import com.dsbuilder.ds.components.domain.EditorAxisValue
 import com.dsbuilder.ds.components.domain.RootCandidate
+import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.components.domain.fallbackRoot
 import kotlinx.serialization.json.JsonPrimitive
 import org.jetbrains.exposed.v1.core.JoinType
@@ -613,7 +614,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     ) {
         val colorScheme = config.colorSchemeVariationId?.let(axes::get)
         val root = config.rootVariationId?.let(axes::get) ?: fallbackRoot(
-            axes(config, trailingAxisId).mapIndexed { position, (key, name) -> RootCandidate(axes.getValue(key), name, position) },
+            axes(config, trailingAxisId).mapIndexed { position, (key, name) ->
+                RootCandidate(axes.getValue(key), name, position)
+            },
             colorScheme,
         )
         val current = AppearanceAxisRoleStore.load(listOf(id)).getValue(id)
@@ -732,7 +735,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 value.properties.forEach { (name, property) ->
                     val propertyId = properties[name] ?: return@forEach
                     linkProperty(propertyId, axes.getValue(axis.id), context)
-                    expand(property).forEach { expanded ->
+                    expand(property, allowStateOnly = targets.isNotEmpty()).forEach { expanded ->
                         val states = stateSet(expanded.states, context) ?: return@forEach
                         if (targets.isEmpty()) {
                             direct(appearance, propertyId, own, property, expanded, states, context)
@@ -1167,6 +1170,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     private fun invalidType(entry: ImportComponentConfig.Entry) = allProperties(entry.config)
         .flatMap { listOf(it.type) + it.states.mapNotNull(ComponentConfig.State::type) }
         .firstOrNull { it !in valueTypes }
+
     /**
      * Оси конфигурации по порядку: объявленные вариации, затем оси, заданные только в `targets`. Ось `trailingAxisId`
      * (`view`, добавленная импортом) ставится последней.
@@ -1228,35 +1232,40 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     /** One row per state set: a repeated state set in the config is collapsed, the last one wins. */
-    private fun expand(p: ComponentConfig.Property): List<Expanded> =
-        expandAll(p).associateBy { it.states }.values.toList()
+    private fun expand(p: ComponentConfig.Property, allowStateOnly: Boolean = false): List<Expanded> =
+        expandAll(p, allowStateOnly).associateBy { it.states }.values.toList()
 
     private fun expandAll(
         p: ComponentConfig.Property,
-    ) = listOf(
-        Expanded(
-            p.value.raw(),
-            tokenName(p.type, p.value),
-            p.type,
-            p.alpha?.raw(),
-            p.adjustment?.raw(),
-            emptyList(),
-            0,
-        ),
-    ) +
-        p.states.mapIndexedNotNull { index, state ->
-            state.state.sorted().takeIf { it.isNotEmpty() }?.let {
-                Expanded(
-                    state.value.raw(),
-                    tokenName(state.type ?: p.type, state.value),
-                    state.type ?: p.type,
-                    state.alpha?.raw(),
-                    null,
-                    it,
-                    index + 1,
-                )
+        allowStateOnly: Boolean,
+    ): List<Expanded> {
+        val stateOnly = allowStateOnly && p.value == ComponentConfig.Scalar.Null &&
+            p.alpha?.raw() == null && p.adjustment?.raw() == null && p.states.any { it.state.isNotEmpty() }
+        return listOfNotNull(
+            Expanded(
+                p.value.raw(),
+                tokenName(p.type, p.value),
+                p.type,
+                p.alpha?.raw(),
+                p.adjustment?.raw(),
+                emptyList(),
+                0,
+            ).takeUnless { stateOnly },
+        ) +
+            p.states.mapIndexedNotNull { index, state ->
+                state.state.sorted().takeIf { it.isNotEmpty() }?.let {
+                    Expanded(
+                        state.value.raw(),
+                        tokenName(state.type ?: p.type, state.value),
+                        state.type ?: p.type,
+                        state.alpha?.raw(),
+                        null,
+                        it,
+                        index + if (stateOnly) 0 else 1,
+                    )
+                }
             }
-        }
+    }
     private fun tokenName(
         type: String,
         value: ComponentConfig.Scalar,
@@ -1289,7 +1298,9 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
 }
 
 private fun styleKey(axis: String, value: String) = "$axis\u0000$value"
-private fun String.canonical() = lowercase().filter(Char::isLetterOrDigit)
+
+/** Каноническое имя состояния; общие состояния разрешаются раньше собственных (см. [StateNames.resolve]). */
+private fun String.canonical() = StateNames.canonical(this)
 private fun ComponentConfig.Scalar.text() = when (this) {
     is ComponentConfig.Scalar.Text -> value
     is ComponentConfig.Scalar.Number -> value

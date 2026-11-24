@@ -66,6 +66,33 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `the bundle lists the states the component sees and the state support of its properties`() = withService {
+        val fixture = fixture()
+        val button = fixture.composeButton
+        val badge = fixture.composeBadge
+        query("INSERT INTO states (component_id, name) VALUES ('$button', 'dragging-over') RETURNING id")
+        query("INSERT INTO states (component_id, name) VALUES ('$button', 'disabled') RETURNING id")
+        query("INSERT INTO states (component_id, name) VALUES ('$badge', 'collapsed') RETURNING id")
+        val padding = query("SELECT id FROM properties WHERE component_id = '$button' AND name = 'padding'")
+        val hovered = query("SELECT id FROM states WHERE component_id IS NULL AND name = 'hovered'")
+        query("UPDATE properties SET state_combinations = false WHERE id = '$padding' RETURNING id")
+        query("INSERT INTO property_supported_states VALUES ('$padding', '$hovered') RETURNING state_id")
+
+        val bundle = bundle(fixture.alpha, button, "compose")
+        val states = bundle.list("states")
+        val own = states.filter { it.string("componentId").isNotEmpty() }.map { it.string("name") }
+        assertEquals(listOf("dragging-over"), own)
+        assertEquals(1, states.count { it.string("name") == "disabled" })
+        assertTrue(states.none { it.string("name") == "collapsed" })
+
+        val support = bundle.list("properties").single { it.string("id") == padding }
+            .getValue("stateSupport").jsonObject
+        assertEquals(listOf(hovered), support.getValue("stateIds").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("false", support.getValue("combinations").jsonPrimitive.content)
+        assertTrue(states.any { it.string("id") == hovered })
+    }
+
+    @Test
     fun `unlinked components foreign platforms invalid platforms and missing scopes are rejected`() = withService {
         val fixture = fixture()
         val path = "/api/design-systems/${fixture.alpha}/components"
@@ -491,6 +518,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             "webAdapter",
             "dependencies",
             "dependencyComponents",
+            "states",
         )
     }
 }
