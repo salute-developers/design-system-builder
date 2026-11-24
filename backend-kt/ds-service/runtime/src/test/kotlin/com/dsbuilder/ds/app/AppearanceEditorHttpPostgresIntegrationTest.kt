@@ -1031,7 +1031,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `export keeps combination states without a base value`() = withService {
+    fun `export and reimport preserve combination states without a base value`() = withService {
         val fixture = fixture()
         val padding = property("padding", "dimension")
         val model = model(fixture.appearance)
@@ -1053,6 +1053,62 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val state = value.getValue("states").jsonArray.single().jsonObject
         assertEquals("55", state.getValue("value").jsonPrimitive.content)
         assertEquals(listOf("pressed"), state.getValue("state").jsonArray.map { it.jsonPrimitive.content })
+        val before = propertyValues(fixture.appearance)
+        repeat(2) {
+            val imported = importConfig(fixture.ds, "default", config.toString())
+            assertEquals(HttpStatusCode.OK, imported.status, imported.bodyAsText())
+            val report = json.parseToJsonElement(imported.bodyAsText()).jsonObject
+            assertEquals("0", report.string("updated"), imported.bodyAsText())
+            assertEquals("1", report.string("unchanged"), imported.bodyAsText())
+            assertEquals(before, propertyValues(fixture.appearance))
+            val exportedAgain =
+                post("/api/design-systems/${fixture.ds}/component-config/export", """{"platform":"compose"}""")
+            assertEquals(HttpStatusCode.OK, exportedAgain.status, exportedAgain.bodyAsText())
+            assertEquals(
+                json.parseToJsonElement(response.bodyAsText()),
+                json.parseToJsonElement(exportedAgain.bodyAsText()),
+            )
+        }
+    }
+
+    @Test
+    fun `a nested style state of a combination is updated and removed independently`() = withService {
+        val fixture = fixture()
+        val child = importChild(fixture.ds)
+        val nested = property("buttonStyle", "component_style")
+        val editor = model(fixture.appearance)
+        val styles = listOf(styleOf(editor, "size", "a"), styleOf(editor, "view", "default"))
+        val childModel = model(child)
+        val childX = styleOf(childModel, "size", "x")
+        val childY = styleOf(childModel, "size", "y")
+        assertEquals(
+            HttpStatusCode.OK,
+            setValue(fixture.appearance, nested, styles, reference = reference(child, childX)).status,
+        )
+        for (target in listOf(childX, childY)) {
+            val response =
+                setValue(
+                    fixture.appearance,
+                    nested,
+                    styles,
+                    states = listOf("pressed"),
+                    reference = reference(child, target),
+                )
+            assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+        }
+        val stored = propertyValues(fixture.appearance).filter { it.string("propertyId") == nested }
+        assertEquals(2, stored.size)
+        assertEquals(setOf("child.x", "child.y"), stored.map { it.string("value") }.toSet())
+        assertTrue(stored.all { it["reference"] is JsonObject })
+        val scope = "propertyId=$nested&styleIds=${styles.joinToString(",")}&states=pressed"
+        assertEquals(
+            HttpStatusCode.OK,
+            delete("/api/design-systems/${fixture.ds}/appearances/${fixture.appearance}/property-values?$scope").status,
+        )
+        assertEquals(
+            "child.x",
+            propertyValues(fixture.appearance).single { it.string("propertyId") == nested }.string("value"),
+        )
     }
 
     @Test

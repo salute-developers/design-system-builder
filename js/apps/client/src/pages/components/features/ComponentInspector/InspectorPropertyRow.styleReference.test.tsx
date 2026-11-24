@@ -26,6 +26,7 @@ const renderRow = (
     platform: 'compose' | 'web',
     rowSource: Parameters<typeof InspectorPropertyRow>[0]['source'] = source,
     support?: StateSupport,
+    ownState = false,
 ) => {
     const group: Meta = { ...groupMeta(), platform };
     const button: Meta = { ...buttonMeta(), platform: 'compose' };
@@ -36,13 +37,29 @@ const renderRow = (
         intersections: null,
         props: [],
     });
+    if (ownState && rowSource.kind === 'combination') {
+        group.sources.configs[0].config.combinations = [
+            {
+                styleIDs: rowSource.styleIDs,
+                props: [
+                    {
+                        id: 'buttonStyle',
+                        states: [{ state: ['pressed'], value: 'basic-button.xxs.default' }],
+                    },
+                ],
+            },
+        ];
+    }
     const config = new Config(group);
-    const prop = config.getStyleByVariation('size', 'group-xxs')!.getProps().getProp('buttonStyle')!;
+    const prop = ownState
+        ? config.getCombinations()[0].props.getProp('buttonStyle')!
+        : config.getStyleByVariation('size', 'group-xxs')!.getProps().getProp('buttonStyle')!;
     const designSystem = DesignSystem.fromSnapshot({
         name: 'ds',
         componentsData: platform === 'web' ? [group] : [],
         composeComponentsData: platform === 'compose' ? [group, button] : [button],
     });
+    const onCombinationChange = vi.fn();
     const ui = () => (
         <StyleReferenceContext.Provider value={{ designSystem }}>
             <InspectorPropertyRow
@@ -53,11 +70,12 @@ const renderRow = (
                 isSet
                 tokens={tokens}
                 onConfigUpdate={vi.fn()}
+                onCombinationChange={onCombinationChange}
             />
         </StyleReferenceContext.Provider>
     );
     const view = render(ui());
-    return { ...view, refresh: () => view.rerender(ui()), prop };
+    return { ...view, refresh: () => view.rerender(ui()), prop, onCombinationChange };
 };
 
 describe('InspectorPropertyRow: ссылка на стиль', () => {
@@ -123,5 +141,55 @@ describe('InspectorPropertyRow: ссылка на стиль', () => {
         expect(input.value).toBe('basic-button.xxs.default');
         expect(screen.queryByTestId('style-reference')).toBeNull();
         expect(screen.queryByRole('button', { name: /Очистить значение/ })).toBeNull();
+    });
+    it('переопределяет вложенный стиль в унаследованном состоянии пересечения', () => {
+        const { prop, refresh, onCombinationChange } = renderRow(
+            'compose',
+            {
+                kind: 'combination',
+                styleIDs: ['group-xxs', 'unused-view'],
+                label: 'size: xxs · view: default',
+            },
+            { states: ['pressed'], combinations: true },
+        );
+        prop.addState({ state: ['pressed'], value: 'basic-button.xxs.default' });
+        refresh();
+        fireEvent.click(screen.getByRole('button', { name: 'Button style pressed: size' }));
+        fireEvent.click(screen.getByRole('option', { name: 'xs' }));
+        expect(onCombinationChange).toHaveBeenCalledWith(
+            'buttonStyle',
+            'basic-button.xs.default',
+            ['pressed'],
+            undefined,
+        );
+        expect(prop.getValue()).toBe('basic-button.xxs.default');
+        expect(prop.getStates()?.[0].value).toBe('basic-button.xxs.default');
+        expect(screen.queryByRole('button', { name: 'Удалить состояние: Button style pressed' })).toBeNull();
+    });
+    it('правит и удаляет собственную ссылку состояния пересечения, прежнюю недопустимую показывает отключённой', () => {
+        const support = { states: ['pressed'], combinations: true };
+        const { refresh, onCombinationChange } = renderRow(
+            'compose',
+            {
+                kind: 'combination',
+                styleIDs: ['group-xxs', 'view-default'],
+                label: 'size: xxs · view: default',
+            },
+            support,
+            true,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'Button style pressed: size' }));
+        fireEvent.click(screen.getByRole('option', { name: 'xs' }));
+        expect(onCombinationChange).toHaveBeenCalledWith(
+            'buttonStyle',
+            'basic-button.xs.default',
+            ['pressed'],
+            undefined,
+        );
+        support.states = [];
+        refresh();
+        expect(screen.getByRole('button', { name: 'Button style pressed: size' })).toBeDisabled();
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить состояние: Button style pressed' }));
+        expect(onCombinationChange).toHaveBeenCalledWith('buttonStyle', null, ['pressed']);
     });
 });

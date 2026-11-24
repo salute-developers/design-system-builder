@@ -1,6 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { Config, DesignSystem, Theme } from '../../../../controllers';
+import {
+    resolveStyleReference,
+    toStyleReferenceInput,
+    type Config,
+    type DesignSystem,
+    type Theme,
+} from '../../../../controllers';
 import { usePanelWidth } from '../../../../hooks';
 import { INSPECTOR_PANEL } from '../../panelWidths';
 
@@ -109,6 +115,17 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     const changeCombination = (propertyId: string, value: string | null, states?: string[], alpha?: number) => {
         if (!structure || !combination || !configurationId) return;
         setCombinationError(undefined);
+        const property = designSystem.getComponentData(config)?.sources.api.find((item) => item.id === propertyId);
+        const isReference =
+            value !== null && config.getPlatform() === 'compose' && property?.type === 'component_style';
+        const resolved = isReference
+            ? resolveStyleReference(designSystem.getComposeComponentsData(), value)
+            : undefined;
+        const reference = resolved ? toStyleReferenceInput(resolved) : undefined;
+        if (isReference && !reference) {
+            setCombinationError('Не удалось найти выбранный вложенный стиль');
+            return;
+        }
         structure
             .run((context) =>
                 value === null
@@ -128,6 +145,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                           undefined,
                           states,
                           alpha,
+                          reference,
                       ),
             )
             .catch((error: unknown) => {

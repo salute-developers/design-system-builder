@@ -82,6 +82,33 @@ describe('componentStructureRepository: пересечения', () => {
         );
     });
 
+    it('пишет вложенный стиль ссылкой с состояниями вместо литерала', async () => {
+        const reference = { targetAppearanceId: 'child', styleIds: ['child-xs', 'child-default'] };
+        await repository.setCombinationValue(
+            context,
+            'a',
+            ['s1', 's2'],
+            'buttonStyle',
+            'basic-button.xs.default',
+            undefined,
+            ['pressed'],
+            undefined,
+            reference,
+        );
+        expect(http.put).toHaveBeenCalledWith(
+            url,
+            expect.objectContaining({
+                propertyId: 'buttonStyle',
+                states: ['pressed'],
+                reference,
+                value: null,
+                tokenId: null,
+            }),
+            expect.anything(),
+        );
+        expect(readEditor).not.toHaveBeenCalled();
+    });
+
     it('удаляет пересечение по одному запросу на каждое его значение', async () => {
         http.get.mockResolvedValue({
             data: {

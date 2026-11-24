@@ -64,7 +64,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
         [config, api, selection, updated],
     );
 
-    const row = ({ prop, source, isSet, linked, inheritedFrom }: InspectorProperty) => (
+    const row = ({ prop, source, isSet, linked, inheritedFrom, inheritedStateSources }: InspectorProperty) => (
         <InspectorPropertyRow
             key={`${sourceKey(source)}:${prop.getID()}`}
             config={config}
@@ -74,6 +74,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             isSet={isSet}
             linked={linked}
             inheritedFrom={inheritedFrom}
+            inheritedStateSources={inheritedStateSources}
             onLinkProperty={onLinkProperty}
             tokens={tokens}
             onConfigUpdate={onConfigUpdate}

@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Config, resolveSelectedProps, type Meta } from '../../../../controllers';
 import { chipMeta } from '../__fixtures__/chipMeta';
 import { InspectorPropertyRow } from './InspectorPropertyRow';
+import { InspectorSections } from './InspectorSections';
 
 const setup = (own: boolean, alpha?: number) => {
     const meta = structuredClone(chipMeta) as Meta;
@@ -67,5 +68,54 @@ describe('состояния размера пересечения', () => {
         const change = setup(true);
         fireEvent.click(screen.getByRole('button', { name: /Удалить состояние/ }));
         expect(change).toHaveBeenCalledWith('height', null, ['pressed']);
+    });
+    it('показывает источник каждого состояния при собственной базе другого источника', () => {
+        const meta = structuredClone(chipMeta) as Meta;
+        meta.sources.api.find((x) => x.id === 'height')!.stateSupport = {
+            states: ['pressed', 'hovered', 'focused'],
+            combinations: true,
+        };
+        const source = meta.sources.configs[0].config;
+        source.invariantProps!.push({ id: 'height', value: '20', states: [{ state: ['focused'], value: '21' }] });
+        source.variations
+            .find((x) => x.id === 'v-size')!
+            .styles!.find((x) => x.id === 's-m')!
+            .props!.find((x) => x.id === 'height')!.states = [{ state: ['hovered'], value: '41' }];
+        source.combinations = [
+            {
+                styleIDs: ['s-m', 'v-default'],
+                props: [{ id: 'height', states: [{ state: ['pressed'], value: '55' }] }],
+            },
+            {
+                styleIDs: ['s-m', 'v-default', 'p-true'],
+                props: [{ id: 'height', value: '60', states: [{ state: ['hovered'], value: '61' }] }],
+            },
+        ];
+        const config = new Config(meta);
+        const change = vi.fn();
+        const { container } = render(
+            <InspectorSections
+                config={config}
+                api={meta.sources.api}
+                selection={{ size: 's-m', view: 'v-default', pilled: 'p-true' }}
+                tokens={{ colors: [], shapes: [], shadows: [], typography: [], resolveColor: () => undefined }}
+                updated={{}}
+                onConfigUpdate={vi.fn()}
+                onCombinationChange={change}
+            />,
+        );
+        const pressed = container.querySelector('[data-property="height"] [data-state-name="pressed"]')!;
+        expect(pressed.getAttribute('data-state-source')).toBe('size: m · view: default');
+        expect(pressed.querySelector('span')?.getAttribute('data-tooltip')).toBe('pressed · size: m · view: default');
+        expect(pressed.querySelector('button')).toBeNull();
+        const focused = container.querySelector('[data-property="height"] [data-state-name="focused"]')!;
+        expect(focused.getAttribute('data-state-source')).toBe('Инвариант');
+        const hovered = container.querySelector('[data-property="height"] [data-state-name="hovered"]')!;
+        expect(hovered.hasAttribute('data-state-source')).toBe(false);
+        expect(screen.getByRole('button', { name: 'Удалить состояние: Height hovered' })).toBeTruthy();
+        const input = screen.getByLabelText('Height pressed');
+        fireEvent.change(input, { target: { value: '77' } });
+        fireEvent.blur(input);
+        expect(change).toHaveBeenCalledWith('height', '77', ['pressed'], undefined);
     });
 });

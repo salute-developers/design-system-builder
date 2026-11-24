@@ -2,6 +2,7 @@ import type { Combination, Config } from './config';
 import type { PropUnion } from './type';
 import type { Style } from './style';
 import type { Variation } from './variation';
+import { stateKey } from './props/prop';
 
 const COLOR_SCHEME = 'view';
 
@@ -21,14 +22,16 @@ export const variationOrder = (config: Config): Variation[] => {
     ];
 };
 
-/** Откуда пришло действующее значение: стиль вариации или пересечение стилей. */
+/** Источник базового значения или отдельного набора состояний. */
 export type SelectedPropOrigin =
+    | { kind: 'invariant' }
     | { kind: 'style'; variation: Variation; style: Style }
     | { kind: 'combination'; combination: Combination };
 
 export interface SelectedProp {
     prop: PropUnion;
     from: SelectedPropOrigin;
+    stateSources: Map<string, SelectedPropOrigin>;
 }
 
 /**
@@ -39,14 +42,29 @@ export const resolveSelectedProps = (config: Config, styleIDs: Iterable<string>)
     const selected = new Set(styleIDs);
     const byID = new Map<string, SelectedProp>();
     const apply = (prop: PropUnion, from: SelectedPropOrigin) => {
-        const previous = byID.get(prop.getID());
+        const invariant = config.getInvariants().getProp(prop.getID());
+        const previous =
+            byID.get(prop.getID()) ??
+            (invariant
+                ? {
+                      prop: invariant,
+                      from: { kind: 'invariant' } as SelectedPropOrigin,
+                      stateSources: new Map(
+                          (invariant.getStates() ?? []).map((item) => [
+                              stateKey(item.state),
+                              { kind: 'invariant' } as SelectedPropOrigin,
+                          ]),
+                      ),
+                  }
+                : undefined);
+        const hasBase = prop.getValue() !== undefined && prop.getValue() !== null;
+        const fullOverride = hasBase && !prop.getStates()?.length;
+        const stateSources = new Map(fullOverride ? [] : previous?.stateSources);
+        for (const item of prop.getStates() ?? []) stateSources.set(stateKey(item.state), from);
         byID.set(prop.getID(), {
-            prop: previous
-                ? previous.prop.overlay(prop)
-                : from.kind === 'combination' && prop.getValue() === undefined
-                  ? (config.getInvariants().getProp(prop.getID())?.overlay(prop) ?? prop)
-                  : prop,
-            from: prop.getValue() === undefined && previous ? previous.from : from,
+            prop: previous ? previous.prop.overlay(prop) : prop,
+            from: !hasBase && previous ? previous.from : from,
+            stateSources,
         });
     };
     for (const variation of variationOrder(config)) {

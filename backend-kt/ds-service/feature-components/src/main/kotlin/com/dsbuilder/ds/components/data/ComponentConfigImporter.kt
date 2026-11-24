@@ -735,7 +735,7 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
                 value.properties.forEach { (name, property) ->
                     val propertyId = properties[name] ?: return@forEach
                     linkProperty(propertyId, axes.getValue(axis.id), context)
-                    expand(property).forEach { expanded ->
+                    expand(property, allowStateOnly = targets.isNotEmpty()).forEach { expanded ->
                         val states = stateSet(expanded.states, context) ?: return@forEach
                         if (targets.isEmpty()) {
                             direct(appearance, propertyId, own, property, expanded, states, context)
@@ -1232,35 +1232,40 @@ internal class ComponentConfigImporter(private val builder: ComponentConfigBuild
     }
 
     /** One row per state set: a repeated state set in the config is collapsed, the last one wins. */
-    private fun expand(p: ComponentConfig.Property): List<Expanded> =
-        expandAll(p).associateBy { it.states }.values.toList()
+    private fun expand(p: ComponentConfig.Property, allowStateOnly: Boolean = false): List<Expanded> =
+        expandAll(p, allowStateOnly).associateBy { it.states }.values.toList()
 
     private fun expandAll(
         p: ComponentConfig.Property,
-    ) = listOf(
-        Expanded(
-            p.value.raw(),
-            tokenName(p.type, p.value),
-            p.type,
-            p.alpha?.raw(),
-            p.adjustment?.raw(),
-            emptyList(),
-            0,
-        ),
-    ) +
-        p.states.mapIndexedNotNull { index, state ->
-            state.state.sorted().takeIf { it.isNotEmpty() }?.let {
-                Expanded(
-                    state.value.raw(),
-                    tokenName(state.type ?: p.type, state.value),
-                    state.type ?: p.type,
-                    state.alpha?.raw(),
-                    null,
-                    it,
-                    index + 1,
-                )
+        allowStateOnly: Boolean,
+    ): List<Expanded> {
+        val stateOnly = allowStateOnly && p.value == ComponentConfig.Scalar.Null &&
+            p.states.any { it.state.isNotEmpty() }
+        return listOfNotNull(
+            Expanded(
+                p.value.raw(),
+                tokenName(p.type, p.value),
+                p.type,
+                p.alpha?.raw(),
+                p.adjustment?.raw(),
+                emptyList(),
+                0,
+            ).takeUnless { stateOnly },
+        ) +
+            p.states.mapIndexedNotNull { index, state ->
+                state.state.sorted().takeIf { it.isNotEmpty() }?.let {
+                    Expanded(
+                        state.value.raw(),
+                        tokenName(state.type ?: p.type, state.value),
+                        state.type ?: p.type,
+                        state.alpha?.raw(),
+                        null,
+                        it,
+                        index + if (stateOnly) 0 else 1,
+                    )
+                }
             }
-        }
+    }
     private fun tokenName(
         type: String,
         value: ComponentConfig.Scalar,

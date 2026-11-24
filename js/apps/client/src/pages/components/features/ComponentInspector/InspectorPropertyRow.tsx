@@ -52,8 +52,9 @@ interface InspectorPropertyRowProps {
     onConfigUpdate: () => void;
     /** Запись значения пересечения (`null` — сброс); есть только у строк источника `combination`. */
     onCombinationChange?: (propertyId: string, value: string | null, states?: string[], alpha?: number) => void;
-    /** Значение унаследовано пересечением от этого источника (`size: m`): без сброса, состояния — только чтение. */
+    /** Значение унаследовано пересечением от этого источника (`size: m`): без сброса собственной базы. */
     inheritedFrom?: string;
+    inheritedStateSources?: Record<string, string>;
 }
 
 /** Подпись набора состояний в порядке пунктов меню: `pressed + hovered`. */
@@ -89,13 +90,6 @@ export const compareStates = (a: readonly string[], b: readonly string[]) => {
 const rawValue = (raw: string) => (raw.trim() ? raw.trim() : null);
 
 const isOpacity = (prop: PropUnion) => /(opacity|alpha)/i.test(prop.getName());
-
-/**
- * Ссылку на стиль редактирует выбор, но только у Compose и только у стилей вариаций и инвариантов. У других платформ и
- * у сочетаний она только читается, без очистки: сочетание пишет значение строкой, а ссылке нужна запись с `reference`.
- */
-const isReadOnlyType = (type: string | undefined, platform: string | undefined, isCombination: boolean) =>
-    type === 'component_style' && (platform !== 'compose' || isCombination);
 
 /** Иконка: выбор из каталога билдера; значение сохраняется строкой старого формата (`disclosure.down.fill.16`). */
 const IconControl = ({
@@ -144,6 +138,9 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const states = [...(prop.getStates() ?? [])].sort((a, b) => compareStates(a.state, b.state));
 
     const isCombination = source.kind === 'combination';
+    const composeStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
+    const isStyleReference = composeStyleReference && !isCombination;
+    const readOnlyStyleReference = type === 'component_style' && !isStyleReference;
     const ownCombinationProp =
         source.kind === 'combination'
             ? config
@@ -182,7 +179,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
 
     // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !isReadOnlyType(type, config.getPlatform(), isCombination) && type !== 'icon' ? (
+        isSet && !readOnlyStyleReference && type !== 'icon' ? (
             <ClearButton label={label} onClear={removeValue} />
         ) : null;
 
@@ -209,9 +206,6 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             />
         );
     };
-
-    // Стиль вложенного компонента выбирается только у Compose и не у сочетаний; иначе ссылка только читается.
-    const isStyleReference = type === 'component_style' && config.getPlatform() === 'compose' && !isCombination;
 
     const propertyApi = api.find((item) => item.id === id);
     // Состояния предлагаются по признаку свойства из меты; без признака — прежнее правило (цвет без `focus`).
@@ -243,10 +237,11 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         name: string,
         onClear?: ReactNode,
         clearIcon?: () => void,
+        styleReference = isStyleReference,
     ): ReactNode => {
         if (type === 'color') return colorControl(current, onChange, actions, name, onClear);
         const node = (() => {
-            if (isStyleReference) {
+            if (styleReference) {
                 return (
                     <div className="component-style-reference">
                         <InspectorStyleReference config={config} label={name} value={current} onChange={onChange} />
@@ -317,6 +312,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         states.map((state) => {
             const key = stateKey(state.state);
             const name = stateLabel(state.state);
+            const inheritedFrom = props.inheritedStateSources?.[key];
             const remove = ownsState(key) ? (
                 <StateRemoveButton
                     label={`${label} ${name}`}
@@ -335,20 +331,36 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             // Набор, который признак свойства не допускает, сервер не даст править (`states_not_supported`):
             // строка видна только для чтения и удаляется.
             const allowed = isStateSetAllowed(propertyApi, state.state);
+            const stateControl = (actions: ReactNode) =>
+                controlFor(
+                    String(state.value ?? ''),
+                    onChange,
+                    actions,
+                    `${label} ${name}`,
+                    undefined,
+                    undefined,
+                    composeStyleReference,
+                );
             return (
                 <div
                     key={key}
-                    className="component-variation-state-row"
+                    className={`component-variation-state-row${inheritedFrom ? ' is-inherited' : ''}`}
+                    data-state-source={inheritedFrom}
                     data-state-name={key}
                     data-state-readonly={allowed ? undefined : 'true'}
                 >
-                    <span>{name}</span>
+                    <span
+                        className="sdds-style-role-label"
+                        data-tooltip={inheritedFrom ? `${name} · ${inheritedFrom}` : undefined}
+                    >
+                        {name}
+                    </span>
                     {allowed ? (
-                        controlFor(String(state.value ?? ''), onChange, remove, `${label} ${name}`)
+                        stateControl(remove)
                     ) : (
                         <>
                             <fieldset className="component-inspector-readonly-rows" disabled>
-                                {controlFor(String(state.value ?? ''), onChange, null, `${label} ${name}`)}
+                                {stateControl(null)}
                             </fieldset>
                             {remove}
                         </>

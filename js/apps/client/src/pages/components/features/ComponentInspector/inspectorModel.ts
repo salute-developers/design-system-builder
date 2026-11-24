@@ -67,6 +67,8 @@ export interface InspectorProperty {
      * подпись этого источника (`size: m`). Такое значение видно, но не сбрасывается: его можно только перекрыть.
      */
     inheritedFrom?: string;
+    /** Источники унаследованных состояний по каноническому имени набора. */
+    inheritedStateSources?: Record<string, string>;
 }
 
 export { humanizeName };
@@ -214,6 +216,7 @@ export const collectProperties = (
 
 /** Подпись источника унаследованного значения: стиль `size: m` или стили пересечения в порядке дерева. */
 const originLabel = (config: Config, origin: SelectedPropOrigin) => {
+    if (origin.kind === 'invariant') return 'Инвариант';
     if (origin.kind === 'style') return `${origin.variation.getName()}: ${origin.style.getName()}`;
     const ids = new Set(origin.combination.styleIDs);
     return orderedVariations(config)
@@ -238,7 +241,7 @@ const collectCombinationProperties = (
     api: ComponentAPI[],
 ): InspectorProperty[] => {
     const resolved = resolveSelectedProps(config, source.styleIDs);
-    const rows = [...resolved.values()].flatMap(({ prop, from }): InspectorProperty[] => {
+    const rows = [...resolved.values()].flatMap(({ prop, from, stateSources }): InspectorProperty[] => {
         const section = propertySection(prop);
         if (!section) return [];
         const own =
@@ -253,6 +256,15 @@ const collectCombinationProperties = (
                 isSet: own,
                 linked: true,
                 ...(own ? {} : { inheritedFrom: originLabel(config, from) }),
+                inheritedStateSources: Object.fromEntries(
+                    [...stateSources]
+                        .filter(
+                            ([, origin]) =>
+                                origin.kind !== 'combination' ||
+                                !sameStyles(origin.combination.styleIDs, source.styleIDs),
+                        )
+                        .map(([key, origin]) => [key, originLabel(config, origin)]),
+                ),
             },
         ];
     });

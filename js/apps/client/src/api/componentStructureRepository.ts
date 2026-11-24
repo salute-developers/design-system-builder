@@ -1,3 +1,4 @@
+import type { StyleReferenceInput } from '../controllers/componentBuilder/styleReference';
 import { http } from './http';
 import { invalidateEditorReads, invalidateEditorResources, readEditor } from './editorReads';
 import { apiRoot, tokenDefinitionsUrl } from './editorHttp';
@@ -154,19 +155,24 @@ export const componentStructureRepository = {
         adjustment?: string,
         states?: string[],
         alpha?: number,
+        reference?: StyleReferenceInput,
     ) {
         const raw = value.replace(/^\[|\]$/g, '');
-        const tokenId = TOKEN_REFERENCE.test(raw) ? await tokenIdOf(context, raw.replace(/^(light|dark)\./, '')) : null;
+        const tokenId =
+            !reference && TOKEN_REFERENCE.test(raw)
+                ? await tokenIdOf(context, raw.replace(/^(light|dark)\./, ''))
+                : null;
         await http.put(
             `${root(context)}/appearances/${appearanceId}/property-values`,
             {
                 propertyId,
                 styleIds,
                 tokenId,
-                value: tokenId ? null : raw,
+                value: tokenId || reference ? null : raw,
                 adjustment: adjustment ?? null,
                 ...(states ? { states } : {}),
                 ...(alpha !== undefined ? { alpha: String(alpha) } : {}),
+                ...(reference ? { reference } : {}),
             },
             { headers: create.headers() },
         );
