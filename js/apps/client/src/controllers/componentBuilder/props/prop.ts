@@ -45,11 +45,11 @@ export abstract class Prop {
             copy.value = next.value;
             copy.adjustment = next.adjustment;
             copy.alpha = next.alpha;
-        }
-        // Прежняя запись только с базой полностью переопределяет свойство.
-        if (next.value !== undefined && next.value !== null && !next.states?.length) {
-            copy.states = next.states;
-            return copy;
+            // Прежняя запись только с базой полностью переопределяет свойство.
+            if (!next.states?.length) {
+                copy.states = next.states;
+                return copy;
+            }
         }
         const states = new Map((this.states ?? []).map((item) => [stateKey(item.state), item]));
         for (const item of next.states ?? []) states.set(stateKey(item.state), item);
@@ -121,7 +121,7 @@ export abstract class Prop {
     public addState(value: State) {
         this.states ??= [];
 
-        this.states?.push(value);
+        this.states.push(value);
     }
 
     public getAdjustment() {

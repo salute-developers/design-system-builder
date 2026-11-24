@@ -35,7 +35,7 @@ export const allowsCombinations = (api: StateApi) => api?.stateSupport?.combinat
  */
 export const isStateSetAllowed = (api: StateApi, state: readonly PropState[]) => {
     const support = api?.stateSupport;
-    if (!support || state.length === 0) return true;
+    if (!support) return true;
     if (state.length > 1 && !support.combinations) return false;
     const allowed = new Set(support.states.map(canonicalStateName));
     return state.every((item) => allowed.has(canonicalStateName(item)));

@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom';
 
 import {
     PRIMARY_STATES,
+    orderStates,
     allowsCombinations,
     bindableStates,
     isStateSetAllowed,
@@ -58,11 +59,7 @@ interface InspectorPropertyRowProps {
 }
 
 /** Подпись набора состояний в порядке пунктов меню: `pressed + hovered`. */
-const stateLabel = (state: readonly string[]) =>
-    [
-        ...PRIMARY_STATES.filter((item) => state.includes(item)),
-        ...state.filter((item) => !PRIMARY_STATES.includes(item)),
-    ].join(' + ');
+const stateLabel = (state: readonly string[]) => orderStates(state).join(' + ');
 
 /**
  * Порядок строк состояний: одиночные раньше сочетаний, внутри — по пунктам меню (`focused`, `pressed`, `hovered`).
