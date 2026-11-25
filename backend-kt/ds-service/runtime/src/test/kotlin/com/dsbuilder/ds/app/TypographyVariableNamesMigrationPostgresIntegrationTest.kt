@@ -9,9 +9,9 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 
 /**
- * V23: в значениях свойств всех редакций `--plasma-typo-header-hN-*` → `--plasma-typo-hN-*` и
- * `--plasma-typo-display-<размер>-*` → `--plasma-typo-dspl-<размер>-*`; переменные семейства группы и прочие значения
- * не меняются, прежние значения сохраняются в `v25_typography_backup`, триггеры `*_touch_draft` снова включены.
+ * V25: в значениях свойств всех редакций `--plasma-typo-header-hN-*` → `--plasma-typo-hN-*` и
+ * `--plasma-typo-display-<размер>-*` → `--plasma-typo-dspl-<размер>-*` только в форме импортёра; переменные
+ * семейства группы, пользовательских стилей группы `header` (`display-promo`) и прочие значения не меняются, прежние значения сохраняются в `v25_typography_backup`, триггеры `*_touch_draft` снова включены.
  */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class TypographyVariableNamesMigrationPostgresIntegrationTest {
@@ -42,7 +42,7 @@ class TypographyVariableNamesMigrationPostgresIntegrationTest {
                 )
                 assertEquals(
                     0,
-                    count(connection, "SELECT count(*) FROM pg_proc WHERE proname = 'v23_fix_typography_variables'"),
+                    count(connection, "SELECT count(*) FROM pg_proc WHERE proname = 'v25_fix_typography_variables'"),
                 )
             }
         }
@@ -129,6 +129,10 @@ class TypographyVariableNamesMigrationPostgresIntegrationTest {
             "var(--plasma-typo-display-font-family)",
             "var(--plasma-typo-h3-bold-font-weight)",
             "var(--plasma-typo-body-m-font-size)",
+            "var(--plasma-typo-display-promo-font-size)",
+            "var(--plasma-typo-display-xl-bold-font-size)",
+            "var(--plasma-typo-display-l-font-size-custom)",
+            "var(--plasma-typo-header-h3-semibold-font-weight)",
             "0 0.5rem",
         )
     }
