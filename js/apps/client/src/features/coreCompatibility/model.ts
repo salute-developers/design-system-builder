@@ -7,6 +7,7 @@ export const coreIssueMessages: Record<string, string> = {
     CORE_SELECTION_REQUIRED: 'Для платформы не выбрана версия библиотеки',
     CORE_PROPERTY_REMOVED: 'Свойство отсутствует в выбранной версии библиотеки.',
     CORE_STATE_REMOVED: 'Сохранённое состояние недоступно',
+    CORE_STATE_SET_UNSUPPORTED: 'Выбранная версия библиотеки не поддерживает этот набор состояний свойства',
     CORE_VALUE_TYPE_CONFLICT: 'Сохранённое значение не подходит типу свойства',
     CORE_PLATFORM_PARAM_REMOVED: 'Платформенный параметр недоступен',
     CORE_PROPERTY_DEPRECATED: 'Свойство устарело',

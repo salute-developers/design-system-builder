@@ -50,7 +50,7 @@ internal object PropertyStateSupportStore {
     }
 
     /** Списки состояний признака по свойствам [ids], каждый в порядке создания состояний. */
-    private fun statesOf(ids: Collection<UUID>): Map<UUID, List<UUID>> {
+    fun statesOf(ids: Collection<UUID>): Map<UUID, List<UUID>> {
         val states = HashMap<UUID, MutableList<UUID>>()
         ids.distinct().chunked(CHUNK_SIZE).forEach { part ->
             SelectedPropertySupportedStatesTable.join(

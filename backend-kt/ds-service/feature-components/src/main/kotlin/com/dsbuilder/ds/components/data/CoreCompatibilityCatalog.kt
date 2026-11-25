@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.core.application.CoreProblemAdjustment
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -62,6 +63,16 @@ internal class CoreCompatibilityCatalog(designSystemId: UUID, versionId: UUID?) 
     val propertyNames = DiagnosticPropertiesTable.selectAll()
         .associate { it[DiagnosticPropertiesTable.id] to it[DiagnosticPropertiesTable.name] }
     val states = ComponentStatesTable.selectAll().associateBy { it[ComponentStatesTable.id] }
+    val stateScopes by lazy {
+        states.mapValues { (_, state) ->
+            StateNames.Scoped(state[ComponentStatesTable.componentId], state[ComponentStatesTable.name])
+        }
+    }
+    val supportedStates by lazy {
+        val defined = properties.values.filter { it[PropertiesTable.stateCombinations] != null }
+        PropertyStateSupportStore.statesOf(defined.map { it[PropertiesTable.id] })
+            .mapValues { (_, ids) -> ids.mapNotNull(stateScopes::get) }
+    }
     val stateNames = DiagnosticStatesTable.selectAll()
         .associate { it[DiagnosticStatesTable.id] to it[DiagnosticStatesTable.name] }
     val sets = ComponentStateSetsTable.selectAll()

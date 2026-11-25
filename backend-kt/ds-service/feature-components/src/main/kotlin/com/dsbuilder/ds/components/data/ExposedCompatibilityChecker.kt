@@ -77,6 +77,7 @@ class ExposedCompatibilityChecker : CompatibilityChecker {
             issues.sortedBy { it.issueId },
             issues.count { it.severity == "blocking" },
             issues.count { it.severity == "warning" },
+            validatorVersion = 2,
         )
     }
 

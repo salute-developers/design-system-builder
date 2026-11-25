@@ -4,6 +4,7 @@ package com.dsbuilder.ds.app
 
 import com.dsbuilder.ds.components.data.ExposedCompatibilityChecker
 import com.dsbuilder.ds.core.domain.ProjectId
+import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.delete
 import io.ktor.client.request.get
 import io.ktor.client.request.header
@@ -655,6 +656,97 @@ class CoreReleaseImportPostgresIntegrationTest {
     }
 
     @Test
+    fun `unsupported state combinations block draft export and publication but keep historical export`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                fun HttpRequestBuilder.actor() {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "core-release-test")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    header("Idempotency-Key", UUID.randomUUID().toString())
+                    contentType(ContentType.Application.Json)
+                }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    actor()
+                    setBody(payload)
+                }
+                suspend fun import(version: String, combinations: Boolean) {
+                    val support = """"stateSupport":{"states":["hovered","pressed"],"combinations":$combinations}"""
+                    val properties = property("color").dropLast(1) + ",$support}"
+                    val response = post("/api/admin/component-config/import-api-meta", body(version, properties, false))
+                    assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                }
+                suspend fun stateSet(names: String): UUID {
+                    val ids = query(
+                        db,
+                        "SELECT json_agg(id) FROM states WHERE component_id IS NULL AND name IN ($names)",
+                    )
+                    val response = post("/api/design-systems/catalog/state-sets/resolve", """{"stateIds":$ids}""")
+                    assertEquals(
+                        true,
+                        response.status in listOf(HttpStatusCode.OK, HttpStatusCode.Created),
+                        response.bodyAsText(),
+                    )
+                    val body = Json.parseToJsonElement(response.bodyAsText()).jsonObject
+                    return UUID.fromString(body.getValue("id").jsonPrimitive.content)
+                }
+                import("A", combinations = true)
+                val pair = stateSet("'hovered','pressed'")
+                val single = stateSet("'hovered'")
+                val f = seedSettings(db, stateSetId = pair)
+                val path = "/api/design-systems/${f.system}"
+                suspend fun edit(payload: String) = client.patch("$path/invariant-property-values/${f.value}") {
+                    actor()
+                    setBody(payload)
+                }
+                val updated = edit("""{"value":"#00ff00"}""")
+                assertEquals(HttpStatusCode.OK, updated.status, updated.bodyAsText())
+                val database = Database.connect(
+                    db.jdbcUrl,
+                    driver = "org.postgresql.Driver",
+                    user = db.username,
+                    password = db.password,
+                )
+                fun report() = transaction(database) {
+                    runBlocking { ExposedCompatibilityChecker().check(ProjectId("project"), f.system, null) }
+                }
+                import("B", combinations = false)
+                assertEquals(0, report().blockingCount)
+                selectFixtureCore(db, f.draft, "B")
+                val conflicts = report()
+                assertEquals(1, conflicts.blockingCount)
+                val issue = conflicts.items.single()
+                assertEquals("CORE_STATE_SET_UNSUPPORTED", issue.code)
+                assertEquals(setOf("hovered", "pressed"), issue.location.states.toSet())
+                assertEquals("#00ff00", issue.storedValue?.literal)
+                suspend fun export(version: UUID? = null) = post(
+                    "$path/component-config/export" + (version?.let { "?versionId=$it" } ?: ""),
+                    """{"platform":"compose"}""",
+                )
+                val revision = query(db, "SELECT resolved_draft_revision('${f.draft}')")
+                val publication = post(
+                    "$path/versions",
+                    """{"draftId":"${f.draft}","draftRevision":$revision,"version":"2.0.0"}""",
+                )
+                for (rejected in listOf(export(), publication)) {
+                    assertEquals(HttpStatusCode.Conflict, rejected.status, rejected.bodyAsText())
+                    val body = Json.parseToJsonElement(rejected.bodyAsText()).jsonObject
+                    assertEquals("CORE_COMPATIBILITY_CONFLICT", body.getValue("code").jsonPrimitive.content)
+                }
+                val historical = export(f.published)
+                assertEquals(HttpStatusCode.OK, historical.status, historical.bodyAsText())
+                val repaired = edit("""{"stateSetId":"$single"}""")
+                assertEquals(HttpStatusCode.OK, repaired.status, repaired.bodyAsText())
+                assertEquals(0, report().blockingCount)
+                val fixedExport = export()
+                assertEquals(HttpStatusCode.OK, fixedExport.status, fixedExport.bodyAsText())
+            }
+        }
+    }
+
+    @Test
     fun `web CSS dimensions stay compatible and preserve export and ordinary edits`() {
         IsolatedPostgresDatabase.create().use { db ->
             testApplication {
@@ -1244,10 +1336,15 @@ class CoreReleaseImportPostgresIntegrationTest {
         val value: UUID = UUID.randomUUID(),
     )
 
-    private fun seedSettings(db: IsolatedPostgresDatabase, literal: String = "#ff0000"): SettingsFixture {
+    private fun seedSettings(
+        db: IsolatedPostgresDatabase,
+        literal: String = "#ff0000",
+        stateSetId: UUID? = null,
+    ): SettingsFixture {
         val f = SettingsFixture()
         val component = query(db, "SELECT id FROM components WHERE name = 'ReleaseButton'")
         val property = query(db, "SELECT id FROM properties WHERE name = 'releaseFill'")
+        val stateSet = stateSetId?.toString() ?: query(db, "SELECT id FROM state_sets WHERE cardinality(state_ids) = 0")
         DriverManager.getConnection(db.jdbcUrl, db.username, db.password).use { connection ->
             connection.createStatement().use { s ->
                 s.execute(
@@ -1278,7 +1375,7 @@ class CoreReleaseImportPostgresIntegrationTest {
                     "INSERT INTO invariant_property_values(id, design_system_id, component_id, property_id, appearance_id) VALUES ('${f.value}', '${f.system}', '$component', '$property', '${f.appearance}')",
                 )
                 s.execute(
-                    "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) SELECT '${f.value}', '${f.system}', '${f.published}', 1, '$literal', 0, id, false FROM state_sets WHERE cardinality(state_ids) = 0 LIMIT 1",
+                    "INSERT INTO invariant_property_value_revisions(invariant_property_value_id, design_system_id, design_system_version_id, version_sequence_number, value, position, state_set_id, deleted) VALUES ('${f.value}', '${f.system}', '${f.published}', 1, '$literal', 0, '$stateSet', false)",
                 )
                 s.execute(
                     "INSERT INTO design_system_version_core_releases(version_id, platform, release_id) SELECT '${f.published}', platform, id FROM core_releases WHERE version = 'A'",

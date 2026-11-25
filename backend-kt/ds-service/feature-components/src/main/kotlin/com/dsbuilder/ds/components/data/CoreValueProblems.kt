@@ -2,6 +2,7 @@ package com.dsbuilder.ds.components.data
 
 import com.dsbuilder.ds.components.domain.CoreValueCompatibility
 import com.dsbuilder.ds.components.domain.EditorPropertyValue
+import com.dsbuilder.ds.components.domain.StateSetRule
 import java.util.UUID
 
 /** Проверяет независимые ограничения одного назначения по справочникам выбранной границы. */
@@ -15,7 +16,7 @@ internal class CoreValueProblems(private val catalog: CoreCompatibilityCatalog) 
             },
             tokenProblem(value),
             "CORE_VALUE_TYPE_CONFLICT".takeUnless { valueFits(type, value, componentId) },
-            "CORE_STATE_REMOVED".takeIf { invalidStates(componentId, value) },
+            stateProblem(componentId, value, property?.get(PropertiesTable.stateCombinations)),
             "CORE_PLATFORM_PARAM_REMOVED".takeIf {
                 catalog.adjustments[value.id].orEmpty().any { adjustment ->
                     catalog.params[adjustment.platformParamId]?.get(PropertyPlatformParamsTable.propertyId) !=
@@ -45,11 +46,17 @@ internal class CoreValueProblems(private val catalog: CoreCompatibilityCatalog) 
         }
     }
 
-    private fun invalidStates(componentId: UUID, value: EditorPropertyValue): Boolean =
-        catalog.sets[value.stateSetId].orEmpty().any { stateId ->
-            val state = catalog.states[stateId]
-            state == null || state[ComponentStatesTable.componentId]?.let { it != componentId } == true
+    private fun stateProblem(componentId: UUID, value: EditorPropertyValue, combinations: Boolean?): String? {
+        val states = catalog.sets[value.stateSetId].orEmpty()
+        if (states.isEmpty()) return null
+        val scopes = states.map { id -> catalog.stateScopes[id] ?: return "CORE_STATE_REMOVED" }
+        val supported = combinations?.let { catalog.supportedStates[value.propertyId].orEmpty() }
+        return when (StateSetRule.check(componentId, supported, combinations == true, scopes)) {
+            StateSetRule.Verdict.ALLOWED -> null
+            StateSetRule.Verdict.FOREIGN_STATE -> "CORE_STATE_REMOVED"
+            StateSetRule.Verdict.NOT_SUPPORTED -> "CORE_STATE_SET_UNSUPPORTED"
         }
+    }
 
     private fun referenceProblem(type: String?, value: EditorPropertyValue, sourceComponentId: UUID): String? {
         val reference = value.reference ?: return "CORE_COMPONENT_REFERENCE_UNAVAILABLE".takeIf {
