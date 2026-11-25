@@ -1,4 +1,4 @@
-import { useEffect, useState, type MouseEvent, type ReactNode } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 
 interface NumberControlProps {
     label: string;
@@ -28,8 +28,46 @@ export const focusInputOnFrame = (event: MouseEvent<HTMLElement>) => {
     input.focus();
 };
 
-/** Ширина по содержимому (`field-sizing`) есть не везде: в Safari до 26 поле получает ширину по длине значения. */
-const fieldSizing = typeof CSS !== 'undefined' && CSS.supports?.('field-sizing', 'content');
+/**
+ * Запас под курсор. `field-sizing: content` не годится: Safari 26 даёт полю ширину ровно по тексту, а курсору
+ * резервирует ещё 2 px и прокручивает на них текст, срезая первую цифру.
+ */
+const CARET_PX = 2;
+
+let measureContext: OffscreenCanvasRenderingContext2D | null | undefined;
+
+/** Ширина текста в шрифте поля; `null`, где измерить нельзя (jsdom). */
+const measureText = (text: string, input: HTMLInputElement): number | null => {
+    if (measureContext === undefined) {
+        measureContext = typeof OffscreenCanvas === 'undefined' ? null : new OffscreenCanvas(1, 1).getContext('2d');
+    }
+    if (!measureContext) return null;
+    const style = getComputedStyle(input);
+    measureContext.font = `${style.fontStyle} ${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
+    return measureContext.measureText(text).width;
+};
+
+/**
+ * Ширина ввода по ширине значения и запасу под курсор. Пересчитывается после загрузки шрифтов: до неё текст измерен
+ * запасным шрифтом. Где измерить нельзя — по числу символов.
+ */
+const useValueWidth = (value: string) => {
+    const ref = useRef<HTMLInputElement>(null);
+    const [fontsLoaded, setFontsLoaded] = useState(0);
+    const [width, setWidth] = useState<number | null>(null);
+    useEffect(() => {
+        let active = true;
+        document.fonts?.ready.then(() => active && setFontsLoaded((count) => count + 1));
+        return () => {
+            active = false;
+        };
+    }, []);
+    useLayoutEffect(() => {
+        const measured = ref.current ? measureText(value, ref.current) : null;
+        setWidth(measured === null ? null : Math.ceil(measured) + CARET_PX);
+    }, [value, fontsLoaded]);
+    return [ref, width === null ? `calc(${Math.max(value.length, 1)}ch + ${CARET_PX}px)` : `${width}px`] as const;
+};
 
 const parseNumber = (raw: string) => {
     const text = raw.trim().replace(',', '.');
@@ -62,6 +100,7 @@ export const NumberControl = (props: NumberControlProps) => {
     // У выражения единицы нет: `calc(100vw - 5rem)` не в px.
     const showUnit = Boolean(unit) && (!allowExpressions || draft.trim() === '' || parseNumber(draft) !== null);
     const [invalid, setInvalid] = useState(false);
+    const [inputRef, inputWidth] = useValueWidth(draft);
     useEffect(() => setDraft(value), [value]);
 
     const commit = () => {
@@ -86,6 +125,7 @@ export const NumberControl = (props: NumberControlProps) => {
         >
             {icon}
             <input
+                ref={inputRef}
                 type="text"
                 inputMode="decimal"
                 aria-label={label}
@@ -93,7 +133,7 @@ export const NumberControl = (props: NumberControlProps) => {
                 title={invalid ? invalidMessage : undefined}
                 readOnly={readOnly}
                 value={draft}
-                style={fieldSizing ? undefined : { width: `calc(${Math.max(draft.length, 1)}ch + 2px)` }}
+                style={{ width: inputWidth }}
                 onChange={(event) => {
                     setDraft(event.target.value);
                     if (invalid) setInvalid(parse(event.target.value) === null);
