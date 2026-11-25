@@ -1,0 +1,19 @@
+{
+    "compilerOptions": {
+        "target": "ES2022",
+        "lib": ["ES2022", "DOM"],
+        "module": "ESNext",
+        "moduleResolution": "bundler",
+        "allowImportingTsExtensions": true,
+        "resolveJsonModule": true,
+        "types": [],
+        "strict": true,
+        "noUnusedLocals": true,
+        "noUnusedParameters": true,
+        "erasableSyntaxOnly": true,
+        "noEmit": true,
+        "skipLibCheck": true
+    },
+    "include": ["src/web-mapping/*.ts"],
+    "exclude": ["src/web-mapping/*.test.ts"]
+}

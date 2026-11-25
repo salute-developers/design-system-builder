@@ -1,3 +1,4 @@
+import { colorVariableName } from '../../../web-mapping/index.ts';
 import { ThemeMode, TokenType } from '../types/index.ts';
 
 const getCSSVariable = (tokenName: string, value: string) => {
@@ -28,7 +29,7 @@ const getToken = (tokens: TokenType[], mode: ThemeMode) =>
                 return undefined;
             }
 
-            const tokenName = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
+            const tokenName = colorVariableName(category, subcategory, name);
             const tokenValue = getOppositeValue(mode, category, subcategory, name);
 
             return getCSSVariable(tokenName, tokenValue);

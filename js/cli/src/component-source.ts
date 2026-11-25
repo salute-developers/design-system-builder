@@ -9,6 +9,16 @@ import type {
     PropType,
     StyleConfig,
 } from './generator/componentBuilder/type.ts';
+import {
+    basePropertyParams,
+    composeOf,
+    toComponentName,
+    type ApiMetaComponent,
+    type StyleTemplates,
+    type WebAdapter,
+} from './web-mapping/index.ts';
+
+export type { ApiMetaComponent } from './web-mapping/index.ts';
 
 /**
  * Сборка метаданных генератора из выгрузки `dsbuilder components fetch` и web-маппингов.
@@ -17,7 +27,7 @@ import type {
  * а данные лежат в трёх источниках: значения — в native-конфигах `components/`, имена
  * web-параметров — в аннотациях токенов установленного пакета компонентов (собираются на каждый
  * запуск), имена, описания, шаблоны и compose-связи — в `web-adapter.json`, по умолчанию встроенном в CLI
- * (`src/data/web-adapter.json`, копия файла web-плагина превью).
+ * (`src/data/web-adapter.json`).
  * Идентификаторы строятся из имён: генератору они нужны только для связей внутри одного компонента.
  */
 
@@ -51,43 +61,16 @@ interface PackageMeta {
     components: Array<{ componentName: string; styleName: string; config: string }>;
 }
 
-/** Шаблоны одной конфигурации: свойство -> web-параметр -> шаблон. */
-type StyleTemplates = Record<string, Record<string, string>>;
-
-/** Запись `web-adapter.json`: компонент по имени в написании `meta.json`, пустые поля опущены. */
-interface WebAdapterComponent {
-    componentName: string;
-    name: string;
-    description?: string;
-    compose?: string[];
-    styles?: Record<string, { templates: StyleTemplates }>;
-}
-
-export interface ApiMetaComponent {
-    componentName: string;
-    params: Array<{ paramName: string; type: string; id: string; part?: string; state?: string }>;
-}
-
 export interface ComponentSourcePaths {
     /** Каталог выгрузки: `meta.json` и конфиги. */
     componentsDirectory: string;
-    /** Файл `web-adapter.json`: имена, описания, шаблоны и compose-связи компонентов. */
-    webAdapterFile: string;
+    /** Данные `web-adapter.json`: имена, описания, шаблоны и compose-связи компонентов. */
+    webAdapter: WebAdapter;
     /** Маппинги Style API установленного пакета компонентов, собранные `buildApiMeta`. */
     apiMeta: ApiMetaComponent[];
 }
 
 const readJson = async <T>(path: string): Promise<T> => JSON.parse(await readFile(path, 'utf8')) as T;
-
-/**
- * Имя из `meta.json` в имя компонента кода: `icon-tab-item` → `IconTabItem`. Запасной путь для
- * компонента без записи в `web-adapter.json`; обычно имя берётся оттуда.
- */
-const toComponentName = (kebab: string) =>
-    kebab
-        .split(/[.-]/)
-        .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
-        .join('');
 
 /**
  * Типографика хранится ссылкой на токен экрана, а генератор подставляет экран сам; legacy-выгрузка
@@ -215,8 +198,7 @@ const toApi = (
 
     return [...typeByProperty]
         .map(([name, type]): ComponentAPI | null => {
-            const web = (apiMeta?.params ?? [])
-                .filter((param) => param.id === name && !param.state)
+            const web = basePropertyParams(apiMeta, name)
                 .map((param) => ({ name: param.paramName, adjustment: templateOf(name, param.paramName) }));
             if (web.length === 0) {
                 return null;
@@ -240,16 +222,11 @@ const toApi = (
  */
 export async function readComponentsMeta({
     componentsDirectory,
-    webAdapterFile,
+    webAdapter,
     apiMeta,
 }: ComponentSourcePaths): Promise<Meta[]> {
     const packageMeta = await readJson<PackageMeta>(join(componentsDirectory, 'meta.json'));
-    const adapter = new Map(
-        (await readJson<WebAdapterComponent[]>(webAdapterFile)).map((entry) => [
-            entry.componentName,
-            entry,
-        ]),
-    );
+    const adapter = new Map(webAdapter.map((entry) => [entry.componentName, entry]));
 
     const apiMetaByName = new Map(apiMeta.map((component) => [component.componentName, component]));
     const nameOf = (kebab: string) => adapter.get(kebab)?.name ?? toComponentName(kebab);
@@ -271,15 +248,15 @@ export async function readComponentsMeta({
         const name = nameOf(kebab);
         const entry = adapter.get(kebab);
         const natives = configsByComponent.get(kebab)!;
-        const templates = new Map(Object.entries(entry?.styles ?? {}).map(([style, { templates }]) => [style, templates]));
+        const templates = new Map(Object.entries(entry?.styles ?? {}).map(([style, { templates }]) => [style, templates ?? {}]));
         const bindingNames = [...new Set(natives.flatMap(({ native }) => (native.bindings ?? []).map((item) => item.name)))];
 
         return {
             name,
             description: entry?.description ?? '',
-            deps: (entry?.compose ?? []).map((child, index) => ({
-                childId: child,
-                childName: nameOf(child),
+            deps: composeOf(entry, webAdapter).map((child, index) => ({
+                childId: child.id,
+                childName: child.name,
                 type: 'compose' as const,
                 order: index,
             })),

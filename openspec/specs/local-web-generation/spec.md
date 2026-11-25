@@ -407,26 +407,6 @@ Web-генератор SHALL строить из kebab-case имени конф�
 - **WHEN** у компонента `Button` есть конфигурации `dense-2` и `dense2`
 - **THEN** генерация MUST завершиться ошибкой с текстом, содержащим `Button`, `dense-2` и `dense2`, и MUST NOT записать файлы конфигов
 
-### Requirement: Статический web-адаптер CLI совпадает с копией web-плагина
-
-`js/cli/src/data/web-adapter.json` SHALL быть побайтно идентичен `js/apps/preview-web-plugin/src/data/web-adapter.json`. Файл SHALL входить в публикуемый пакет генератора. Шаблоны web-параметров нового компонента SHALL добавляться в обе копии одинаково и MUST NOT заноситься в базу `ds-service`.
-
-#### Scenario: Копии совпадают
-
-- **WHEN** запускаются тесты `js/cli`
-- **THEN** тест MUST сравнить обе копии `web-adapter.json` и упасть, если они различаются
-
-#### Scenario: Файл в опубликованном генераторе
-
-- **WHEN** генератор установлен из npm-пакета `@sddsjs/design-system-builder-generator`
-- **THEN** `generate:components` MUST найти `web-adapter.json` внутри установленного пакета
-
-#### Scenario: Запись нового компонента
-
-- **WHEN** в базовую ДС добавлен web-компонент, у свойств которого есть шаблоны многозначных значений
-- **THEN** обе копии MUST содержать запись компонента с `componentName`, `name` и шаблонами по стилю
-- **THEN** записи MUST быть упорядочены по `componentName`
-
 ### Requirement: Корневой индекс реэкспортирует компоненты ядра без конфига темы
 
 Корневой `src/index.ts` пакета, в котором есть компоненты, SHALL реэкспортировать из `@salutejs/plasma-new-hope/styled-components` компоненты ядра из списка генератора. В список входят компоненты, которые sdds-serv реэкспортирует из ядра без конфига темы и которые не заводятся в ДС; первый элемент — `SSRProvider`.
@@ -454,4 +434,28 @@ Web-генератор SHALL строить из kebab-case имени конф�
 
 - **WHEN** developer runs `generate:components --package`
 - **THEN** `ViewContainer` MUST NOT попасть в пакет, а генератор MUST напечатать предупреждение и завершиться успешно
+
+### Requirement: Единственный web-адаптер в CLI
+
+`js/cli/src/data/web-adapter.json` SHALL быть единственным файлом с именами, описаниями, шаблонами web-параметров и
+`compose`-связями компонентов среди файлов, хранящихся в Git. Выгрузка `dsbuilder` в `.sdds/web` и опция `--web`
+генератора этим требованием не затрагиваются. Файл SHALL входить в публикуемый пакет генератора; его SHALL читать
+генератор и модуль `web-mapping` пакета. Шаблоны web-параметров нового компонента MUST NOT заноситься в базу
+`ds-service`.
+
+#### Scenario: Файл в опубликованном генераторе
+
+- **WHEN** генератор установлен из npm-пакета `@sddsjs/design-system-builder-generator`
+- **THEN** `generate:components` MUST найти `web-adapter.json` внутри установленного пакета
+
+#### Scenario: Запись нового компонента
+
+- **WHEN** в базовую ДС добавлен web-компонент, у свойств которого есть шаблоны многозначных значений
+- **THEN** `js/cli/src/data/web-adapter.json` MUST содержать запись компонента с `componentName`, `name` и шаблонами по стилю
+- **THEN** записи MUST быть упорядочены по `componentName`
+
+#### Scenario: Нет второй копии
+
+- **WHEN** проверяются файлы, хранящиеся в Git
+- **THEN** вне `js/cli/src/data` MUST NOT быть файла `web-adapter.json`
 

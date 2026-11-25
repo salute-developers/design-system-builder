@@ -1,3 +1,4 @@
+import { applyTemplate, STATE_PARAM_SUFFIX } from '../../../web-mapping/index.ts';
 import type { PlatformTokens, PropConfig, PropType, State, WebToken, WebTokenValues } from '../type.ts';
 
 export abstract class Prop {
@@ -114,13 +115,8 @@ export abstract class Prop {
             return null;
         }
 
-        const statesMap = {
-            hovered: 'Hover',
-            pressed: 'Active',
-        };
-
         return this.states.reduce<WebTokenValues>((acc, item) => {
-            const state = item.state[0] as keyof typeof statesMap; // TODO поддержать работу с несколькими стейтами
+            const state = item.state[0]; // TODO поддержать работу с несколькими стейтами
 
             const value = getValue(item);
 
@@ -130,7 +126,7 @@ export abstract class Prop {
 
             return {
                 ...acc,
-                [`${token}${statesMap[state]}`]: value.toString(),
+                [`${token}${STATE_PARAM_SUFFIX[state]}`]: value.toString(),
             };
         }, {});
     }
@@ -140,15 +136,9 @@ export abstract class Prop {
             return null;
         }
 
-        const replaceAdjustmentPlaceholders = (template: string, values: string[]) => {
-            return template.replace(/\$(\d+)/g, (_, index) => {
-                return values[index - 1] !== undefined ? values[index - 1] : `$${index}`;
-            });
-        };
-
         return this.webTokens.reduce<WebTokenValues>((acc, { name, adjustment }) => {
             const newValue = adjustment
-                ? replaceAdjustmentPlaceholders(adjustment, [value.toString()])
+                ? applyTemplate(adjustment, [value.toString()])
                 : value.toString();
 
             return {

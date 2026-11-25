@@ -1,4 +1,5 @@
-import { DEFAULT_FONT_SIZE, type PlatformTokens, type PropConfig } from '../type.ts';
+import { pxToRem } from '../../../web-mapping/index.ts';
+import type { PlatformTokens, PropConfig } from '../type.ts';
 import { Prop } from './prop.ts';
 
 export class DimensionProp extends Prop {
@@ -13,7 +14,7 @@ export class DimensionProp extends Prop {
             return;
         }
 
-        const value = `${Number(this.value) / DEFAULT_FONT_SIZE}rem`;
+        const value = pxToRem(Number(this.value));
 
         return {
             ...this.createWebToken(value),

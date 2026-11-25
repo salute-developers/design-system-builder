@@ -161,7 +161,7 @@ describe('NumberControl', () => {
         }
     });
 
-    it('sizes the input by its value where field-sizing is not supported', () => {
+    it('sizes the input by its length where text cannot be measured', () => {
         render(<NumberControl label="Height" value="148" onCommit={vi.fn()} />);
 
         expect(screen.getByRole('textbox', { name: 'Height' }).style.width).toBe('calc(3ch + 2px)');

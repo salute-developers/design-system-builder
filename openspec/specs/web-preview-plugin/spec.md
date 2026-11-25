@@ -5,24 +5,32 @@ TBD - created by archiving change add-web-preview-plugin-pilot. Update Purpose a
 ## Requirements
 ### Requirement: Web-плагин превью — самостоятельное приложение
 
-В репозитории SHALL быть приложение `js/apps/preview-web-plugin`, которое собирается в статический
-бандл с `index.html`, `preview-plugin.json` и своими JS и CSS. Плагин SHALL содержать собственные
-React, `styled-components`, `@salutejs/plasma-new-hope` и `@salutejs/plasma-icons` и SHALL NOT
-импортировать код из `js/apps/client`.
+Web-плагин SHALL быть приватным пакетом `packages/sdds-preview-web-plugin` (`@salutejs/sdds-preview-web-plugin`)
+репозитория plasma, который собирается в статический бандл с `index.html`, `preview-plugin.json` и своими JS и CSS. Плагин SHALL подключать `@salutejs/plasma-new-hope`,
+`@salutejs/plasma-b2c` и `@salutejs/plasma-icons` из workspace plasma, SHALL содержать собственные React и
+`styled-components` в единственном экземпляре в бандле и SHALL NOT читать файлы и импортировать код репозитория DS Builder. Общие правила маппинга свойств на параметры ядра и данные `web-adapter.json`
+плагин SHALL брать из модуля `web-mapping` npm-пакета `@sddsjs/design-system-builder-generator`, объявленного в
+`dependencies` точной версией, и SHALL NOT ссылаться на каталог `js/cli` путём.
 
 #### Scenario: Сборка плагина
 
-- **WHEN** в `js/apps/preview-web-plugin` выполняется `npm run build`
+- **WHEN** в `packages/sdds-preview-web-plugin` выполняется `npm run build`
 - **THEN** каталог сборки MUST содержать `index.html`, `preview-plugin.json` и все файлы, на которые они ссылаются
+
+#### Scenario: Нет копии в DS Builder
+
+- **WHEN** проверяется репозиторий DS Builder
+- **THEN** в нём MUST NOT быть каталога `js/apps/preview-web-plugin`
 
 ### Requirement: Манифест web-плагина
 
 `preview-plugin.json` SHALL объявлять `schemaVersion: 1`, `platform: "web"`, `protocolVersion: 1`,
 точку входа `index.html`, сообщения обмена `sdds.preview.*` в `payloadBridge` и список поддержанных
 компонентов `components`. Список SHALL совпадать с реестром компонентов плагина и SHALL содержать `Button`. Рядом с манифестом SHALL лежать
-`api-meta.json` — web API-мета, сгенерированная из той же версии `@salutejs/plasma-new-hope`, что входит
-в бандл плагина. Манифест SHALL объявлять эту версию в `plasmaNewHopeVersion` и sha256 файла меты
-в `apiMetaSha256`.
+`api-meta.json` — web API-мета, построенная при сборке подкомандой `dsbuilder-web-generator api-meta` из
+`@salutejs/plasma-new-hope`, установленного в плагине, то есть из той же версии, что входит в бандл. Мета SHALL NOT
+храниться в Git. Версия ядра в `plasmaNewHopeVersion` и sha256 файла меты в `apiMetaSha256` SHALL дописываться в
+манифест сборки при упаковке из установленного ядра; в закоммиченном `public/preview-plugin.json` этих полей SHALL NOT быть.
 
 #### Scenario: Клиент читает манифест
 
@@ -32,9 +40,15 @@ React, `styled-components`, `@salutejs/plasma-new-hope` и `@salutejs/plasma-ico
 
 #### Scenario: Мета соответствует бандлу
 
-- **WHEN** проверяется сборка плагина
+- **WHEN** проверяется архив, собранный `npm run package`
 - **THEN** `apiMetaSha256` MUST совпадать с sha256 `api-meta.json`, а `plasmaNewHopeVersion` — с установленной версией `@salutejs/plasma-new-hope`
 - **THEN** `api-meta.json` MUST содержать все компоненты из `components`
+
+#### Scenario: Мета строится перед сборкой, разработкой и тестами
+
+- **WHEN** в `packages/sdds-preview-web-plugin` выполняется `npm run build`, `npm run dev` или `npm test` на чистом клоне plasma с собранным ядром
+- **THEN** перед запуском MUST быть построен `public/api-meta.json` из установленного ядра
+- **THEN** построенная мета MUST побайтно совпадать с результатом `dsbuilder-web-generator api-meta` для того же собранного ядра
 
 ### Requirement: Мост сообщений совместим с хостом превью
 
@@ -87,8 +101,8 @@ story как пропсы.
 ### Requirement: Локальная раздача web-плагина
 
 Для разработки плагин SHALL раздаваться dev-сервером на отдельном порту (отдельный origin от клиента)
-с разрешением CORS для чтения манифеста клиентом. Адрес по умолчанию SHALL быть задан в
-`js/docker-compose.dev.yml`.
+с разрешением CORS для чтения манифеста клиентом (`npm run dev` пакета в plasma, порт 3011). Адрес по умолчанию SHALL быть задан в
+`js/docker-compose.dev.yml` DS Builder.
 
 #### Scenario: Локальный контур
 
@@ -97,16 +111,17 @@ story как пропсы.
 
 ### Requirement: Реестр web-плагина покрывает все web-компоненты с story
 
-Реестр web-плагина SHALL содержать все компоненты, для которых в клиенте есть story (`componentMapper`
-в `js/apps/client/src/hooks/useStory.ts`), с их story, аргументами и отрисовкой. Отображение web-параметров
-в CSS-переменные ядра SHALL учитывать исключения клиента: объекты токенов ядра не по имени компонента
-(`coreTokensByComponent`) и конфиги ядра не по имени компонента (`coreConfigNameByComponent`, например
-`Skeleton` → `lineSkeletonConfig`). Манифест SHALL перечислять все компоненты реестра.
+Реестр web-плагина SHALL содержать web-компоненты с story, аргументами и отрисовкой; список SHALL поддерживаться в
+плагине и SHALL NOT сверяться тестами с кодом клиента DS Builder. Отображение web-параметров
+в CSS-переменные ядра SHALL учитывать объекты токенов и конфиги ядра не по имени компонента (`TabItem` → `tabsTokens`,
+`Skeleton` → `lineSkeletonConfig`). Имена SHALL браться функциями `coreTokensExportName` и `coreConfigExportName`
+модуля `web-mapping` по манифестам генератора из подкоманды `manifests`; собственных таблиц соответствий плагин SHALL NOT
+содержать. Манифест SHALL перечислять все компоненты реестра.
 
 #### Scenario: Манифест перечисляет все компоненты
 
 - **WHEN** клиент читает манифест web-плагина
-- **THEN** `components` MUST совпадать с ключами реестра плагина и содержать все компоненты `componentMapper` клиента
+- **THEN** `components` MUST совпадать с ключами реестра плагина в том же порядке
 
 #### Scenario: Каждый компонент рисуется
 
@@ -141,14 +156,14 @@ Payload SHALL выбирать story по `example.id`.
 
 ### Requirement: Web-плагин разрешает payload сам
 
-Web-плагин SHALL переводить payload общего формата в CSS-переменные ядра `@salutejs/plasma-new-hope` сам:
+Web-плагин SHALL переводить payload общего формата в CSS-переменные ядра `@salutejs/plasma-new-hope` сам. Данные `web-adapter.json`, типы API-меты, суффиксы ключей состояний, подстановку шаблонов, `compose`-связи, перевод px в `rem` и радиус с поправкой, поле типографики, основу имени переменных типографики темы, имя объекта ядра компонента по манифестам генератора, имя переменной цвета темы и суффиксы производных токенов плагин SHALL брать из модуля `web-mapping` пакета генератора и SHALL NOT реализовывать их сам. Выбор параметра состояния по мете и шаблона по конфигурациям остаётся правилом плагина:
 - **ключи токенов ядра** — по API-мете `api-meta.json` своей сборки: каноническое свойство и состояние (`hovered`, `pressed`) → `paramName`;
-- **имена CSS-переменных** — по объектам токенов ядра (`<component>Tokens`, исключения `coreTokensByComponent`);
+- **имена CSS-переменных** — по объектам токенов ядра (`<component>Tokens`, исключения — по `coreTokensExport` манифестов генератора из подкоманды `manifests`);
 - **значения** — из `literal` и из токенов `theme` по `tokenRef`, с переводом единиц протокола в CSS: px в `rem` по базе 16, `#RRGGBBAA` в цвет CSS, слои теней и градиентов в строки CSS, типографику по её полям в параметры ядра;
-- **шаблоны многозначных свойств** — из `web-adapter.json` в бандле плагина (перенесён из `js/cli/.sdds/web`): свойство → `{ключ ядра: шаблон}`, `$1…$n` подставляются значениями;
+- **шаблоны многозначных свойств** — из `web-adapter.json` пакета генератора: свойство → `{ключ ядра: шаблон}`, `$1…$n` подставляются значениями;
 - **состояния** — из `states` в ключи ядра соответствующего состояния;
 - **переменные темы** окружения (`--text-primary`, `--background-primary` и т. п.) — из цветовых токенов `theme`, фон — из `surface.background`, шрифт — из токена шрифта тела;
-- **переменные типографики темы** (`--plasma-typo-<токен через дефис без normal>-<поле>`) — из типографических токенов `theme`;
+- **переменные типографики темы** (`--plasma-typo-<основа>-<поле>`, основа — по правилу генератора тем: `display` → `dspl`, группа `header` и вес `normal` опускаются) — из типографических токенов `theme`;
 - **производные состояния цвета** — для ключа состояния `hovered`/`pressed` из меты без записи в `states` значение берётся из токена `<tokenId>-hover`/`<tokenId>-active` в `theme`, если он есть.
 
 Клиент SHALL NOT передавать плагину уже переведённые значения.
@@ -182,6 +197,17 @@ Web-плагин SHALL переводить payload общего формата 
 
 - **WHEN** payload содержит свойство, которого нет в мете для этого компонента
 - **THEN** плагин MUST отрисовать компонент без этого свойства и вернуть предупреждение в `success`
+
+#### Scenario: Типографика заголовка
+
+- **WHEN** в `theme` есть типографический токен `header.h3.bold`, а значение свойства Calendar — `var(--plasma-typo-h3-bold-font-weight)`
+- **THEN** плагин MUST объявить `--plasma-typo-h3-bold-font-weight`, и значение MUST разрешиться
+
+#### Scenario: В плагине нет копий общих данных и правил
+
+- **WHEN** проверяется исходный код `packages/sdds-preview-web-plugin` репозитория plasma
+- **THEN** в нём MUST NOT быть файла `web-adapter.json`, закоммиченного `api-meta.json` и собственных реализаций подстановки шаблонов, перевода px в `rem`, выбора поля типографики, имён переменных цвета и типографики темы, таблиц объектов ядра по компонентам
+- **THEN** эти функции MUST импортироваться из `@sddsjs/design-system-builder-generator/web-mapping`
 
 ### Requirement: Web-плагин собирает связанные компоненты из styles
 
@@ -307,16 +333,6 @@ SHALL считаться недоступным.
 
 - **WHEN** два токена содержат одно `family` и разные файлы
 - **THEN** первый токен MUST использовать это имя, а второй MUST использовать своё имя токена со своими файлами
-
-### Requirement: Web-адаптер плагина совпадает с копией CLI
-
-`js/apps/preview-web-plugin/src/data/web-adapter.json` SHALL быть побайтно идентичен `js/cli/src/data/web-adapter.json`: плагин и генератор web-пакета берут шаблоны многозначных свойств из одних и тех же данных.
-
-#### Scenario: Шаблон нового компонента в превью и пакете
-
-- **WHEN** в `web-adapter.json` добавлен шаблон свойства нового компонента
-- **THEN** копия плагина MUST содержать тот же шаблон, что и копия CLI
-- **THEN** превью плагина и сгенерированный пакет MUST подставлять значения в один и тот же шаблон
 
 ### Requirement: Шаблоны токенов ядра в значениях
 

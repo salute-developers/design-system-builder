@@ -19,7 +19,9 @@
 
 ## Версии пакетов
 
-Любое изменение `js/cli` или `js/apps/preview-web-plugin` поднимает `version` в его `package.json` и `package-lock.json` в той же ветке (`npm version patch --no-git-tag-version`; несовместимое изменение — minor). Одного подъёма на ветку достаточно.
+Любое изменение `js/cli` поднимает `version` в его `package.json` и `package-lock.json` в той же ветке (`npm version patch --no-git-tag-version`; несовместимое изменение — minor). Одного подъёма на ветку достаточно.
+
+Web-плагин превью живёт в репозитории plasma (`packages/sdds-preview-web-plugin`); в DS Builder попадает только его архив `local-dev/web-preview/preview-web-plugin.zip`. Порядок правок генератора и плагина и доставки архива — в `.agents/skills/web-preview-plugin-flow/SKILL.md`.
 
 ## Проверки
 

@@ -1,3 +1,4 @@
+import { colorVariableName } from '../../../web-mapping/index.ts';
 import { ThemeMode, TokenType } from '../types/index.ts';
 import { kebabToCamel } from '../utils/index.ts';
 
@@ -17,7 +18,7 @@ const getGradient = (gradient: any, tokens: TokenType[], mode: ThemeMode, isJS =
         .filter((token) => token.tags[0] === mode)
         .map((token) => {
             const [, category, subcategory, name] = token.name.split('.');
-            const tokenName = [subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-');
+            const tokenName = colorVariableName(category, subcategory, name);
             const value = gradient?.[token.name];
 
             if (!value) {

@@ -1,13 +1,10 @@
 import assert from 'node:assert/strict';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, it } from 'node:test';
 
-import { BUNDLED_WEB_ADAPTER, readComponentsForGeneration } from './components-input.ts';
-import { cliDirectory } from './package-output.ts';
-
-const PLUGIN_WEB_ADAPTER = join(cliDirectory, '..', 'apps', 'preview-web-plugin', 'src', 'data', 'web-adapter.json');
+import { readComponentsForGeneration } from './components-input.ts';
 
 const writeJson = (path: string, value: unknown) => writeFileSync(path, JSON.stringify(value));
 
@@ -32,10 +29,6 @@ describe('web-adapter.json of the generator', () => {
         writeJson(join(sdds, 'web', 'web-adapter.json'), [{ componentName: 'avatar', name: 'AvatarFromDatabase' }]);
     });
     afterEach(() => rmSync(sdds, { recursive: true, force: true }));
-
-    it('is identical to the copy of the web preview plugin', () => {
-        assert.equal(readFileSync(BUNDLED_WEB_ADAPTER, 'utf8'), readFileSync(PLUGIN_WEB_ADAPTER, 'utf8'));
-    });
 
     it('takes names and templates from the bundled file, not from the fetched one', async () => {
         const [avatar] = await readComponentsForGeneration({ sddsDirectory: sdds });

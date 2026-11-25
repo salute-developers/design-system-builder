@@ -17,8 +17,8 @@
 #### Scenario: Компонент с чужим объектом токенов
 
 - **WHEN** ядро не экспортирует `<x>Tokens` для компонента (TabItem, StepItem, Body)
-- **THEN** превью MUST взять объект из клиентской карты соответствий
-- **THEN** карта MUST зеркалить `coreTokensExport` манифестов генератора
+- **THEN** превью MUST взять имя объекта из манифеста генератора функцией `coreTokensExportName` модуля `web-mapping` пакета генератора
+- **THEN** превью MUST NOT держать собственную карту соответствий компонентов объектам ядра
 
 ### Requirement: Related components are rendered with the design-system theme
 

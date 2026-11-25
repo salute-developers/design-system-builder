@@ -1,3 +1,5 @@
+import { coreConfigExportName, coreTokensExportName } from '../../web-mapping/index.ts';
+
 /** Scope генерируемого пакета, когда `NPM_PACKAGE_SCOPE` не задана. */
 export const DEFAULT_NPM_PACKAGE_SCOPE = '@sddsjs';
 
@@ -51,8 +53,10 @@ export const indentedLine = (content: string, indentLevel = 0, indentSize = 4, i
     return indent + content;
 };
 
+/** Базовый конфиг ядра: имя из манифеста или `<x>Config` (правило `web-mapping`). */
 export const getPlasmaConfigName = (componentName: string, coreConfigExport?: string | null) =>
-    coreConfigExport || `${lowerFirstLetter(componentName)}Config`;
+    coreConfigExportName(componentName, { coreConfigExport });
 
+/** Объект токенов ядра: имя из манифеста или `<x>Tokens` (правило `web-mapping`). */
 export const getPlasmaTokensName = (componentName: string, coreTokensExport?: string | null) =>
-    coreTokensExport || `${lowerFirstLetter(componentName)}Tokens`;
+    coreTokensExportName(componentName, { coreTokensExport });

@@ -257,6 +257,35 @@ describe('import:plasma', () => {
         assert.match(unannotated.stdout, /ТРЕБУЕТ РЕШЕНИЯ[\s\S]*size\.m\.textStyle: шрифтовая группа неполная или смешанная \(LineHeight=bodyM\)/);
     });
 
+    it('names typography theme variables like the theme generator: h3-bold, dspl-l', () => {
+        const core = join(plasma, 'packages/plasma-new-hope/src/components/Chip/Chip.tokens.ts');
+        writeFileSync(core, readFileSync(core, 'utf8').replace('};', "    typoMix: '--plasma-chip-typo-mix',\n};"));
+        const serv = join(plasma, 'packages/sdds-serv/src/components/Chip/Chip.config.ts');
+        writeFileSync(
+            serv,
+            readFileSync(serv, 'utf8').replace(
+                '${tokens.height}: 3rem;',
+                '${tokens.height}: 3rem;\n                ${tokens.typoMix}: max(${h3Bold.fontWeight}, ${dsplL.lineHeight});',
+            ),
+        );
+        const meta = join(sdds, 'tenants', 'base_default', 'meta.json');
+        const theme = JSON.parse(readFileSync(meta, 'utf8'));
+        theme.tokens.push(
+            { name: 'screen-s.header.h3.bold', type: 'typography' },
+            { name: 'screen-s.display.l.normal', type: 'typography' },
+        );
+        writeFileSync(meta, JSON.stringify(theme));
+
+        const result = run(sdds, plasma, '--apply', `--templates=${join(root, 'templates')}`);
+        assert.equal(result.status, 0, result.stdout + result.stderr);
+        const config = JSON.parse(readFileSync(join(sdds, 'components', 'chip_default_config.json'), 'utf8'));
+        const l = config.variations.find((variation: { id: string }) => variation.id === 'l').props;
+        assert.deepEqual(l.typoMix, {
+            type: 'value',
+            value: 'max(var(--plasma-typo-h3-bold-font-weight), var(--plasma-typo-dspl-l-line-height))',
+        });
+    });
+
     it('stops without a local theme and names theme fetch', () => {
         rmSync(join(sdds, 'tenants'), { recursive: true, force: true });
         const result = run(sdds, plasma);

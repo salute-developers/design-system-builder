@@ -22,7 +22,7 @@ active, so the component editor shows the preview.
 Archives bundled in this repository (setup-local.sh uses them by default):
   compose  local-dev/compose-preview/preview-compose-plugin.zip  (./refresh-local-dev-assets.sh updates it; a fresh
            build comes from plasma-android: ./gradlew :integration-core:preview-compose-plugin:previewPluginArtifact)
-  react    local-dev/web-preview/preview-web-plugin.zip           (cd js/apps/preview-web-plugin && npm run package)
+  react    local-dev/web-preview/preview-web-plugin.zip           (npm run package in plasma packages/sdds-preview-web-plugin)
 
 Options:
   --platform compose|react  Plugin platform: compose (Compose plugin) or react (web plugin).

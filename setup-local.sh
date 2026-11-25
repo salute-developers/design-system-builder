@@ -49,7 +49,7 @@ and starts the client.
 
 The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
 ./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
-js/apps/preview-web-plugin the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
+the plasma package packages/sdds-preview-web-plugin builds the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
 also imports the API meta of each platform from the archive. The starter icon set local-dev/icons is loaded with
 ./publish-local-icons.sh (./refresh-local-dev-icons.sh rebuilds it from a plasma checkout).
 User design systems and themes are created in the editor with backend defaults.

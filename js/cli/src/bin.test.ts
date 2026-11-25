@@ -114,6 +114,52 @@ describe('dsbuilder-web-generator', () => {
         assert.ok((await readdir(join(root, 'output', 'src'))).includes('theme'));
     });
 
+    it('api-meta пишет то же, что npm run generate:api-meta, из ядра текущего каталога', async () => {
+        const fromBin = run(process.execPath, [bin, 'api-meta', '--out', join(root, 'bin.json')], cliDirectory);
+        assert.equal(fromBin.status, 0, fromBin.stderr);
+        const fromScript = run(
+            process.execPath,
+            ['--import', 'tsx', join(cliDirectory, 'src', 'generate-api-meta.ts'), '--package', '@salutejs/plasma-new-hope', '--out', join(root, 'script.json')],
+            cliDirectory,
+        );
+        assert.equal(fromScript.status, 0, fromScript.stderr);
+
+        assert.equal(await readFile(join(root, 'bin.json'), 'utf8'), await readFile(join(root, 'script.json'), 'utf8'));
+    });
+
+    it('api-meta и manifests без --out завершаются ошибкой и ничего не пишут', async () => {
+        for (const command of ['api-meta', 'manifests']) {
+            const result = run(process.execPath, [bin, command], root);
+
+            assert.equal(result.status, 1, command);
+            assert.match(result.stderr, /--out <file> is required/);
+        }
+        assert.deepEqual((await readdir(root)).sort(), ['.sdds']);
+    });
+
+    it('api-meta без установленного ядра завершается ошибкой с именем пакета', async () => {
+        // Временный каталог вне репозитория: выше него нет node_modules с ядром.
+        const result = run(process.execPath, [bin, 'api-meta', '--out', join(root, 'meta.json')], root);
+
+        assert.equal(result.status, 1);
+        assert.match(result.stderr, /@salutejs\/plasma-new-hope/);
+        assert.equal((await readdir(root)).includes('meta.json'), false);
+    });
+
+    it('manifests пишет все манифесты шаблонов генератора одним файлом', async () => {
+        const result = run(process.execPath, [bin, 'manifests', '--out', join(root, 'manifests.json')], root);
+        assert.equal(result.status, 0, result.stderr);
+
+        const manifests = JSON.parse(await readFile(join(root, 'manifests.json'), 'utf8'));
+        const templates = join(cliDirectory, 'src', 'generator', 'templates');
+        for (const name of await readdir(templates)) {
+            const file = join(templates, name, 'component.json');
+            const expected = await readFile(file, 'utf8').then(JSON.parse, () => undefined);
+            assert.deepEqual(manifests[name], expected, name);
+        }
+        assert.equal(manifests.TabItem.coreTokensExport, 'tabsTokens');
+    });
+
     it('ошибка генерации даёт ненулевой код', () => {
         const result = run(process.execPath, [bin, 'theme', '--sdds', join(root, 'missing')], root);
 
