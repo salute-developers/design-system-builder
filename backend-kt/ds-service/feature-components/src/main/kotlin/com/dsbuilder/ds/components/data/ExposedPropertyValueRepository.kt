@@ -163,6 +163,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.VariationCreate,
     ): VariationPropertyValue? {
         if (!canWriteVariationReferences(projectId, systemAdmin, command)) return null
+        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         validateCoreAssignment(
             command.propertyId,
             command.appearanceId,
@@ -172,7 +173,6 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         )
         val appearance = appearanceRow(command.appearanceId) ?: return null
         IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
-        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         val designSystemId = appearance[ComponentAppearancesTable.designSystemId]
         val id = StableVariationPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId
@@ -288,6 +288,7 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
         command: PropertyValueRepository.InvariantCreate,
     ): InvariantPropertyValue? {
         if (!canWriteInvariantReferences(projectId, systemAdmin, command)) return null
+        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         validateCoreAssignment(
             command.propertyId,
             command.appearanceId,
@@ -295,7 +296,6 @@ class ExposedPropertyValueRepository : PropertyValueRepository, TokenReferenceCl
             command.value,
             command.stateSetId,
         )
-        PropertyStateSetGuard.requireAllowedSet(command.propertyId, command.stateSetId)
         IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val id = StableInvariantPropertyValuesTable.insertReturning {
             it[propertyId] = command.propertyId

@@ -4,6 +4,7 @@ import com.dsbuilder.ds.components.application.EditorRuleViolationException
 import com.dsbuilder.ds.components.domain.StateNames
 import com.dsbuilder.ds.components.domain.StateSetRule
 import org.jetbrains.exposed.v1.core.JoinType
+import org.jetbrains.exposed.v1.core.alias
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.jdbc.select
@@ -11,7 +12,7 @@ import java.util.UUID
 
 /**
  * Проверка набора состояний значения по признаку свойства (правило [StateSetRule]). Вызывается в транзакции
- * записи: так признак, изменённый импортом меты после чтения бандла, учитывается. Удаление, переупорядочивание,
+ * записи, по версии Core, выбранной на момент записи. Удаление, переупорядочивание,
  * копирование и импорт конфигураций проверку не вызывают.
  */
 internal object PropertyStateSetGuard {
@@ -63,8 +64,16 @@ internal object PropertyStateSetGuard {
 
     private fun scoped(ids: List<UUID>): List<StateNames.Scoped> {
         if (ids.isEmpty()) return emptyList()
-        return ComponentStatesTable.select(ComponentStatesTable.componentId, ComponentStatesTable.name)
-            .where { ComponentStatesTable.id inList ids }
-            .map { StateNames.Scoped(it[ComponentStatesTable.componentId], it[ComponentStatesTable.name]) }
+        // Владелец относится к идентичности состояния, имя берём из выбранной версии Core.
+        val stored = StableComponentStatesTable
+        val states = stored.alias("stored_states")
+        val selected = ComponentStatesTable
+        return states.join(selected, JoinType.LEFT, states[stored.id], selected.id)
+            .select(states[stored.componentId], states[stored.name], selected.name)
+            .where { states[stored.id] inList ids }
+            .map { row ->
+                val name = row.getOrNull(selected.name) ?: row[states[stored.name]]
+                StateNames.Scoped(row[states[stored.componentId]], name)
+            }
     }
 }

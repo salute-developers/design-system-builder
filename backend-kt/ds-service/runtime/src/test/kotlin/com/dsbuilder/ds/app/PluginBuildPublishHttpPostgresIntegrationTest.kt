@@ -87,6 +87,11 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertEquals("published", publish(original, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
         val changed = archive(channel = "dev", extra = mapOf("changed.txt" to "new preview"))
         assertEquals("replaced", publish(changed, Actor.PUBLISHER, dryRun = false).ok().string("outcome"))
+        val putsBeforeRejected = storage.puts
+        val otherLibrary = archive(commit = COMMIT_B, channel = "dev", libraryId = "other-compose")
+        assertEquals(HttpStatusCode.Forbidden, publish(otherLibrary, Actor.PUBLISHER).status)
+        assertEquals(HttpStatusCode.Forbidden, publish(otherLibrary, Actor.PUBLISHER, dryRun = false).status)
+        assertEquals(putsBeforeRejected, storage.puts)
         assertEquals(1, count("core_releases WHERE provenance = 'imported'"))
     }
 
@@ -681,11 +686,12 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         extra: Map<String, String> = emptyMap(),
         avatar: String = "Avatar",
         channel: String = "stable",
+        libraryId: String = "fixture-compose",
     ): ByteArray {
         val meta = """[{"componentName":"$avatar"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.compose.preview","platform":"compose","protocolVersion":1,""" +
             """"entrypoint":"$entrypoint","version":"$version","commit":"$commit","uikitComposeVersion":"$uikit",""" +
-            """"channel":"$channel","coreRelease":{"libraryId":"fixture-compose",""" +
+            """"channel":"$channel","coreRelease":{"libraryId":"$libraryId",""" +
             """"platform":"compose","version":"$uikit"},""" +
             """"apiMetaSha256":"${metaSha ?: sha256Hex(meta.toByteArray())}","components":["$avatar"]}"""
         return zip(

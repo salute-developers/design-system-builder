@@ -234,8 +234,7 @@ Invoke-SetupTool 'local-dev/bootstrap-base-in-container.sh' @() $metaMounts $met
 Write-SetupLog 'Starting the client'
 Invoke-ClientCompose @('up', '-d', '--build', 'client')
 
-# Each plugin is published by the CLI as CI does it: the backend stores the files in the MinIO bucket of its
-# platform (compose-preview, web-preview) and imports the API meta of the platform from the archive.
+# Preview publication links each plugin to its registered Core release and stores files in its local MinIO bucket.
 function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archive, [bool]$explicit, [string]$bundled) {
     if (-not $archive) { $archive = Join-Path $root $bundled }
     if ($archive -match '^https?://' -or (Test-Path -LiteralPath $archive -PathType Leaf)) {
@@ -246,7 +245,7 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
             Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--channel', 'stable', '--from', $source) $mounts
         } catch {
             if ($explicit) { throw }
-            Write-SetupLog "The bundled $title could not be published: $_"
+            Write-SetupLog "The bundled $title could not be published. See local-dev/README.md for archive requirements. $_"
         }
     } else {
         if ($explicit) { throw "$title archive not found: $archive" }

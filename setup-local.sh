@@ -52,8 +52,10 @@ and starts the client.
 
 The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
 ./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
-the plasma package packages/sdds-preview-web-plugin builds the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
-also imports the API meta of each platform from the archive. The starter icon set local-dev/icons is loaded with
+the plasma package packages/sdds-preview-web-plugin builds the Web one).
+The setup uses ./publish-preview-plugin.sh to publish plugins for registered
+Core releases. Register new Core API meta as an administrator first (see local-dev/README.md).
+The starter icon set local-dev/icons is loaded with
 ./publish-local-icons.sh (./refresh-local-dev-icons.sh rebuilds it from a plasma checkout).
 User design systems and themes are created in the editor with backend defaults.
 Only an explicit --components-package (or COMPOSE_COMPONENTS_PACKAGE) invokes ./seed-local-design-system.sh
@@ -220,9 +222,8 @@ log "Preparing the project and global Web API through the gateway"
 log "Starting the client"
 js_compose up -d --build client
 
-# The plugins are published as CI does it: the backend stores each one in its local MinIO bucket (compose-preview,
-# web-preview) and imports the API meta of its platform from the archive. Without an archive the editor simply shows
-# no preview of that platform.
+# Preview publication links each plugin to its registered Core release and stores files in its local MinIO bucket.
+# Setup can continue without previews when a bundled archive is missing or cannot be published.
 publish_plugin() {
   local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6"
   if [[ -z "$archive" && -f "$bundled" ]]; then
@@ -238,7 +239,7 @@ publish_plugin() {
       echo "[local-setup] The requested $title could not be published" >&2
       exit 1
     fi
-    log "The $title could not be published; the setup continues without its preview"
+    log "The $title could not be published; setup continues without its preview. See local-dev/README.md for archive requirements."
   fi
 }
 

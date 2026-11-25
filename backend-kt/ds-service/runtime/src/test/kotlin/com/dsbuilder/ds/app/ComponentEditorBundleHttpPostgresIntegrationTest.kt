@@ -77,6 +77,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         val hovered = query("SELECT id FROM states WHERE component_id IS NULL AND name = 'hovered'")
         query("UPDATE properties SET state_combinations = false WHERE id = '$padding' RETURNING id")
         query("INSERT INTO property_supported_states VALUES ('$padding', '$hovered') RETURNING state_id")
+        importFixtureCore(service.postgres)
 
         val bundle = bundle(fixture.alpha, button, "compose")
         val states = bundle.list("states")

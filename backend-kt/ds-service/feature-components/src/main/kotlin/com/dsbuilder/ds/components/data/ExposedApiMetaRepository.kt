@@ -29,7 +29,9 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         if (error != null) return ApiMetaRepository.ImportAttempt.Failed(error)
         val releases = ExposedCoreReleaseImport()
         releases.lock(command.platform)
-        if (!releases.libraryMatches(command)) return ApiMetaRepository.ImportAttempt.Conflict("CORE_LIBRARY_CONFLICT")
+        if (!command.existingReleaseOnly && !releases.libraryMatches(command)) {
+            return ApiMetaRepository.ImportAttempt.Conflict("CORE_LIBRARY_CONFLICT")
+        }
         val projection = coreMetaProjection(command)
         val existing = releases.existing(command, projection)
         return if (existing != null) {

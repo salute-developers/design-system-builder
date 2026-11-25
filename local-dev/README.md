@@ -1,8 +1,9 @@
 # Данные для локального контура
 
-Файлы для локального контура. Обычный `./setup-local.sh` (на Windows — `.\setup-local.ps1`) использует
-Compose- и web-плагины с API-метаданными. Для ещё не зарегистрированного Core выполните шаг
-[первой публикации](#первый-preview-для-нового-core). Пакеты темы и конфигураций импортируются только по явному запросу.
+Файлы для локального контура. Compose и Web preview требуют пересобранных архивов с `coreRelease`
+в `preview-plugin.json`. Комплектные ZIP собраны по прежнему контракту. Передайте новые архивы через
+`--plugin-zip` и `--web-plugin-zip` или опубликуйте их после запуска стенда. Для нового Core выполните шаг
+[первой публикации](#первый-preview-для-нового-core). Пакеты темы и конфигураций импортируются по явному запросу.
 
 | Каталог | Что внутри | Кто использует |
 |---|---|---|
@@ -50,11 +51,10 @@ Compose- и web-плагины с API-метаданными. Для ещё не
 
 ## Как это работает
 
-1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и публикует оба архива плагинов командой CLI
-   (`dsbuilder preview-plugin publish --platform compose|react`), как это делает CI: бэкенд кладёт файлы в бакет
-   локального MinIO своей платформы (`compose-preview`, `web-preview`), импортирует API-мету платформы из архива
-   (компоненты и свойства глобального слоя) и делает билд активным. Клиент получает адреса активных билдов у бэкенда
-   и загружает плагины прямо из MinIO.
+1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и пытается опубликовать оба архива
+   плагинов через `dsbuilder preview-plugin publish`. Для публикации служебной учёткой Core архива должен быть
+   зарегистрирован в канале `stable`. Бэкенд кладёт файлы в бакет локального MinIO своей платформы
+   (`compose-preview`, `web-preview`) и делает билд активным. Клиент получает адреса у бэкенда и загружает плагины из MinIO.
 2. Затем `setup-local.sh` загружает каталог иконок командой CLI (`dsbuilder icons publish --apply`, как это делает CI):
    бэкенд кладёт SVG в бакет `compose-preview` локального MinIO и заменяет каталог одной транзакцией. По умолчанию
    используется стартовый набор `local-dev/icons/icons-manifest.json`, и только если каталог пуст: повторный запуск не
@@ -138,11 +138,20 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 
 ### Первый preview для нового Core
 
+Соберите совместимый архив, как описано в разделе [«Обновление файлов»](#обновление-файлов).
 На чистом стенде или при смене Core сначала зарегистрируйте мету администратором.
-Возьмите `api-meta.json` и координаты `coreRelease` из ZIP, войдите через
-`DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login` и выполните
-`dsbuilder components import-api --from ./api-meta.json --platform <compose|react> --library-id <libraryId> --core-version <version> --channel stable --apply`
-на том же API URL. Затем запустите `publish-preview-plugin.sh` с тем же каналом.
+Возьмите `api-meta.json` и координаты `coreRelease` из пересобранного ZIP. Задайте `DSBUILDER_API_URL` для входа и импорта.
+Пример для Compose в канале `stable`. Подставьте координаты из вашего архива.
+
+```bash
+export DSBUILDER_API_URL=http://localhost:8080
+dsbuilder auth login
+dsbuilder components import-api --from ./api-meta.json --platform compose \
+  --library-id uikit-compose --core-version 0.57.0 --channel stable --apply
+./publish-preview-plugin.sh --platform compose --channel stable --from ./preview-compose-plugin.zip
+```
+
+Для Web передайте `--platform react` и координаты Web Core. Канал при импорте и публикации должен совпадать.
 С сессией администратора можно вместо двух вызовов выполнить `dsbuilder preview-plugin publish`
 напрямую с `--apply`, указав архив, платформу, канал и API URL.
 

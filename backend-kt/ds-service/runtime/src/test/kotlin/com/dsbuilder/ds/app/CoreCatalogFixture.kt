@@ -31,7 +31,11 @@ internal fun importFixtureCore(jdbcUrl: String, username: String, password: Stri
                 statement.executeUpdate(
                     """
                     INSERT INTO core_release_properties
-                    SELECT '$id', p.id, p.component_id, p.name, p.type, p.default_value, p.description, '[]'
+                    SELECT '$id', p.id, p.component_id, p.name, p.type, p.default_value, p.description, '[]',
+                        p.state_combinations, ARRAY(
+                            SELECT s.state_id FROM property_supported_states s
+                            WHERE s.property_id = p.id ORDER BY s.state_id
+                        )
                     FROM properties p JOIN core_release_components c ON c.component_id = p.component_id
                     WHERE c.release_id = '$id'
                     """.trimIndent(),

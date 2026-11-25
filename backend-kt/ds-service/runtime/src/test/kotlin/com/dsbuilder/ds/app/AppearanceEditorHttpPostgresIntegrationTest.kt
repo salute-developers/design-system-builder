@@ -489,7 +489,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         val stored = valuesOf(fixture.appearance, padding, styleA).map { it.states() }.filter { it.isNotEmpty() }
         assertEquals(listOf(listOf("hovered")), stored)
 
-        execute("UPDATE properties SET state_combinations = true WHERE id = '$padding'")
+        declareSupport(padding, combinations = true, "hovered", "pressed")
         val combined = setValue(fixture.appearance, padding, listOf(styleA), value = "4", states = pair)
         assertEquals(HttpStatusCode.OK, combined.status, combined.bodyAsText())
     }
@@ -507,7 +507,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
         val row = id(created.bodyAsText())
 
-        // The meta narrowed the support after the editor read the bundle.
+        // The selected Core narrowed the support after the editor read the bundle.
         declareSupport(fill, combinations = false)
         assertEquals("states_not_supported", code(post(path, body(stateSet(commonState("pressed"))))))
         assertEquals("states_not_supported", code(patch("$path/$row", """{"value":"#000"}""")))
@@ -619,6 +619,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
                     "SELECT '$property', id FROM states WHERE component_id IS NULL AND name = '$name'",
             )
         }
+        importFixtureCore(service.postgres)
     }
 
     private fun execute(sql: String) = DriverManager.getConnection(

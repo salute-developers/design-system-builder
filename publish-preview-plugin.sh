@@ -20,7 +20,7 @@ exactly as CI does: the backend stores the files in the local MinIO bucket of th
 web-preview), verifies the archive against the registered Core release and makes the build
 active, so the component editor shows the preview.
 
-Archives bundled in this repository (setup-local.sh uses them by default):
+Rebuild the bundled archives if their manifest lacks coreRelease:
   compose  local-dev/compose-preview/preview-compose-plugin.zip  (./refresh-local-dev-assets.sh updates it; a fresh
            build comes from plasma-android: ./gradlew :integration-core:preview-compose-plugin:previewPluginArtifact)
   react    local-dev/web-preview/preview-web-plugin.zip           (npm run package in plasma packages/sdds-preview-web-plugin)
@@ -126,6 +126,6 @@ export DSBUILDER_CLIENT_SECRET="${DSBUILDER_CLIENT_SECRET:-dev-preview-publisher
 
 log "Publishing the $PLATFORM plugin $ARCHIVE to $GATEWAY_URL"
 "$CLI" preview-plugin publish --platform "$PLATFORM" --channel "$CHANNEL" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
-  || fail "The publication failed. Check that the stack is running and the archive Core is registered in the chosen channel."
+  || fail "The publication failed. Use an archive with coreRelease and register its Core in the chosen channel. See local-dev/README.md."
 
 log "Done. The component editor loads the plugin from the local MinIO bucket."

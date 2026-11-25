@@ -482,7 +482,7 @@ components:write
 Нужна user session администратора на **том же API URL**, который задан через `DSBUILDER_API_URL`:
 
 ```bash
-dsbuilder auth login --username admin@example.com
+dsbuilder auth login
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
   --library-id uikit-compose --core-version 0.55.0 --channel stable # план, ничего не пишется
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
@@ -650,8 +650,8 @@ Absent from meta (informational, nothing was removed): 2
 ## Публикация Compose preview plugin
 
 Команда отправляет билд плагина Compose-превью на бэкенд: архив `preview-compose-plugin.zip`, собранный в
-`plasma-android`, и мета компонентов из него. Бэкенд за один шаг кладёт файлы в хранилище, импортирует мету и
-делает билд активным; клиент редактора берёт адрес плагина у бэкенда.
+`plasma-android`, и мета компонентов из него. Бэкенд связывает билд с релизом Core, кладёт файлы в хранилище
+и делает билд активным. Клиент редактора получает адрес плагина у бэкенда.
 
 ```bash
 # Пробная отправка: бэкенд проверяет архив и мету и ничего не записывает.
