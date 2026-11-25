@@ -2,7 +2,8 @@
 
 Плагин показывает токены и Compose-компоненты выбранной дизайн-системы. В разделе «Компоненты»
 можно открыть превью, выбрать конфигурацию и вариацию, переключить режим темы и скопировать
-ссылку на стиль из опубликованной документации. Изменения выбора остаются в окне плагина.
+выражение стиля из опубликованной документации с вызовом `.style()`, например `Switch.L.style()`.
+Изменения выбора остаются в окне плагина.
 
 ## Установка
 
@@ -46,11 +47,15 @@ Windows x64 и Linux x64.
 песочницей и тестами, а установленный из ZIP плагин использует runtime своей IDE.
 Подробности: [JetBrains Runtime](https://plugins.jetbrains.com/docs/intellij/tools-intellij-platform-gradle-plugin-jetbrains-runtime.html).
 
-По умолчанию плагин подключается к `https://gateway.design-system-builder.ru`.
-Для уже запущенного локального backend используйте:
+Песочница `runIde` по умолчанию подключается к локальному backend `http://localhost:8080`.
+Поднимите локальный контур из корня репозитория командой `./setup-local.sh`, затем запускайте
+`runIde` как показано выше. Установленный из ZIP плагин по умолчанию подключается к
+`https://gateway.design-system-builder.ru`.
+
+Чтобы направить песочницу на другой контур, задайте `DSBUILDER_API_URL`, например для dev:
 
 ```bash
-DSBUILDER_API_URL=http://localhost:8080 ./gradlew :plugins:android-studio:runIde
+DSBUILDER_API_URL=https://gateway-dev.design-system-builder.ru ./gradlew :plugins:android-studio:runIde
 ```
 
 ## Сборка и выпуск

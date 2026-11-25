@@ -26,6 +26,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 
 private fun apiFor(http: HttpClient): AuthenticatedApiClient {
     val store = object : RefreshTokenStore {
@@ -553,6 +554,56 @@ class ComponentCatalogTest {
     }
 
     @Test
+    fun resolvesSwitchWithConstantExportAxisMissingFromPublishedProps() = runBlocking {
+        val configuration = ComponentConfiguration(
+            "switch",
+            "switch",
+            ApiJson.parseToJsonElement(
+                """{
+                  "defaults":[{"id":"size","value":"l"},{"id":"toggle-size","value":"l"},
+                    {"id":"view","value":"default"}],
+                  "variations":[
+                    {"id":"size","name":"size","values":[{"name":"l"},{"name":"m"},{"name":"s"}]},
+                    {"id":"toggle-size","name":"toggle-size","values":[{"name":"l"},{"name":"s"},
+                      {"name":"l","targets":[{"properties":[{"id":"size","value":"l"}]}]}]},
+                    {"id":"view","name":"view","values":[{"name":"default"}]}
+                  ]
+                }""",
+            ) as JsonObject,
+        )
+        val http = HttpClient(
+            MockEngine { request ->
+                if (request.url.encodedPath.endsWith("/active")) {
+                    respond("""{"publicationId":"published"}""")
+                } else {
+                    assertEquals("components.switch", request.url.parameters["subject"])
+                    respond(
+                        """{"items":[{"kind":"component-style","subject":"components.switch",
+                      "platformPayload":{"styles":[{"styleName":"Switch","variations":[
+                        {"props":[{"name":"size","value":"l"},{"name":"toggle-size","value":"l"}],
+                         "composeReference":"Switch.L"},
+                        {"props":[{"name":"size","value":"l"},{"name":"toggle-size","value":"s"}],
+                         "composeReference":"Switch.L.ToggleS"}
+                      ]}]}}]}""",
+                    )
+                }
+            },
+        )
+        http.use {
+            val references = ComponentStyleReferences(apiFor(it))
+            val selected = configuration.defaultSelections()
+            assertEquals("Switch.L", references.resolve(context, configuration, selected))
+            assertEquals(
+                "Switch.L.ToggleS",
+                references.resolve(context, configuration, selected + ("toggle-size" to "s")),
+            )
+            assertNull(references.resolve(context, configuration, selected + ("size" to "unknown")))
+            assertNull(references.resolve(context, configuration, selected + ("view" to "other")))
+            assertNull(references.resolve(context, configuration, selected - "toggle-size"))
+        }
+    }
+
+    @Test
     fun resolvesPublishedComposeReferenceAndPropagatesRequestErrors() = runBlocking {
         var forbidden = false
         val http = HttpClient(
@@ -579,10 +630,12 @@ class ComponentCatalogTest {
         )
         http.use {
             val references = ComponentStyleReferences(apiFor(it))
-            assertEquals("Button.M", references.resolve(context, "BasicButton", "BasicButton", mapOf("size" to "m")))
+            val configuration =
+                ComponentConfiguration("BasicButton", "BasicButton", ApiJson.parseToJsonElement("{}") as JsonObject)
+            assertEquals("Button.M", references.resolve(context, configuration, mapOf("size" to "m")))
             forbidden = true
             val failure = assertFailsWith<com.dsbuilder.frontend.plugin.androidstudio.api.ApiRequestException> {
-                references.resolve(context, "BasicButton", "BasicButton", mapOf("size" to "m"))
+                references.resolve(context, configuration, mapOf("size" to "m"))
             }
             assertEquals(403, failure.statusCode)
         }

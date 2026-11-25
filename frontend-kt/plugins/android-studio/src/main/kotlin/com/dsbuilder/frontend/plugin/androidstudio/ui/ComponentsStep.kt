@@ -309,8 +309,7 @@ private fun CopyComponentStyle(
                 try {
                     val reference = PluginServices.componentStyleReferences.resolve(
                         context,
-                        configuration.componentName,
-                        configuration.styleName,
+                        configuration,
                         selection,
                     )
                     val changed = revision != state.revision || selectedConfiguration != state.configurationName ||
@@ -319,7 +318,7 @@ private fun CopyComponentStyle(
                     if (reference == null) {
                         status = "Нет ссылки"
                     } else {
-                        ClipboardCopier.copy(reference)
+                        ClipboardCopier.copy("$reference.style()")
                         status = "Скопировано"
                     }
                 } catch (exception: CancellationException) {

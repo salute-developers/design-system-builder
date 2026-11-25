@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
+
 plugins {
     id("convention.intellij-platform-module")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -55,6 +57,13 @@ intellijPlatform {
             untilBuild = "243.*"
         }
     }
+}
+
+tasks.named<RunIdeTask>("runIde") {
+    environment(
+        "DSBUILDER_API_URL",
+        providers.environmentVariable("DSBUILDER_API_URL").orElse("http://localhost:8080").get(),
+    )
 }
 
 tasks.register<Exec>("releaseToolsTest") {

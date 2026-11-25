@@ -67,6 +67,42 @@ class ComponentStyleReferenceTest {
     }
 
     @Test
+    fun fillsOnlyDeclaredDefaultsAndPrefersCompletePublishedVariations() {
+        val defaults = """"props":[{"name":"size"},{"name":"shape","defaultValue":"default"}],"""
+        val short = """{"props":[{"name":"size","value":"l"}],"composeReference":"Badge.L"}"""
+        val complete = """{"props":[{"name":"size","value":"l"},{"name":"shape","value":"default"}],
+            "composeReference":"Badge.L.Default"}"""
+        fun styles(variations: String) = payload("""{"styleName":"Badge",$defaults"variations":[$variations]}""")
+        val selected = mapOf("size" to "l", "shape" to "default")
+        assertEquals("Badge.L", componentStyleReference(styles(short), "Badge", selected))
+        assertEquals("Badge.L.Default", componentStyleReference(styles("$short,$complete"), "Badge", selected))
+        assertNull(componentStyleReference(styles(short), "Badge", selected + ("shape" to "pilled")))
+        assertNull(componentStyleReference(styles(short), "Badge", selected + ("gap" to "wide")))
+        assertNull(componentStyleReference(styles("$short,$short"), "Badge", selected))
+        assertNull(componentStyleReference(styles("$complete,$complete"), "Badge", selected))
+        val collision = payload(
+            """{"styleName":"Badge","props":[{"name":"size"},{"name":"s-ize"},
+              {"name":"shape","defaultValue":"default"}],"variations":[$short]}""",
+        )
+        assertNull(componentStyleReference(collision, "Badge", selected))
+    }
+
+    @Test
+    fun refusesConflictingConstantsAndDoesNotIgnoreUnprovenAxes() {
+        val styles = payload(style("BasicButton", "Button.M.Default"))
+        val selected = mapOf("size" to "m", "view" to "default", "shape" to "round")
+        assertNull(componentStyleReference(styles, "BasicButton", selected))
+        assertEquals(
+            "Button.M.Default",
+            componentStyleReference(styles, "BasicButton", selected, mapOf("shape" to "round")),
+        )
+        assertNull(componentStyleReference(styles, "BasicButton", selected, mapOf("view" to "other")))
+        assertNull(
+            componentStyleReference(styles, "BasicButton", selected, mapOf("shape" to "round", "sh-ape" to "round")),
+        )
+    }
+
+    @Test
     fun refusesAmbiguousAndIncompleteMatches() {
         val duplicate = payload(
             style(
