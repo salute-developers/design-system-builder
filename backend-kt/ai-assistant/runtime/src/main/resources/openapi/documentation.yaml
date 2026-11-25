@@ -109,6 +109,9 @@ components:
         provider: { type: string, enum: [openai-compatible, gigachat] }
         model: { type: string }
         messageMaxChars: { type: integer }
+        historyMaxChars:
+          type: integer
+          description: AI_HISTORY_MAX_CHARS; по нему клиент заранее предупреждает о длинном разговоре.
     ChatRequest:
       type: object
       required: [designSystemId, messages]

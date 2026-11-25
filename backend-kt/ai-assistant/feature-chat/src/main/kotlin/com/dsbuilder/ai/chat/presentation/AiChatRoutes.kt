@@ -81,6 +81,7 @@ private fun statusBody(status: ChatAssistantStatus?): JsonObject = if (status ==
         put("provider", status.provider)
         put("model", status.model)
         put("messageMaxChars", status.messageMaxChars)
+        put("historyMaxChars", status.historyMaxChars)
     }
 }
 

@@ -146,10 +146,14 @@ class AiChatRoutesTest {
             assertEquals("openai-compatible", status.getValue("provider").jsonPrimitive.content)
             assertEquals("glm-4.5-flash", status.getValue("model").jsonPrimitive.content)
             assertEquals(
+                configuration.limits?.historyMaxChars.toString(),
+                status.getValue("historyMaxChars").jsonPrimitive.content,
+            )
+            assertEquals(
                 configuration.limits?.messageMaxChars.toString(),
                 status.getValue("messageMaxChars").jsonPrimitive.content,
             )
-            assertEquals(setOf("enabled", "provider", "model", "messageMaxChars"), status.keys)
+            assertEquals(setOf("enabled", "provider", "model", "messageMaxChars", "historyMaxChars"), status.keys)
             assertFalse("k" == status["apiKey"]?.jsonPrimitive?.content)
         }
     }

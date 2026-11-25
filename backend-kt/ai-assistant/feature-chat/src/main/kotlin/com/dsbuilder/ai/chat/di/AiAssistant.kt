@@ -55,6 +55,7 @@ class AiAssistant internal constructor(
         configuration.provider?.wireValue,
         configuration.model,
         configuration.limits?.messageMaxChars,
+        configuration.limits?.historyMaxChars,
     )
 
     /** Перестаёт принимать ходы и ждёт начатые вызовы инструментов не дольше [grace]. */
