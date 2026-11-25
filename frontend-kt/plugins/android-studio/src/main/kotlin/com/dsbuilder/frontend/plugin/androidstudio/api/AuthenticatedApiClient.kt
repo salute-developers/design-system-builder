@@ -17,6 +17,8 @@ private const val HTTP_UNAUTHORIZED = 401
  */
 public class ApiRequestException(
     message: String,
+    /** HTTP-статус отказа; `null` для ошибки транспорта. */
+    public val statusCode: Int? = null,
 ) : RuntimeException(message)
 
 /**
@@ -41,7 +43,10 @@ public class AuthenticatedApiClient(
     private val refreshUserSession: RefreshUserSessionUseCase,
 ) {
     /** Выполняет GET [path] и возвращает тело ответа. Бросает [ApiRequestException] при отказе. */
-    public suspend fun get(path: String): String = withContext(Dispatchers.IO) {
+    public suspend fun get(path: String): String = getResponse(path).body
+
+    /** Чтение с метаданными пагинации; использует тот же однократный повтор авторизации. */
+    internal suspend fun getResponse(path: String): AuthenticatedHttpResult.Success = withContext(Dispatchers.IO) {
         executeGet(path) ?: run {
             if (!refreshUserSession.execute()) {
                 throw SessionExpiredException("Сессия истекла. Войдите заново.")
@@ -51,7 +56,7 @@ public class AuthenticatedApiClient(
     }
 
     /** `null` означает "получили 401, стоит попробовать обновить сессию", а не успех. */
-    private suspend fun executeGet(path: String): String? {
+    private suspend fun executeGet(path: String): AuthenticatedHttpResult.Success? {
         val accessToken = sessionResolver.currentAccessToken()
             ?: throw SessionExpiredException("Нет активной сессии. Войдите в DS Builder.")
 
@@ -62,12 +67,12 @@ public class AuthenticatedApiClient(
         )
 
         return when (val result = client.get(path)) {
-            is AuthenticatedHttpResult.Success -> result.body
+            is AuthenticatedHttpResult.Success -> result
             is AuthenticatedHttpResult.Failure -> {
                 if (result.statusCode == HTTP_UNAUTHORIZED) {
                     null
                 } else {
-                    throw ApiRequestException(result.message)
+                    throw ApiRequestException(result.message, result.statusCode)
                 }
             }
         }

@@ -1,0 +1,72 @@
+name: Publish IDE plugin release
+
+on:
+  push:
+    tags:
+      - 'idea-plugin-v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag, for example idea-plugin-v0.1.0; select the same tag as the workflow ref'
+        required: true
+
+permissions:
+  contents: read
+
+env:
+  IDE_PLUGIN_TAG: ${{ inputs.tag || github.ref_name }}
+
+concurrency:
+  group: publish-ide-plugin-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - name: Require the selected release tag
+        shell: bash
+        run: |
+          if [[ "$GITHUB_REF_TYPE" != tag || "$GITHUB_REF_NAME" != "$IDE_PLUGIN_TAG" ]]; then
+            echo 'Run this workflow on the existing release tag matching the input' >&2
+            exit 1
+          fi
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Build and test the plugin from the exact tag
+        working-directory: frontend-kt
+        shell: bash
+        run: |
+          plugin_version=$(python3 plugins/android-studio/distribution/release.py version --tag "$IDE_PLUGIN_TAG")
+          ./gradlew :plugins:android-studio:test :plugins:android-studio:releaseToolsTest :plugins:android-studio:buildPlugin -PidePluginVersion="$plugin_version"
+          python3 plugins/android-studio/distribution/release.py package --tag "$IDE_PLUGIN_TAG" \
+            --directory plugins/android-studio/build/distributions --output plugins/android-studio/build/release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ide-plugin-release
+          path: frontend-kt/plugins/android-studio/build/release/
+          if-no-files-found: error
+
+  publish:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: ide-plugin-release
+          path: release
+      - name: Publish a new immutable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 frontend-kt/plugins/android-studio/distribution/release.py publish --tag "$IDE_PLUGIN_TAG" --directory release

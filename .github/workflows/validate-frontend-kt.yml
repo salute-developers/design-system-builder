@@ -6,6 +6,7 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
+      - '.github/workflows/publish-ide-plugin-release.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   push:
     branches:
@@ -15,6 +16,7 @@ on:
       - 'frontend-kt/**'
       - '.github/workflows/validate-frontend-kt.yml'
       - '.github/workflows/publish-cli-release.yml'
+      - '.github/workflows/publish-ide-plugin-release.yml'
       - 'backend-kt/docker/minio/Dockerfile'
   workflow_dispatch:
 
@@ -67,7 +69,7 @@ jobs:
         with:
           node-version: '22.20.0'
       - uses: gradle/actions/setup-gradle@v4
-      - run: ./gradlew build :cli:linkReleaseExecutableMingwX64 :cli:npmPackCliNodeSmoke
+      - run: ./gradlew build :plugins:android-studio:buildPlugin :cli:linkReleaseExecutableMingwX64 :cli:npmPackCliNodeSmoke
         working-directory: frontend-kt
 
   cli-windows-installers:

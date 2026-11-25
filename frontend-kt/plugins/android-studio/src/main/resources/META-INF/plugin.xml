@@ -3,7 +3,8 @@
     <name>DS Builder</name>
     <vendor>DS Builder</vendor>
     <description><![CDATA[
-        Android Studio / IntelliJ IDEA integration for browsing DS Builder design-system tokens.
+        Android Studio / IntelliJ IDEA integration for browsing DS Builder design-system tokens
+        and Compose components, previewing configurations and variations, and copying style references.
     ]]></description>
 
     <depends>com.intellij.modules.platform</depends>

@@ -59,6 +59,8 @@ internal sealed interface Step {
  * возвращался бы на первый шаг вместо экрана, на котором ушёл (например списка токенов).
  */
 public class MainScreenState {
+    internal var sectionIndex: Int by mutableIntStateOf(0)
+    internal var components = ComponentsState()
     internal var step: Step by mutableStateOf(Step.PickProject)
     internal val history: SnapshotStateList<Step> = mutableStateListOf()
     internal var tokenMode: TokenMode by mutableStateOf(TokenMode.LIGHT)
@@ -67,6 +69,8 @@ public class MainScreenState {
 
     /** Возвращает навигацию к выбору проекта (после выхода или истёкшей сессии). */
     public fun reset() {
+        sectionIndex = 0
+        components = ComponentsState()
         step = Step.PickProject
         history.clear()
         tokenMode = TokenMode.LIGHT
@@ -106,6 +110,8 @@ public fun MainScreen(
         if (!replaceCurrent) history.add(state.step)
         // Стартовый режим всегда светлый, независимо от темы IDE; дальше переключается явно.
         if (next is Step.ShowTokens) {
+            state.sectionIndex = 0
+            state.components = ComponentsState()
             state.tokenMode = TokenMode.LIGHT
             state.tokenTabIndex = 0
             state.tokenQuery = ""
@@ -151,18 +157,50 @@ public fun MainScreen(
                     )
                 }
 
-            is Step.ShowTokens -> {
-                TokensStep(
-                    getDesignSystemTokens,
-                    currentStep.project,
-                    currentStep.designSystem,
-                    currentStep.tenant,
-                    state,
-                    getTokenCodeReference,
-                    onSessionExpired,
-                )
-            }
+            is Step.ShowTokens -> DesignSystemSection(
+                currentStep,
+                state,
+                getDesignSystemTokens,
+                getTokenCodeReference,
+                onSessionExpired,
+            )
         }
+    }
+}
+
+@Composable
+private fun DesignSystemSection(
+    currentStep: Step.ShowTokens,
+    state: MainScreenState,
+    getDesignSystemTokens: GetDesignSystemTokensUseCase,
+    getTokenCodeReference: suspend (String, String, String, String) -> TokenCodeReferenceResult,
+    onSessionExpired: () -> Unit,
+) {
+    FilterSegment(
+        items = listOf("Токены", "Компоненты"),
+        selectedIndex = state.sectionIndex,
+        label = { it },
+        onSelect = { state.sectionIndex = it },
+        modifier = Modifier.padding(SddsServTheme.spacing.spacing4x),
+    )
+    if (state.sectionIndex == 0) {
+        TokensStep(
+            getDesignSystemTokens,
+            currentStep.project,
+            currentStep.designSystem,
+            currentStep.tenant,
+            state,
+            getTokenCodeReference,
+            onSessionExpired,
+        )
+    } else {
+        ComponentsStep(
+            projectId = currentStep.project.id,
+            designSystemId = currentStep.designSystem.id,
+            tenantId = currentStep.tenant.id,
+            state = state.components,
+            onSessionExpired = onSessionExpired,
+        )
     }
 }
 
@@ -286,6 +324,8 @@ private fun TenantStep(
 @Suppress("TooGenericExceptionCaught")
 internal suspend fun <T> runCatchingLoad(block: suspend () -> T): LoadState<T> = try {
     LoadState.Loaded(block())
+} catch (exception: kotlinx.coroutines.CancellationException) {
+    throw exception
 } catch (exception: SessionExpiredException) {
     LoadState.Failed(exception.message ?: "Сессия истекла.", isSessionExpired = true)
 } catch (exception: Exception) {
