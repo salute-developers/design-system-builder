@@ -17,6 +17,7 @@ import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.multiple
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.parameters.types.choice
 
 /**
  * Presentation command для `dsbuilder components import-api`.
@@ -30,10 +31,13 @@ internal class ComponentsImportApiCliCommand(
 
     private val platform: TargetPlatform by option("--platform").targetPlatform().required()
         .help(platformImportApiHelp(importApiMetaUseCase.supportedPlatforms))
-        .help("Backend API URL; the user session saved by `dsbuilder auth login` for this URL is used.")
 
     private val libraryId: String by option("--library-id").required().help("Core library identifier.")
-    private val channel: String by option("--channel").required().help("Core channel: stable or dev.")
+    private val channel: String by option("--channel")
+        .choice("stable", "dev")
+        .required()
+        .help("Core channel: stable or dev.")
+
     private val coreVersion: String by option("--core-version").required().help("Published Core library version.")
 
     private val mapType: List<String> by option("--map-type")

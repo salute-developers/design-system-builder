@@ -26,8 +26,9 @@ export const useCoreCompatibility = (
                 : undefined;
         const previous = last.current?.key === key ? last.current : undefined;
         const needsModel = mismatch !== undefined && mismatch !== previous?.mismatch;
-        if (needsModel) invalidateEditorReads(context!, { includeMetadata: true });
-        if (needsModel || (previous && previous.core !== core)) callback.current?.();
+        const coreChanged = previous && previous.core !== core;
+        if (needsModel && !coreChanged) invalidateEditorReads(context!, { includeMetadata: true });
+        if (needsModel || coreChanged) callback.current?.();
         last.current = { key, core, mismatch };
     }, [key, core, knownCoreRevision]);
     return { ...state, reload: watch.read };

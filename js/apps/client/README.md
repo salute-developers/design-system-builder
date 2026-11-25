@@ -243,8 +243,8 @@ related components in `styles`, the mode colors and the body font in `theme`. Th
   (`platform` must be `web`), or when the manifest does not list the component, the preview area shows
   «Превью недоступно» with the reason; the setup panel keeps working. Compose preview does not depend on the web
   plugin address. There is no default address in the client code.
-- The web plugin is published to the backend with `dsbuilder preview-plugin publish --platform react` (the archive is
-  built by `npm run package` in plasma `packages/sdds-preview-web-plugin`); the build and its web API meta are published together.
+- The web plugin is published to the backend with `dsbuilder preview-plugin publish --platform react --channel dev --from preview-web-plugin.zip --api-url http://localhost:8080 --apply` (the archive is
+  built by `npm run package` in plasma `packages/sdds-preview-web-plugin`); the manifest carries `coreRelease` and a hash of the included API meta.
   The local setup (`setup-local.sh`) publishes `local-dev/web-preview/preview-web-plugin.zip` into the local MinIO.
 - No WebAssembly check is done for the web plugin.
 - The web plugin has its own host layer and session next to the Compose one in the components section; the component
@@ -266,7 +266,7 @@ plugin then takes seconds to load in the iframe; the build is one script of abou
 Start the client with `VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/` (for example in `.env.local`, or
 `VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/ docker compose -f docker-compose.dev.yml up -d client` in `js`).
 Without the variable the client container takes the address from the backend. When the plugin is ready, pack it
-with `npm run package` and publish the archive with `dsbuilder preview-plugin publish --platform react`. `npm run package` refuses to run with uncommitted
+with `npm run package` and publish the archive with `dsbuilder preview-plugin publish --platform react --channel dev --from preview-web-plugin.zip --api-url http://localhost:8080 --apply`. `npm run package` refuses to run with uncommitted
 changes in the plugin package or in the plasma packages of its bundle (the manifest records the plasma commit);
 `PREVIEW_WEB_PLUGIN_ALLOW_DIRTY=1` skips the check only to try the packaging, such an archive is marked in the
 printed provenance block and must not be published. The deploy workflows do not set the variable: on DEV

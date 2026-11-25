@@ -307,12 +307,16 @@ export const Main = () => {
                                         data-testid="editor-nav-validation"
                                         selected={currentPath.includes('validation')}
                                         onClick={() => onClickPanelButton('validation')}
-                                        aria-label="Валидация"
+                                        aria-label={
+                                            compatibility.report?.blockingCount
+                                                ? 'Валидация, есть проблемы совместимости'
+                                                : 'Валидация'
+                                        }
                                         title="Валидация"
                                     >
                                         <TyGlyph name="warning" />
                                         {Boolean(compatibility.report?.blockingCount) && (
-                                            <span className="core-rail-danger-dot" aria-label="Есть проблемы совместимости" />
+                                            <span className="core-rail-danger-dot" aria-hidden="true" />
                                         )}
                                     </StyledIconButton>
                                     <StyledIconButton

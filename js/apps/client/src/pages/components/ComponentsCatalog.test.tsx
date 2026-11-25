@@ -56,7 +56,6 @@ vi.mock('../../api/componentRepository', () => ({
         restoreComponent: mocks.restoreComponent,
     },
 }));
-vi.mock('../../api/webPreviewPluginRepository', () => ({ fetchWebPreviewPluginDescriptor: vi.fn() }));
 vi.mock('../../composePreview', async (original) => ({
     ...(await original<typeof import('../../composePreview')>()),
     useWebPreviewPluginLocation: () => ({ status: 'missing' }),

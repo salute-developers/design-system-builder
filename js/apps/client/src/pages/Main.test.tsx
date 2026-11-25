@@ -458,11 +458,11 @@ describe('Theme editor shell', () => {
 
 it('shows and clears the compatibility rail badge when blocking problems change', () => {
     const view = renderEditor();
-    expect(screen.queryByLabelText('Есть проблемы совместимости')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Валидация, есть проблемы совместимости')).not.toBeInTheDocument();
     hookState.compatibilityCount = 2;
     view.rerender(editor());
-    expect(screen.getByLabelText('Есть проблемы совместимости')).toBeInTheDocument();
+    expect(screen.getByLabelText('Валидация, есть проблемы совместимости')).toBeInTheDocument();
     hookState.compatibilityCount = 0;
     view.rerender(editor());
-    expect(screen.queryByLabelText('Есть проблемы совместимости')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Валидация, есть проблемы совместимости')).not.toBeInTheDocument();
 });

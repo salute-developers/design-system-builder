@@ -1,14 +1,14 @@
 # Данные для локального контура
 
-Файлы для локального контура. Compose и Web preview требуют пересобранных архивов с `coreRelease`
-в `preview-plugin.json`. Комплектные ZIP собраны по прежнему контракту. Передайте новые архивы через
-`--plugin-zip` и `--web-plugin-zip` или опубликуйте их после запуска стенда. Для нового Core выполните шаг
-[первой публикации](#первый-preview-для-нового-core). Пакеты темы и конфигураций импортируются по явному запросу.
+Комплектные архивы Compose и Web содержат координаты `coreRelease` в `preview-plugin.json`.
+Собственные архивы можно передать через `--plugin-zip` и `--web-plugin-zip`. Для нового Core
+выполните шаг [первой публикации](#первый-preview-для-нового-core). Пакеты темы и конфигураций
+импортируются по явному запросу.
 
 | Каталог | Что внутри | Кто использует |
 |---|---|---|
-| `compose-preview/preview-compose-plugin.zip` | Собранный Compose preview plugin (Kotlin/Wasm) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform compose` |
-| `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (plasma `packages/sdds-preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react` |
+| `compose-preview/preview-compose-plugin.zip` | Собранный Compose preview plugin (Kotlin/Wasm) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform compose --channel dev` |
+| `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (plasma `packages/sdds-preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react --channel dev` |
 | `design-system/components/` | Пакет конфигураций компонентов: `meta.json` и `*_config.json` | `./seed-local-design-system.sh` |
 | `design-system/theme/android/` | Значения токенов темы для Android (`android_color.json` и др.) | `./seed-local-design-system.sh` |
 | `icons/icons-manifest.json` | Стартовый набор иконок `@salutejs/sdds-icons` (185 иконок трёх размеров с SVG, категориями и синонимами) | `./publish-local-icons.sh` |
@@ -18,14 +18,14 @@
 Происхождение текущих файлов:
 
 <!-- provenance:start -->
-- Plugin archive: build `0dc782c1cfa3` (commit `0dc782c1cfa35302d71fb53ded20eb9282d388f9`), uikit-compose `0.57.0`, protocol 1, sha256 `c23a741b5c434ffcd690087dbc1fa211a7d31c8b1031a4c2af712e4b18762ef6`.
+- Plugin archive: build `ef8bd516cf90` (plasma-android commit `98c5181ab1436859ae2c27045a38c01b396293cc`), uikit-compose `0.57.0-dev.98c5181ab1436859ae2c27045a38c01b396293cc`, protocol 1, sha256 `e878247e3e7c1f73c3d1d786632dccc893defb68d643ef1b61ce3d20bf985737`.
 - Theme (Android values): `sdds_serv` `0.9.0` from theme-converter.
 - Component package: `sdds_serv` `0.18.0`, 144 configurations, from theme-converter.
-- plasma-android commit of the refresh: `0dc782c1cfa35302d71fb53ded20eb9282d388f9`.
+- plasma-android commit for the bundled theme and component package: `0dc782c1cfa35302d71fb53ded20eb9282d388f9`.
 <!-- provenance:end -->
 
 <!-- web-provenance:start -->
-- Web plugin archive: build `0873de21a071` (plasma commit `0873de21a0718b1bd4fe0285db739262479925f3`), plasma-new-hope `0.391.0-dev.0`, protocol 1, sha256 `6ac28be3337a045f6a687d636676e5d557588a36e3311469f593e11c50ece0ec`.
+- Web plugin archive: build `db3543c62277` (plasma commit `0873de21a0718b1bd4fe0285db739262479925f3`), plasma-new-hope `0.391.0-dev.0`, protocol 1, sha256 `ad2060203aba25cca25b01da948f4ae13b10b4d79ce3b452eb656a63283cf568`. The Core coordinates were added to the existing build manifest.
 - Web API meta: sha256 `d7aa5a3278e91f25194eb54ada4ba42e61db062312d78cd1006ff35a5e6f5525`; built by `npm run package` in plasma `packages/sdds-preview-web-plugin`.
 <!-- web-provenance:end -->
 
@@ -37,11 +37,10 @@
 верхнеуровневая `version` остаётся ID сборки. `apiMetaSha256` считается по исходным байтам
 `api-meta.json`, формат этого файла не меняется.
 
-Архивы с build ID из таблицы происхождения выше были собраны до этого контракта и не содержат
-`coreRelease`. Для нового сервера передайте пересобранные архивы через `--plugin-zip` и
-`--web-plugin-zip`. Web-упаковщик обновлён в этом репозитории; Compose-упаковщик и реальные
-артефакты A/B должны поступить из отдельного Change в `plasma-android`. Старый архив нельзя
-использовать как доказательство проверки нового релизного контракта.
+Комплектные архивы содержат `coreRelease`. Чтобы передать собственные ZIP, используйте
+`--plugin-zip` и `--web-plugin-zip`. Контракт новых сборок поддерживают
+[Web-упаковщик в plasma](https://github.com/salute-developers/plasma/pull/3431) и
+[Compose-упаковщик в plasma-android](https://github.com/salute-developers/plasma-android/pull/978).
 
 Миграция БД закрепляет существующие опубликованные границы за техническим снимком каталога
 с недоказанным историческим происхождением; она не приписывает им будущий Core или preview.
@@ -53,7 +52,7 @@
 
 1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и пытается опубликовать оба архива
    плагинов через `dsbuilder preview-plugin publish`. Для публикации служебной учёткой Core архива должен быть
-   зарегистрирован в канале `stable`. Бэкенд кладёт файлы в бакет локального MinIO своей платформы
+   зарегистрирован в выбранном канале. Для комплектных архивов используется `dev`. Бэкенд кладёт файлы в бакет локального MinIO своей платформы
    (`compose-preview`, `web-preview`) и делает билд активным. Клиент получает адреса у бэкенда и загружает плагины из MinIO.
 2. Затем `setup-local.sh` загружает каталог иконок командой CLI (`dsbuilder icons publish --apply`, как это делает CI):
    бэкенд кладёт SVG в бакет `compose-preview` локального MinIO и заменяет каталог одной транзакцией. По умолчанию
@@ -103,7 +102,8 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP`, `COMPOSE_COMPONENTS_PACKAGE`) задают собственные файлы.
 `--components-package` включает демонстрационный импорт; `--theme-package` требует явного пакета компонентов.
 `--skip-plugin` и `--skip-design-system` отключают соответствующие шаги.
-Например: `./setup-local.sh --components-package ./local-dev/design-system/components`.
+После [регистрации Compose Core](#первый-preview-для-нового-core) демо-импорт можно запустить командой
+`./setup-local.sh --components-package ./local-dev/design-system/components`.
 Без этой опции ДС и тема создаются пользователем, а начальные данные берутся из ресурсов backend;
 значения Android и конфигурации из этого каталога поверх них не импортируются.
 
@@ -155,6 +155,19 @@ dsbuilder components import-api --from ./api-meta.json --platform compose \
 С сессией администратора можно вместо двух вызовов выполнить `dsbuilder preview-plugin publish`
 напрямую с `--apply`, указав архив, платформу, канал и API URL.
 
+Для комплектных ZIP локальный setup использует канал `dev`. Канал публикации задаётся через
+`DSBUILDER_COMPOSE_CORE_CHANNEL` и `DSBUILDER_WEB_CORE_CHANNEL`. Setup регистрирует Web Core из того же ZIP.
+Чтобы опубликовать комплектное Compose-превью или загрузить демонстрационный Compose-пакет на чистом стенде,
+после запуска setup войдите через `DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login` как системный администратор
+и зарегистрируйте Compose Core вместе с плагином:
+
+```bash
+dsbuilder preview-plugin publish --platform compose --channel dev \
+  --from local-dev/compose-preview/preview-compose-plugin.zip --api-url http://localhost:8080 --apply
+```
+
+Для демонстрационной ДС запустите setup повторно с `--components-package` после регистрации Core.
+
 ### Web-плагин
 
 Web-плагин живёт в репозитории plasma (`packages/sdds-preview-web-plugin`). Архив собирается там:
@@ -163,8 +176,7 @@ Web-плагин живёт в репозитории plasma (`packages/sdds-pre
 cd packages/sdds-preview-web-plugin && npm run package   # в клоне plasma
 ```
 
-Команда собирает плагин, записывает в его `preview-plugin.json` коммит plasma (`commit`, `version` — первые 12
-символов), `plasmaNewHopeVersion` и `apiMetaSha256`, пишет `archive/preview-web-plugin.zip` в каталоге пакета и печатает
+Команда собирает плагин, записывает в его `preview-plugin.json` коммит plasma (`commit`), ID сборки (`version`), координаты `coreRelease`, `plasmaNewHopeVersion` и `apiMetaSha256`, пишет `archive/preview-web-plugin.zip` в каталоге пакета и печатает
 блок происхождения. Она отказывается работать, если в пакете плагина или в пакетах plasma из его бандла есть
 незакоммиченные изменения. Скопируйте архив в `web-preview/preview-web-plugin.zip` и замените напечатанным блоком
 `web-provenance` выше. Обновляйте архив, когда меняются story, мета, разрешение payload или ядро. Для работы над самим

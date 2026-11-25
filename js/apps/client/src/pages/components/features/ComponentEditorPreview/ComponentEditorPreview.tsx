@@ -35,7 +35,6 @@ import {
 } from './ComponentEditorPreview.styles';
 import { restorePaletteColor } from '../../../../palette/activePalette';
 import { iconPreviewAsset, useIconCatalog } from '../../../../modules/icons';
-import { fetchWebPreviewPluginDescriptor } from '../../../../api/webPreviewPluginRepository';
 import type { StoryArgs, StoryArgValue } from './storyArgs';
 
 interface ComponentEditorPreviewProps {

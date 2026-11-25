@@ -132,15 +132,23 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     const configurationId = config.getConfigurationId();
     const source = editSource(config, selection);
     const combination = source.kind === 'combination' ? source.styleIDs : undefined;
+    const issueFocus = focused && tab === 'style' ? issueNodeId(focused) : undefined;
+    const lastFocused = useRef<string>();
     useEffect(() => {
-        if (!focused || tab !== 'style') return;
+        if (!issueFocus) {
+            lastFocused.current = undefined;
+            return;
+        }
+        if (lastFocused.current === issueFocus) return;
         const timer = window.setTimeout(() => {
-            const node = document.getElementById(issueNodeId(focused));
-            node?.scrollIntoView?.({ block: 'center' });
-            node?.focus({ preventScroll: true });
+            const node = document.getElementById(issueFocus);
+            if (!node) return;
+            lastFocused.current = issueFocus;
+            node.scrollIntoView?.({ block: 'center' });
+            node.focus({ preventScroll: true });
         }, 50);
         return () => window.clearTimeout(timer);
-    }, [focused?.issueId, tab, configurationId, selection, updated]);
+    }, [issueFocus, configurationId, selection, updated]);
     const [combinationError, setCombinationError] = useState<string>();
     const [combinationReset, setCombinationReset] = useState(0);
     const scope = `${configurationId}:${combination?.join('+')}`;

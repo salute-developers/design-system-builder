@@ -83,7 +83,7 @@ val componentsModule = module {
     single<DesignSystemComponentInitializer> { get<GeneratedDesignSystemComponentInitializer>() }
     single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get(), get()) }
     single<ComponentRepository> { ExposedComponentRepository() }
-    single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
+    single<ComponentConfigRepository> { ExposedComponentConfigRepository(get()) }
     factory { RepairCoreProblemUseCase(get(), get(), get()) }
     single<CoreProblemRepairRepository> {
         val values = AppearanceEditorValueOperations(get())

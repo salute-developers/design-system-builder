@@ -7,10 +7,12 @@ export const CompatibilityHint = ({
     message,
     children,
     className,
+    icon = false,
 }: {
     message: string;
     children: ReactNode;
     className?: string;
+    icon?: boolean;
 }) => {
     const [open, setOpen] = useState(false);
     const anchorRef = useRef<HTMLSpanElement>(null);
@@ -23,7 +25,8 @@ export const CompatibilityHint = ({
             <span
                 ref={anchorRef}
                 className={className}
-                aria-label={hint}
+                role={icon ? 'img' : undefined}
+                aria-label={icon ? hint : undefined}
                 aria-describedby={open ? tooltipId : undefined}
                 tabIndex={0}
                 onMouseEnter={() => setOpen(true)}
@@ -54,7 +57,7 @@ export const CompatibilityHint = ({
 };
 
 export const PropertyWarningIndicator = ({ message, blocking = false }: { message: string; blocking?: boolean }) => (
-    <CompatibilityHint message={message} className={`core-property-deprecated${blocking ? ' is-blocking' : ''}`}>
+    <CompatibilityHint icon message={message} className={`core-property-deprecated${blocking ? ' is-blocking' : ''}`}>
         <TyGlyph name="warning" />
     </CompatibilityHint>
 );

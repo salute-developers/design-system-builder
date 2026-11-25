@@ -5,7 +5,7 @@ INSERT INTO design_system_version_core_releases(version_id, platform, release_id
 SELECT v.id, c.platform, c.release_id FROM design_system_versions v CROSS JOIN core_current_releases c
 WHERE v.status = 'draft' ON CONFLICT DO NOTHING;
 
--- Архивные snapshot-границы с NULL status не участвовали в сравнении status <> draft в V21.
+-- Архивные snapshot-границы с NULL status не участвовали в сравнении status <> draft в V26.
 -- Заполняем только отсутствующие привязки техническим снимком, не переписывая известное происхождение.
 INSERT INTO design_system_version_core_releases(version_id, platform, release_id)
 SELECT v.id, r.platform, r.id FROM design_system_versions v CROSS JOIN core_releases r

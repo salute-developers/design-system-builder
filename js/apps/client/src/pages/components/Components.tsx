@@ -1,6 +1,7 @@
 import { authService } from '../../api/authService';
 import {
     archiveCoreSave,
+    ComponentRecoveryChanged,
     readComponentRecovery,
     readPendingComponentMutation,
     hasStaleCoreSave,
@@ -1080,10 +1081,12 @@ export const Components = () => {
                                             setRecoveryVersion((value) => value + 1);
                                             reload();
                                             compatibility.reload();
-                                        } catch {
+                                        } catch (error) {
                                             if (recoveryAttempt.current === attempt)
                                                 setRecoveryError(
-                                                    'Не удалось сохранить копию или загрузить серверную версию. Повторите попытку.',
+                                                    error instanceof ComponentRecoveryChanged
+                                                        ? error.message
+                                                        : 'Не удалось сохранить копию или загрузить серверную версию. Повторите попытку.',
                                                 );
                                         } finally {
                                             if (recoveryAttempt.current === attempt) setRecovering(false);

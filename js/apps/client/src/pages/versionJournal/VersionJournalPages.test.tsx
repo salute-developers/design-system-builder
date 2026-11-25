@@ -474,6 +474,22 @@ describe('DesignSystemVersionsPage', () => {
         expect(operations.publish).not.toHaveBeenCalled();
     });
 
+    it.each([0, 2])('блокирует публикацию при ошибке поверх отчёта с %s проблемами', async (blockingCount) => {
+        const reload = vi.fn();
+        operations.compatibility.mockReturnValue({
+            report: { blockingCount },
+            error: 'network unavailable',
+            reload,
+        });
+        renderPage('versions');
+        await screen.findAllByText('Типографика: Размер текста');
+        fireEvent.click(screen.getByRole('button', { name: 'Опубликовать версию' }));
+        expect(screen.getByRole('button', { name: 'Опубликовать версию' })).toBeDisabled();
+        expect(operations.publish).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+        expect(reload).toHaveBeenCalledOnce();
+    });
+
     it.each([
         {
             state: { report: { blockingCount: 0 } },
@@ -494,7 +510,7 @@ describe('DesignSystemVersionsPage', () => {
     ])('показывает краткий статус «$label» и полное сообщение только в тултипе', async ({ state, label, hint }) => {
         operations.compatibility.mockReturnValue(state);
         renderPage('versions');
-        const status = await screen.findByLabelText(hint);
+        const status = await screen.findByText(label);
         expect(status).toHaveTextContent(label);
         expect(screen.queryByRole('tooltip')).not.toBeInTheDocument();
         fireEvent.mouseEnter(status);

@@ -1,3 +1,4 @@
+import { StrictMode, type ReactNode } from 'react';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useCoreCompatibility } from './useCoreCompatibility';
@@ -148,4 +149,17 @@ it.each([401, 403, 500])('clears a previously visible report only on access deni
     act(() => view.result.current.reload());
     await waitFor(() => expect(view.result.current.error).toBeDefined());
     expect(view.result.current.report).toBe(status === 500 ? previous : undefined);
+});
+
+it('shares the watch after StrictMode repeats the first subscription', async () => {
+    mocks.read.mockResolvedValue(report('A'));
+    const wrapper = ({ children }: { children: ReactNode }) => <StrictMode>{children}</StrictMode>;
+    const first = renderHook(() => useCoreCompatibility(context), { wrapper });
+    await waitFor(() => expect(first.result.current.report).toBeDefined());
+    mocks.read.mockClear();
+    const second = renderHook(() => useCoreCompatibility(context));
+    expect(second.result.current.report).toBe(first.result.current.report);
+    expect(mocks.read).not.toHaveBeenCalled();
+    act(() => window.dispatchEvent(new Event('focus')));
+    await waitFor(() => expect(mocks.read).toHaveBeenCalledOnce());
 });

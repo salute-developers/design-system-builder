@@ -64,7 +64,6 @@ vi.mock('../../api/http', () => ({
     },
 }));
 
-import { resetWebPreviewPluginLocation } from '../../composePreview';
 import { Components } from './Components';
 
 const editorContext = { projectId: 'project', designSystemId: 'ds', tenantId: 'tenant' };
@@ -111,7 +110,6 @@ beforeEach(() => {
     mocks.coreReleaseId = undefined;
     mocks.coreRevision = undefined;
     mocks.reportRevision = undefined;
-    resetWebPreviewPluginLocation();
     vi.stubEnv('VITE_WEB_PREVIEW_PLUGIN_URL', '');
     mocks.fetchWebPreviewPluginDescriptor.mockResolvedValue(undefined);
 });

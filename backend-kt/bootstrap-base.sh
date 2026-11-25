@@ -10,9 +10,10 @@
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
 #   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
-#   DSBUILDER_WEB_CORE_VERSION    обязательная точная версия исходной меты
-#   DSBUILDER_WEB_CORE_CHANNEL    stable/dev (default stable)
-#   DSBUILDER_WEB_API_META       web-api-meta.json; default js/cli/.sdds/web/web-api-meta.json, генерируется при отсутствии
+#   DSBUILDER_WEB_CORE_VERSION    точная версия, обязательна с DSBUILDER_WEB_API_META
+#   DSBUILDER_WEB_CORE_CHANNEL    stable/dev (default dev)
+#   DSBUILDER_WEB_API_META       отдельный web-api-meta.json (по умолчанию мета из Web preview ZIP)
+#   WEB_PREVIEW_PLUGIN_ZIP      Web preview ZIP, файл или HTTP(S) URL (по умолчанию комплектный ZIP)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -22,7 +23,8 @@ PROJECT_PASSWORD="${DSBUILDER_PROJECT_PASSWORD:-password}"
 PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
 CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
-WEB_API_META="${DSBUILDER_WEB_API_META:-$ROOT_DIR/js/cli/.sdds/web/web-api-meta.json}"
+WEB_API_META="${DSBUILDER_WEB_API_META:-}"
+WEB_PLUGIN_ARCHIVE="${WEB_PREVIEW_PLUGIN_ZIP:-$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip}"
 
 log() { echo "[bootstrap-base] $*"; }
 fail() { echo "[bootstrap-base] ERROR: $*" >&2; exit 1; }
@@ -30,7 +32,6 @@ require() { command -v "$1" >/dev/null 2>&1 || fail "Required command '$1' not f
 
 require curl
 require python3
-[[ -n "${DSBUILDER_WEB_CORE_VERSION:-}" ]] || fail "Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate $WEB_API_META; node_modules is not proof of this meta's origin"
 
 json_field() {
     python3 -c '
@@ -70,17 +71,6 @@ expect_status() {
     local expected="$1" what="$2" body="$3" status
     status="$(tail -c 3 "$STATUS_FILE")"
     [[ "$status" == "$expected" ]] || fail "$what: HTTP $status $body"
-}
-
-# ─── Инструменты: web-api-meta.json ─────────────────────────────────────────
-
-ensure_web_api_meta() {
-    if [[ -f "$WEB_API_META" ]]; then return; fi
-    if [[ -n "${DSBUILDER_WEB_API_META:-}" ]]; then fail "web-api-meta file not found: $WEB_API_META"; fi
-    [[ -d "$ROOT_DIR/js/cli/node_modules" ]] || fail "web-api-meta.json is missing and js/cli has no dependencies: run 'cd js/cli && npm ci', or pass DSBUILDER_WEB_API_META=<file>"
-    log "Generating web-api-meta.json from the installed @salutejs/plasma-new-hope (js/cli)"
-    (cd "$ROOT_DIR/js/cli" && npm run --silent generate:api-meta -- --package @salutejs/plasma-new-hope --out "$WEB_API_META")
-    [[ -f "$WEB_API_META" ]] || fail "web-api-meta.json was not generated at $WEB_API_META"
 }
 
 # ─── Gateway и проект ───────────────────────────────────────────────────────
@@ -142,13 +132,17 @@ for project in json.load(sys.stdin):
 
 # ─── Глобальный слой web-компонентов ────────────────────────────────────────
 
+prepare_web_import() {
+    local source="${WEB_API_META:-$WEB_PLUGIN_ARCHIVE}"
+    local args=("$source" --channel "${DSBUILDER_WEB_CORE_CHANNEL:-dev}")
+    if [[ -z "$WEB_API_META" ]]; then args+=(--archive); fi
+    if [[ -n "${DSBUILDER_WEB_CORE_VERSION:-}" ]]; then args+=(--core-version "$DSBUILDER_WEB_CORE_VERSION"); fi
+    if [[ -n "${DSBUILDER_WEB_CORE_LIBRARY:-}" ]]; then args+=(--library-id "$DSBUILDER_WEB_CORE_LIBRARY"); fi
+    log "Preparing the web component layer from $source"
+    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "${args[@]}" > "$IMPORT_BODY_FILE" || fail "Web API meta normalization failed"
+}
+
 import_global_layer() {
-    log "Importing the web component layer from $WEB_API_META"
-    local version="${DSBUILDER_WEB_CORE_VERSION:-}"
-    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" \
-        --library-id "${DSBUILDER_WEB_CORE_LIBRARY:-plasma-new-hope}" --core-version "$version" \
-        --channel "${DSBUILDER_WEB_CORE_CHANNEL:-stable}" > "$IMPORT_BODY_FILE" \
-        || fail "Web API meta normalization failed"
     local body
     body="$(curl -sS -w '%{stderr}%{http_code}' -X POST \
         "$GATEWAY_URL/api/admin/component-config/import-api-meta" \
@@ -159,7 +153,7 @@ import_global_layer() {
     log "Web component layer imported"
 }
 
-ensure_web_api_meta
+prepare_web_import
 wait_for_gateway
 obtain_token
 wait_for_projects_api

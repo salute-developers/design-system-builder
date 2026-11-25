@@ -187,7 +187,7 @@ function Invoke-SetupTool([string]$script, [string[]]$arguments, [string[]]$moun
 }
 
 Import-LocalEnvironment
-if (-not $Down -and [string]::IsNullOrWhiteSpace($env:DSBUILDER_WEB_CORE_VERSION)) {
+if (-not $Down -and $env:DSBUILDER_WEB_API_META -and [string]::IsNullOrWhiteSpace($env:DSBUILDER_WEB_CORE_VERSION)) {
     throw 'Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate the Web API meta before setup'
 }
 Invoke-Checked 'Docker Compose availability' 'docker' @('compose', 'version')
@@ -219,30 +219,15 @@ Write-SetupLog 'Building local setup tools container'
 Invoke-Checked 'Local setup tools build' 'docker' @('build', '-t', $toolsImage,
     '-f', (Join-Path $root 'local-dev/Dockerfile.setup-tools'), (Join-Path $root 'local-dev'))
 
-Write-SetupLog 'Preparing the project and global Web API through the gateway'
-$metaMounts = @()
-$metaEnvironment = @()
-if ($env:DSBUILDER_WEB_API_META) {
-    if (-not (Test-Path -LiteralPath $env:DSBUILDER_WEB_API_META -PathType Leaf)) {
-        throw "Web API metadata file not found: $env:DSBUILDER_WEB_API_META"
-    }
-    $meta = Convert-InputPath $env:DSBUILDER_WEB_API_META '/input/web-api-meta.json' ([ref]$metaMounts)
-    $metaEnvironment += "DSBUILDER_WEB_API_META=$meta"
-}
-Invoke-SetupTool 'local-dev/bootstrap-base-in-container.sh' @() $metaMounts $metaEnvironment
-
-Write-SetupLog 'Starting the client'
-Invoke-ClientCompose @('up', '-d', '--build', 'client')
-
 # Preview publication links each plugin to its registered Core release and stores files in its local MinIO bucket.
-function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archive, [bool]$explicit, [string]$bundled) {
+function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archive, [bool]$explicit, [string]$bundled, [string]$channel) {
     if (-not $archive) { $archive = Join-Path $root $bundled }
     if ($archive -match '^https?://' -or (Test-Path -LiteralPath $archive -PathType Leaf)) {
         $mounts = @()
         $source = Convert-InputPath $archive "/input/$(Split-Path $bundled -Leaf)" ([ref]$mounts)
         try {
             Write-SetupLog "Publishing the $title"
-            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--channel', 'stable', '--from', $source) $mounts
+            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--channel', $channel, '--from', $source) $mounts
         } catch {
             if ($explicit) { throw }
             Write-SetupLog "The bundled $title could not be published. See local-dev/README.md for archive requirements. $_"
@@ -253,9 +238,44 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
     }
 }
 
-if (-not $SkipPlugin) {
-    Publish-PreviewPlugin 'compose' 'Compose preview plugin' $PluginZip $pluginWasExplicit 'local-dev/compose-preview/preview-compose-plugin.zip'
-    Publish-PreviewPlugin 'react' 'web preview plugin' $WebPluginZip $webPluginWasExplicit 'local-dev/web-preview/preview-web-plugin.zip'
+$webPreviewDownload = $null
+try {
+    # Bootstrap and publication share one download even if the URL later serves another build.
+    if (-not $SkipPlugin -and -not $env:DSBUILDER_WEB_API_META -and $WebPluginZip -match '^https?://') {
+        $webPreviewDownload = [IO.Path]::GetTempFileName()
+        Write-SetupLog 'Downloading the Web preview archive'
+        Invoke-WebRequest -Uri $WebPluginZip -OutFile $webPreviewDownload -UseBasicParsing -TimeoutSec 120
+        $WebPluginZip = $webPreviewDownload
+    }
+
+    Write-SetupLog 'Preparing the project and global Web API through the gateway'
+    $metaMounts = @()
+    $metaEnvironment = @()
+    if ($env:DSBUILDER_WEB_API_META) {
+        if (-not (Test-Path -LiteralPath $env:DSBUILDER_WEB_API_META -PathType Leaf)) {
+            throw "Web API metadata file not found: $env:DSBUILDER_WEB_API_META"
+        }
+        $meta = Convert-InputPath $env:DSBUILDER_WEB_API_META '/input/web-api-meta.json' ([ref]$metaMounts)
+        $metaEnvironment += "DSBUILDER_WEB_API_META=$meta"
+    } elseif ($WebPluginZip) {
+        $archive = Convert-InputPath $WebPluginZip '/input/preview-web-plugin.zip' ([ref]$metaMounts)
+        $metaEnvironment += "WEB_PREVIEW_PLUGIN_ZIP=$archive"
+    }
+    Invoke-SetupTool 'local-dev/bootstrap-base-in-container.sh' @() $metaMounts $metaEnvironment
+
+    Write-SetupLog 'Starting the client'
+    Invoke-ClientCompose @('up', '-d', '--build', 'client')
+
+    if (-not $SkipPlugin) {
+        $composeChannel = if ($env:DSBUILDER_COMPOSE_CORE_CHANNEL) { $env:DSBUILDER_COMPOSE_CORE_CHANNEL } else { 'dev' }
+        $webChannel = if ($env:DSBUILDER_WEB_CORE_CHANNEL) { $env:DSBUILDER_WEB_CORE_CHANNEL } else { 'dev' }
+        Publish-PreviewPlugin 'compose' 'Compose preview plugin' $PluginZip $pluginWasExplicit 'local-dev/compose-preview/preview-compose-plugin.zip' $composeChannel
+        Publish-PreviewPlugin 'react' 'web preview plugin' $WebPluginZip $webPluginWasExplicit 'local-dev/web-preview/preview-web-plugin.zip' $webChannel
+    }
+} finally {
+    if ($webPreviewDownload) {
+        Remove-Item -LiteralPath $webPreviewDownload -Force -ErrorAction SilentlyContinue
+    }
 }
 
 # The icon catalog is loaded as CI does it: the backend stores the SVG files in the MinIO bucket of the Compose

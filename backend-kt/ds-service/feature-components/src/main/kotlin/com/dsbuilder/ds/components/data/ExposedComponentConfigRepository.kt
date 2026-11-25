@@ -6,15 +6,21 @@ import com.dsbuilder.ds.components.application.ExportComponentConfig
 import com.dsbuilder.ds.components.application.ImportComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfig
 import com.dsbuilder.ds.components.domain.ComponentConfigPackage
+import com.dsbuilder.ds.core.application.CompatibilityChecker
+import com.dsbuilder.ds.core.application.CoreCompatibilityReport
+import com.dsbuilder.ds.core.data.selectedVersionId
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
+import org.jetbrains.exposed.v1.core.inList
 import org.jetbrains.exposed.v1.core.inSubQuery
 import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
+import java.util.UUID
 
 /** Component-config repository backed by the existing normalized db-service schema. */
 class ExposedComponentConfigRepository internal constructor(
+    private val checker: CompatibilityChecker,
     private val builder: ComponentConfigBuilder = ComponentConfigBuilder(),
     private val importer: ComponentConfigImporter = ComponentConfigImporter(),
 ) : ComponentConfigRepository {
@@ -50,19 +56,18 @@ class ExposedComponentConfigRepository internal constructor(
         val version = componentExportVersion(query.designSystemId)
             ?: return ComponentConfigRepository.ExportAttempt.NotFound
 
-        val compatibility = ExposedCompatibilityChecker().check(
-            projectId,
-            query.designSystemId,
-            com.dsbuilder.ds.core.data.selectedVersionId(),
-        )
-        if (compatibility.blockingCount > 0) return ComponentConfigRepository.ExportAttempt.Conflict(compatibility)
         val componentFilter = normalized(query.components)
         val styleFilter = normalized(query.styles)
+        val platform = requireNotNull(ComponentPlatformDb.fromWire(query.platform))
+        val compatibility = checker.check(projectId, query.designSystemId, selectedVersionId())
+            .forExport(query.designSystemId, platform.wireValue, componentFilter, styleFilter)
+        if (compatibility.blockingCount > 0) return ComponentConfigRepository.ExportAttempt.Conflict(compatibility)
         val underived = linkedSetOf<String>()
         val entries = mutableListOf<ComponentConfigPackage.Entry>()
-        val platform = requireNotNull(ComponentPlatformDb.fromWire(query.platform))
         for (appearance in appearances(query.designSystemId, platform)) {
             val componentName = camelToKebab(appearance.componentName)
+            val styleName = appearance.name ?: "default"
+            if (!matches(componentName, componentFilter) || !matches(styleName, styleFilter)) continue
             if (techToCamelCase(componentName) != appearance.componentName) {
                 val restoredName = techToCamelCase(componentName)
                 return ComponentConfigRepository.ExportAttempt.Failed(
@@ -70,8 +75,6 @@ class ExposedComponentConfigRepository internal constructor(
                         "'$componentName' converts back to '$restoredName'",
                 )
             }
-            val styleName = appearance.name ?: "default"
-            if (!matches(componentName, componentFilter) || !matches(styleName, styleFilter)) continue
             entries += ComponentConfigPackage.Entry(
                 componentName,
                 styleName,
@@ -90,13 +93,60 @@ class ExposedComponentConfigRepository internal constructor(
                     designSystem[ComponentDesignSystemsTable.name],
                     version,
                     compatibility.context.coreReleases.filter {
-                        it.ref.platform == ComponentPlatformDb.fromWire(query.platform)?.wireValue
+                        it.ref.platform == platform.wireValue
                     },
                 ),
                 entries.sortedWith(compareBy({ it.componentName }, { it.styleName })),
                 underived.sorted(),
             ),
         )
+    }
+
+    private fun CoreCompatibilityReport.forExport(
+        designSystemId: UUID,
+        platform: String,
+        components: Set<String>?,
+        styles: Set<String>?,
+    ): CoreCompatibilityReport {
+        val platformIssues = items.filter { issue ->
+            val location = issue.location
+            val matchesComponent = issue.code == "CORE_SELECTION_REQUIRED" ||
+                matches(camelToKebab(location.componentName), components)
+            location.platform == platform && matchesComponent
+        }
+        val matching = if (styles == null) {
+            platformIssues
+        } else {
+            val wholeComponents = platformIssues.filter {
+                it.location.appearanceId == null && it.code != "CORE_SELECTION_REQUIRED"
+            }.map { it.location.componentId }.toSet()
+            val styledComponents = componentsWithStyles(designSystemId, wholeComponents, styles)
+            platformIssues.filter { issue ->
+                val location = issue.location
+                when {
+                    issue.code == "CORE_SELECTION_REQUIRED" -> true
+                    location.appearanceId == null -> location.componentId in styledComponents
+                    else -> matches(location.appearanceName ?: "default", styles)
+                }
+            }
+        }
+        return copy(
+            items = matching,
+            blockingCount = matching.count { it.severity == "blocking" },
+            warningCount = matching.count { it.severity == "warning" },
+        )
+    }
+
+    private fun componentsWithStyles(designSystemId: UUID, components: Set<UUID>, styles: Set<String>): Set<UUID> {
+        if (components.isEmpty()) return emptySet()
+        // Оформления удалённого из Core компонента видны по сохранённым ревизиям без JOIN с выбранным каталогом.
+        return ComponentAppearancesTable.select(ComponentAppearancesTable.componentId, ComponentAppearancesTable.name)
+            .where {
+                (ComponentAppearancesTable.designSystemId eq designSystemId) and
+                    (ComponentAppearancesTable.componentId inList components)
+            }
+            .filter { matches(it[ComponentAppearancesTable.name] ?: "default", styles) }
+            .mapTo(mutableSetOf()) { it[ComponentAppearancesTable.componentId] }
     }
 
     override suspend fun import(

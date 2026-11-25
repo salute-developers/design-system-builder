@@ -1,3 +1,4 @@
+import { isAxiosError } from 'axios';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { StyledSelect } from '../../components/Overlay/Overlay';
 import { http } from '../../api/http';
@@ -19,6 +20,11 @@ const selectionOf = (current?: CoreRelease): Selection => ({
     channel: current?.channel ?? 'stable',
     releaseId: current?.selectionMode === 'latest' ? 'latest' : (current?.releaseId ?? ''),
 });
+
+const selectionsOf = ({ context }: CoreSettings): Record<string, Selection> =>
+    Object.fromEntries(
+        platforms.map(([platform]) => [platform, selectionOf(context.coreReleases.find((r) => r.platform === platform))]),
+    );
 
 export const CoreSettingsPanel = ({
     projectId,
@@ -42,6 +48,8 @@ export const CoreSettingsPanel = ({
     const [selections, setSelections] = useState<Record<string, Selection>>({});
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [loadAttempt, setLoadAttempt] = useState(0);
+    const [catalogRefreshes, setCatalogRefreshes] = useState<Record<string, number>>({});
     const [message, setMessage] = useState('');
     const savingRequest = useRef<AbortController | null>(null);
     const report = loadedScope === scope ? saved : undefined;
@@ -61,14 +69,7 @@ export const CoreSettingsPanel = ({
             .then(({ data }) => {
                 if (controller.signal.aborted) return;
                 setSaved(data);
-                setSelections(
-                    Object.fromEntries(
-                        platforms.map(([platform]) => [
-                            platform,
-                            selectionOf(data.context.coreReleases.find((r) => r.platform === platform)),
-                        ]),
-                    ),
-                );
+                setSelections(selectionsOf(data));
                 setLoadedScope(scope);
             })
             .catch(() => {
@@ -78,7 +79,7 @@ export const CoreSettingsPanel = ({
             controller.abort();
             savingRequest.current?.abort();
         };
-    }, [root, versionId, scope]);
+    }, [root, versionId, scope, loadAttempt]);
     const changes = report
         ? platforms.filter(([platform]) => {
               const original = selectionOf(report.context.coreReleases.find((r) => r.platform === platform));
@@ -105,11 +106,10 @@ export const CoreSettingsPanel = ({
         setError('');
         setMessage('');
         let latest = report;
-        let activeLabel = '';
+        const isCurrent = () => !controller.signal.aborted && scopeRef.current === scope;
         const completed: string[] = [];
         try {
             for (const [platform, label] of changes) {
-                activeLabel = label;
                 const { data } = await http.put<CoreSettings>(
                     `${root}/core-settings/${platform}`,
                     {
@@ -122,9 +122,10 @@ export const CoreSettingsPanel = ({
                     },
                     { signal: controller.signal },
                 );
-                if (controller.signal.aborted || scopeRef.current !== scope) return;
+                if (!isCurrent()) return;
                 latest = data;
                 setSaved(data);
+                setCatalogRefreshes((old) => ({ ...old, [platform]: (old[platform] ?? 0) + 1 }));
                 completed.push(label);
                 invalidateEditorReads({ projectId }, { includeMetadata: true });
             }
@@ -133,11 +134,32 @@ export const CoreSettingsPanel = ({
                     ? 'Версии библиотек сохранены. Исправьте проблемы настроек перед экспортом и публикацией.'
                     : 'Версии библиотек сохранены',
             );
-        } catch {
-            if (controller.signal.aborted || scopeRef.current !== scope) return;
-            setError(
-                `${completed.length ? `Сохранены: ${completed.join(', ')}. ` : ''}Не удалось сохранить ${activeLabel}. Несохранённый выбор оставлен в форме. Обновите настройки, если их изменил другой пользователь.`,
-            );
+        } catch (failure) {
+            if (!isCurrent()) return;
+            const response = isAxiosError<{ code?: string }>(failure) ? failure.response : undefined;
+            const prefix = completed.length ? `Сохранены: ${completed.join(', ')}. ` : '';
+            if (response?.status === 403) {
+                setError(`${prefix}Нет прав на изменение настроек библиотек.`);
+            } else if (response?.status === 409 && response.data?.code === 'CORE_SELECTION_STALE') {
+                try {
+                    const { data } = await http.get<CoreSettings>(`${root}/core-settings`, { signal: controller.signal });
+                    if (!isCurrent()) return;
+                    const pending = changes.slice(completed.length);
+                    setSaved(data);
+                    setSelections({
+                        ...selectionsOf(data),
+                        ...Object.fromEntries(pending.map(([platform]) => [platform, selections[platform]])),
+                    });
+                    invalidateEditorReads({ projectId }, { includeMetadata: true });
+                    setError(`${prefix}Настройки изменились. Проверьте свой выбор и сохраните ещё раз.`);
+                } catch {
+                    if (isCurrent()) {
+                        setError(`${prefix}Не удалось обновить настройки. Повторите сохранение.`);
+                    }
+                }
+            } else {
+                setError(`${prefix}Не удалось сохранить ${changes[completed.length]?.[1] ?? "версию"}. Несохранённый выбор оставлен в форме.`);
+            }
         } finally {
             if (savingRequest.current === controller) savingRequest.current = null;
             if (scopeRef.current === scope) setSaving(false);
@@ -154,6 +176,11 @@ export const CoreSettingsPanel = ({
                     {error}
                 </p>
             )}
+            {!report && error && (
+                <button className="ps-button ps-button-neutral" type="button" onClick={() => setLoadAttempt((previous) => previous + 1)}>
+                    Повторить
+                </button>
+            )}
             {!report && !error && <p>Загружаем версии библиотек…</p>}
             <form id="core-library-settings-form" onSubmit={save}>
                 {report && (
@@ -165,7 +192,7 @@ export const CoreSettingsPanel = ({
                         </div>
                         {platforms.map(([platform, label]) => (
                             <PlatformCore
-                                key={`${scope}:${platform}`}
+                                key={`${scope}:${platform}:${selections[platform].channel}:${catalogRefreshes[platform]}`}
                                 root={root}
                                 platform={platform}
                                 label={label}
@@ -244,7 +271,7 @@ const PlatformCore = ({
         currentInChannel?.provenance !== 'migration-snapshot' &&
         currentInChannel !== undefined &&
         !releases.some((r) => r.releaseId === currentInChannel.releaseId);
-    const latest = releases[0] ?? (currentInChannel?.selectionMode === 'latest' ? currentInChannel : undefined);
+    const latest = currentInChannel?.selectionMode === 'latest' ? currentInChannel : releases[0];
     const versionDisabled = loading || disabled;
     const releaseOptions = [
         { value: '', label: loading ? 'Загружаем версии…' : 'Выберите версию' },
@@ -272,10 +299,6 @@ const PlatformCore = ({
                             onChange={(value) => {
                                 if (value === channel) return;
                                 onChange({ channel: value as Selection['channel'], releaseId: '' });
-                                setReleases([]);
-                                setPageRequest({ offset: 0 });
-                                setHasMore(false);
-                                setError('');
                             }}
                             options={[
                                 { value: 'stable', label: 'stable' },
@@ -298,7 +321,7 @@ const PlatformCore = ({
                             onChange={(value) => onChange({ ...selection, releaseId: value })}
                             options={releaseOptions}
                         />
-                        {hasMore && (
+                        {hasMore && !error && (
                             <button
                                 type="button"
                                 className="ps-button ps-core-more"
@@ -311,7 +334,15 @@ const PlatformCore = ({
                     </div>
                     {error && (
                         <p className="ps-core-row-hint" role="alert">
-                            {error}
+                            {error}{' '}
+                            <button
+                                type="button"
+                                className="ps-button ps-button-neutral"
+                                disabled={versionDisabled}
+                                onClick={() => setPageRequest({ ...pageRequest })}
+                            >
+                                Повторить
+                            </button>
                         </p>
                     )}
                 </>

@@ -10,7 +10,6 @@ import type {
     PreviewPayloadInput,
     WebPreviewPayloadOptions,
 } from '../../../../composePreview';
-import { resetWebPreviewPluginLocation } from '../../../../composePreview/webPluginLocation';
 import { ComponentEditorPreview } from './ComponentEditorPreview';
 import { withStoryArgs } from './storyArgsTestHarness';
 
@@ -46,7 +45,6 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../../composePreview')>();
     return {
         ...actual,
-        getComposePreviewPluginUrl: () => undefined,
         isComposePreviewEnvironmentSupported: () => pluginState.wasmSupported,
         loadComposePreviewManifest: (url: string, platform?: string) => pluginState.loadManifest(url, platform),
         // Compose-payload здесь не нужен: адреса Compose-плагина нет.
@@ -87,7 +85,7 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     };
 });
 
-// Доступность web-плагина проверяет `useWebPreviewPlugin` через внутренние модули, минуя `index`.
+// Доступность выбранного web-плагина проверяет `useWebPreviewPluginAt` через внутренние модули.
 vi.mock('../../../../composePreview/config', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/config')>()),
     getWebPreviewPluginOverride: () => pluginState.webUrl,
@@ -182,7 +180,6 @@ const lastWebPayload = () =>
 
 describe('ComponentEditorPreview web plugin', () => {
     beforeEach(() => {
-        resetWebPreviewPluginLocation();
         pluginState.webUrl = WEB_PLUGIN_URL;
         pluginState.fetchDescriptor = vi.fn();
         pluginState.wasmSupported = true;

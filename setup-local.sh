@@ -43,8 +43,9 @@ Options:
            Do not create the design system and do not load the components.
   --help   Show this help.
 
-Full setup requires DSBUILDER_WEB_CORE_VERSION: the exact version used to generate the Web API meta.
---down and --backend-only do not import metadata and do not require it.
+Setup imports Web Core from the selected Web archive. A separate DSBUILDER_WEB_API_META requires
+DSBUILDER_WEB_CORE_VERSION with its exact version. The default preview channels are dev
+(DSBUILDER_COMPOSE_CORE_CHANNEL and DSBUILDER_WEB_CORE_CHANNEL).
 
 The setup starts the Kotlin backend, whose ds-service creates the schema of its own database
 with Flyway, prepares a project and global Web API through the gateway (backend-kt/bootstrap-base.sh)
@@ -169,7 +170,7 @@ if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" ==
   exit 2
 fi
 
-if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && ! "${DSBUILDER_WEB_CORE_VERSION:-}" =~ [^[:space:]] ]]; then
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && -n "${DSBUILDER_WEB_API_META:-}" && ! "${DSBUILDER_WEB_CORE_VERSION:-}" =~ [^[:space:]] ]]; then
   echo "[local-setup] Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate the Web API meta before setup" >&2
   exit 2
 fi
@@ -200,6 +201,18 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
+# Bootstrap and publication must share the same download even if the URL later serves another build.
+if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" &&
+      -z "${DSBUILDER_WEB_API_META:-}" && "$WEB_PLUGIN_ZIP" =~ ^https?:// ]]; then
+  require curl
+  web_preview_download="$(mktemp -d)"
+  trap 'rm -rf "$web_preview_download"' EXIT
+  log "Downloading the Web preview archive"
+  curl --fail --silent --show-error --location --max-time 120 \
+    --output "$web_preview_download/preview-web-plugin.zip" "$WEB_PLUGIN_ZIP"
+  WEB_PLUGIN_ZIP="$web_preview_download/preview-web-plugin.zip"
+fi
+
 if [[ "$RESET" == "1" ]]; then
   log "Resetting local data: removing the volumes of both stacks"
   docker compose -f "$ROOT_DIR/backend-kt/docker-compose.local.yml" down -v
@@ -217,7 +230,7 @@ if [[ "$BACKEND_ONLY" == "1" ]]; then
 fi
 
 log "Preparing the project and global Web API through the gateway"
-"$ROOT_DIR/backend-kt/bootstrap-base.sh"
+WEB_PREVIEW_PLUGIN_ZIP="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}" "$ROOT_DIR/backend-kt/bootstrap-base.sh"
 
 log "Starting the client"
 js_compose up -d --build client
@@ -225,7 +238,7 @@ js_compose up -d --build client
 # Preview publication links each plugin to its registered Core release and stores files in its local MinIO bucket.
 # Setup can continue without previews when a bundled archive is missing or cannot be published.
 publish_plugin() {
-  local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6"
+  local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6" channel="$7"
   if [[ -z "$archive" && -f "$bundled" ]]; then
     archive="$bundled"
   fi
@@ -234,7 +247,7 @@ publish_plugin() {
     return
   fi
   log "Publishing the $title"
-  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --channel stable --from "$archive"; then
+  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --channel "$channel" --from "$archive"; then
     if [[ "$explicit" == "1" ]]; then
       echo "[local-setup] The requested $title could not be published" >&2
       exit 1
@@ -245,9 +258,9 @@ publish_plugin() {
 
 if [[ "$SKIP_PLUGIN" == "0" ]]; then
   publish_plugin compose "Compose preview plugin" "$PLUGIN_ZIP" "$PLUGIN_ZIP_EXPLICIT" "$BUNDLED_PLUGIN_ZIP" \
-    "restore local-dev/compose-preview or pass --plugin-zip"
+    "restore local-dev/compose-preview or pass --plugin-zip" "${DSBUILDER_COMPOSE_CORE_CHANNEL:-dev}"
   publish_plugin react "web preview plugin" "$WEB_PLUGIN_ZIP" "$WEB_PLUGIN_ZIP_EXPLICIT" "$BUNDLED_WEB_PLUGIN_ZIP" \
-    "restore local-dev/web-preview or pass --web-plugin-zip"
+    "restore local-dev/web-preview or pass --web-plugin-zip" "${DSBUILDER_WEB_CORE_CHANNEL:-dev}"
 fi
 
 # The icon catalog is loaded as CI does it (`dsbuilder icons publish --apply`): the backend stores the SVG files in the

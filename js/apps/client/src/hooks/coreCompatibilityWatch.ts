@@ -12,9 +12,11 @@ class CompatibilityWatch {
     private controller?: AbortController;
     private timer?: ReturnType<typeof setInterval>;
     private context: EditorContextKey;
+    private key: string;
     private componentId?: string;
     private refreshPending = false;
-    constructor(context: EditorContextKey, componentId?: string) {
+    constructor(key: string, context: EditorContextKey, componentId?: string) {
+        this.key = key;
         this.context = context;
         this.componentId = componentId;
     }
@@ -76,11 +78,10 @@ class CompatibilityWatch {
                 this.refreshPending = false;
                 clearInterval(this.timer);
                 window.removeEventListener('focus', this.read);
-                if (watches.get(this.key) === this) watches.delete(this.key);
+                watches.delete(this.key);
             }
         };
     };
-    key = '';
     private emit() {
         this.listeners.forEach((listener) => listener());
     }
@@ -91,12 +92,16 @@ const disabled = { subscribe: () => () => {}, getSnapshot: () => empty, read: ()
 
 export const compatibilityWatch = (key: string, context?: EditorContextKey | null, componentId?: string) => {
     if (!context) return disabled;
-    let watch = watches.get(key);
-    if (!watch) {
-        watch = new CompatibilityWatch(context, componentId);
-        watch.key = key;
-        watches.set(key, watch);
-    }
-    const current = watch;
-    return { subscribe: current.subscribe, getSnapshot: () => current.snapshot, read: current.refresh };
+    return {
+        subscribe: (listener: () => void) => {
+            let watch = watches.get(key);
+            if (!watch) {
+                watch = new CompatibilityWatch(key, context, componentId);
+                watches.set(key, watch);
+            }
+            return watch.subscribe(listener);
+        },
+        getSnapshot: () => watches.get(key)?.snapshot ?? empty,
+        read: () => watches.get(key)?.refresh(),
+    };
 };

@@ -65,12 +65,6 @@
 .core-validation-details .ps-aside-note {
     overflow-wrap: anywhere;
 }
-.component-inspector-fields {
-    border: 0;
-    margin: 0;
-    padding: 0;
-    min-width: 0;
-}
 .sdds-style-role-label.has-deprecated-property {
     align-items: center;
 }
@@ -174,22 +168,6 @@
     border-radius: 50%;
     background: var(--p-danger);
     pointer-events: none;
-}
-.core-tab-warning {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: 0 0 16px;
-    width: 16px;
-    height: 16px;
-    line-height: 0;
-    color: var(--p-danger);
-}
-.core-tab-warning .ui-glyph {
-    display: block;
-    width: 14px;
-    height: 14px;
-    transform: translateY(-1px);
 }
 .builder-rail-button .ui-glyph {
     width: 16px;

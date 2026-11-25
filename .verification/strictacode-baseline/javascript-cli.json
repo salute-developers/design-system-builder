@@ -1,22 +1,22 @@
 {
   "project": {
     "lang": "javascript",
-    "loc": 5717,
-    "packages": 11,
-    "modules": 56,
+    "loc": 5816,
+    "packages": 12,
+    "modules": 63,
     "classes": 15,
-    "methods": 95,
-    "functions": 230,
+    "methods": 94,
+    "functions": 243,
     "status": {
       "name": "normal",
-      "score": 38,
+      "score": 37,
       "reasons": [
         "Increased refactoring pressure"
       ],
       "suggestions": []
     },
     "overengineering_pressure": {
-      "score": 17
+      "score": 16
     },
     "refactoring_pressure": {
       "score": 49,
@@ -24,17 +24,17 @@
         "avg": 10,
         "min": 1,
         "max": 47,
-        "p50": 8,
-        "p90": 19
+        "p50": 9,
+        "p90": 18
       }
     },
     "complexity": {
-      "score": 993,
-      "density": 17.37,
+      "score": 1020,
+      "density": 17.54,
       "stat(modules)": {
-        "avg": 18,
+        "avg": 16,
         "min": 1,
-        "max": 398,
+        "max": 397,
         "p50": 6,
         "p90": 26
       }

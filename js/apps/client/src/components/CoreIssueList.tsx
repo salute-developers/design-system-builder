@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import type { CoreIssue } from '../api/coreCompatibilityRepository';
 
 const PAGE_SIZE = 20;
@@ -16,13 +16,22 @@ export const CoreIssueList = ({
     const [requestedPage, setPage] = useState(0);
     const pageCount = Math.max(1, Math.ceil(items.length / PAGE_SIZE));
     const page = Math.min(requestedPage, pageCount - 1);
+    const selectedIndex = items.findIndex((issue) => issue.issueId === selectedIssueId);
+    const positionedIssue = useRef<string>();
     useEffect(() => {
-        const selected = items.findIndex((issue) => issue.issueId === selectedIssueId);
-        if (selected >= 0) setPage(Math.floor(selected / PAGE_SIZE));
-    }, [items, selectedIssueId]);
-    useEffect(() => {
-        if (selectedIssueId) document.getElementById(`core-issue-${selectedIssueId}`)?.scrollIntoView?.({ block: 'nearest' });
-    }, [selectedIssueId, page, items]);
+        if (!selectedIssueId) {
+            positionedIssue.current = undefined;
+            return;
+        }
+        if (positionedIssue.current === selectedIssueId || selectedIndex < 0) return;
+        const selectedPage = Math.floor(selectedIndex / PAGE_SIZE);
+        if (page !== selectedPage) {
+            setPage(selectedPage);
+            return;
+        }
+        positionedIssue.current = selectedIssueId;
+        document.getElementById(`core-issue-${selectedIssueId}`)?.scrollIntoView?.({ block: 'nearest' });
+    }, [selectedIssueId, selectedIndex, page]);
     return (
         <>
             {items.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE).map(renderItem)}

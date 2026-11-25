@@ -1,7 +1,7 @@
 import { CoreSettingsPanel, type CoreSaveState } from './CoreSettingsPanel';
 import type { FormEvent } from 'react';
 import { useEffect, useState } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { SettingsFrame, type SettingsSection } from '../../components/BuilderShell/BuilderShell';
 import { Field, State } from '../../components/Catalog/Catalog';
@@ -233,15 +233,14 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                             <p>
                                 Канал stable предложен по умолчанию. Версия выбирается явно; этот шаг можно пропустить.
                             </p>
-                            <a className="ps-button" href={`/projects/${projectId}/design-systems/${designSystemId}`}>
+                            <Link className="ps-button" to={`/projects/${projectId}/design-systems/${designSystemId}`}>
                                 Пропустить и перейти к темам
-                            </a>
+                            </Link>
                         </section>
                     )}
                     <CoreSettingsPanel
                         projectId={projectId}
                         designSystemId={designSystemId}
-                        versionId={versionId}
                         onSaveStateChange={setCoreSaveState}
                         readOnly={!canWriteSystem}
                     />

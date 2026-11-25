@@ -1,12 +1,4 @@
 export { getComposePreviewPluginOverride, getWebPreviewPluginOverride } from './config';
-export {
-    getComposePreviewPluginUrl,
-    resetComposePreviewPluginLocation,
-    resolveComposePreviewPluginUrl,
-} from './pluginLocation';
-export type { ComposePreviewPluginDescriptor, PluginDescriptorFetcher } from './pluginLocation';
-export { resetWebPreviewPluginLocation, resolveWebPreviewPluginUrl } from './webPluginLocation';
-export type { WebPluginDescriptorFetcher, WebPreviewPluginDescriptor } from './webPluginLocation';
 export { isComposePreviewEnvironmentSupported, isPreviewPluginEnvironmentSupported } from './environment';
 export { BASIC_BUTTON_PREVIEW_FIXTURE, createBasicButtonPreviewPayload } from './basicButtonFixture';
 export { hasConfiguration, markComposeComponents, parseComponentRoute, toComponentRoute } from './composeComponents';
@@ -23,11 +15,9 @@ export type { PreviewView } from './viewContainer';
 export {
     DEFAULT_WEB_STORY_ID,
     assembleWebPreviewPayload,
-    useWebPreviewPlugin,
     useWebPreviewPluginAt,
-    useWebPreviewPluginLocation,
 } from './webPreview';
-export type { WebPreviewPayloadOptions, WebPreviewPluginLocation, WebPreviewPluginState } from './webPreview';
+export type { WebPreviewPayloadOptions, WebPreviewPluginState } from './webPreview';
 export { COMPOSE_HOST_DEFAULTS } from './hostDefaults';
 export type { AssemblyResult } from './assembler';
 export type {

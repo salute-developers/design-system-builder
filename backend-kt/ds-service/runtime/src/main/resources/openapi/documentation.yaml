@@ -10159,6 +10159,10 @@ paths:
         Свойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,
         и о них сообщает отчёт /import.
 
+        Совместимость проверяется в пределах `platform`, `components` и `styles`. Если для запрошенной
+        платформы требуется выбрать Core или в выбранной области есть блокирующие проблемы, частичный
+        пакет не возвращается.
+
         Требует scope components:read, если запрос пришёл с ключом проекта.
       requestBody:
         required: true
@@ -10187,6 +10191,14 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Дизайн-система не найдена или недоступна проекту
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |-
+            CORE_SELECTION_REQUIRED, если требуется выбрать Core для запрошенной платформы.
+            CORE_COMPATIBILITY_CONFLICT, если в области экспорта есть блокирующие проблемы.
           content:
             application/json:
               schema:

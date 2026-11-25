@@ -59,13 +59,15 @@ export const readComponentRecovery = (key: string): string | null => {
     return JSON.stringify(values.length > 1 ? { ...head, recoveryCopies: values } : head);
 };
 
+export class ComponentRecoveryChanged extends Error {}
+
 /** Сохраняет свою полную цепочку; независимая правка другой вкладки остаётся действующей. */
 export const archiveCoreSave = (key: string, head: SavedOperation): SavedOperation => {
     const pending = readPendingComponentMutation(key);
     const disk = pending ? (JSON.parse(pending) as SavedOperation) : null;
     const chain = [...coreSaveChain(head)];
     if (disk && !chain.some((item) => item.generation === disk.generation))
-        throw new Error('Локальная правка изменилась в другой вкладке. Обновите страницу.');
+        throw new ComponentRecoveryChanged('Локальная правка изменилась в другой вкладке. Обновите страницу.');
     const copies = disk && !chain.some((item) => JSON.stringify(item) === pending) ? [head, disk] : null;
     const snapshot = copies ? { ...head, recoveryCopies: copies } : head;
     const bytes = JSON.stringify(snapshot);

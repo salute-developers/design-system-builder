@@ -206,7 +206,7 @@ cd frontend-kt
 
 Поднимите локальный контур (`./setup-local.sh`: gateway, Keycloak, ds-service из вашей ветки), соберите CLI
 (`frontend-kt/install-local-cli.sh`) и войдите администратором: импорт доступен только системному
-администратору (`dsbuilder auth login --username admin@example.com`).
+администратору (`DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login`).
 
 ```bash
 # Dry run.

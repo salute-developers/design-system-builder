@@ -23,6 +23,7 @@ export const ValidationPage = () => {
               }
             : null;
     const { report, error, reload: refresh } = useCoreCompatibility(context);
+    const showCounts = report && !error;
     const issues = report?.items.filter((i) => i.severity === 'blocking') ?? [];
     const selectedId = search.get('issueId');
     const selected = issues.find((i) => i.issueId === selectedId) ?? (!selectedId ? issues[0] : undefined);
@@ -35,9 +36,9 @@ export const ValidationPage = () => {
             saveForm={false}
             embedded
             back={base}
-            sectionBadges={{ compatibility: report ? issues.length : undefined }}
+            sectionBadges={{ compatibility: showCounts ? issues.length : undefined }}
             sectionActions={{
-                compatibility: report ? (
+                compatibility: showCounts ? (
                     <span className="ps-count-badge" aria-label="Всего проблем">
                         {issues.length}
                     </span>
@@ -116,9 +117,13 @@ export const ValidationPage = () => {
                 {!report && !error && <p role="status">Проверяем совместимость…</p>}
                 {report && (
                     <>
-                        {issues.length === 0 && <p role="status">Проблем совместимости нет</p>}
-                        {selectedId && !selected && (
-                            <p role="status">Выбранная проблема больше не найдена. Выберите другую строку отчёта.</p>
+                        {!error && (
+                            <>
+                                {issues.length === 0 && <p role="status">Проблем совместимости нет</p>}
+                                {selectedId && !selected && (
+                                    <p role="status">Выбранная проблема больше не найдена. Выберите другую строку отчёта.</p>
+                                )}
+                            </>
                         )}
                         {[...new Set(issues.map((i) => i.location.componentId))].map((id) => {
                             const rows = issues.filter((i) => i.location.componentId === id);

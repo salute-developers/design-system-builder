@@ -611,8 +611,9 @@ export const DesignSystemVersionsPage = () => {
     const validVersion = /^\d+\.\d+\.\d+$/.test(version);
     const compatibility = useCoreCompatibility(historicalContext);
     const compatibilitySummary = compatibilityStatus(compatibility.report, compatibility.error);
+    const checkedCompatibility = compatibility.error ? undefined : compatibility.report;
     const canPublish =
-        compatibility.report?.blockingCount === 0 &&
+        checkedCompatibility?.blockingCount === 0 &&
         !readOnly &&
         !versionsLoading &&
         validVersion &&
@@ -926,21 +927,20 @@ export const DesignSystemVersionsPage = () => {
                             >
                                 Открыть изменения
                             </SecondaryButton>
-                            {compatibility.report && compatibility.report.blockingCount > 0 ? (
+                            {checkedCompatibility && checkedCompatibility.blockingCount > 0 ? (
                                 <section
                                     className="release-validation"
-                                    aria-label={validationLabel(compatibility.report.blockingCount)}
+                                    aria-label={validationLabel(checkedCompatibility.blockingCount)}
                                 >
                                     <Button
                                         type="button"
                                         className="release-validation-button"
                                         onClick={() => {
                                             const query = new URLSearchParams();
-                                            if (selectedVersionId) query.set('versionId', selectedVersionId);
                                             navigate(`../validation?${query}`);
                                         }}
                                     >
-                                        {validationLabel(compatibility.report.blockingCount)}
+                                        {validationLabel(checkedCompatibility.blockingCount)}
                                     </Button>
                                 </section>
                             ) : (

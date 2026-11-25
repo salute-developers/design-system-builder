@@ -134,7 +134,15 @@ it('preserves pending choices after a partial save and retries only the remainin
             : config?.params.platform === 'compose'
               ? [config.params.channel === 'dev' ? b : a]
               : config?.params.platform === 'web'
-                ? [config.params.channel === 'dev' ? webB : web]
+                ? config.params.channel === 'stable'
+                    ? [web]
+                    : config.params.offset === 50
+                      ? [webB]
+                      : Array.from({ length: 50 }, (_, i) => ({
+                            ...webB,
+                            releaseId: `web-page-one-${i}`,
+                            version: `Web page one ${i}`,
+                        }))
                 : [],
     }));
     vi.mocked(http.put)
@@ -145,6 +153,7 @@ it('preserves pending choices after a partial save and retries only the remainin
     for (const label of ['Compose', 'Web']) {
         fireEvent.click(await screen.findByLabelText(`${label}: канал`));
         fireEvent.click(screen.getByRole('option', { name: 'dev', exact: true }));
+        if (label === 'Web') fireEvent.click(await screen.findByRole('button', { name: 'Ещё версии' }));
         await waitFor(() => expect(screen.getByLabelText(`${label}: версия`)).toBeEnabled());
         fireEvent.click(screen.getByLabelText(`${label}: версия`));
         fireEvent.click(screen.getByRole('option', { name: 'B', exact: true }));
@@ -240,7 +249,7 @@ it('retries the failed catalog page before advancing the offset', async () => {
     render(<Panel projectId="project" designSystemId="system" />);
     fireEvent.click(await screen.findByRole('button', { name: 'Ещё версии' }));
     expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить версии');
-    fireEvent.click(screen.getByRole('button', { name: 'Ещё версии' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
     await waitFor(() => expect(offsets).toEqual([0, 50, 50]));
     await waitFor(() => expect(screen.getByLabelText('Compose: версия')).toBeEnabled());
     fireEvent.click(screen.getByLabelText('Compose: версия'));
@@ -249,4 +258,85 @@ it('retries the failed catalog page before advancing the offset', async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Ещё версии' }));
     await waitFor(() => expect(offsets).toEqual([0, 50, 50, 100]));
     expect(http.put).not.toHaveBeenCalled();
+});
+
+it('refreshes a stale selection revision while preserving the unsaved version', async () => {
+    let revision = 1;
+    vi.mocked(http.get).mockImplementation(async (url, config) => ({
+        data: String(url).endsWith('/core-settings')
+            ? report(a, revision++)
+            : config?.params.platform === 'compose'
+              ? [config.params.channel === 'dev' ? b : a]
+              : [],
+    }));
+    vi.mocked(http.put)
+        .mockRejectedValueOnce({ isAxiosError: true, response: { status: 409, data: { code: 'CORE_SELECTION_STALE' } } })
+        .mockResolvedValueOnce({ data: report(b, 3) });
+    render(<Panel projectId="project" designSystemId="system" />);
+    fireEvent.click(await screen.findByLabelText('Compose: канал'));
+    fireEvent.click(screen.getByRole('option', { name: 'dev', exact: true }));
+    const version = screen.getByLabelText('Compose: версия');
+    await waitFor(() => expect(version).toBeEnabled());
+    fireEvent.click(version);
+    fireEvent.click(screen.getByRole('option', { name: 'B', exact: true }));
+    const save = screen.getByRole('button', { name: 'Сохранить' });
+    fireEvent.click(save);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Настройки изменились');
+    expect(version).toHaveTextContent('B');
+    fireEvent.click(save);
+    await waitFor(() =>
+        expect(http.put).toHaveBeenLastCalledWith(
+            expect.stringContaining('/core-settings/compose'),
+            expect.objectContaining({ releaseId: 'b', expectedCoreSelectionRevision: 2 }),
+            expect.anything(),
+        ),
+    );
+});
+
+it('allows retrying a failed initial load', async () => {
+    vi.mocked(http.get).mockRejectedValueOnce(new Error('unavailable')).mockImplementation(async (url) => ({
+        data: String(url).endsWith('/core-settings') ? report() : [],
+    }));
+    render(<Panel projectId="project" designSystemId="system" />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Повторить' }));
+    expect(await screen.findByLabelText('Compose: канал')).toBeInTheDocument();
+});
+
+it('shows the resolved latest from the server and refreshes the catalog after saving', async () => {
+    const resolved = { ...b, channel: a.channel, selectionMode: 'latest' };
+    let composeCatalogReads = 0;
+    vi.mocked(http.get).mockImplementation(async (url, config) => {
+        if (String(url).endsWith('/core-settings')) return { data: report() };
+        if (config?.params.platform === 'compose') {
+            composeCatalogReads += 1;
+            return { data: [a] };
+        }
+        return { data: [] };
+    });
+    vi.mocked(http.put).mockResolvedValue({ data: report(resolved, 2) });
+    render(<Panel projectId="project" designSystemId="system" />);
+    await waitFor(() => expect(screen.getByLabelText('Compose: версия')).toBeEnabled());
+    fireEvent.click(screen.getByLabelText('Compose: версия'));
+    fireEvent.click(screen.getByRole('option', { name: 'Последняя (A)', exact: true }));
+    fireEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await screen.findByRole('status');
+    await waitFor(() => expect(composeCatalogReads).toBe(2));
+    expect(screen.getByLabelText('Compose: версия')).toHaveTextContent('Последняя (B)');
+});
+
+it('retries the first catalog page without switching the channel', async () => {
+    const offsets: number[] = [];
+    vi.mocked(http.get).mockImplementation(async (url, config) => {
+        if (String(url).endsWith('/core-settings')) return { data: report() };
+        if (config?.params.platform !== 'compose') return { data: [] };
+        offsets.push(Number(config.params.offset));
+        if (offsets.length === 1) throw new Error('unavailable');
+        return { data: [a] };
+    });
+    render(<Panel projectId="project" designSystemId="system" />);
+    expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить версии');
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    await waitFor(() => expect(offsets).toEqual([0, 0]));
+    expect(screen.getByLabelText('Compose: канал')).toHaveTextContent('stable');
+    await waitFor(() => expect(screen.queryByRole('alert')).not.toBeInTheDocument());
 });

@@ -6,6 +6,7 @@ import { ValidationPage } from './ValidationPage';
 import { issue, report, context } from '../../features/coreCompatibility/testFixtures';
 const mocks = vi.hoisted(() => ({
     report: vi.fn(),
+    error: undefined as string | undefined,
     reload: vi.fn(),
     targets: vi.fn(),
     repair: vi.fn(),
@@ -13,7 +14,7 @@ const mocks = vi.hoisted(() => ({
     readOnly: false,
 }));
 vi.mock('../../hooks/useCoreCompatibility', () => ({
-    useCoreCompatibility: () => ({ report: mocks.report(), reload: mocks.reload }),
+    useCoreCompatibility: () => ({ report: mocks.report(), error: mocks.error, reload: mocks.reload }),
 }));
 vi.mock('../../api/coreCompatibilityRepository', () => ({ coreCompatibilityRepository: mocks }));
 vi.mock('react-router-dom', async (original) => ({
@@ -74,6 +75,7 @@ const show = (search = '') =>
 beforeEach(() => {
     vi.clearAllMocks();
     mocks.readOnly = false;
+    mocks.error = undefined;
     mocks.report.mockReturnValue(report());
     mocks.targets.mockResolvedValue([]);
 });
@@ -114,4 +116,16 @@ it('shows both report counters and offers a separate quick-jump icon', () => {
     const quick = screen.getByRole('button', { name: /Перейти к проблеме:/ });
     fireEvent.click(quick);
     expect(screen.getByTestId('location')).toHaveTextContent('configuration=appearance');
+});
+
+it('offers retry after an error even if the last report had no problems', () => {
+    mocks.report.mockReturnValue({ ...report(), items: [], blockingCount: 0 });
+    mocks.error = 'network unavailable';
+    show();
+    expect(screen.getByRole('alert')).toHaveTextContent('Не удалось проверить совместимость');
+    expect(screen.queryByText('Проблем совместимости нет')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Всего проблем')).not.toBeInTheDocument();
+    expect(screen.getByTestId('nav-count')).toBeEmptyDOMElement();
+    fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
+    expect(mocks.reload).toHaveBeenCalledOnce();
 });

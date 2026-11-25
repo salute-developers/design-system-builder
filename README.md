@@ -137,18 +137,17 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 Для первоначальной настройки и запуска общего локального контура выполните из корня репозитория:
 
 ```bash
-export DSBUILDER_WEB_CORE_VERSION="<версия пакета, из которого сгенерирована Web API-мета>"
 ./setup-local.sh
 ```
 
 На Windows используйте PowerShell и Docker Desktop в режиме Linux-контейнеров:
 
 ```powershell
-$env:DSBUILDER_WEB_CORE_VERSION = '<версия пакета, из которого сгенерирована Web API-мета>'
 .\setup-local.ps1
 ```
 
-Укажите точную версию исходной Web API-меты. Версия произвольного установленного пакета не подтверждает происхождение уже существующего файла. Полная настройка, включая `--reset` / `-Reset`, проверяет эту переменную до изменения контейнеров или томов. Для `--down` / `-Down` и Bash-режима `--backend-only` она не требуется.
+По умолчанию setup берёт мету и версию Web Core из ZIP Web-превью и регистрирует их в канале `dev`.
+При отдельном файле `DSBUILDER_WEB_API_META` укажите его точную версию в `DSBUILDER_WEB_CORE_VERSION`.
 
 Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
 Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
@@ -158,23 +157,17 @@ Linux-контейнере. PowerShell-сценарий управляет Docke
 `-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Пути к собственным архивам плагинов или пакету
 компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
 
-После наполнения `base` скрипт публикует Compose- и web-плагин превью из `local-dev/` в локальный MinIO
-(`./publish-preview-plugin.sh --platform compose|react`), и клиент загружает оба плагина оттуда по адресу,
-который выдаёт бэкенд. Архивы и их обновление описаны в [local-dev/README.md](./local-dev/README.md).
-
-Скрипт запускает Kotlin backend в detached-режиме,
-готовит проект, глобальный Web API и Compose API/плагин, затем поднимает клиент. База `ds_registry` живёт в стеке
-`backend-kt` (сервис `ds-db`, хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway;
-Drizzle-миграции не запускаются. `backend-kt/bootstrap-base.sh` через Gateway находит или создаёт проект
-пользователя `admin@example.com` и импортирует глобальный Web API из `web-api-meta.json` в `js/cli`.
-Для генерации этого файла нужны зависимости `js/cli` (`cd js/cli && npm ci`);
-готовый файл можно передать через `DSBUILDER_WEB_API_META`.
+Скрипт запускает Kotlin backend, готовит проект и регистрирует Web Core через Gateway, затем поднимает клиент.
+Схему базы `ds_registry` (сервис `ds-db`, порт хоста `5433`, настройка `DS_DB_PORT`) создаёт Flyway.
+Плагины превью публикуются в локальный MinIO для зарегистрированных релизов. Как зарегистрировать Compose Core,
+выбрать канал и обновить архивы, описано в [local-dev/README.md](./local-dev/README.md).
 
 Обычный запуск не создаёт демонстрационные `base`/`sdds_serv_local` и темы, не импортирует значения токенов
 и конфигурации компонентов. Создайте ДС и тему в интерфейсе: начальные токены и компоненты backend заполнит
 из собственных ресурсов. Существующие ДС и журналы сохраняются.
 
-Для отдельной проверки готовой Compose-темы импорт можно запустить явно:
+Для импорта готовой Compose-темы сначала [зарегистрируйте Compose Core из выбранного ZIP](./local-dev/README.md#первый-preview-для-нового-core).
+Затем запустите демо-импорт.
 
 ```bash
 ./setup-local.sh --components-package ./local-dev/design-system/components
@@ -227,7 +220,7 @@ Kotlin backend можно запускать отдельно, затем под
 
 ```bash
 ./backend-kt/start-local.sh --detach
-DSBUILDER_WEB_CORE_VERSION="<версия исходной меты>" ./backend-kt/bootstrap-base.sh
+./backend-kt/bootstrap-base.sh
 ```
 
 Клиент отдельно: `docker compose -f js/docker-compose.dev.yml up -d --build client` или `npm run dev` в `js/apps/client`.

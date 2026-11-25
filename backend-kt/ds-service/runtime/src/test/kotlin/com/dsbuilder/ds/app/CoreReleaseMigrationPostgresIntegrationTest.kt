@@ -22,7 +22,7 @@ class CoreReleaseMigrationPostgresIntegrationTest {
             postgres.start()
             val config = Flyway.configure().dataSource(postgres.jdbcUrl, postgres.username, postgres.password)
                 .locations("classpath:dsbuilder/ds/db/migration")
-            config.target("24").load().migrate()
+            config.target("25").load().migrate()
             DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
                 val ds = UUID.randomUUID()
                 val published = UUID.randomUUID()

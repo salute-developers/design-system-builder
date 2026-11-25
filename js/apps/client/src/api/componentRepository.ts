@@ -3,6 +3,7 @@ import {
     componentCoreSelectionRevision,
     requireSameComponentCore,
     requireSameCoreSelectionRevision,
+    retryComponentCoreRead,
 } from './componentCoreContext';
 import { isAxiosError, type AxiosRequestConfig } from 'axios';
 import { authService } from './authService';
@@ -34,8 +35,7 @@ import type {
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { AutosaveRejection, isStateRejection, isUnknownIconError, stateRejection } from './autosaveHttp';
-import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
-import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
+import { hasConfiguration, markComposeComponents } from '../composePreview';
 import { camelToKebab } from '../utils/text';
 import { resolveStateId, stateSupportOf } from './componentStates';
 import {
@@ -434,10 +434,7 @@ export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const { components, appearances, linkByComponent, coreSelectionRevision } = await readComponentCatalog(
-            context,
-            signal,
-        );
+        const { components, appearances, linkByComponent, coreSelectionRevision } = await retryComponentCoreRead(() => readComponentCatalog(context, signal), signal);
         return components
             .filter((component) => linkByComponent.has(component.id))
             .map(
@@ -463,10 +460,7 @@ export const componentRepository = {
     /** Состав дизайн-системы: скрытый компонент сохраняет оформление, но не имеет связи. */
     async loadComponentCatalog(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentCatalogEntry[]> {
         if (!isComponentEditorEnabled()) return [];
-        const { components, dependencies, linkByComponent, coreSelectionRevision } = await readComponentCatalog(
-            context,
-            signal,
-        );
+        const { components, dependencies, linkByComponent, coreSelectionRevision } = await retryComponentCoreRead(() => readComponentCatalog(context, signal), signal);
         const names = new Map(components.map((component) => [component.id, component.name]));
         return components.map((component) => ({
             ...(coreSelectionRevision == null ? {} : { coreSelectionRevision }),
@@ -547,27 +541,32 @@ export const componentRepository = {
         // Известный компонент читается одним editor-bundle; без него — прежние списки всей дизайн-системы.
         const isWeb = platform === 'web';
         const isCompose = platform === 'compose';
-        const sources: ComponentSources =
-            componentId && (isWeb || isCompose)
-                ? await readEditorBundle(context, signal, platform, componentId)
-                : await readComponentLists(context, signal, platform, componentName);
-        const { links, catalog, appearances, exported, dependencies } = sources;
-        // Связи свойств с вариациями нужны инспектору на любой платформе: по ним свойство относится к стилю.
-        const propertyVariations = sources.propertyVariations;
-        const linkedIds = new Set(
-            links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
-        );
-        const entries = exported.flatMap((response) => response.components);
-        const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
-        const components = catalog.filter(
-            (component) =>
-                linkedIds.has(component.id) &&
-                component.platform === platform &&
-                (!componentId || component.id === componentId) &&
-                (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
-                (configuredNames.has(normalizeComponentName(component.name)) ||
-                    appearances.some((a) => a.componentId === component.id)),
-        );
+        const { sources, linkedIds, entries, componentDetails } = await retryComponentCoreRead(async () => {
+            const sources: ComponentSources =
+                componentId && (isWeb || isCompose)
+                    ? await readEditorBundle(context, signal, platform, componentId)
+                    : await readComponentLists(context, signal, platform, componentName);
+            const { links, catalog, appearances, exported } = sources;
+            const linkedIds = new Set(
+                links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
+            );
+            const entries = exported.flatMap((response) => response.components);
+            const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
+            const components = catalog.filter(
+                (component) =>
+                    linkedIds.has(component.id) &&
+                    component.platform === platform &&
+                    (!componentId || component.id === componentId) &&
+                    (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
+                    (configuredNames.has(normalizeComponentName(component.name)) ||
+                        appearances.some((a) => a.componentId === component.id)),
+            );
+            const componentDetails = await Promise.all(
+                components.map(async (component) => ({ component, details: await sources.details(component) })),
+            );
+            return { sources, linkedIds, entries, componentDetails };
+        }, signal);
+        const { catalog, appearances, dependencies, propertyVariations } = sources;
         const depsByParent = collectDependencies(
             dependencies,
             new Map(
@@ -576,101 +575,99 @@ export const componentRepository = {
                     .map((component) => [component.id, component.name]),
             ),
         );
-        return Promise.all(
-            components.map(async (component) => {
-                const { properties, variations, styles, params: propertyParams } = await sources.details(component);
-                const webParams = webParamsByProperty(propertyParams);
-                const composeParams = composeParamsByProperty(propertyParams);
-                const deprecations = deprecationsByProperty(propertyParams, platform);
-                const propertyByName = new Map(properties.map((property) => [property.name, property]));
-                const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
-                const stylesByVariation = new Map<string, ComponentStyleDto[]>();
-                styles.forEach((style) =>
-                    stylesByVariation.set(style.variationId, [
-                        ...(stylesByVariation.get(style.variationId) ?? []),
-                        style,
-                    ]),
+        return componentDetails.map(({ component, details }) => {
+            const { properties, variations, styles, params: propertyParams } = details;
+            const webParams = webParamsByProperty(propertyParams);
+            const composeParams = composeParamsByProperty(propertyParams);
+            const deprecations = deprecationsByProperty(propertyParams, platform);
+            const propertyByName = new Map(properties.map((property) => [property.name, property]));
+            const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
+            const stylesByVariation = new Map<string, ComponentStyleDto[]>();
+            styles.forEach((style) =>
+                stylesByVariation.set(style.variationId, [
+                    ...(stylesByVariation.get(style.variationId) ?? []),
+                    style,
+                ]),
+            );
+            const componentAppearances = appearances.filter(
+                (appearance) =>
+                    appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
+            );
+            const componentEntries = entries.filter(
+                (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
+            );
+            const isDefaultEntry = (entry: { styleName: string }) =>
+                componentAppearances.some(
+                    (candidate) =>
+                        candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
                 );
-                const componentAppearances = appearances.filter(
-                    (appearance) =>
-                        appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
+            const primaryAppearance =
+                componentAppearances.find((candidate) => candidate.isDefault === true) ??
+                componentAppearances.find(
+                    (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
                 );
-                const componentEntries = entries.filter(
-                    (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
-                );
-                const isDefaultEntry = (entry: { styleName: string }) =>
-                    componentAppearances.some(
-                        (candidate) =>
-                            candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
-                    );
-                const primaryAppearance =
-                    componentAppearances.find((candidate) => candidate.isDefault === true) ??
-                    componentAppearances.find(
-                        (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
-                    );
-                return {
-                    name: component.name,
-                    description: component.description ?? '',
-                    platform: component.platform,
-                    deps: depsByParent.get(component.name) ?? [],
-                    composeParents: [...depsByParent]
-                        .filter(([, deps]) =>
-                            deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
-                        )
-                        .map(([parent]) => parent),
-                    serverBinding: {
-                        coreReleaseId: sources.coreReleaseId,
-                        coreSelectionRevision: sources.coreSelectionRevision,
-                        componentId: component.id,
-                        appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
-                    },
-                    sources: {
-                        api: enrichApi(
-                            properties.map((property) => ({
-                                id: property.id,
-                                name: property.name,
-                                type: property.type as Meta['sources']['api'][number]['type'],
-                                description: property.description ?? undefined,
-                                deprecated: deprecations.get(property.id),
-                                variations: null,
-                                platformMappings: {
-                                    xml: null,
-                                    compose: composeParams.get(property.id)?.join(',') ?? null,
-                                    ios: null,
-                                    web: null,
-                                },
-                                stateSupport: stateSupportOf(property, sources.states),
-                            })),
-                            webParams,
-                            variationNamesByProperty(
-                                propertyVariations,
-                                new Map(variations.map((variation) => [variation.id, variation.name])),
-                            ),
+            return {
+                name: component.name,
+                description: component.description ?? '',
+                platform: component.platform,
+                deps: depsByParent.get(component.name) ?? [],
+                composeParents: [...depsByParent]
+                    .filter(([, deps]) =>
+                        deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
+                    )
+                    .map(([parent]) => parent),
+                serverBinding: {
+                    coreReleaseId: sources.coreReleaseId,
+                    coreSelectionRevision: sources.coreSelectionRevision,
+                    componentId: component.id,
+                    appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
+                },
+                sources: {
+                    api: enrichApi(
+                        properties.map((property) => ({
+                            id: property.id,
+                            name: property.name,
+                            type: property.type as Meta['sources']['api'][number]['type'],
+                            description: property.description ?? undefined,
+                            deprecated: deprecations.get(property.id),
+                            variations: null,
+                            platformMappings: {
+                                xml: null,
+                                compose: composeParams.get(property.id)?.join(',') ?? null,
+                                ios: null,
+                                web: null,
+                            },
+                            stateSupport: stateSupportOf(property, sources.states),
+                        })),
+                        webParams,
+                        variationNamesByProperty(
+                            propertyVariations,
+                            new Map(variations.map((variation) => [variation.id, variation.name])),
                         ),
-                        variations,
-                        // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
-                        configs: [...componentEntries]
-                            .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
-                            .map((entry) => {
-                                const appearance = componentAppearances.find(
-                                    (candidate) => (candidate.name ?? 'default') === entry.styleName,
-                                );
-                                return {
-                                    id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
-                                    name: entry.styleName,
-                                    isDefault: appearance?.isDefault === true,
-                                    config: toLegacyComponentConfig(
-                                        entry.config,
-                                        propertyByName,
-                                        variationByName,
-                                        stylesByVariation,
-                                    ),
-                                };
-                            }),
-                    },
-                } as Meta;
-            }),
-        );
+                    ),
+                    variations,
+                    // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
+                    configs: [...componentEntries]
+                        .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
+                        .map((entry) => {
+                            const appearance = componentAppearances.find(
+                                (candidate) => (candidate.name ?? 'default') === entry.styleName,
+                            );
+                            return {
+                                id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
+                                name: entry.styleName,
+                                isDefault: appearance?.isDefault === true,
+                                config: toLegacyComponentConfig(
+                                    entry.config,
+                                    propertyByName,
+                                    variationByName,
+                                    stylesByVariation,
+                                ),
+                            };
+                        }),
+                },
+            } as Meta;
+        });
     },
 
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {

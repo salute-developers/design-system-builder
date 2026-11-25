@@ -80,18 +80,21 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
                       item.location.appearanceId === config?.getConfigurationId(),
               )
             : undefined;
-    const problemStyles = problem ? JSON.stringify(problem.location.styleIds) : '';
+    const issueId = problem?.issueId;
+    const appliedIssue = useRef<string>();
     // Эффект применяется после defaults хука useComponentData, включая первое открытие по URL.
     useEffect(() => {
-        if (!config || !problemStyles) return;
-        const styleIds = JSON.parse(problemStyles) as string[];
+        if (appliedIssue.current === issueId) return;
+        appliedIssue.current = issueId;
+        if (!config || !problem) return;
+        const styleIds = problem.location.styleIds;
         const target: Record<string, string> = {};
         for (const variation of config.getVariations()) {
             const style = variation.getStyles()?.find((item) => styleIds.includes(item.getID()));
             if (style) target[variation.getName()] = style.getID();
         }
         setSelection(target);
-    }, [config, problemStyles, setSelection]);
+    }, [config, issueId, problem, setSelection]);
     // Стабильная ссылка: от неё зависит пересборка payload Compose-превью.
     const resolveStyleReference = useCallback(
         (reference: string) => designSystem.resolveComposeStyleReference(reference),

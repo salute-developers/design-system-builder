@@ -41,6 +41,36 @@ import kotlin.test.assertFalse
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class CoreReleaseImportPostgresIntegrationTest {
     @Test
+    fun `a removed component blocks export only for its saved appearances`() {
+        IsolatedPostgresDatabase.create().use { db ->
+            testApplication {
+                application { module(configuration(db)) }
+                suspend fun post(path: String, payload: String) = client.post(path) {
+                    header("X-Actor-Type", "user")
+                    header("X-User-Id", "core-release-test")
+                    header("X-Project-Id", "project")
+                    header("X-System-Admin", "true")
+                    contentType(ContentType.Application.Json)
+                    setBody(payload)
+                }
+                val importPath = "/api/admin/component-config/import-api-meta"
+                val releaseA = post(importPath, body("A", property("color"), false))
+                assertEquals(HttpStatusCode.OK, releaseA.status, releaseA.bodyAsText())
+                val fixture = seedSettings(db)
+                val releaseB =
+                    post(importPath, body("B", property("color"), false, componentName = "ReplacementButton"))
+                assertEquals(HttpStatusCode.OK, releaseB.status, releaseB.bodyAsText())
+                selectFixtureCore(db, fixture.draft, "B")
+                val exportPath = "/api/design-systems/${fixture.system}/component-config/export"
+                val unrelated = post(exportPath, """{"platform":"compose","styles":["unrelated"]}""")
+                assertEquals(HttpStatusCode.OK, unrelated.status, unrelated.bodyAsText())
+                val affected = post(exportPath, """{"platform":"compose","styles":["default"]}""")
+                assertEquals(HttpStatusCode.Conflict, affected.status, affected.bodyAsText())
+            }
+        }
+    }
+
+    @Test
     fun `release A survives B type change removal retry and invalid import`() {
         IsolatedPostgresDatabase.create().use { db ->
             testApplication {
@@ -197,7 +227,11 @@ class CoreReleaseImportPostgresIntegrationTest {
                         """{"appearanceId":"${fixture.appearance}","valueKind":"invariant","valueId":"${fixture.value}","expectedRevision":$expected,"targetPropertyId":${target?.let(::JsonPrimitive) ?: "null"}}""",
                     )
                 }
-                suspend fun exported(version: UUID? = null, name: String? = null) = client.post(
+                suspend fun exported(
+                    version: UUID? = null,
+                    name: String? = null,
+                    platform: String = "compose",
+                ) = client.post(
                     "/api/design-systems/${fixture.system}/component-config/export" +
                         (version?.let { "?versionId=$it" } ?: name?.let { "?version=$it" } ?: ""),
                 ) {
@@ -206,13 +240,15 @@ class CoreReleaseImportPostgresIntegrationTest {
                     header("X-Project-Id", "project")
                     header("X-System-Admin", "true")
                     contentType(ContentType.Application.Json)
-                    setBody("""{"platform":"compose"}""")
+                    setBody("""{"platform":"$platform"}""")
                 }
                 val blockedExport = exported()
                 assertEquals(HttpStatusCode.Conflict, blockedExport.status, blockedExport.bodyAsText())
                 val blockedBody = Json.parseToJsonElement(blockedExport.bodyAsText()).jsonObject
                 assertEquals("CORE_COMPATIBILITY_CONFLICT", blockedBody.getValue("code").jsonPrimitive.content)
                 assertEquals("1", blockedBody.getValue("blockingCount").jsonPrimitive.content)
+                val webExport = exported(platform = "web")
+                assertEquals(HttpStatusCode.OK, webExport.status, webExport.bodyAsText())
                 val historicalExport = exported(fixture.published)
                 assertEquals(HttpStatusCode.OK, historicalExport.status, historicalExport.bodyAsText())
                 val historicalByName = exported(name = "1.0.0")
@@ -1399,8 +1435,15 @@ class CoreReleaseImportPostgresIntegrationTest {
 
     private fun property(type: String) = """{"name":"releaseFill","type":"$type","platformNames":["fill"]}"""
 
-    private fun body(version: String, properties: String, dryRun: Boolean, state: String? = null, extraComponents: String = ""): String {
-        val components = """[{"name":"ReleaseButton","properties":[$properties],"states":[${state?.let(::JsonPrimitive) ?: ""}]}$extraComponents]"""
+    private fun body(
+        version: String,
+        properties: String,
+        dryRun: Boolean,
+        state: String? = null,
+        extraComponents: String = "",
+        componentName: String = "ReleaseButton",
+    ): String {
+        val components = """[{"name":"$componentName","properties":[$properties],"states":[${state?.let(::JsonPrimitive) ?: ""}]}$extraComponents]"""
         val bytes = components.toByteArray()
         val hash = MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
         return """{"platform":"compose","dryRun":$dryRun,"components":$components,"channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":"compose","version":${JsonPrimitive(
