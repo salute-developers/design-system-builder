@@ -104,20 +104,20 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 
 ## Обновление файлов
 
-Для импорта поддержки состояний свойств используйте CLI из актуального `dev`: установленный
-`dsbuilder` может поддерживать публикацию плагина, но ещё не переносить `stateSupport` в backend.
-Из корня DS Builder (нужен JDK 17):
+При создании окружения `setup-local.sh` (Windows: `setup-local.ps1`) автоматически публикует оба
+плагина и импортирует вложенную API-мету. `publish-preview-plugin.sh` по умолчанию собирает JVM CLI
+из текущего checkout (нужен JDK 17): установленный `dsbuilder` может ещё не переносить новые поля
+меты, например `stateSupport`. Явный выбор CLI через `--cli` или `DSBUILDER_CLI` сохраняется.
+
+Для обновления существующего окружения без сброса данных из корня DS Builder:
 
 ```bash
-(cd frontend-kt && ./gradlew :cli:installJvmDist)
-export DSBUILDER_CLI="$PWD/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder"
 ./publish-preview-plugin.sh --platform compose --from ./local-dev/compose-preview/preview-compose-plugin.zip
 ./publish-preview-plugin.sh --platform react --from ./local-dev/web-preview/preview-web-plugin.zip
 ```
 
 Команды обновляют архивы в локальном MinIO, импортируют вложенную API-мету и активируют сборки.
-Повторять импорт `sdds_serv_local` не требуется. При новом запуске `setup-local.sh` в этой же оболочке
-заданный `DSBUILDER_CLI` также будет использован для публикации плагинов.
+Повторять импорт `sdds_serv_local` не требуется.
 
 Из чекаута plasma-android (нужны JDK 17, Node и доступ к GitHub):
 
