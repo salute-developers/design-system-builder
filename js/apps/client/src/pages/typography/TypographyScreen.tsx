@@ -25,6 +25,7 @@ import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree, type CreatingStyle } from './ui/TypographyTree';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
 import { usePanelWidths } from '../../components/tokenWorkspace';
+import { useReportEditorFocus } from '../../features/aiChat/EditorFocusContext';
 
 export interface TypographyScreenProps {
     context: TypographyContext;
@@ -124,6 +125,17 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         current.find((style) => styleKey(style) === DEFAULT_STYLE_KEY) ??
         current[0] ??
         null;
+    const selectedTokenId = selected?.variants[variant]?.tokenId;
+    useReportEditorFocus(
+        selected && selectedTokenId
+            ? {
+                  token: {
+                      id: selectedTokenId,
+                      name: `${selected.screen}.${selected.group}.${selected.size}.${variant}`,
+                  },
+              }
+            : undefined,
+    );
 
     /** Стиль, которого нет на новом экране, сменяется на Body M. */
     const changeScreen = (next: Screen) => {

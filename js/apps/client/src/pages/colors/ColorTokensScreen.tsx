@@ -47,6 +47,7 @@ import { ColorTokenBoard } from './ui/ColorTokenBoard';
 import { ColorTokenInspector, PLATFORM_LABELS, type PickerTarget } from './ui/ColorTokenInspector';
 import { ColorTokenTree } from './ui/ColorTokenTree';
 import { DeleteTokenDialog } from './ui/DeleteTokenDialog';
+import { useReportEditorFocus } from '../../features/aiChat/EditorFocusContext';
 
 export interface ColorTokensScreenProps {
     context: ColorTokenContext;
@@ -221,6 +222,12 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
         [groups, views, sort],
     );
     const selected = views.find((view) => view.id === selectedId) ?? firstToken ?? views[0] ?? null;
+    const selectedDefinition = selected
+        ? props.tokenDefinitions.find((definition) => definitionRowId(definition) === selected.id)
+        : undefined;
+    useReportEditorFocus(
+        selectedDefinition ? { token: { id: selectedDefinition.id, name: selectedDefinition.name } } : undefined,
+    );
 
     // Переход из инспектора палитры: выбрать токен, имя определения которого передано в state маршрута.
     const requestedTokenId = searchParams.get('tokenId');

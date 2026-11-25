@@ -10,3 +10,9 @@ export const isComponentEditorEnabled = (): boolean => {
 
     return value === undefined ? import.meta.env.DEV : value === 'true';
 };
+
+/**
+ * Панель ИИ-чата. Задаётся при сборке переменной `VITE_AI_CHAT_ENABLED`: `true` включает. Панель показывается,
+ * только если и сервер сообщает `enabled` в `GET /ai/status`.
+ */
+export const isAiChatEnabled = (): boolean => import.meta.env.VITE_AI_CHAT_ENABLED === 'true';

@@ -36,6 +36,7 @@ jobs:
           VITE_CLIENT_ID: ${{ vars.VITE_CLIENT_ID_PROM }}
           VITE_REQUEST_ACCESS_URL: ${{ vars.VITE_REQUEST_ACCESS_URL_PROM }}
           VITE_COMPONENT_EDITOR_ENABLED: ${{ vars.VITE_COMPONENT_EDITOR_ENABLED_PROM || 'false' }}
+          VITE_AI_CHAT_ENABLED: ${{ vars.VITE_AI_CHAT_ENABLED_PROM || 'false' }}
           BASE_URL: '/design-system-builder/'
         run: |
           export NODE_OPTIONS=--openssl-legacy-provider

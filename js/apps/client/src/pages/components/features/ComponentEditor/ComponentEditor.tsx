@@ -11,6 +11,7 @@ import type { StructureAccess } from '../ComponentStructure';
 
 import { Root } from './ComponentEditor.styles';
 import { componentPreviewRequest, modeList, resolveComponentPreview } from './ComponentEditor.utils';
+import { useReportEditorFocus } from '../../../../features/aiChat/EditorFocusContext';
 
 interface ComponentEditorProps {
     designSystem: DesignSystem;
@@ -39,6 +40,23 @@ export const ComponentEditor = (props: ComponentEditorProps) => {
 
     // Сочетание вариаций: имя вариации → id стиля. Его рисует превью и редактирует инспектор.
     const [selection, setSelection] = useComponentData(config);
+    useReportEditorFocus(
+        config
+            ? {
+                  component: {
+                      name: config.getName(),
+                      id: config.getComponentId(),
+                      appearanceId: config.getConfigurationId(),
+                      selectedValues: config.getVariations().flatMap((variation) => {
+                          const styleId = selection[variation.getName()];
+                          if (typeof styleId !== 'string') return [];
+                          const value = variation.getStyle(styleId)?.getName();
+                          return [{ variation: variation.getName(), value, styleId }];
+                      }),
+                  },
+              }
+            : undefined,
+    );
     // Аргументы story: значения живут в превью, инспектор показывает их в «Variants».
     const [storyArgs, setStoryArgs] = useState<StoryArgs>();
 

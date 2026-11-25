@@ -21,6 +21,8 @@ services:
       # from local-dev/web-preview). A direct address overrides it while working on the plugin itself, for example
       # http://localhost:3011/ of `npm run build && npm run preview` in apps/preview-web-plugin.
       VITE_WEB_PREVIEW_PLUGIN_URL: ${VITE_WEB_PREVIEW_PLUGIN_URL:-}
+      # ИИ-чат: панель видна, только если флаг включён и бэкенд запущен с AI_ENABLED=true.
+      VITE_AI_CHAT_ENABLED: ${VITE_AI_CHAT_ENABLED:-false}
     ports:
       - "3002:5173"
     networks:

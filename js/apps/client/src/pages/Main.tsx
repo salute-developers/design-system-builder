@@ -1,5 +1,5 @@
 import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
-import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { IconFolderOutline, IconSettingsOutline } from '@salutejs/plasma-icons';
 import { SymbolsOutline } from '@salutejs/sdds-icons/16';
@@ -27,11 +27,18 @@ import railComponentsIcon from '../assets/catalog/icons/rail-components.svg';
 import railCornerRadiusIcon from '../assets/catalog/icons/rail-corner-radius.svg';
 import railTypographyIcon from '../assets/catalog/icons/rail-typography.svg';
 import railVersionsIcon from '../assets/catalog/icons/rail-versions.svg';
+import { AiChatPanel, type EditorFocus, EditorFocusProvider } from '../features/aiChat';
+import type { AiScreenContext } from '../api/aiChat';
+import { parseComponentRoute } from '../composePreview/composeComponents';
+import { isAiChatEnabled } from '../utils/featureFlags';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
     'not-found': 'Theme не найдена',
     failed: 'Не удалось загрузить Theme',
 } as const;
+/** Разделы редактора, которые понимает контекст экрана ИИ-чата. */
+const aiSections = new Set(['colors', 'typography', 'shapes', 'palette', 'components']);
+
 const editorSectionLabels: Record<string, string> = {
     palette: 'Палитра',
     colors: 'Цветовые токены',
@@ -49,6 +56,7 @@ export const Main = () => {
     const editorVersionId = searchParams.get('versionId') ?? undefined;
     const location = useLocation();
     const [requestedPath, setRequestedPath] = useState<string>();
+    const [aiChatOpen, setAiChatOpen] = useState(false);
     const isSectionSwitching = Boolean(requestedPath && requestedPath !== location.pathname);
     const currentPath = (isSectionSwitching ? requestedPath! : location.pathname).split('/').filter(Boolean);
     useLayoutEffect(() => {
@@ -84,6 +92,30 @@ export const Main = () => {
         }),
         [editorSection, currentPath[7]],
     );
+    /** Выбор на открытом экране для ИИ-чата; в ref, чтобы смена выбора не перерисовывала редактор. */
+    const editorFocus = useRef<EditorFocus | undefined>(undefined);
+    const reportEditorFocus = useCallback((focus: EditorFocus | undefined) => {
+        editorFocus.current = focus;
+    }, []);
+    const getAiContext = useCallback((): AiScreenContext => {
+        const section = aiSections.has(editorSection) ? (editorSection as AiScreenContext['section']) : 'other';
+        const focus = editorFocus.current;
+        const routeComponent = sectionSelection.component
+            ? { name: parseComponentRoute(sectionSelection.component).name }
+            : undefined;
+        return {
+            section,
+            tenantId,
+            token: section === 'components' ? undefined : focus?.token,
+            // Пока грузится другой компонент, фокус ещё от прежнего: берём его, только если имя совпадает с адресом.
+            component:
+                section === 'components'
+                    ? focus?.component && (!routeComponent || focus.component.name === routeComponent.name)
+                        ? focus.component
+                        : routeComponent
+                    : undefined,
+        };
+    }, [editorSection, sectionSelection.component, tenantId]);
     const themeEditorPath = `/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/colors`;
     const themeEditorSearch = editorVersionId
         ? `?${new URLSearchParams({
@@ -377,6 +409,11 @@ export const Main = () => {
                                                     version={editorVersionId ? designSystem.getVersion()! : 'draft'}
                                                 />
                                             )}
+                                        {isAiChatEnabled() && editorContext && !editorContext.versionId && (
+                                            <JournalButton type="button" onClick={() => setAiChatOpen((open) => !open)}>
+                                                ИИ-ассистент
+                                            </JournalButton>
+                                        )}
                                         <JournalButton
                                             className="primary editor-changes-button"
                                             type="button"
@@ -418,36 +455,38 @@ export const Main = () => {
                             </button>
                         </div>
                     ) : (
-                        <Outlet
-                            context={{
-                                projectName: designSystem?.getParameters()?.projectName ?? designSystem?.getName(),
-                                projectId: projectId ?? designSystemProjectId,
-                                designSystem,
-                                theme,
-                                components,
-                                composeComponents,
-                                updated,
-                                rerender,
-                                reload,
-                                loadComponent,
-                                componentLoading,
-                                componentError,
-                                palette,
-                                paletteError,
-                                setPalette,
-                                tokenDefinitions,
-                                colorTokenGroups,
-                                incompleteTokenIds,
-                                editorContext,
-                                autosaveStatus,
-                                editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
-                                changedTokenNames,
-                                refreshChanges,
-                                sectionError,
-                                // Тема ещё не загружена целиком: экраны токенов и палитра показывают свои скелетоны.
-                                sectionPending: isSectionSwitching || isEditorLoading || sectionLoading,
-                            }}
-                        />
+                        <EditorFocusProvider value={reportEditorFocus}>
+                            <Outlet
+                                context={{
+                                    projectName: designSystem?.getParameters()?.projectName ?? designSystem?.getName(),
+                                    projectId: projectId ?? designSystemProjectId,
+                                    designSystem,
+                                    theme,
+                                    components,
+                                    composeComponents,
+                                    updated,
+                                    rerender,
+                                    reload,
+                                    loadComponent,
+                                    componentLoading,
+                                    componentError,
+                                    palette,
+                                    paletteError,
+                                    setPalette,
+                                    tokenDefinitions,
+                                    colorTokenGroups,
+                                    incompleteTokenIds,
+                                    editorContext,
+                                    autosaveStatus,
+                                    editorJournal: { ...editorJournal, reloadChecked: reloadJournalAfterRevert },
+                                    changedTokenNames,
+                                    refreshChanges,
+                                    sectionError,
+                                    // Тема ещё не загружена целиком: экраны токенов и палитра показывают свои скелетоны.
+                                    sectionPending: isSectionSwitching || isEditorLoading || sectionLoading,
+                                }}
+                            />
+                        </EditorFocusProvider>
                     )}
                 </EditorCanvas>
                 {Boolean(loadError) ? (
@@ -464,6 +503,18 @@ export const Main = () => {
                     </>
                 ) : null}
             </EditorBody>
+            {isAiChatEnabled() && editorContext ? (
+                // Панель скрывается, а не размонтируется: закрытие не теряет разговор и остановку хода при выходе.
+                <AiChatPanel
+                    key={`${editorContext.projectId}:${editorContext.designSystemId}`}
+                    // В опубликованной версии панель скрыта, но разговор той же DS сохраняется.
+                    open={aiChatOpen && !editorContext.versionId}
+                    projectId={editorContext.projectId}
+                    designSystemId={editorContext.designSystemId}
+                    getContext={getAiContext}
+                    onClose={() => setAiChatOpen(false)}
+                />
+            ) : null}
             {Boolean(isEditingDesignSystem && !isReadOnly && isDebugMode()) ? (
                 <>
                     <Debug

@@ -3,6 +3,9 @@ import { refreshTokens, logoutOnServer, loginWithPassword } from './keycloak';
 
 let refreshPromise: Promise<string> | null = null;
 const sessionResetListeners = new Set<() => void>();
+/** Действия до выхода, пока токен ещё действителен (например, остановка хода ИИ-чата). */
+const beforeLogoutListeners = new Set<() => Promise<void>>();
+const BEFORE_LOGOUT_TIMEOUT_MS = 2000;
 let sessionGeneration = 0;
 const notifySessionReset = () => {
     sessionGeneration += 1;
@@ -74,6 +77,10 @@ export const authService = {
     },
 
     async logout() {
+        await Promise.race([
+            Promise.allSettled([...beforeLogoutListeners].map((listener) => listener())),
+            new Promise((resolve) => setTimeout(resolve, BEFORE_LOGOUT_TIMEOUT_MS)),
+        ]);
         const refresh = tokenStore.refresh;
         tokenStore.clear();
         notifySessionReset();
@@ -125,6 +132,11 @@ export const authService = {
             });
         refreshPromise = pending;
         return pending;
+    },
+
+    onBeforeLogout(listener: () => Promise<void>) {
+        beforeLogoutListeners.add(listener);
+        return () => beforeLogoutListeners.delete(listener);
     },
 
     onSessionReset(listener: () => void) {

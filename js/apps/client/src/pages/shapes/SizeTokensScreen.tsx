@@ -47,6 +47,7 @@ import { SizeTokenInspector } from './ui/SizeTokenInspector';
 import { SizeTokensPlaceholder, SIZES_PANELS_KEY } from './ui/SizeTokensPlaceholder';
 import { SizeTokenTree, type CreatingRow } from './ui/SizeTokenTree';
 import { usePanelWidths } from '../../components/tokenWorkspace';
+import { useReportEditorFocus } from '../../features/aiChat/EditorFocusContext';
 
 export interface SizeTokensScreenProps {
     context: SizeTokenContext;
@@ -160,6 +161,7 @@ export const SizeTokensScreen = (props: SizeTokensScreenProps) => {
         ? null
         : (savedTokens.find((token) => token.tokenId === selectedId) ?? defaultToken(savedTokens));
     const selected = saved ? (tokens.find((token) => token.tokenId === saved.tokenId) ?? saved) : null;
+    useReportEditorFocus(selected ? { token: { id: selected.tokenId, name: selected.name } } : undefined);
     const boardKind = selected?.kind ?? 'radius';
     const board = buildSections(shown).find((section) => section.kind === boardKind)?.tokens ?? [];
 
