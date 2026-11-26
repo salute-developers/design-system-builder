@@ -81,14 +81,15 @@ internal class ComponentDraftLoader(
                 if (previewCoreReleaseId != null) targetBundle.requirePreviewCore(previewCoreReleaseId)
             }
         }
+        val selectedValues = configuration.selectedProperties(selections)
         val selected = projection.properties(
             bundle,
-            configuration.selectedProperties(selections),
+            selectedValues,
             emptyList(),
         )
         val invariants = projection.properties(
             bundle,
-            configuration.config.obj("invariants"),
+            JsonObject(configuration.config.obj("invariants").filterKeys { it !in selectedValues }),
             emptyList(),
         )
         val defaults = projection.defaults()

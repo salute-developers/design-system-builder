@@ -65,6 +65,40 @@ class ComponentCatalogTest {
     private val context = ComponentContext("project", "system", "tenant")
 
     @Test
+    fun stateOnlyCombinationInheritsInvariantAndAssemblesPayload() = runBlocking {
+        val variations = """"defaults":[],"variations":[{"id":"size","name":"size","values":[
+            {"name":"m"},{"name":"m","targets":[{"properties":[]}],"properties":{
+              "height":{"type":"dimension","states":[{"state":["pressed"],"value":30}]}}}]}]"""
+        HttpClient(
+            MockEngine { request ->
+                respond(
+                    if (request.url.encodedPath.endsWith("/editor-bundle")) {
+                        bundle("a", "Button", "button", """{"height":{"type":"dimension","value":24}}""")
+                            .replace("\"defaults\":[],\"variations\":[]", variations)
+                    } else {
+                        "[]"
+                    },
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        ).use { http ->
+            val component = CatalogComponent("a", "Button")
+            val loader =
+                ComponentDraftLoader(ComponentCatalog(apiFor(http)), context, this@runBlocking, listOf(component))
+            val bundle = loader.bundle(component)
+            val draft = loader.draft(bundle, bundle.configurations.single(), mapOf("size" to "m"), "light", "Button")
+            val payload = assertIs<AssemblyResult.Success>(PayloadAssembler.assemble(draft)).payload
+            assertEquals("24", payload.obj("component").obj("properties").obj("height").obj("base").text("value"))
+            assertEquals(
+                "30",
+                payload.obj(
+                    "component",
+                ).obj("properties").obj("height").objects("states").single().obj("source").text("value"),
+            )
+        }
+    }
+
+    @Test
     fun rejectsDifferentCoreInDirectTransitiveAndDefaultStyles() = runBlocking {
         for (kind in listOf("direct", "transitive", "default")) {
             fun reference(style: String) = """{"buttonStyle":{"type":"component_style","value":"$style"}}"""
@@ -321,6 +355,10 @@ class ComponentCatalogTest {
   }
 }
 """,
+                    ).replace(
+                        "\"variations\":[]",
+                        """"variations":[{"id":"size","name":"size","values":[{"name":"m"}]},
+                            {"id":"view","name":"view","values":[{"name":"default"}]}]""",
                     )
                     path.endsWith("/token-values") -> {
                         assertEquals("android", request.url.parameters["platforms"])

@@ -34,6 +34,12 @@ internal fun ComponentConfiguration.selectedProperties(
         >,
 ): JsonObject {
     val selected = linkedMapOf<String, JsonElement>()
+    fun apply(values: JsonObject) {
+        values.forEach { (name, value) ->
+            val previous = selected[name] ?: config.obj("invariants")[name]
+            selected[name] = overlayComponentProperty(previous as? JsonObject, value as JsonObject)
+        }
+    }
     val colorSchemeId = config.text("colorSchemeVariationId")
     val ordered = axes().sortedBy { axis ->
         if (colorSchemeId == null) {
@@ -44,7 +50,7 @@ internal fun ComponentConfiguration.selectedProperties(
     }
     ordered.forEach { axis ->
         axisValues(axis).singleOrNull { it.text("name") == selections[axis.text("name")] }
-            ?.obj("properties")?.let(selected::putAll)
+            ?.obj("properties")?.let(::apply)
     }
     val combinations = axes().flatMap { axis ->
         axis.objects("values").filter { it.text("name") == selections[axis.text("name")] }.flatMap { value ->
@@ -62,33 +68,6 @@ internal fun ComponentConfiguration.selectedProperties(
             }.map { it.objects("properties").size to value.obj("properties") }
         }
     }
-    combinations.sortedBy { it.first }.forEach { selected.putAll(it.second) }
+    combinations.sortedBy { it.first }.forEach { apply(it.second) }
     return JsonObject(selected)
-}
-
-internal fun referenceSelections(
-    configuration: ComponentConfiguration,
-    names: List<String>,
-): Map<
-    String,
-    String,
-    > {
-    val result = linkedMapOf<String, String>()
-    val unmatched = mutableListOf<String>()
-    names.forEachIndexed { index, name ->
-        val axis = configuration.axes().getOrNull(index)
-        if (axis != null && axisValues(axis).any { it.text("name") == name }) {
-            result[axis.text("name").orEmpty()] = name
-        } else {
-            unmatched.add(name)
-        }
-    }
-    unmatched.forEach { name ->
-        configuration.axes().firstOrNull { axis ->
-            axis.text("name") !in result && axisValues(axis).any { value -> value.text("name") == name }
-        }
-            ?.let { result[it.text("name").orEmpty()] = name }
-    }
-    configuration.defaultSelections().forEach { (axis, value) -> result.putIfAbsent(axis, value) }
-    return result
 }
