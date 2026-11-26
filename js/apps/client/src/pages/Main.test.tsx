@@ -16,6 +16,7 @@ const { hookState, reload, loadComponent, mainUtils, retryAutosave } = vi.hoiste
         autosaveStatus: 'saved' as 'saved' | 'saving' | 'error',
         sectionLoading: false,
         componentLoading: false,
+        compatibilityCount: 0,
     },
     reload: vi.fn(),
     loadComponent: vi.fn(),
@@ -59,6 +60,10 @@ vi.mock('../hooks', () => ({
     }),
 }));
 
+vi.mock('../hooks/useCoreCompatibility', () => ({
+    useCoreCompatibility: () => ({ report: { blockingCount: hookState.compatibilityCount } }),
+}));
+
 vi.mock('../features/versionJournal/useJournal', () => ({
     useJournal: () => ({ actions: [], loading: false, error: undefined, reload: vi.fn() }),
     useReloadAfterAutosave: vi.fn(),
@@ -76,18 +81,19 @@ import { setActiveDraftContext } from '../utils';
 // Ключ черновика выбранного tenant: так его строит редактор темы при активном контексте.
 const DRAFT_KEY = 'ds_draft:project-1:ds-1:theme-1';
 
-const renderEditor = () =>
-    render(
-        <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
-            <Routes>
-                <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
-                    <Route path="colors" element={<div />} />
-                </Route>
-            </Routes>
-        </MemoryRouter>,
-    );
+const editor = () => (
+    <MemoryRouter initialEntries={['/projects/project-1/design-systems/ds-1/themes/theme-1/colors']}>
+        <Routes>
+            <Route path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId" element={<Main />}>
+                <Route path="colors" element={<div />} />
+            </Route>
+        </Routes>
+    </MemoryRouter>
+);
+const renderEditor = () => render(editor());
 
 beforeEach(() => {
+    hookState.compatibilityCount = 0;
     setActiveDraftContext({ projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'theme-1' });
 });
 
@@ -448,4 +454,15 @@ describe('Theme editor shell', () => {
         expect(screen.getByRole('status', { name: 'Загружаем компонент…' })).toBeInTheDocument();
         expect(document.querySelector('.component-editor-screen .tw-skeleton[data-skeleton="tree"]')).not.toBeNull();
     });
+});
+
+it('shows and clears the compatibility rail badge when blocking problems change', () => {
+    const view = renderEditor();
+    expect(screen.queryByLabelText('Валидация, есть проблемы совместимости')).not.toBeInTheDocument();
+    hookState.compatibilityCount = 2;
+    view.rerender(editor());
+    expect(screen.getByLabelText('Валидация, есть проблемы совместимости')).toBeInTheDocument();
+    hookState.compatibilityCount = 0;
+    view.rerender(editor());
+    expect(screen.queryByLabelText('Валидация, есть проблемы совместимости')).not.toBeInTheDocument();
 });

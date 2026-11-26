@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResponse
@@ -7,6 +8,7 @@ import com.dsbuilder.frontend.core.network.MultipartFile
 import com.dsbuilder.frontend.feature.components.application.PreviewPluginRemoteSource
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteCommand
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteResult
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -24,8 +26,6 @@ internal class HttpPreviewPluginRemoteSource(
 ) : PreviewPluginRemoteSource {
     private val json = Json {
         ignoreUnknownKeys = true
-        encodeDefaults = true
-        explicitNulls = false
     }
 
     /**
@@ -38,9 +38,13 @@ internal class HttpPreviewPluginRemoteSource(
             ?: return PublishPreviewPluginRemoteResult.Failed(
                 "Error: preview-plugin publish does not support platform '${command.platform.cliValue}'.",
             )
-        val meta = json.encodeToString(
-            ApiMetaImportRequest.serializer(),
-            command.manifest.toImportRequest(command.platform.toApiMetaPlatform(), command.source, command.dryRun),
+        val meta = command.manifest.encodePreviewPluginMeta(
+            command.platform,
+            command.source,
+            command.dryRun,
+            command.coreRelease,
+            command.archive.metaBytes,
+            command.channel,
         )
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val response = try {
@@ -125,6 +129,31 @@ internal class HttpPreviewPluginRemoteSource(
         val SUCCESS = 200..299
     }
 }
+
+private val previewMetaJson = Json {
+    encodeDefaults = true
+    explicitNulls = false
+}
+
+internal fun encodePreviewCoreImportRequest(
+    platform: TargetPlatform,
+    manifest: ApiMetaManifest,
+    release: CoreReleaseRef,
+    sourceBytes: ByteArray,
+    channel: String,
+): String = manifest.encodePreviewPluginMeta(platform, "api-meta.json", false, release, sourceBytes, channel)
+
+private fun ApiMetaManifest.encodePreviewPluginMeta(
+    platform: TargetPlatform,
+    source: String,
+    dryRun: Boolean,
+    release: CoreReleaseRef?,
+    sourceBytes: ByteArray,
+    channel: String?,
+): String = previewMetaJson.encodeToString(
+    ApiMetaImportRequest.serializer(),
+    toImportRequest(platform.toApiMetaPlatform(), source, dryRun, release, sourceBytes, channel),
+)
 
 /**
  * Ответ публикации backend: нужные клиенту поля.

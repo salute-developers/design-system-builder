@@ -16,28 +16,28 @@
                     "reason": "Unsupported property type 'gizmo'"
                 }
             ],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
-            "unknownStates": [
-                "nonexistentstate"
-            ],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -128,11 +128,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
-                            },
-                            "focus": {
-                                "type": "value",
-                                "value": "1"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -388,28 +384,28 @@
                     "reason": "Unsupported property type 'gizmo'"
                 }
             ],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
-            "unknownStates": [
-                "nonexistentstate"
-            ],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -500,11 +496,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
-                            },
-                            "focus": {
-                                "type": "value",
-                                "value": "1"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -749,28 +741,28 @@
             "updated": 1,
             "unchanged": 3,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
-            "unknownStates": [
-                "nonexistentstate"
-            ],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -861,11 +853,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
-                            },
-                            "focus": {
-                                "type": "value",
-                                "value": "1"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -1110,28 +1098,28 @@
             "updated": 1,
             "unchanged": 1,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
-            "unknownStates": [
-                "nonexistentstate"
-            ],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -1222,11 +1210,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
-                            },
-                            "focus": {
-                                "type": "value",
-                                "value": "1"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -1471,28 +1455,28 @@
             "updated": 1,
             "unchanged": 1,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
-            "unknownStates": [
-                "nonexistentstate"
-            ],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "unknownProperties": [],
+            "unknownStates": [],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -1583,11 +1567,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
-                            },
-                            "focus": {
-                                "type": "value",
-                                "value": "1"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -1832,26 +1812,28 @@
             "updated": 1,
             "unchanged": 1,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
+            "unknownProperties": [],
             "unknownStates": [],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -1942,7 +1924,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -2164,26 +2146,28 @@
             "updated": 1,
             "unchanged": 1,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
+            "unknownProperties": [],
             "unknownStates": [],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -2274,7 +2258,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -2496,26 +2480,28 @@
             "updated": 0,
             "unchanged": 2,
             "rejected": [],
-            "unresolvedTokens": [
-                "missing.token"
-            ],
+            "unresolvedTokens": [],
             "unresolvedComponentStyles": [],
-            "unknownProperties": [
-                "nosuch"
-            ],
+            "unknownProperties": [],
             "unknownStates": [],
-            "typeMismatches": [
-                "ghost: global 'value', config 'shape'"
-            ],
-            "gradientOnlyProperties": [
-                "button.fill"
-            ],
+            "typeMismatches": [],
+            "gradientOnlyProperties": [],
             "underivableVariationIds": []
         },
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -2606,7 +2592,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -2839,7 +2825,17 @@
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -2930,7 +2926,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",
@@ -3203,7 +3199,17 @@
         "export": {
             "meta": {
                 "name": "equivalence",
-                "version": "draft"
+                "version": "draft",
+                "coreReleases": [
+                    {
+                        "libraryId": "uikit-compose",
+                        "platform": "compose",
+                        "version": "equivalence",
+                        "metaSha256": "7d67aef9a16647156e17de77b71a01caf6a8e8aef784b480e3b814fdc030fb8f",
+                        "provenance": "imported",
+                        "channel": "stable"
+                    }
+                ]
             },
             "components": [
                 {
@@ -3294,7 +3300,7 @@
                             },
                             "fill": {
                                 "type": "color",
-                                "default": "missing.token"
+                                "default": "#ff0000"
                             },
                             "gap": {
                                 "type": "value",

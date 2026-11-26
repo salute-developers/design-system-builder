@@ -53,6 +53,8 @@ import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentTokenReferencesUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
+import com.dsbuilder.ds.components.application.GetCoreCompatibilityUseCase
+import com.dsbuilder.ds.components.application.GetCorePreviewUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.GetIconCatalogUseCase
 import com.dsbuilder.ds.components.application.GetInvariantPlatformParamAdjustmentUseCase
@@ -116,6 +118,7 @@ import com.dsbuilder.ds.components.application.RemoveAppearancePropertyValueUseC
 import com.dsbuilder.ds.components.application.ReorderAppearanceAxesUseCase
 import com.dsbuilder.ds.components.application.ReorderAppearanceAxisValuesUseCase
 import com.dsbuilder.ds.components.application.ReorderAppearanceStatesUseCase
+import com.dsbuilder.ds.components.application.RepairCoreProblemUseCase
 import com.dsbuilder.ds.components.application.ResolveStateSetUseCase
 import com.dsbuilder.ds.components.application.SetAppearancePropertyValueUseCase
 import com.dsbuilder.ds.components.application.UpdateAppearanceUseCase
@@ -149,6 +152,16 @@ import com.dsbuilder.ds.components.presentation.componentEditorBundleRoutes
 import com.dsbuilder.ds.components.presentation.componentReuseConfigRoutes
 import com.dsbuilder.ds.components.presentation.componentRoutes
 import com.dsbuilder.ds.components.presentation.componentTemplateRoutes
+import com.dsbuilder.ds.components.presentation.coreCompatibilityRoutes
+import com.dsbuilder.ds.components.presentation.coreComponentCatalogRoutes
+import com.dsbuilder.ds.components.presentation.coreComponentReadRoutes
+import com.dsbuilder.ds.components.presentation.coreDependencyReadRoutes
+import com.dsbuilder.ds.components.presentation.corePlatformParamReadRoutes
+import com.dsbuilder.ds.components.presentation.corePreviewRoutes
+import com.dsbuilder.ds.components.presentation.coreProblemRepairRoutes
+import com.dsbuilder.ds.components.presentation.corePropertyReadRoutes
+import com.dsbuilder.ds.components.presentation.coreSettingsRoutes
+import com.dsbuilder.ds.components.presentation.coreStateReadRoutes
 import com.dsbuilder.ds.components.presentation.designSystemComponentRoutes
 import com.dsbuilder.ds.components.presentation.iconCatalogPublishRoutes
 import com.dsbuilder.ds.components.presentation.iconCatalogReadRoutes
@@ -467,6 +480,16 @@ fun Application.installDsRoutes(runtime: DsRuntime, json: Json, diagnostics: Boo
 
 @Suppress("LongMethod")
 private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin: Koin) {
+    coreSettingsRoutes(
+        runtime.evaluator,
+        koin.get<com.dsbuilder.ds.components.application.ListCoreReleasesUseCase>(),
+        koin.get<com.dsbuilder.ds.components.application.SelectCoreReleaseUseCase>(),
+        koin.get<com.dsbuilder.ds.components.application.ReadCoreSettingsUseCase>(),
+        json,
+    )
+    coreCompatibilityRoutes(runtime.evaluator, koin.get<GetCoreCompatibilityUseCase>())
+    corePreviewRoutes(runtime.evaluator, koin.get<GetCorePreviewUseCase>())
+    coreProblemRepairRoutes(runtime.evaluator, koin.get<RepairCoreProblemUseCase>(), json)
     apiMetaImportRoutes(runtime.evaluator, koin.get<ImportApiMetaUseCase>(), json)
     pluginBuildPublishRoutes(
         runtime.evaluator,
@@ -484,6 +507,12 @@ private fun Route.registerComponentsFeature(runtime: DsRuntime, json: Json, koin
         koin.get<GetComponentWebAdapterUseCase>(),
         json,
     )
+    coreComponentCatalogRoutes(runtime.evaluator, koin.get<ListComponentsUseCase>())
+    coreComponentReadRoutes(runtime.evaluator, koin.get<GetComponentUseCase>())
+    corePropertyReadRoutes(runtime.evaluator, koin.get<ListPropertiesUseCase>())
+    corePlatformParamReadRoutes(runtime.evaluator, koin.get<ListPropertyPlatformParamsUseCase>())
+    coreDependencyReadRoutes(runtime.evaluator, koin.get<ListComponentDependenciesUseCase>())
+    coreStateReadRoutes(runtime.evaluator, koin.get<ListStatesUseCase>())
     componentRoutes(
         runtime.evaluator,
         koin.get<ListComponentsUseCase>(),

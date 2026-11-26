@@ -170,6 +170,7 @@ class ViewAxisPostgresIntegrationTest {
     private suspend fun createDesignSystem(name: String): String {
         val created = api("POST", "/api/design-systems", """{"name":"$name","projectName":"$name"}""")
         assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        importFixtureCore(database)
         return Json.parseToJsonElement(created.bodyAsText()).field("id")
     }
 

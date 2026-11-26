@@ -90,7 +90,7 @@ fun Route.componentConfigRoutes(
             }
             when (
                 val result = exportConfig.execute(
-                    context,
+                    context.copy(version = call.request.queryParameters["version"]),
                     ExportComponentConfig(id, request.platform, request.components, request.styles, request.editorIds),
                 )
             ) {
@@ -109,8 +109,16 @@ fun Route.componentConfigRoutes(
             call.receive<ComponentWebAdapterRequest>()
             val id = context.designSystemId
                 ?: return@post call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
-            when (val result = getWebAdapter.execute(context, id)) {
-                is DsResult.Success -> call.respond(result.value.map(ComponentWebAdapterEntryResponse::from))
+            when (
+                val result = getWebAdapter.execute(
+                    context.copy(version = call.request.queryParameters["version"]),
+                    id,
+                )
+            ) {
+                is DsResult.Success -> call.respondSuccess(
+                    result,
+                    result.value.map(ComponentWebAdapterEntryResponse::from),
+                )
                 is DsResult.Failure -> call.respondFailure(result.error)
             }
         }

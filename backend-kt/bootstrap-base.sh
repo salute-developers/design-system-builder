@@ -3,14 +3,18 @@
 # Дизайн-системы и темы создаёт пользователь; их начальные данные инициализирует backend.
 # Повторный запуск не импортирует пользовательские значения и конфигурации компонентов.
 # К базе напрямую скрипт не обращается.
+# --import-core-request FILE импортирует подготовленную мету Core без создания проекта.
 #
-# Environment (всё необязательно):
+# Environment:
 #   DSBUILDER_GATEWAY_URL        Gateway, default http://localhost:8080
 #   DSBUILDER_PROJECT_USERNAME   пользователь Keycloak (системный администратор), default admin@example.com
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
-#   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
-#   DSBUILDER_WEB_API_META       web-api-meta.json; default js/cli/.sdds/web/web-api-meta.json, генерируется при отсутствии
+#   DSBUILDER_REALM / DSBUILDER_PROJECT_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
+#   DSBUILDER_WEB_CORE_VERSION    точная версия, обязательна с DSBUILDER_WEB_API_META
+#   DSBUILDER_WEB_CORE_CHANNEL    stable/dev (default dev)
+#   DSBUILDER_WEB_API_META       отдельный web-api-meta.json (по умолчанию мета из Web preview ZIP)
+#   WEB_PREVIEW_PLUGIN_ZIP      Web preview ZIP, файл или HTTP(S) URL (по умолчанию комплектный ZIP)
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -19,8 +23,9 @@ PROJECT_USERNAME="${DSBUILDER_PROJECT_USERNAME:-admin@example.com}"
 PROJECT_PASSWORD="${DSBUILDER_PROJECT_PASSWORD:-password}"
 PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
-CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
-WEB_API_META="${DSBUILDER_WEB_API_META:-$ROOT_DIR/js/cli/.sdds/web/web-api-meta.json}"
+CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-${DSBUILDER_CLIENT_ID:-dsbuilder-api}}"
+WEB_API_META="${DSBUILDER_WEB_API_META:-}"
+WEB_PLUGIN_ARCHIVE="${WEB_PREVIEW_PLUGIN_ZIP:-$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip}"
 
 log() { echo "[bootstrap-base] $*"; }
 fail() { echo "[bootstrap-base] ERROR: $*" >&2; exit 1; }
@@ -67,17 +72,6 @@ expect_status() {
     local expected="$1" what="$2" body="$3" status
     status="$(tail -c 3 "$STATUS_FILE")"
     [[ "$status" == "$expected" ]] || fail "$what: HTTP $status $body"
-}
-
-# ─── Инструменты: web-api-meta.json ─────────────────────────────────────────
-
-ensure_web_api_meta() {
-    if [[ -f "$WEB_API_META" ]]; then return; fi
-    if [[ -n "${DSBUILDER_WEB_API_META:-}" ]]; then fail "web-api-meta file not found: $WEB_API_META"; fi
-    [[ -d "$ROOT_DIR/js/cli/node_modules" ]] || fail "web-api-meta.json is missing and js/cli has no dependencies: run 'cd js/cli && npm ci', or pass DSBUILDER_WEB_API_META=<file>"
-    log "Generating web-api-meta.json from the installed @salutejs/plasma-new-hope (js/cli)"
-    (cd "$ROOT_DIR/js/cli" && npm run --silent generate:api-meta -- --package @salutejs/plasma-new-hope --out "$WEB_API_META")
-    [[ -f "$WEB_API_META" ]] || fail "web-api-meta.json was not generated at $WEB_API_META"
 }
 
 # ─── Gateway и проект ───────────────────────────────────────────────────────
@@ -139,24 +133,40 @@ for project in json.load(sys.stdin):
 
 # ─── Глобальный слой web-компонентов ────────────────────────────────────────
 
+prepare_web_import() {
+    local source="${WEB_API_META:-$WEB_PLUGIN_ARCHIVE}"
+    local args=("$source" --channel "${DSBUILDER_WEB_CORE_CHANNEL:-dev}")
+    if [[ -z "$WEB_API_META" ]]; then args+=(--archive); fi
+    if [[ -n "${DSBUILDER_WEB_CORE_VERSION:-}" ]]; then args+=(--core-version "$DSBUILDER_WEB_CORE_VERSION"); fi
+    if [[ -n "${DSBUILDER_WEB_CORE_LIBRARY:-}" ]]; then args+=(--library-id "$DSBUILDER_WEB_CORE_LIBRARY"); fi
+    log "Preparing the web component layer from $source"
+    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "${args[@]}" > "$IMPORT_BODY_FILE" || fail "Web API meta normalization failed"
+}
+
 import_global_layer() {
-    log "Importing the web component layer from $WEB_API_META"
-    python3 "$ROOT_DIR/backend-kt/scripts/normalize_web_api_meta.py" "$WEB_API_META" > "$IMPORT_BODY_FILE" \
-        || fail "Web API meta normalization failed"
-    local body
+    local request="$1" title="$2" body
     body="$(curl -sS -w '%{stderr}%{http_code}' -X POST \
         "$GATEWAY_URL/api/admin/component-config/import-api-meta" \
         -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
-        --data-binary "@$IMPORT_BODY_FILE" 2>"$STATUS_FILE")" \
+        --data-binary "@$request" 2>"$STATUS_FILE")" \
         || fail "API meta import request failed: $(cat "$STATUS_FILE")"
     expect_status 200 "API meta import failed" "$body"
-    log "Web component layer imported"
+    log "$title imported"
 }
 
-ensure_web_api_meta
+if [[ "${1:-}" == "--import-core-request" ]]; then
+    [[ $# == 2 && -s "$2" ]] || fail "Pass a nonempty Core import request file"
+    wait_for_gateway
+    obtain_token
+    import_global_layer "$2" "Core API meta"
+    exit 0
+fi
+[[ $# == 0 ]] || fail "Unknown argument: $1"
+
+prepare_web_import
 wait_for_gateway
 obtain_token
 wait_for_projects_api
 ensure_project
-import_global_layer
+import_global_layer "$IMPORT_BODY_FILE" "Web component layer"
 log "Project and global Web API are ready; create a design system in the editor"

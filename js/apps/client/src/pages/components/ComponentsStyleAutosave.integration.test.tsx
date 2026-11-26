@@ -20,6 +20,7 @@ const mocks = vi.hoisted(() => ({
         getPlatform: () => 'web' as const,
         getMeta: () => structuredClone(mocks.currentMeta),
         getConfigurationId: () => undefined,
+        getCoreSelectionRevision: () => undefined,
         getConfigurations: () => [],
         getComponentId: () => undefined,
     },

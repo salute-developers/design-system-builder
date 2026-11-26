@@ -211,10 +211,7 @@ export class ComposePreviewSession {
             return;
         }
 
-        if (
-            event.data.protocolVersion !== undefined &&
-            event.data.protocolVersion !== PREVIEW_PROTOCOL_VERSION
-        ) {
+        if (event.data.protocolVersion !== undefined && event.data.protocolVersion !== PREVIEW_PROTOCOL_VERSION) {
             return;
         }
 
@@ -263,6 +260,14 @@ export class ComposePreviewSession {
     }
 }
 
+/** Один реестр определяет поддерживаемые скалярные типы и проверяет их значения по протоколу. */
+const defaultValueValidators = new Map<string, (value: unknown) => boolean>([
+    ['string', (value) => typeof value === 'string'],
+    ['boolean', (value) => typeof value === 'boolean'],
+    ['int', Number.isInteger],
+    ['float', (value) => typeof value === 'number'],
+]);
+
 const validateDescription = (
     result: Extract<PreviewComponentDescriptionResult, { type: 'success' }>,
     componentId: string,
@@ -271,7 +276,11 @@ const validateDescription = (
     if (!description || description.protocolVersion !== PREVIEW_PROTOCOL_VERSION) {
         return 'Preview plugin returned an incompatible component description';
     }
-    if (description.componentId !== componentId || !description.storyId.trim() || !Array.isArray(description.properties)) {
+    if (
+        description.componentId !== componentId ||
+        !description.storyId.trim() ||
+        !Array.isArray(description.properties)
+    ) {
         return 'Preview plugin returned a malformed component description';
     }
     if (description.stories !== undefined) {
@@ -298,12 +307,8 @@ const validateDescription = (
         if (property.name === 'variant' || property.name === 'appearance') {
             return `Preview plugin description contains forbidden property ${property.name}`;
         }
-        if (
-            (property.type === 'string' && typeof property.defaultValue !== 'string') ||
-            (property.type === 'boolean' && typeof property.defaultValue !== 'boolean') ||
-            (property.type === 'int' && (!Number.isInteger(property.defaultValue))) ||
-            (property.type === 'float' && typeof property.defaultValue !== 'number')
-        ) {
+        const validateDefault = defaultValueValidators.get(property.type);
+        if (validateDefault && !validateDefault(property.defaultValue)) {
             return `Preview plugin property ${property.name} has an incompatible default value`;
         }
         if (property.type === 'singleChoice') {
@@ -315,7 +320,7 @@ const validateDescription = (
             ) {
                 return `Preview plugin property ${property.name} has incompatible variants`;
             }
-        } else if (!['string', 'boolean', 'int', 'float'].includes(property.type)) {
+        } else if (!defaultValueValidators.has(property.type)) {
             return `Preview plugin property ${property.name} has unsupported type`;
         }
     }

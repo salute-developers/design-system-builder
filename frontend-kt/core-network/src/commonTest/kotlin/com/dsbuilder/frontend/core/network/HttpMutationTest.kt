@@ -37,6 +37,7 @@ class HttpMutationTest {
                         "key",
                         7,
                         "client",
+                        coreSelectionRevision = 3,
                     ),
                 ) as HttpMutationResult.Response
                 assertEquals(201, result.statusCode)
@@ -46,6 +47,7 @@ class HttpMutationTest {
                 assertEquals("{}", (sent!!.body as TextContent).text)
                 assertEquals("key", sent!!.headers["Idempotency-Key"])
                 assertEquals("7", sent!!.headers["X-DS-Base-Revision"])
+                assertEquals("3", sent!!.headers["X-DS-Core-Selection-Revision"])
                 assertEquals("client", sent!!.headers["X-DS-Client-Id"])
                 assertEquals("Bearer token", sent!!.headers[HttpHeaders.Authorization])
             }

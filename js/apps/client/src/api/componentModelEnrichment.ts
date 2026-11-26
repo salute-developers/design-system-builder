@@ -14,6 +14,8 @@ export interface PropertyPlatformParamDto {
     propertyId: string;
     platform: string;
     name: string;
+    deprecated?: boolean;
+    deprecatedMessage?: string | null;
 }
 
 /** Связь свойства с панелью вариации из `GET /property-variations`. */
@@ -103,4 +105,15 @@ export const collectDependencies = (
         byParent.set(parent, deps);
     }
     return byParent;
+};
+
+/** Устаревание относится к параметрам выбранной платформы и видно даже у незаполненного свойства. */
+export const deprecationsByProperty = (params: PropertyPlatformParamDto[], platform: string) => {
+    const result = new Map<string, { message?: string }>();
+    for (const param of params) {
+        if (param.platform === platform && param.deprecated && !result.has(param.propertyId)) {
+            result.set(param.propertyId, { message: param.deprecatedMessage ?? undefined });
+        }
+    }
+    return result;
 };

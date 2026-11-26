@@ -1,3 +1,6 @@
+import { CompatibilityHint } from '../../features/coreCompatibility/PropertyWarningIndicator';
+import { compatibilityStatus, validationLabel } from '../../features/coreCompatibility/model';
+import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
 import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
@@ -606,7 +609,16 @@ export const DesignSystemVersionsPage = () => {
     const selectedVersion = versions.find(({ id }) => id === selectedVersionId);
     const latestVersion = [...versions].sort((left, right) => right.sequenceNumber - left.sequenceNumber)[0];
     const validVersion = /^\d+\.\d+\.\d+$/.test(version);
-    const canPublish = !readOnly && !versionsLoading && validVersion && journal.actions.length > 0 && !publishing;
+    const compatibility = useCoreCompatibility(historicalContext);
+    const compatibilitySummary = compatibilityStatus(compatibility.report, compatibility.error);
+    const checkedCompatibility = compatibility.error ? undefined : compatibility.report;
+    const canPublish =
+        checkedCompatibility?.blockingCount === 0 &&
+        !readOnly &&
+        !versionsLoading &&
+        validVersion &&
+        journal.actions.length > 0 &&
+        !publishing;
     const publish = async (event: FormEvent) => {
         event.preventDefault();
         if (!canPublish || !editorContext) return;
@@ -635,6 +647,7 @@ export const DesignSystemVersionsPage = () => {
                 version,
                 changelog.trim(),
                 crypto.randomUUID(),
+                compatibility.report?.context.coreSelectionRevision,
             );
             setPublicationResult(`Версия ${published.version} создана`);
             setChangelog('');
@@ -642,7 +655,8 @@ export const DesignSystemVersionsPage = () => {
             await Promise.resolve(reloadEditor());
             await reloadVersions();
         } catch (cause) {
-            if (errorCode(cause) === 'DRAFT_STALE') {
+            if (['DRAFT_STALE', 'CORE_SELECTION_STALE'].includes(errorCode(cause) ?? '')) {
+                compatibility.reload();
                 setPublicationResult(
                     'Черновик изменился. Состав публикации обновлён; проверьте его и повторите публикацию.',
                 );
@@ -886,6 +900,14 @@ export const DesignSystemVersionsPage = () => {
                                 <span>Изменения</span>
                                 <strong>{journal.actions.length}</strong>
                             </InspectorRow>
+                            <InspectorRow>
+                                <span>Совместимость</span>
+                                <strong role="status">
+                                    <CompatibilityHint message={compatibilitySummary.message}>
+                                        {compatibilitySummary.label}
+                                    </CompatibilityHint>
+                                </strong>
+                            </InspectorRow>
                         </InspectorSection>
                         <InspectorSection>
                             <h2>{selectedVersionId ? 'Версия' : 'После публикации'}</h2>
@@ -905,9 +927,39 @@ export const DesignSystemVersionsPage = () => {
                             >
                                 Открыть изменения
                             </SecondaryButton>
-                            <Button type="submit" form="version-publication-form" disabled={!canPublish}>
-                                {publishing ? 'Публикуем…' : 'Опубликовать версию'}
-                            </Button>
+                            {checkedCompatibility && checkedCompatibility.blockingCount > 0 ? (
+                                <section
+                                    className="release-validation"
+                                    aria-label={validationLabel(checkedCompatibility.blockingCount)}
+                                >
+                                    <Button
+                                        type="button"
+                                        className="release-validation-button"
+                                        onClick={() => {
+                                            const query = new URLSearchParams();
+                                            navigate(`../validation?${query}`);
+                                        }}
+                                    >
+                                        {validationLabel(checkedCompatibility.blockingCount)}
+                                    </Button>
+                                </section>
+                            ) : (
+                                <>
+                                    {compatibility.error ? (
+                                        <p role="alert">
+                                            Проверка недоступна.{' '}
+                                            <button type="button" onClick={compatibility.reload}>
+                                                Повторить
+                                            </button>
+                                        </p>
+                                    ) : (
+                                        !compatibility.report && <p role="status">Проверяем совместимость…</p>
+                                    )}
+                                    <Button type="submit" form="version-publication-form" disabled={!canPublish}>
+                                        {publishing ? 'Публикуем…' : 'Опубликовать версию'}
+                                    </Button>
+                                </>
+                            )}
                         </InspectorFooter>
                     )}
                 </Inspector>

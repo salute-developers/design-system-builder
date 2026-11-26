@@ -15,4 +15,6 @@ data class DesignSystemComponentSummary(
     val createdAt: Instant,
     /** Updated at carried by this contract. */
     val updatedAt: Instant,
+    /** Платформа выбранного Core. */
+    val platform: String,
 )

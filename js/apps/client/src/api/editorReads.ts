@@ -12,7 +12,7 @@ const confirmed = new Map<string, { response: AxiosResponse; expiresAt: number; 
 const metadataRevisions = new Map<string, number>();
 const metadataSeenAt = new Map<string, number>();
 export const getEditorMetadataRevision = (context: EditorContextKey) =>
-    metadataRevisions.get(`${context.projectId}:${context.versionId ?? 'draft'}`) ?? 0;
+    metadataRevisions.get(`${context.projectId}:${context.designSystemId}:${context.versionId ?? 'draft'}`) ?? 0;
 
 const normalizedUrl = (url: string) => new URL(url, API_GATEWAY_URL || window.location.origin).href;
 
@@ -37,13 +37,16 @@ const readQueue = new EditorReadQueue();
 let epoch = 0;
 
 /** Новое чтение после подтверждённой записи не присоединяется к запросу старого состояния. */
-export const invalidateEditorReads = (context?: Pick<EditorContextKey, 'projectId'>) => {
+export const invalidateEditorReads = (
+    context?: Pick<EditorContextKey, 'projectId'>,
+    options: { includeMetadata?: boolean } = {},
+) => {
     epoch++;
     for (const [key, value] of confirmed) {
         const path = new URL(value.url).pathname;
         const root = `/api/projects/${context?.projectId}/design-systems`;
         const scope = {
-            mutable: value.mutable,
+            mutable: value.mutable || options.includeMetadata === true,
             designSystems: /\/design-systems(?:\/|$)/.test(path),
             project: !context || path === root || path.startsWith(`${root}/`),
         };
@@ -117,7 +120,8 @@ export function readEditor<T>(
                         if (ttl >= 300_000) {
                             const projectId = path.match(/^\/api\/projects\/([^/]+)\/design-systems\//)?.[1];
                             if (projectId && metadataSeenAt.has(resourceKey)) {
-                                const group = `${projectId}:${request.params?.versionId ?? 'draft'}`;
+                                const designSystemId = path.match(/\/design-systems\/([^/]+)/)?.[1];
+                                const group = `${projectId}:${designSystemId}:${request.params?.versionId ?? 'draft'}`;
                                 metadataRevisions.set(group, (metadataRevisions.get(group) ?? 0) + 1);
                             }
                             metadataSeenAt.set(resourceKey, Date.now());

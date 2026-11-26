@@ -1,4 +1,12 @@
-import { isAxiosError } from 'axios';
+import {
+    componentCoreRelease,
+    componentCoreSelectionRevision,
+    requireSameComponentCore,
+    requireSameCoreSelectionRevision,
+    retryComponentCoreRead,
+} from './componentCoreContext';
+import { isAxiosError, type AxiosRequestConfig } from 'axios';
+import { authService } from './authService';
 import { http } from './http';
 import { readEditor, invalidateEditorReads } from './editorReads';
 import type { Meta } from '../controllers/componentBuilder/type';
@@ -27,8 +35,7 @@ import type {
 import { apiRoot, parseMutationMetadata, readRequest, variationReadRequest } from './editorHttp';
 import { isComponentEditorEnabled } from '../utils/featureFlags';
 import { AutosaveRejection, isStateRejection, isUnknownIconError, stateRejection } from './autosaveHttp';
-import { hasConfiguration, markComposeComponents, resolveComposePreviewPluginUrl } from '../composePreview';
-import { fetchComposePreviewPluginDescriptor } from './composePreviewPluginRepository';
+import { hasConfiguration, markComposeComponents } from '../composePreview';
 import { camelToKebab } from '../utils/text';
 import { resolveStateId, stateSupportOf } from './componentStates';
 import {
@@ -36,6 +43,7 @@ import {
     enrichApi,
     variationNamesByProperty,
     composeParamsByProperty,
+    deprecationsByProperty,
     webParamsByProperty,
     type ComponentDependencyDto,
     type PropertyPlatformParamDto,
@@ -158,6 +166,8 @@ const COMPONENT_LOAD_CONCURRENCY = 4;
 
 /** Данные, из которых собирается `Meta`: либо списки всей ДС, либо они же, ограниченные одним компонентом. */
 interface ComponentSources {
+    coreReleaseId?: string;
+    coreSelectionRevision?: number;
     links: DesignSystemComponentDto[];
     catalog: ComponentDto[];
     appearances: AppearanceDto[];
@@ -191,16 +201,29 @@ const readComponentLists = async (
     const empty = <T>() => Promise.resolve({ data: [] as T[] });
     const [links, catalog, appearances, exported, params, propertyVariations, dependencies] = await Promise.all([
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-        readEditor<ComponentDto[]>(`${apiRoot(context.projectId)}/components`, request, undefined, 300_000),
+        readEditor<ComponentDto[]>(
+            `${apiRoot(context.projectId, context.designSystemId)}/components`,
+            request,
+            undefined,
+            300_000,
+        ),
         readEditor<AppearanceDto[]>(`${root}/appearances`, request),
         readEditor<ComponentConfigExportDto>(`${root}/component-config/export`, request, {
             platform,
             editorIds: true,
             ...(componentName ? { components: [camelToKebab(componentName)] } : {}),
+        }).catch((error: unknown) => {
+            if (
+                isAxiosError(error) &&
+                error.response?.status === 409 &&
+                error.response.data?.code === 'CORE_COMPATIBILITY_CONFLICT'
+            )
+                return null;
+            throw error;
         }),
         !componentName && (isWeb || isCompose)
             ? readEditor<PropertyPlatformParamDto[]>(
-                  `${apiRoot(context.projectId)}/property-platform-params`,
+                  `${apiRoot(context.projectId, context.designSystemId)}/property-platform-params`,
                   request,
                   undefined,
                   300_000,
@@ -210,18 +233,54 @@ const readComponentLists = async (
             ? readEditor<PropertyVariationDto[]>(`${root}/property-variations`, request, undefined, 300_000)
             : empty<PropertyVariationDto>(),
         readEditor<ComponentDependencyDto[]>(
-            `${apiRoot(context.projectId)}/component-deps`,
+            `${apiRoot(context.projectId, context.designSystemId)}/component-deps`,
             request,
             undefined,
             300_000,
         ),
     ]);
+    const coreSelectionRevision = requireSameCoreSelectionRevision(
+        context,
+        [links, catalog, appearances, exported, params, propertyVariations, dependencies].filter(
+            (response) => response !== null,
+        ),
+    );
+    const coreReleaseId = requireSameComponentCore(
+        context,
+        [links, catalog, appearances, exported, params, propertyVariations, dependencies]
+            .filter((response) => response !== null)
+            .map((response) => componentCoreRelease(response, platform)),
+    );
     const limitedRequest = createRequestLimiter(COMPONENT_LOAD_CONCURRENCY);
+    const diagnosticExports = exported
+        ? [exported.data]
+        : (
+              await Promise.all(
+                  catalog.data
+                      .filter(
+                          (component) =>
+                              component.platform === platform &&
+                              links.data.some((link) => link.componentId === component.id) &&
+                              (!componentName ||
+                                  normalizeComponentName(component.name) === normalizeComponentName(componentName)),
+                      )
+                      .map(async (component) => {
+                          const bundle = await limitedRequest(() =>
+                              readEditorBundle(context, signal, platform, component.id),
+                          );
+                          requireSameComponentCore(context, [coreReleaseId, bundle.coreReleaseId]);
+                          return bundle;
+                      }),
+              )
+          ).flatMap((bundle) => bundle.exported);
+
     return {
+        coreReleaseId,
+        coreSelectionRevision,
         links: links.data,
         catalog: catalog.data,
         appearances: appearances.data,
-        exported: [exported.data],
+        exported: diagnosticExports,
         params: params.data,
         propertyVariations: propertyVariations.data,
         dependencies: dependencies.data,
@@ -251,6 +310,7 @@ const readComponentLists = async (
                     ),
                 ),
             ]);
+            requireSameComponentCore(context, [coreReleaseId, componentCoreRelease(properties, platform)]);
             const styles = componentName
                 ? (await readEditor<ComponentStyleDto[]>(`${root}/components/${component.id}/styles`, request)).data
                 : (
@@ -278,12 +338,15 @@ const readEditorBundle = async (
     componentId: string,
 ): Promise<ComponentSources> => {
     const request = readRequest(context, signal);
-    const { data } = await readEditor<ComponentEditorBundleDto>(
+    const response = await readEditor<ComponentEditorBundleDto>(
         `${apiRoot(context.projectId, context.designSystemId)}/components/${componentId}/editor-bundle`,
         { ...request, params: { ...request.params, platform } },
     );
+    const { data } = response;
     const catalog = [data.component, ...data.dependencyComponents];
     return {
+        coreReleaseId: componentCoreRelease(response, platform),
+        coreSelectionRevision: componentCoreSelectionRevision(response),
         // Сервер отдаёт только компоненты, привязанные к этой ДС и платформе.
         links: catalog.map((component) => ({
             id: component.id,
@@ -292,7 +355,7 @@ const readEditorBundle = async (
         })),
         catalog,
         appearances: data.appearances,
-        exported: [data.export],
+        exported: data.export ? [data.export] : [{ components: data.editorConfigurations ?? [] }],
         params: data.platformParams,
         propertyVariations: data.propertyVariations,
         dependencies: data.dependencies,
@@ -307,6 +370,7 @@ const readEditorBundle = async (
 };
 
 export interface ComponentCatalogEntry {
+    coreSelectionRevision?: number;
     componentId: string;
     name: string;
     platform: ComponentDto['platform'];
@@ -319,6 +383,7 @@ export interface ComponentCatalogEntry {
 }
 
 export interface ComponentTemplateEntry {
+    coreSelectionRevision?: number;
     componentId: string;
     name: string;
     platform: ComponentDto['platform'];
@@ -328,31 +393,27 @@ export interface ComponentTemplateEntry {
 
 const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSignal) => {
     // Компоненты и связи между ними — глобальный каталог; оформления и состав — ресурсы дизайн-системы.
-    const catalogRoot = apiRoot(context.projectId);
+    const catalogRoot = `${apiRoot(context.projectId, context.designSystemId)}/catalog`;
     const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [catalog, appearances, links, dependencies] = await Promise.all([
         readEditor<ComponentDto[]>(`${catalogRoot}/components`, request, undefined, 300_000),
         readEditor<AppearanceDto[]>(`${root}/appearances`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
-        readEditor<ComponentDependencyDto[]>(`${catalogRoot}/component-deps`, request, undefined, 300_000),
+        readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
+    ]);
+    const coreSelectionRevision = requireSameCoreSelectionRevision(context, [
+        catalog,
+        appearances,
+        links,
+        dependencies,
     ]);
     const configured = new Set(appearances.data.map((appearance) => appearance.componentId));
-    // Без активного билда (и без прямого адреса) Compose-компоненты в навигации не показываются; адрес плагина
-    // запрашивается только когда в каталоге есть настроенные Compose-компоненты.
-    const hasCompose = catalog.data.some(
-        (component) => component.platform === 'compose' && configured.has(component.id),
-    );
-    const pluginUrl = hasCompose
-        ? await resolveComposePreviewPluginUrl(context.projectId, fetchComposePreviewPluginDescriptor).catch(
-              () => undefined,
-          )
-        : undefined;
     return {
+        coreSelectionRevision,
         components: catalog.data.filter(
             (component) =>
-                configured.has(component.id) &&
-                (component.platform === 'web' || (component.platform === 'compose' && Boolean(pluginUrl))),
+                configured.has(component.id) && (component.platform === 'web' || component.platform === 'compose'),
         ),
         appearances: appearances.data,
         dependencies: dependencies.data,
@@ -373,7 +434,7 @@ export const componentRepository = {
     /** Краткая навигация без конфигураций и без чтений свойств/осей/стилей: только компоненты, связанные с дизайн-системой. */
     async loadComponentIndex(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
-        const { components, appearances, linkByComponent } = await readComponentCatalog(context, signal);
+        const { components, appearances, linkByComponent, coreSelectionRevision } = await retryComponentCoreRead(() => readComponentCatalog(context, signal), signal);
         return components
             .filter((component) => linkByComponent.has(component.id))
             .map(
@@ -383,6 +444,7 @@ export const componentRepository = {
                         description: component.description ?? '',
                         platform: component.platform,
                         serverBinding: {
+                            ...(coreSelectionRevision == null ? {} : { coreSelectionRevision }),
                             componentId: component.id,
                             appearanceId:
                                 appearances.find((appearance) => appearance.componentId === component.id)?.id ?? '',
@@ -398,9 +460,10 @@ export const componentRepository = {
     /** Состав дизайн-системы: скрытый компонент сохраняет оформление, но не имеет связи. */
     async loadComponentCatalog(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentCatalogEntry[]> {
         if (!isComponentEditorEnabled()) return [];
-        const { components, dependencies, linkByComponent } = await readComponentCatalog(context, signal);
+        const { components, dependencies, linkByComponent, coreSelectionRevision } = await retryComponentCoreRead(() => readComponentCatalog(context, signal), signal);
         const names = new Map(components.map((component) => [component.id, component.name]));
         return components.map((component) => ({
+            ...(coreSelectionRevision == null ? {} : { coreSelectionRevision }),
             componentId: component.id,
             name: component.name,
             platform: component.platform,
@@ -419,19 +482,34 @@ export const componentRepository = {
         }));
     },
 
-    async hideComponent(context: EditorContextKey, linkId: string): Promise<void> {
-        await http.delete(`${apiRoot(context.projectId, context.designSystemId)}/design-system-components/${linkId}`);
+    async hideComponent(context: EditorContextKey, linkId: string, coreSelectionRevision?: number): Promise<void> {
+        await http.delete(`${apiRoot(context.projectId, context.designSystemId)}/design-system-components/${linkId}`, {
+            headers:
+                coreSelectionRevision == null ? {} : { 'X-DS-Core-Selection-Revision': String(coreSelectionRevision) },
+        });
     },
 
     /**
      * Возвращает компонент в дизайн-систему. Со `fromTemplate` компонент без конфигурации собирается из шаблона
      * `ds-service` вместе с зависимостями; без флага восстанавливается только связь.
      */
-    async restoreComponent(context: EditorContextKey, componentId: string, fromTemplate = false): Promise<void> {
+    async restoreComponent(
+        context: EditorContextKey,
+        componentId: string,
+        fromTemplate = false,
+        coreSelectionRevision?: number,
+    ): Promise<void> {
         await http.post(
             `${apiRoot(context.projectId, context.designSystemId)}/design-system-components`,
             { componentId, ...(fromTemplate ? { fromTemplate } : {}) },
-            { headers: { 'Idempotency-Key': crypto.randomUUID() } },
+            {
+                headers: {
+                    'Idempotency-Key': crypto.randomUUID(),
+                    ...(coreSelectionRevision == null
+                        ? {}
+                        : { 'X-DS-Core-Selection-Revision': String(coreSelectionRevision) }),
+                },
+            },
         );
     },
 
@@ -439,12 +517,16 @@ export const componentRepository = {
     async loadComponentTemplates(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentTemplateEntry[]> {
         if (!isComponentEditorEnabled()) return [];
         const templates = await readEditor<ComponentTemplateEntry[]>(
-            `${apiRoot(context.projectId)}/component-templates`,
+            `${apiRoot(context.projectId, context.designSystemId)}/component-templates`,
             readRequest(context, signal),
             undefined,
             300_000,
         );
-        return templates.data;
+        const coreSelectionRevision = componentCoreSelectionRevision(templates);
+        return templates.data.map((template) => ({
+            ...template,
+            ...(coreSelectionRevision == null ? {} : { coreSelectionRevision }),
+        }));
     },
 
     async loadComponentData(
@@ -459,26 +541,32 @@ export const componentRepository = {
         // Известный компонент читается одним editor-bundle; без него — прежние списки всей дизайн-системы.
         const isWeb = platform === 'web';
         const isCompose = platform === 'compose';
-        const sources: ComponentSources =
-            componentId && (isWeb || isCompose)
-                ? await readEditorBundle(context, signal, platform, componentId)
-                : await readComponentLists(context, signal, platform, componentName);
-        const { links, catalog, appearances, exported, dependencies } = sources;
-        // Связи свойств с вариациями нужны инспектору на любой платформе: по ним свойство относится к стилю.
-        const propertyVariations = sources.propertyVariations;
-        const linkedIds = new Set(
-            links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
-        );
-        const entries = exported.flatMap((response) => response.components);
-        const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
-        const components = catalog.filter(
-            (component) =>
-                linkedIds.has(component.id) &&
-                component.platform === platform &&
-                (!componentId || component.id === componentId) &&
-                (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
-                configuredNames.has(normalizeComponentName(component.name)),
-        );
+        const { sources, linkedIds, entries, componentDetails } = await retryComponentCoreRead(async () => {
+            const sources: ComponentSources =
+                componentId && (isWeb || isCompose)
+                    ? await readEditorBundle(context, signal, platform, componentId)
+                    : await readComponentLists(context, signal, platform, componentName);
+            const { links, catalog, appearances, exported } = sources;
+            const linkedIds = new Set(
+                links.filter((link) => link.designSystemId === context.designSystemId).map((link) => link.componentId),
+            );
+            const entries = exported.flatMap((response) => response.components);
+            const configuredNames = new Set(entries.map((entry) => normalizeComponentName(entry.componentName)));
+            const components = catalog.filter(
+                (component) =>
+                    linkedIds.has(component.id) &&
+                    component.platform === platform &&
+                    (!componentId || component.id === componentId) &&
+                    (!componentName || normalizeComponentName(component.name) === normalizeComponentName(componentName)) &&
+                    (configuredNames.has(normalizeComponentName(component.name)) ||
+                        appearances.some((a) => a.componentId === component.id)),
+            );
+            const componentDetails = await Promise.all(
+                components.map(async (component) => ({ component, details: await sources.details(component) })),
+            );
+            return { sources, linkedIds, entries, componentDetails };
+        }, signal);
+        const { catalog, appearances, dependencies, propertyVariations } = sources;
         const depsByParent = collectDependencies(
             dependencies,
             new Map(
@@ -487,109 +575,104 @@ export const componentRepository = {
                     .map((component) => [component.id, component.name]),
             ),
         );
-        return Promise.all(
-            components.map(async (component) => {
-                const { properties, variations, styles, params: propertyParams } = await sources.details(component);
-                const webParams = webParamsByProperty(propertyParams);
-                const composeParams = composeParamsByProperty(propertyParams);
-                const propertyByName = new Map(properties.map((property) => [property.name, property]));
-                const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
-                const stylesByVariation = new Map<string, ComponentStyleDto[]>();
-                styles.forEach((style) =>
-                    stylesByVariation.set(style.variationId, [
-                        ...(stylesByVariation.get(style.variationId) ?? []),
-                        style,
-                    ]),
+        return componentDetails.map(({ component, details }) => {
+            const { properties, variations, styles, params: propertyParams } = details;
+            const webParams = webParamsByProperty(propertyParams);
+            const composeParams = composeParamsByProperty(propertyParams);
+            const deprecations = deprecationsByProperty(propertyParams, platform);
+            const propertyByName = new Map(properties.map((property) => [property.name, property]));
+            const variationByName = new Map(variations.map((variation) => [variation.name, variation]));
+            const stylesByVariation = new Map<string, ComponentStyleDto[]>();
+            styles.forEach((style) =>
+                stylesByVariation.set(style.variationId, [
+                    ...(stylesByVariation.get(style.variationId) ?? []),
+                    style,
+                ]),
+            );
+            const componentAppearances = appearances.filter(
+                (appearance) =>
+                    appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
+            );
+            const componentEntries = entries.filter(
+                (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
+            );
+            const isDefaultEntry = (entry: { styleName: string }) =>
+                componentAppearances.some(
+                    (candidate) =>
+                        candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
                 );
-                const componentAppearances = appearances.filter(
-                    (appearance) =>
-                        appearance.designSystemId === context.designSystemId && appearance.componentId === component.id,
+            const primaryAppearance =
+                componentAppearances.find((candidate) => candidate.isDefault === true) ??
+                componentAppearances.find(
+                    (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
                 );
-                const componentEntries = entries.filter(
-                    (entry) => normalizeComponentName(entry.componentName) === normalizeComponentName(component.name),
-                );
-                const isDefaultEntry = (entry: { styleName: string }) =>
-                    componentAppearances.some(
-                        (candidate) =>
-                            candidate.isDefault === true && (candidate.name ?? 'default') === entry.styleName,
-                    );
-                const primaryAppearance =
-                    componentAppearances.find((candidate) => candidate.isDefault === true) ??
-                    componentAppearances.find(
-                        (candidate) => (candidate.name ?? 'default') === componentEntries[0]?.styleName,
-                    );
-                return {
-                    name: component.name,
-                    description: component.description ?? '',
-                    platform: component.platform,
-                    deps: depsByParent.get(component.name) ?? [],
-                    composeParents: [...depsByParent]
-                        .filter(([, deps]) =>
-                            deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
-                        )
-                        .map(([parent]) => parent),
-                    serverBinding: {
-                        componentId: component.id,
-                        appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
-                    },
-                    sources: {
-                        api: enrichApi(
-                            properties.map((property) => ({
-                                id: property.id,
-                                name: property.name,
-                                type: property.type as Meta['sources']['api'][number]['type'],
-                                description: property.description ?? undefined,
-                                variations: null,
-                                platformMappings: {
-                                    xml: null,
-                                    compose: composeParams.get(property.id)?.join(',') ?? null,
-                                    ios: null,
-                                    web: null,
-                                },
-                                stateSupport: stateSupportOf(property, sources.states),
-                            })),
-                            webParams,
-                            variationNamesByProperty(
-                                propertyVariations,
-                                new Map(variations.map((variation) => [variation.id, variation.name])),
-                            ),
+            return {
+                name: component.name,
+                description: component.description ?? '',
+                platform: component.platform,
+                deps: depsByParent.get(component.name) ?? [],
+                composeParents: [...depsByParent]
+                    .filter(([, deps]) =>
+                        deps.some((dep) => dep.type === 'compose' && dep.childName === component.name),
+                    )
+                    .map(([parent]) => parent),
+                serverBinding: {
+                    coreReleaseId: sources.coreReleaseId,
+                    coreSelectionRevision: sources.coreSelectionRevision,
+                    componentId: component.id,
+                    appearanceId: primaryAppearance?.id ?? componentAppearances[0]?.id ?? '',
+                },
+                sources: {
+                    api: enrichApi(
+                        properties.map((property) => ({
+                            id: property.id,
+                            name: property.name,
+                            type: property.type as Meta['sources']['api'][number]['type'],
+                            description: property.description ?? undefined,
+                            deprecated: deprecations.get(property.id),
+                            variations: null,
+                            platformMappings: {
+                                xml: null,
+                                compose: composeParams.get(property.id)?.join(',') ?? null,
+                                ios: null,
+                                web: null,
+                            },
+                            stateSupport: stateSupportOf(property, sources.states),
+                        })),
+                        webParams,
+                        variationNamesByProperty(
+                            propertyVariations,
+                            new Map(variations.map((variation) => [variation.id, variation.name])),
                         ),
-                        variations,
-                        // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
-                        configs: [...componentEntries]
-                            .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
-                            .map((entry) => {
-                                const appearance = componentAppearances.find(
-                                    (candidate) => (candidate.name ?? 'default') === entry.styleName,
-                                );
-                                return {
-                                    id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
-                                    name: entry.styleName,
-                                    isDefault: appearance?.isDefault === true,
-                                    config: toLegacyComponentConfig(
-                                        entry.config,
-                                        propertyByName,
-                                        variationByName,
-                                        stylesByVariation,
-                                    ),
-                                };
-                            }),
-                    },
-                } as Meta;
-            }),
-        );
+                    ),
+                    variations,
+                    // Конфигурация по умолчанию — первой: редактор открывает её, пока не выбрана другая.
+                    configs: [...componentEntries]
+                        .sort((a, b) => Number(isDefaultEntry(b)) - Number(isDefaultEntry(a)))
+                        .map((entry) => {
+                            const appearance = componentAppearances.find(
+                                (candidate) => (candidate.name ?? 'default') === entry.styleName,
+                            );
+                            return {
+                                id: appearance?.id ?? `${component.id}:${component.platform}:${entry.styleName}`,
+                                name: entry.styleName,
+                                isDefault: appearance?.isDefault === true,
+                                config: toLegacyComponentConfig(
+                                    entry.config,
+                                    propertyByName,
+                                    variationByName,
+                                    stylesByVariation,
+                                ),
+                            };
+                        }),
+                },
+            } as Meta;
+        });
     },
 
     async loadComposeComponentData(context: EditorContextKey, signal?: AbortSignal): Promise<Meta[]> {
         if (!isComponentEditorEnabled()) return [];
         try {
-            // Без активного билда (и без прямого адреса) Compose-preview не предлагается.
-            const pluginUrl = await resolveComposePreviewPluginUrl(
-                context.projectId,
-                fetchComposePreviewPluginDescriptor,
-            );
-            if (!pluginUrl) return [];
-
             return markComposeComponents(
                 (await this.loadComponentData(context, signal, 'compose')).filter(hasConfiguration),
             );
@@ -607,7 +690,13 @@ export const componentRepository = {
         baseRevisions: Record<string, number>,
         onPendingUpdate?: (revisions: Record<string, number>) => void,
         resolveReference?: (value: string) => StyleReferenceInput | undefined,
+        signal = authService.getSessionSignal(),
     ): Promise<Record<string, number>> {
+        authService.assertSession(signal);
+        const sessionRequest = (headers: AxiosRequestConfig['headers']) => {
+            authService.assertSession(signal);
+            return { headers, signal };
+        };
         // Правка пишется в конфигурацию, открытую в редакторе; старые операции без неё — в основную.
         const binding = meta.serverBinding && {
             ...meta.serverBinding,
@@ -617,7 +706,7 @@ export const componentRepository = {
             throw new Error('COMPONENT_SERVER_BINDING_REQUIRED');
         const stableBinding = binding as { componentId: string; appearanceId: string };
         const root = apiRoot(context.projectId, context.designSystemId);
-        const request = { params: context.versionId ? { versionId: context.versionId } : undefined };
+        const request = { params: context.versionId ? { versionId: context.versionId } : undefined, signal };
         const [axes, axisValues, invariantValues, variationValues, states, stateSets, tokens] = await Promise.all([
             readEditor<AppearanceVariationDto[]>(`${root}/appearance-variations`, request),
             readEditor<AppearanceVariationValueDto[]>(`${root}/appearance-variation-values`, request),
@@ -629,10 +718,11 @@ export const componentRepository = {
                 `${root}/variation-property-values/by-appearance/${stableBinding.appearanceId}`,
                 request,
             ),
-            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId)}/states`, request),
+            readEditor<ComponentStateDto[]>(`${apiRoot(context.projectId, context.designSystemId)}/states`, request),
             readEditor<ComponentStateSetDto[]>(`${apiRoot(context.projectId)}/state-sets`, request),
             readEditor<TokenDefinitionDto[]>(`${root}/tokens`, request),
         ]);
+        authService.assertSession(signal);
         const revisions = { ...baseRevisions };
         const axisByVariation = new Map(
             axes.data
@@ -665,11 +755,20 @@ export const componentRepository = {
                 value,
             ]),
         );
+        const coreSelectionRevision = mutation.coreSelectionRevision ?? binding?.coreSelectionRevision;
+        const coreHeaders =
+            coreSelectionRevision === undefined
+                ? {}
+                : {
+                      'X-DS-Core-Selection-Revision': String(coreSelectionRevision),
+                  };
         const entityHeaders = (entityType: string, entityId: string, idempotencyKey?: string) => ({
+            ...coreHeaders,
             'X-DS-Base-Revision': String(revisions[`${entityType}:${entityId}`] ?? 0),
             ...(idempotencyKey ? { 'Idempotency-Key': idempotencyKey } : {}),
         });
         const acceptMetadata = (headers: unknown) => {
+            authService.assertSession(signal);
             invalidateEditorReads(context);
             const raw = (headers as Record<string, unknown> | undefined)?.['x-ds-mutation-metadata'];
             parseMutationMetadata(raw).forEach((item) => {
@@ -726,7 +825,7 @@ export const componentRepository = {
                 const entityType = change.styleId ? 'variation-property-value' : 'invariant-property-value';
                 const response = await http.delete(
                     `${root}/${change.styleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
-                    { headers: entityHeaders(entityType, existing.id) },
+                    sessionRequest(entityHeaders(entityType, existing.id)),
                 );
                 acceptMetadata(response.headers);
             },
@@ -745,7 +844,7 @@ export const componentRepository = {
                         variationId: change.variationId,
                         name: change.name,
                     },
-                    { headers: entityHeaders('style', originalStyleId, idempotency(`style:${originalStyleId}`)) },
+                    sessionRequest(entityHeaders('style', originalStyleId, idempotency(`style:${originalStyleId}`))),
                 );
                 aliases[originalStyleId] = created.data.id;
                 createdStyleIds.set(change.styleId, created.data.id);
@@ -765,9 +864,9 @@ export const componentRepository = {
                 const linked = await http.post<AppearanceVariationValueDto>(
                     `${root}/appearance-variation-values`,
                     bodies[operationKey],
-                    {
-                        headers: entityHeaders('appearance-variation-value', change.styleId, idempotency(operationKey)),
-                    },
+                    sessionRequest(
+                        entityHeaders('appearance-variation-value', change.styleId, idempotency(operationKey)),
+                    ),
                 );
                 acceptMetadata(linked.headers);
                 axisValueByStyle.set(created.data.id, linked.data);
@@ -783,7 +882,7 @@ export const componentRepository = {
                 const response = await http.patch(
                     `${root}/appearance-variations/${axis.id}`,
                     { defaultStyleId: change.styleId ? actualStyleId(change.styleId) : null },
-                    { headers: entityHeaders('appearance-variation', axis.id) },
+                    sessionRequest(entityHeaders('appearance-variation', axis.id)),
                 );
                 acceptMetadata(response.headers);
             },
@@ -802,7 +901,7 @@ export const componentRepository = {
                 await http.post<{ id: string }>(
                     `${apiRoot(context.projectId)}/state-sets/resolve`,
                     { stateIds },
-                    { headers: { 'Idempotency-Key': idempotency(`state-set:${key}`) } },
+                    sessionRequest({ ...coreHeaders, 'Idempotency-Key': idempotency(`state-set:${key}`) }),
                 )
             ).data.id;
         };
@@ -836,7 +935,7 @@ export const componentRepository = {
                                     states: change.stateNames,
                                     reference,
                                 },
-                                { headers: { 'Idempotency-Key': idempotency(operationKey) } },
+                                sessionRequest({ ...coreHeaders, 'Idempotency-Key': idempotency(operationKey) }),
                             );
                             acceptMetadata(response.headers);
                         } catch (error) {
@@ -864,7 +963,7 @@ export const componentRepository = {
                         const response = await http.patch(
                             `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values/${existing.id}`,
                             body,
-                            { headers: entityHeaders(entityType, existing.id) },
+                            sessionRequest(entityHeaders(entityType, existing.id)),
                         );
                         acceptMetadata(response.headers);
                         return;
@@ -892,7 +991,7 @@ export const componentRepository = {
                     const response = await http.post<PropertyValueDto>(
                         `${root}/${resolvedStyleId ? 'variation' : 'invariant'}-property-values`,
                         createBody,
-                        { headers: entityHeaders(entityType, operationKey, idempotency(operationKey)) },
+                        sessionRequest(entityHeaders(entityType, operationKey, idempotency(operationKey))),
                     );
                     acceptMetadata(response.headers);
                 } catch (error) {
@@ -914,14 +1013,16 @@ export const componentRepository = {
                 const serverStyleId = actualStyleId(change.styleId);
                 const axisValue = axisValueByStyle.get(serverStyleId);
                 if (axisValue) {
-                    const unlinked = await http.delete(`${root}/appearance-variation-values/${axisValue.id}`, {
-                        headers: entityHeaders('appearance-variation-value', axisValue.id),
-                    });
+                    const unlinked = await http.delete(
+                        `${root}/appearance-variation-values/${axisValue.id}`,
+                        sessionRequest(entityHeaders('appearance-variation-value', axisValue.id)),
+                    );
                     acceptMetadata(unlinked.headers);
                 }
-                const deleted = await http.delete(`${root}/styles/${serverStyleId}`, {
-                    headers: entityHeaders('style', serverStyleId),
-                });
+                const deleted = await http.delete(
+                    `${root}/styles/${serverStyleId}`,
+                    sessionRequest(entityHeaders('style', serverStyleId)),
+                );
                 acceptMetadata(deleted.headers);
             },
         );

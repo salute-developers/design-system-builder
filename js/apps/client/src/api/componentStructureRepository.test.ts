@@ -12,7 +12,7 @@ vi.mock('./editorHttp', () => ({
 
 import { componentStructureRepository as repository } from './componentStructureRepository';
 
-const context = { projectId: 'p', designSystemId: 'ds', tenantId: 't' };
+const context = { projectId: 'p', designSystemId: 'ds', tenantId: 't', coreSelectionRevision: 5 };
 const url = '/api/projects/p/appearances/a/property-values';
 
 describe('componentStructureRepository: пересечения', () => {
@@ -37,6 +37,7 @@ describe('componentStructureRepository: пересечения', () => {
         expect(readEditor).toHaveBeenCalledTimes(1);
         expect(readEditor).toHaveBeenCalledWith(expect.stringMatching(/\/tokens$/), {}, undefined, 300_000);
 
+        expect(http.put.mock.calls[0][2].headers['X-DS-Core-Selection-Revision']).toBe('5');
         expect(http.put).toHaveBeenNthCalledWith(
             1,
             url,
@@ -60,6 +61,7 @@ describe('componentStructureRepository: пересечения', () => {
         );
         await repository.removeCombinationValue(context, 'a', ['s-l', 's-pilled'], 'height', ['pressed']);
         expect(http.delete).toHaveBeenCalledWith(url, {
+            headers: { 'X-DS-Core-Selection-Revision': '5' },
             params: { propertyId: 'height', styleIds: 's-l,s-pilled', states: 'pressed' },
         });
     });
@@ -124,8 +126,20 @@ describe('componentStructureRepository: пересечения', () => {
         await repository.removeCombination(context, 'a', ['s-l', 's-pilled']);
 
         expect(http.delete.mock.calls).toEqual([
-            [url, { params: { propertyId: 'height', styleIds: 's-pilled,s-l', states: '' } }],
-            [url, { params: { propertyId: 'color', styleIds: 's-l,s-pilled', states: 'hovered' } }],
+            [
+                url,
+                {
+                    headers: { 'X-DS-Core-Selection-Revision': '5' },
+                    params: { propertyId: 'height', styleIds: 's-pilled,s-l', states: '' },
+                },
+            ],
+            [
+                url,
+                {
+                    headers: { 'X-DS-Core-Selection-Revision': '5' },
+                    params: { propertyId: 'color', styleIds: 's-l,s-pilled', states: 'hovered' },
+                },
+            ],
         ]);
     });
 });

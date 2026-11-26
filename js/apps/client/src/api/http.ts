@@ -26,12 +26,15 @@ const forceLogout = () => {
 };
 
 http.interceptors.request.use(async (config) => {
+    authService.getSessionSignal();
+    if (config.signal?.aborted) throw new axios.CanceledError('Сессия завершена');
     const request = config as RetryConfig;
     request._sessionGeneration ??= sessionGeneration;
     if (request._sessionGeneration !== sessionGeneration) throw new axios.CanceledError('Сессия завершена');
     config.headers['X-DS-Client-Id'] = getEditorClientId();
     try {
         const token = await authService.getValidAccessToken();
+        authService.getSessionSignal();
         if (request._sessionGeneration !== sessionGeneration) throw new axios.CanceledError('Сессия завершена');
 
         if (token) {
@@ -57,6 +60,7 @@ http.interceptors.response.use(
         return response;
     },
     async (error) => {
+        authService.getSessionSignal();
         const original = error.config as RetryConfig | undefined;
         if (original && original._sessionGeneration !== sessionGeneration && authService.isAuthenticated()) {
             return Promise.reject(new axios.CanceledError('Сессия завершена'));

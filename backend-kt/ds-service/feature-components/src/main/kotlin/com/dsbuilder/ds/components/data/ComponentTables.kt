@@ -1,11 +1,23 @@
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.core.data.coreCatalogSql
 import org.jetbrains.exposed.v1.core.Table
 import org.jetbrains.exposed.v1.javatime.timestamp
 import org.postgresql.util.PGobject
 import java.util.UUID
 
-internal object ComponentsTable : Table("components") {
+internal object ComponentsTable : ComponentCatalogTable(
+    coreCatalogSql(
+        "components",
+        "core_release_components",
+        "component_id",
+        listOf("name", "description", "platform"),
+    ),
+)
+
+internal object StableComponentsTable : ComponentCatalogTable()
+
+internal open class ComponentCatalogTable(sourceSql: String? = null) : ResolvedRevisionTable("components", sourceSql) {
     val id = uuid("id")
     val name = text("name")
     val description = text("description").nullable()
@@ -83,7 +95,18 @@ internal object VariationsTable : ResolvedRevisionTable(
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object PropertiesTable : Table("properties") {
+internal object PropertiesTable : PropertyCatalogTable(
+    coreCatalogSql(
+        "properties",
+        "core_release_properties",
+        "property_id",
+        listOf("component_id", "name", "type", "default_value", "description", "state_combinations"),
+    ),
+)
+
+internal object StablePropertiesTable : PropertyCatalogTable()
+
+internal open class PropertyCatalogTable(sourceSql: String? = null) : ResolvedRevisionTable("properties", sourceSql) {
     val id = uuid("id")
     val componentId = reference("component_id", ComponentsTable.id).nullable()
     val name = text("name")
@@ -103,6 +126,27 @@ internal object PropertySupportedStatesTable : Table("property_supported_states"
     val propertyId = reference("property_id", PropertiesTable.id)
     val stateId = uuid("state_id")
     override val primaryKey = PrimaryKey(propertyId, stateId)
+}
+
+/** Поддерживаемые состояния из той же границы Core, что и флаг свойства. */
+internal object SelectedPropertySupportedStatesTable : ResolvedRevisionTable(
+    "selected_property_supported_states",
+    """
+    WITH selected_core AS MATERIALIZED (
+        SELECT ds_selected_core_release(platform) AS release_id
+        FROM unnest(enum_range(NULL::component_platform)) platform
+        WHERE NULLIF(current_setting('ds.design_system_id', true), '') IS NOT NULL
+    )
+    SELECT support.property_id, support.state_id FROM property_supported_states support
+    JOIN properties p ON p.id = support.property_id
+    WHERE NULLIF(current_setting('ds.design_system_id', true), '') IS NULL OR p.component_id IS NULL
+    UNION ALL
+    SELECT p.property_id, unnest(p.supported_state_ids) AS state_id
+    FROM selected_core selected JOIN core_release_properties p USING (release_id)
+    """.trimIndent(),
+) {
+    val propertyId = uuid("property_id")
+    val stateId = uuid("state_id")
 }
 
 internal object ComponentDependenciesTable : Table("component_deps") {
@@ -229,7 +273,21 @@ internal object AppearanceVariationValuesTable : ResolvedRevisionTable(
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object PropertyPlatformParamsTable : Table("property_platform_params") {
+internal object PropertyPlatformParamsTable : PlatformParamCatalogTable(
+    coreCatalogSql(
+        "property_platform_params",
+        "core_release_platform_params",
+        "platform_param_id",
+        listOf("property_id", "platform", "name", "deprecated", "deprecated_message"),
+    ),
+)
+
+internal object StablePropertyPlatformParamsTable : PlatformParamCatalogTable()
+
+internal open class PlatformParamCatalogTable(sourceSql: String? = null) : ResolvedRevisionTable(
+    "property_platform_params",
+    sourceSql,
+) {
     val id = uuid("id")
     val propertyId = reference("property_id", PropertiesTable.id)
     val platform = postgresEnum(
@@ -317,7 +375,18 @@ internal object ComponentStateSetsTable : Table("state_sets") {
     override val primaryKey = PrimaryKey(id)
 }
 
-internal object ComponentStatesTable : Table("states") {
+internal object ComponentStatesTable : StateCatalogTable(
+    coreCatalogSql(
+        "states",
+        "core_release_states",
+        "state_id",
+        listOf("component_id", "name", "description"),
+    ),
+)
+
+internal object StableComponentStatesTable : StateCatalogTable()
+
+internal open class StateCatalogTable(sourceSql: String? = null) : ResolvedRevisionTable("states", sourceSql) {
     val id = uuid("id")
     val componentId = reference("component_id", ComponentsTable.id).nullable()
     val name = text("name")
@@ -334,13 +403,14 @@ internal object ComponentTokensTable : ResolvedRevisionTable(
         "token_revisions",
         "token_id",
         listOf("id", "design_system_id", "created_at"),
-        listOf("name", "type"),
+        listOf("name", "type", "enabled"),
     ),
 ) {
     val id = uuid("id")
     val designSystemId = reference("design_system_id", ComponentDesignSystemsTable.id).nullable()
     val name = text("name")
     val type = text("type").nullable()
+    val enabled = bool("enabled").nullable()
     override val primaryKey = PrimaryKey(id)
 }
 
@@ -513,7 +583,7 @@ internal object InvariantPlatformParamAdjustmentsTable : ResolvedRevisionTable(
     override val primaryKey = PrimaryKey(id)
 }
 
-private fun <T : Enum<T>> Table.postgresEnum(
+internal fun <T : Enum<T>> Table.postgresEnum(
     name: String,
     sqlType: String,
     fromWire: (String) -> T?,
@@ -595,6 +665,7 @@ internal object PluginBuildsTable : Table("compose_preview_plugin_builds") {
     val commitSha = text("commit_sha")
     val protocolVersion = integer("protocol_version")
     val zipSha256 = text("zip_sha256")
+    val storageKey = text("storage_key").nullable()
     val sizeBytes = long("size_bytes")
     val fileCount = integer("file_count")
     val publishedBy = text("published_by")

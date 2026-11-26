@@ -296,6 +296,7 @@ class IconCatalogHttpPostgresIntegrationTest {
                     """{"name":"Button","platform":"compose"}""",
                 ).bodyAsText(),
             )
+        importFixtureCore(postgres)
         val config = """{"colorSchemeVariationId":"view","invariants":{},"variations":[
             {"id":"view","name":"view","values":[{"name":"default","properties":{}}]},
             {"id":"size","name":"size","values":[{"name":"a","properties":{}}]}]}"""
@@ -311,6 +312,7 @@ class IconCatalogHttpPostgresIntegrationTest {
                 """{"componentId":"$component","name":"closedIcon","type":"icon"}""",
             ).bodyAsText(),
         )
+        importFixtureCore(postgres)
         val appearance = query(
             "SELECT id FROM appearances WHERE design_system_id = '$ds' ORDER BY created_at LIMIT 1",
         )

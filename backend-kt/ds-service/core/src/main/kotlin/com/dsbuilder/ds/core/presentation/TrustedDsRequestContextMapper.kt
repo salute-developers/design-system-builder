@@ -24,12 +24,11 @@ object TrustedDsRequestContextMapper {
             composePreviewPublisher = headers[COMPOSE_PREVIEW_PUBLISHER_HEADER],
         ) ?: return null
         val correlationId = headers[CORRELATION_ID_HEADER]?.takeIf(String::isNotBlank) ?: UUID.randomUUID().toString()
-        val rawBaseRevision = headers[BASE_REVISION_HEADER]
-        val baseRevision = rawBaseRevision?.toLongOrNull()?.takeIf { it >= 0 }
-        if (rawBaseRevision != null && baseRevision == null) return null
+        val baseRevision = headers.revision(BASE_REVISION_HEADER) { return null }
         val parsedVersionId = versionId?.let { runCatching { UUID.fromString(it) }.getOrNull() ?: return null }
         val clientId = headers[CLIENT_ID_HEADER]?.takeIf { it.isNotBlank() && it.length <= MAX_CLIENT_ID_LENGTH }
         if (headers[CLIENT_ID_HEADER] != null && clientId == null) return null
+        val coreRevision = headers.revision("X-DS-Core-Selection-Revision") { return null }
         return DsRequestContext(
             principal,
             correlationId,
@@ -37,7 +36,13 @@ object TrustedDsRequestContextMapper {
             parsedVersionId,
             clientId,
             designSystemId = headers[DESIGN_SYSTEM_CONTEXT_HEADER]?.let(UUID::fromString),
+            expectedCoreSelectionRevision = coreRevision,
         )
+    }
+
+    private inline fun Headers.revision(name: String, invalid: () -> Nothing): Long? {
+        val raw = this[name] ?: return null
+        return raw.toLongOrNull()?.takeIf { it >= 0 } ?: invalid()
     }
 
     private const val ACTOR_TYPE_HEADER = "X-Actor-Type"

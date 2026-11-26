@@ -86,6 +86,7 @@ public class FetchComponentsUseCase internal constructor(
             projectId = context.projectId,
             designSystemId = context.designSystemId,
             platform = platform.toApiMetaPlatform(),
+            version = context.selectedVersion,
         )
         val exported = when (val result = remoteSource.export(remoteCommand)) {
             is ExportComponentsResult.Failed -> return FetchComponentsResult.Failed(result.message)
@@ -103,7 +104,7 @@ public class FetchComponentsUseCase internal constructor(
         )
 
         // Загружается до записи: недоступная ручка не должна оставить пакет без адаптера.
-        val webAdapter = loadWebAdapter(platform, remoteCommand)
+        val webAdapter = loadWebAdapter(platform, remoteCommand.copy(readContext = exported.readContext))
         if (webAdapter is WebAdapterFileResult.Failed) return FetchComponentsResult.Failed(webAdapter.message, source)
         val result = writePackage(exported, source, command, context)
         if (result !is FetchComponentsResult.Fetched) return result
@@ -166,6 +167,7 @@ public class FetchComponentsUseCase internal constructor(
             val built = planBuilder.build(
                 name = exported.name,
                 version = exported.version,
+                coreReleases = exported.coreReleases,
                 configurations = rendered,
                 existing = existing.value,
             )

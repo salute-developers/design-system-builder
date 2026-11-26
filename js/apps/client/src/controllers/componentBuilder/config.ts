@@ -30,6 +30,9 @@ export class Config {
     private variationNames = new Map<string, string>();
 
     private readonly platform: ComponentPlatform;
+    private readonly coreReleaseId?: string;
+    private readonly coreSelectionRevision?: number;
+    private readonly componentId?: string;
 
     constructor(meta: Meta, configID?: string) {
         const { name, description, sources } = meta;
@@ -40,6 +43,9 @@ export class Config {
         const { api, configs, variations } = sources;
         this.previewMetadata = meta.preview;
         this.platform = meta.platform ?? 'web';
+        this.coreReleaseId = meta.serverBinding?.coreReleaseId;
+        this.coreSelectionRevision = meta.serverBinding?.coreSelectionRevision;
+        this.componentId = meta.serverBinding?.componentId;
 
         const appearance = configID ? configs.find((item) => item.id === configID) : configs[0];
         const config = appearance?.config;
@@ -133,6 +139,16 @@ export class Config {
 
     public getInvariants() {
         return this.invariants;
+    }
+
+    /** Core той модели, из которой построено оформление; не входит в конфигурацию генератора. */
+    /** Ревизия исходной модели, которую сохраняют вместе с локальной правкой. */
+    public getCoreSelectionRevision() {
+        return this.coreSelectionRevision;
+    }
+
+    public getCoreReleaseId() {
+        return this.coreReleaseId;
     }
 
     public getPlatform() {

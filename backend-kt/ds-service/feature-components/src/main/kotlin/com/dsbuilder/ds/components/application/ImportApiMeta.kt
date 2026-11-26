@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.ds.components.domain.ApiMetaAlias
+import com.dsbuilder.ds.core.domain.CoreReleaseRef
 
 /** Additive import of an API-meta manifest into the global component layer. */
 data class ImportApiMeta(
@@ -14,6 +15,16 @@ data class ImportApiMeta(
     val components: List<Component>,
     /** Общие состояния, которые выражает генератор платформы; `null` — мета их не сообщила. */
     val interactionStates: List<String>? = null,
+    /** Координаты API; обязательны для релизного импорта. */
+    val coreRelease: CoreReleaseRef? = null,
+    /** Исходные байты файла в Base64 без повторной сериализации JSON. */
+    val sourceMetaBase64: String? = null,
+    /** SHA-256 исходных байтов файла. */
+    val metaSha256: String? = null,
+    /** Явный канал поставки; не выводится из версии библиотеки. */
+    val channel: String? = null,
+    /** Издатель preview может использовать только уже зарегистрированный Core. */
+    val existingReleaseOnly: Boolean = false,
 ) {
     /** One component of the manifest. */
     data class Component(
@@ -23,6 +34,10 @@ data class ImportApiMeta(
         val properties: List<Property>,
         /** States declared by the component. */
         val states: List<String>,
+        /** Описание компонента из меты, если производитель его предоставляет. */
+        val description: String? = null,
+        /** Только объявленная Core вложенность; пользовательские REUSE-связи сюда не входят. */
+        val dependencies: List<Dependency> = emptyList(),
     )
 
     /** One property of the manifest. */
@@ -35,6 +50,10 @@ data class ImportApiMeta(
         val aliases: List<ApiMetaAlias>,
         /** Optional description. */
         val description: String?,
+        /** Значение по умолчанию, объявленное Core. */
+        val defaultValue: String? = null,
+        /** Известные ограничения вложенного свойства, без догадок по пользовательским данным. */
+        val componentTargets: List<String> = emptyList(),
         /** Признак поддержки состояний; `null` — манифест его не несёт, и признак не меняется. */
         val stateSupport: StateSupport? = null,
     )
@@ -45,5 +64,15 @@ data class ImportApiMeta(
         val states: List<String>,
         /** Допускается ли сочетание нескольких состояний. */
         val combinations: Boolean,
+    )
+
+    /** Объявленная метой связь компонентов и её порядок. */
+    data class Dependency(
+        /** Имя вложенного компонента из того же релиза Core. */
+        val component: String,
+        /** Тип зависимости, объявленной Core: compose. */
+        val type: String = "compose",
+        /** Порядок вложенного компонента. */
+        val order: Int? = null,
     )
 }

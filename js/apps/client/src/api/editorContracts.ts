@@ -12,6 +12,8 @@ import type {
 } from './componentModelEnrichment';
 
 export interface EditorContextKey {
+    /** Для немедленной структурной записи — ревизия открытой модели, а не последнего запроса. */
+    coreSelectionRevision?: number;
     projectId: string;
     designSystemId: string;
     tenantId: string;
@@ -216,7 +218,9 @@ export interface ComponentConfigExportDto {
 export interface ComponentEditorBundleDto {
     component: ComponentDto;
     appearances: AppearanceDto[];
-    export: ComponentConfigExportDto;
+    export: ComponentConfigExportDto | null;
+    exportConflict?: boolean;
+    editorConfigurations?: ComponentConfigExportDto['components'];
     properties: ComponentPropertyDto[];
     platformParams: PropertyPlatformParamDto[];
     propertyVariations: PropertyVariationDto[];
@@ -312,6 +316,8 @@ export interface PendingTokenMutation {
 
 export interface PendingComponentMutation {
     componentName: string;
+    /** Core-ревизия исходной модели: сохраняется вместе с офлайн-операцией и её предшественником. */
+    coreSelectionRevision?: number;
     /** Конфигурация (`appearance`), в которую пишется правка: открытая в редакторе. */
     appearanceId?: string;
     before: ComponentConfig;

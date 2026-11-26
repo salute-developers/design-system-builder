@@ -188,15 +188,16 @@ internal object ComponentOwnership {
         admin: Boolean,
     ) = scope(admin, c, invariantAdjustments(writableIpvIds(p), writablePlatformParamIds(p)))
 
-    fun readableComponentIds(p: ProjectId, admin: Boolean): Set<UUID> = if (admin) {
-        ComponentsTable.selectAll().mapTo(
-            linkedSetOf(),
-        ) {
-            it[ComponentsTable.id]
+    fun readableComponentIds(p: ProjectId, admin: Boolean): Set<UUID> =
+        if (admin || com.dsbuilder.ds.core.data.hasDesignSystemCoreScope()) {
+            ComponentsTable.selectAll().mapTo(
+                linkedSetOf(),
+            ) {
+                it[ComponentsTable.id]
+            }
+        } else {
+            readableComponents(p).mapTo(linkedSetOf()) { it[ProjectDesignSystemComponentsTable.componentId] }
         }
-    } else {
-        readableComponents(p).mapTo(linkedSetOf()) { it[ProjectDesignSystemComponentsTable.componentId] }
-    }
 
     /**
      * Читаемые компоненты вместе со скрытыми из дизайн-систем проекта: связи у скрытого нет,
@@ -336,8 +337,12 @@ internal object ComponentOwnership {
         .select(ProjectComponentDesignSystemsTable.id).where { ProjectComponentDesignSystemsTable.projectId eq p.value }
     private fun readableComponents(
         p: ProjectId,
-    ) = ProjectDesignSystemComponentsTable.select(ProjectDesignSystemComponentsTable.componentId).where {
-        ProjectDesignSystemComponentsTable.designSystemId inSubQuery projectReadableDs(p)
+    ) = if (com.dsbuilder.ds.core.data.hasDesignSystemCoreScope()) {
+        ComponentsTable.select(ComponentsTable.id)
+    } else {
+        ProjectDesignSystemComponentsTable.select(ProjectDesignSystemComponentsTable.componentId).where {
+            ProjectDesignSystemComponentsTable.designSystemId inSubQuery projectReadableDs(p)
+        }
     }
     private fun writableComponents(
         p: ProjectId,

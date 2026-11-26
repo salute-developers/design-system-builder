@@ -74,6 +74,10 @@ class WebGenerationPostgresIntegrationTest {
     private suspend fun verifyWebAdapter(client: HttpClient, designSystemId: String) {
         val first = client.webAdapter("project-a", "viewer", designSystemId)
         assertEquals(HttpStatusCode.OK, first.status, first.bodyAsText())
+        assertEquals(false, first.bodyAsText().contains("COMPOSE ONLY"))
+        assertEquals(false, first.bodyAsText().contains("CoreChannelProbe"))
+        kotlin.test.assertNotNull(first.headers["X-DS-Read-Context"])
+
         assertEquals(
             """[{"componentName":"icon-tab-item","name":"IconTabItem"},""" +
                 """{"componentName":"tab-item","name":"TabItem"},""" +
@@ -280,6 +284,17 @@ class WebGenerationPostgresIntegrationTest {
                 name,
             )
 
+            val composeTabs =
+                insert("INSERT INTO components(name, description, platform) VALUES ('Tabs', 'COMPOSE ONLY', 'compose')")
+            val probe = insert("INSERT INTO components(name, platform) VALUES ('CoreChannelProbe', 'compose')")
+            for (componentId in listOf(composeTabs, probe)) {
+                insert(
+                    "INSERT INTO design_system_components(design_system_id, component_id) VALUES (?, ?)",
+                    ds,
+                    componentId,
+                )
+                appearance(componentId)
+            }
             val tabs = component("Tabs", "Вкладки")
             val tabItem = component("TabItem", "")
             val iconTabItem = component("IconTabItem", null)

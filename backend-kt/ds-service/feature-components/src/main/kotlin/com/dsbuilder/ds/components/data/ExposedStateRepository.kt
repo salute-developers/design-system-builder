@@ -146,22 +146,24 @@ class ExposedStateRepository : StateRepository {
     // Новое или переименованное состояние может сделать «тенью» одноимённое собственное состояние: списки признака
     // переходят на общее, как при импорте меты.
     override suspend fun create(command: StateRepository.Create): ComponentState =
-        ComponentStatesTable.insertReturning {
+        StableComponentStatesTable.insertReturning {
             it[componentId] = command.componentId
             it[name] = command.name
             it[description] = command.description
-        }.single().let(::componentState).also { PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
+        }.single().let {
+            componentState(it, StableComponentStatesTable)
+        }.also { PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
 
     override suspend fun update(id: UUID, command: StateRepository.Update): ComponentState? =
-        ComponentStatesTable.updateReturning(where = { ComponentStatesTable.id eq id }) {
+        StableComponentStatesTable.updateReturning(where = { StableComponentStatesTable.id eq id }) {
             command.name?.let { value -> it[name] = value }
             if (command.descriptionPresent) it[description] = command.description
             it[updatedAt] = Instant.now()
-        }.singleOrNull()?.let(::componentState)
+        }.singleOrNull()?.let { componentState(it, StableComponentStatesTable) }
             ?.also { if (command.name != null) PropertyStateSupportStore.moveSupportOffShadows(listOf(it.name)) }
 
     override suspend fun delete(id: UUID): Boolean =
-        ComponentStatesTable.deleteWhere { ComponentStatesTable.id eq id } > 0
+        StableComponentStatesTable.deleteWhere { StableComponentStatesTable.id eq id } > 0
 
     override suspend fun listSets(projectId: ProjectId, systemAdmin: Boolean): List<ComponentStateSet> =
         ComponentStateSetsTable.selectAll().where {
@@ -198,13 +200,15 @@ class ExposedStateRepository : StateRepository {
     }
 }
 
-private fun componentState(row: ResultRow) = ComponentState(
-    row[ComponentStatesTable.id],
-    row[ComponentStatesTable.componentId],
-    row[ComponentStatesTable.name],
-    row[ComponentStatesTable.description],
-    row[ComponentStatesTable.createdAt],
-    row[ComponentStatesTable.updatedAt],
+private fun componentState(row: ResultRow) = componentState(row, ComponentStatesTable)
+
+private fun componentState(row: ResultRow, table: StateCatalogTable) = ComponentState(
+    row[table.id],
+    row[table.componentId],
+    row[table.name],
+    row[table.description],
+    row[table.createdAt],
+    row[table.updatedAt],
 )
 
 private fun componentStateSet(row: ResultRow) = ComponentStateSet(

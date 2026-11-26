@@ -82,6 +82,7 @@ export interface PlatformTokens {
 }
 
 export interface ComponentAPI {
+    deprecated?: { message?: string };
     id: string;
     name: string;
     type: PropType;
@@ -184,6 +185,9 @@ export interface Meta {
     sources: Sources;
     /** Устойчивые идентификаторы серверной конфигурации, необходимые для предметного автосохранения. */
     serverBinding?: {
+        /** Core, фактически использованный сервером для этой модели. */
+        coreReleaseId?: string;
+        coreSelectionRevision?: number;
         componentId: string;
         appearanceId: string;
         /** Краткие имена оформлений для разрешения вложенного компонента без чтения всего каталога. */

@@ -7,6 +7,7 @@ import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_ID_ENV
 import com.dsbuilder.frontend.core.auth.SERVICE_ACCOUNT_CLIENT_SECRET_ENV
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -15,8 +16,11 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.core.network.WriteApiUrlResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizationResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizer
+import com.dsbuilder.frontend.feature.components.domain.apimeta.isExplicitlyEmptyApiMeta
+import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
@@ -36,6 +40,7 @@ public class PublishPreviewPluginUseCase internal constructor(
     private val archiveSource: PreviewPluginArchiveSource,
     private val remoteSource: PreviewPluginRemoteSource,
     private val normalizers: Map<TargetPlatform, ApiMetaNormalizer>,
+    private val encodeCoreImportRequest: (TargetPlatform, ApiMetaManifest, CoreReleaseRef, ByteArray, String) -> String,
 ) {
     /**
      * Выполняет отправку.
@@ -46,26 +51,37 @@ public class PublishPreviewPluginUseCase internal constructor(
     public suspend fun execute(
         command: PublishPreviewPluginCommand,
         onTarget: (PublishPreviewPluginTarget) -> Unit = {},
+    ): PublishPreviewPluginResult = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
+        is WriteApiUrlResult.Rejected -> PublishPreviewPluginResult.Failed(resolved.message)
+        is WriteApiUrlResult.Resolved -> publish(command, resolved.url, onTarget)
+    }
+
+    private suspend fun publish(
+        command: PublishPreviewPluginCommand,
+        apiUrl: ResolvedApiUrl,
+        onTarget: (PublishPreviewPluginTarget) -> Unit,
     ): PublishPreviewPluginResult {
         val prepared = when (val result = prepare(command)) {
             is Preparation.Rejected -> return PublishPreviewPluginResult.Failed(result.message)
             is Preparation.Ready -> result
         }
-        val credential = when (val selected = resolveCredential(prepared.apiUrl)) {
-            is CredentialResult.Failed -> return PublishPreviewPluginResult.Failed(selected.withHint(prepared.apiUrl))
+        val credential = when (val selected = resolveCredential(apiUrl)) {
+            is CredentialResult.Failed -> return PublishPreviewPluginResult.Failed(selected.withHint(apiUrl))
             is CredentialResult.Selected -> selected.credential
         }
-        val target = prepared.target(dryRun = !command.apply)
+        val target = prepared.target(apiUrl, dryRun = !command.apply)
         onTarget(target)
         val remote = remoteSource.publish(
             PublishPreviewPluginRemoteCommand(
                 platform = command.platform,
-                apiUrl = ProjectApiUrl(prepared.apiUrl.value),
+                apiUrl = ProjectApiUrl(apiUrl.value),
                 credential = credential,
                 archive = prepared.archive,
                 manifest = prepared.normalized.manifest,
                 source = META_FILE,
                 dryRun = !command.apply,
+                coreRelease = prepared.identity.coreRelease,
+                channel = prepared.identity.channel,
             ),
         )
         return when (remote) {
@@ -83,18 +99,32 @@ public class PublishPreviewPluginUseCase internal constructor(
         }
     }
 
-    /** Локальные проверки до обращения к сети: платформа, адрес, архив, manifest и мета. */
+    /** Готовит тело импорта Core из проверенного ZIP без сети и авторизации. */
+    public fun coreImportRequest(command: PublishPreviewPluginCommand): Result<String> =
+        when (val prepared = prepare(command)) {
+            is Preparation.Rejected -> Result.failure(IllegalArgumentException(prepared.message))
+            is Preparation.Ready -> Result.success(
+                encodeCoreImportRequest(
+                    prepared.platform,
+                    prepared.normalized.manifest,
+                    prepared.identity.coreRelease,
+                    prepared.archive.metaBytes,
+                    prepared.identity.channel,
+                ),
+            )
+        }
+
+    /** Локальные проверки ZIP: платформа, канал, manifest и мета. */
     private sealed interface Preparation {
         data class Rejected(val message: String) : Preparation
 
         class Ready(
             val platform: TargetPlatform,
-            val apiUrl: ResolvedApiUrl,
             val archive: PreviewPluginArchive,
             val identity: ManifestCheck.Valid,
             val normalized: ApiMetaNormalizationResult.Normalized,
         ) : Preparation {
-            fun target(dryRun: Boolean) = PublishPreviewPluginTarget(
+            fun target(apiUrl: ResolvedApiUrl, dryRun: Boolean) = PublishPreviewPluginTarget(
                 platform = platform,
                 apiUrl = apiUrl,
                 source = archive.path,
@@ -104,6 +134,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                 propertyCount = normalized.manifest.propertyCount,
                 stateCount = normalized.manifest.stateCount,
                 dryRun = dryRun,
+                channel = identity.channel,
             )
         }
     }
@@ -118,38 +149,62 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "Supported: ${SUPPORTED_PLATFORMS.joinToString { it.cliValue }}.",
             )
         }
-        val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
-            is WriteApiUrlResult.Rejected -> return Preparation.Rejected(resolved.message)
-            is WriteApiUrlResult.Resolved -> resolved.url
-        }
+        val channel = command.channel?.takeIf { it in setOf("stable", "dev") }
+            ?: return Preparation.Rejected("Error: specify publication channel stable or dev with --channel.")
         val archive = when (val read = archiveSource.read(command.from)) {
             is PreviewPluginArchiveResult.Failed -> return Preparation.Rejected(read.message)
             is PreviewPluginArchiveResult.Read -> read.archive
         }
-        val identity = when (val checked = checkManifest(archive, rules)) {
+        val identity = when (val checked = checkManifest(archive, rules, channel)) {
             is ManifestCheck.Invalid -> return Preparation.Rejected(checked.message)
             is ManifestCheck.Valid -> checked
         }
-        val normalized = when (val result = normalizer.normalize(archive.metaBytes.decodeToString())) {
+        val normalized = when (val result = normalize(archive, command.platform, normalizer)) {
             is ApiMetaNormalizationResult.Invalid -> return Preparation.Rejected(
                 "Error: cannot read $META_FILE of ${archive.path}: ${result.message}",
             )
             ApiMetaNormalizationResult.Empty -> return Preparation.Rejected(
-                "Error: $META_FILE of ${archive.path} contains no components with parameters.",
+                "Error: $META_FILE of ${archive.path} contains no supported component definitions.",
             )
             is ApiMetaNormalizationResult.Normalized -> result
         }
-        return Preparation.Ready(command.platform, apiUrl, archive, identity, normalized)
+        if (normalized.conflicts.isNotEmpty()) {
+            return Preparation.Rejected(
+                "Error: conflicting metadata definitions: ${normalized.conflicts.joinToString()}",
+            )
+        }
+        return Preparation.Ready(command.platform, archive, identity, normalized)
+    }
+
+    private fun normalize(
+        archive: PreviewPluginArchive,
+        platform: TargetPlatform,
+        normalizer: ApiMetaNormalizer,
+    ): ApiMetaNormalizationResult {
+        val source = archive.metaBytes.decodeToString()
+        val result = normalizer.normalize(source)
+        return if (result == ApiMetaNormalizationResult.Empty &&
+            isExplicitlyEmptyApiMeta(source, platform.toApiMetaPlatform())
+        ) {
+            ApiMetaNormalizationResult.Normalized(ApiMetaManifest(emptyList()), emptyList())
+        } else {
+            result
+        }
     }
 
     private sealed interface ManifestCheck {
-        data class Valid(val version: String, val libraryVersion: String) : ManifestCheck
+        data class Valid(
+            val version: String,
+            val libraryVersion: String,
+            val coreRelease: CoreReleaseRef,
+            val channel: String,
+        ) : ManifestCheck
 
         data class Invalid(val message: String) : ManifestCheck
     }
 
     @Suppress("ReturnCount")
-    private fun checkManifest(archive: PreviewPluginArchive, rules: PlatformRules): ManifestCheck {
+    private fun checkManifest(archive: PreviewPluginArchive, rules: PlatformRules, channel: String): ManifestCheck {
         val root = runCatching { Json.parseToJsonElement(archive.manifestText) }.getOrNull() as? JsonObject
             ?: return ManifestCheck.Invalid("Error: $MANIFEST_FILE of ${archive.path} is not a JSON object.")
         fun text(name: String): String? = (root[name] as? JsonPrimitive)?.takeIf { it.isString }?.content
@@ -175,7 +230,24 @@ public class PublishPreviewPluginUseCase internal constructor(
                     "the file has $actual.",
             )
         }
-        return ManifestCheck.Valid(version, library)
+        return checkCoreCoordinates(root, rules, version, library, channel)
+    }
+
+    private fun checkCoreCoordinates(
+        root: JsonObject,
+        rules: PlatformRules,
+        version: String,
+        library: String,
+        channel: String,
+    ): ManifestCheck {
+        val core = root["coreRelease"] as? JsonObject
+            ?: return ManifestCheck.Invalid("Error: preview manifest requires coreRelease coordinates.")
+        fun coordinate(key: String) = (core[key] as? JsonPrimitive)?.takeIf { it.isString }?.content.orEmpty()
+        val release = CoreReleaseRef(coordinate("libraryId"), coordinate("platform"), coordinate("version"))
+        if (release.libraryId.isBlank() || release.version != library || release.platform != rules.manifestPlatform) {
+            return ManifestCheck.Invalid("Error: coreRelease does not match preview platform/library version.")
+        }
+        return ManifestCheck.Valid(version, library, release, channel)
     }
 
     /** Служебная учётка из окружения либо сессия администратора; ключ проекта не используется. */
@@ -235,6 +307,8 @@ public data class PublishPreviewPluginCommand(
     public val from: String,
     public val apply: Boolean,
     public val apiUrlOverride: String? = null,
+    /** Явный канал публикации; не читается из ZIP и не выводится из адреса сервера. */
+    public val channel: String? = null,
 )
 
 /**
@@ -260,6 +334,8 @@ public data class PublishPreviewPluginTarget(
     public val propertyCount: Int,
     public val stateCount: Int,
     public val dryRun: Boolean,
+    /** Канал, явно выбранный вызывающим. */
+    public val channel: String? = null,
 )
 
 /** Результат отправки билда плагина. */

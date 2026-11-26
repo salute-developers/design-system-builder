@@ -8,6 +8,7 @@ import com.dsbuilder.ds.components.domain.EditorPropertyValue
 import com.dsbuilder.ds.components.domain.EditorStyleReference
 import com.dsbuilder.ds.components.domain.EditorValueKind
 import com.dsbuilder.ds.core.domain.ProjectId
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
@@ -18,23 +19,94 @@ import java.util.UUID
 internal object AppearanceEditorModelReader {
     fun read(projectId: ProjectId, systemAdmin: Boolean, appearanceId: UUID, versionId: UUID?): AppearanceEditorModel? {
         val row = EditorSupport.readableAppearance(projectId, systemAdmin, appearanceId) ?: return null
-        val designSystemId = row[ComponentAppearancesTable.designSystemId]
-        val axes = axes(appearanceId, designSystemId, versionId)
-        val values = propertyValues(row, appearanceId, designSystemId, versionId)
-        val appearanceRevision = EditorSupport.revisions(designSystemId, versionId, "appearance", listOf(appearanceId))
-        return AppearanceEditorModel(
-            appearance = appearance(row),
-            revision = appearanceRevision[appearanceId],
-            axes = axes,
-            propertyValues = values,
+        return readMany(listOf(row), versionId).single()
+    }
+
+    /** Пакетное чтение оформлений одной ДС в текущем контексте Core/версии, без повторения справочников. */
+    fun readMany(rows: List<ResultRow>, versionId: UUID?): List<AppearanceEditorModel> {
+        if (rows.isEmpty()) return emptyList()
+        val designSystemId = rows.first()[ComponentAppearancesTable.designSystemId]
+        require(rows.all { it[ComponentAppearancesTable.designSystemId] == designSystemId })
+        val ids = rows.map { it[ComponentAppearancesTable.id] }
+        val axes = axesByAppearance(ids, designSystemId, versionId)
+        val values = propertyValuesByAppearance(ids, designSystemId, versionId)
+        val revisions = EditorSupport.revisions(designSystemId, versionId, "appearance", ids)
+        return rows.map { row ->
+            val id = row[ComponentAppearancesTable.id]
+            AppearanceEditorModel(appearance(row), revisions[id], axes[id].orEmpty(), values[id].orEmpty())
+        }
+    }
+
+    /** Значения для проверки без редакторских подписей, осей и ревизий, не нужных исправным назначениям. */
+    fun readForCompatibility(rows: List<ResultRow>, versionId: UUID?): List<AppearanceEditorModel> {
+        if (rows.isEmpty()) return emptyList()
+        val designSystemId = rows.first()[ComponentAppearancesTable.designSystemId]
+        require(rows.all { it[ComponentAppearancesTable.designSystemId] == designSystemId })
+        val values = propertyValuesByAppearance(
+            rows.map { it[ComponentAppearancesTable.id] },
+            designSystemId,
+            versionId,
+            withDetails = false,
         )
+        return rows.map { row ->
+            AppearanceEditorModel(
+                appearance(row),
+                null,
+                emptyList(),
+                values[row[ComponentAppearancesTable.id]].orEmpty(),
+            )
+        }
+    }
+
+    /** Пакетно дополняет только проблемные назначения; использует ту же транзакционную границу. */
+    fun completeCompatibilityDetails(
+        models: List<AppearanceEditorModel>,
+        versionId: UUID?,
+    ): List<AppearanceEditorModel> {
+        if (models.isEmpty()) return emptyList()
+        val designSystemId = models.first().appearance.designSystemId
+        require(models.all { it.appearance.designSystemId == designSystemId })
+        val axes = axesByAppearance(models.map { it.appearance.id }, designSystemId, versionId)
+        val values = models.flatMap { it.propertyValues }
+        val names = tokenNames(values)
+        val kinds = mapOf(
+            EditorValueKind.INVARIANT to "invariant-property-value",
+            EditorValueKind.VARIATION to "variation-property-value",
+            EditorValueKind.COMBINATION to "style-combination",
+        )
+        val revisions = kinds.mapValues { (kind, entityType) ->
+            EditorSupport.revisions(
+                designSystemId,
+                versionId,
+                entityType,
+                values.filter { it.kind == kind }.map { it.id },
+            )
+        }
+        return models.map { model ->
+            model.copy(
+                axes = axes[model.appearance.id].orEmpty(),
+                propertyValues = model.propertyValues.map { value ->
+                    value.copy(
+                        tokenName = value.tokenId?.let(names::get),
+                        revision = revisions.getValue(value.kind)[value.id],
+                    )
+                },
+            )
+        }
     }
 
     /** Оси оформления с действующими именами, ролями и значениями. */
-    fun axes(appearanceId: UUID, designSystemId: UUID, versionId: UUID?): List<EditorAxis> {
-        val roles = AppearanceAxisRoleStore.load(listOf(appearanceId))[appearanceId]
+    fun axes(appearanceId: UUID, designSystemId: UUID, versionId: UUID?): List<EditorAxis> =
+        axesByAppearance(listOf(appearanceId), designSystemId, versionId)[appearanceId].orEmpty()
+
+    private fun axesByAppearance(
+        appearanceIds: List<UUID>,
+        designSystemId: UUID,
+        versionId: UUID?,
+    ): Map<UUID, List<EditorAxis>> {
+        val rolesByAppearance = AppearanceAxisRoleStore.load(appearanceIds)
         val axisRows = AppearanceVariationsTable.innerJoin(VariationsTable).selectAll()
-            .where { AppearanceVariationsTable.appearanceId eq appearanceId }
+            .where { AppearanceVariationsTable.appearanceId inList appearanceIds }
             .orderBy(AppearanceVariationsTable.position).toList()
         val axisIds = axisRows.map { it[AppearanceVariationsTable.id] }
         val valueRows = if (axisIds.isEmpty()) {
@@ -52,39 +124,42 @@ internal object AppearanceEditorModelReader {
             valueRows.map { it[AppearanceVariationValuesTable.id] },
         )
         val valuesByAxis = valueRows.groupBy { it[AppearanceVariationValuesTable.appearanceVariationId] }
-        return axisRows.map { axis ->
-            val variationId = axis[AppearanceVariationsTable.variationId]
-            val isScheme = roles?.colorScheme == variationId
-            EditorAxis(
-                id = axis[AppearanceVariationsTable.id],
-                variationId = variationId,
-                name = AppearanceEditorRules.axisName(
-                    axis[AppearanceVariationsTable.displayName],
-                    axis[VariationsTable.name],
-                ),
-                displayName = axis[AppearanceVariationsTable.displayName],
-                position = axis[AppearanceVariationsTable.position],
-                isRoot = roles?.root == variationId,
-                isColorScheme = isScheme,
-                locked = isScheme,
-                defaultStyleId = axis[AppearanceVariationsTable.defaultStyleId],
-                declaredType = axis[AppearanceVariationsTable.declaredType],
-                revision = axisRevisions[axis[AppearanceVariationsTable.id]],
-                values = valuesByAxis[axis[AppearanceVariationsTable.id]].orEmpty().map { value ->
-                    EditorAxisValue(
-                        id = value[AppearanceVariationValuesTable.id],
-                        styleId = value[AppearanceVariationValuesTable.styleId],
-                        name = AppearanceEditorRules.axisName(
-                            value[AppearanceVariationValuesTable.displayName],
-                            value[ComponentStylesTable.name],
-                        ),
-                        displayName = value[AppearanceVariationValuesTable.displayName],
-                        position = value[AppearanceVariationValuesTable.position],
-                        authoredId = value[AppearanceVariationValuesTable.authoredId],
-                        revision = valueRevisions[value[AppearanceVariationValuesTable.id]],
-                    )
-                },
-            )
+        return axisRows.groupBy { it[AppearanceVariationsTable.appearanceId] }.mapValues { (appearanceId, rows) ->
+            rows.map { axis ->
+                val roles = rolesByAppearance[appearanceId]
+                val variationId = axis[AppearanceVariationsTable.variationId]
+                val isScheme = roles?.colorScheme == variationId
+                EditorAxis(
+                    id = axis[AppearanceVariationsTable.id],
+                    variationId = variationId,
+                    name = AppearanceEditorRules.axisName(
+                        axis[AppearanceVariationsTable.displayName],
+                        axis[VariationsTable.name],
+                    ),
+                    displayName = axis[AppearanceVariationsTable.displayName],
+                    position = axis[AppearanceVariationsTable.position],
+                    isRoot = roles?.root == variationId,
+                    isColorScheme = isScheme,
+                    locked = isScheme,
+                    defaultStyleId = axis[AppearanceVariationsTable.defaultStyleId],
+                    declaredType = axis[AppearanceVariationsTable.declaredType],
+                    revision = axisRevisions[axis[AppearanceVariationsTable.id]],
+                    values = valuesByAxis[axis[AppearanceVariationsTable.id]].orEmpty().map { value ->
+                        EditorAxisValue(
+                            id = value[AppearanceVariationValuesTable.id],
+                            styleId = value[AppearanceVariationValuesTable.styleId],
+                            name = AppearanceEditorRules.axisName(
+                                value[AppearanceVariationValuesTable.displayName],
+                                value[ComponentStylesTable.name],
+                            ),
+                            displayName = value[AppearanceVariationValuesTable.displayName],
+                            position = value[AppearanceVariationValuesTable.position],
+                            authoredId = value[AppearanceVariationValuesTable.authoredId],
+                            revision = valueRevisions[value[AppearanceVariationValuesTable.id]],
+                        )
+                    },
+                )
+            }
         }
     }
 
@@ -96,27 +171,34 @@ internal object AppearanceEditorModelReader {
         val revisions: Map<String, Map<UUID, Long>>,
     )
 
-    private fun propertyValues(
-        appearance: ResultRow,
-        appearanceId: UUID,
+    private fun propertyValuesByAppearance(
+        appearanceIds: List<UUID>,
         designSystemId: UUID,
         versionId: UUID?,
-    ): List<EditorPropertyValue> {
+        withDetails: Boolean = true,
+    ): Map<UUID, List<EditorPropertyValue>> {
         val invariants = InvariantPropertyValuesTable.selectAll()
-            .where { InvariantPropertyValuesTable.appearanceId eq appearanceId }.toList()
+            .where { InvariantPropertyValuesTable.appearanceId inList appearanceIds }.toList()
         val variations = VariationPropertyValuesTable.selectAll()
-            .where { VariationPropertyValuesTable.appearanceId eq appearanceId }.toList()
+            .where { VariationPropertyValuesTable.appearanceId inList appearanceIds }.toList()
         val combinations = StyleCombinationsTable.selectAll()
-            .where { StyleCombinationsTable.appearanceId eq appearanceId }.toList()
+            .where { StyleCombinationsTable.appearanceId inList appearanceIds }.toList()
         val setIds = invariants.map { it[InvariantPropertyValuesTable.stateSetId] } +
             variations.map { it[VariationPropertyValuesTable.stateSetId] } +
             combinations.map { it[StyleCombinationsTable.stateSetId] }
-        fun revisions(type: String, ids: List<UUID>) = EditorSupport.revisions(designSystemId, versionId, type, ids)
+        fun revisions(type: String, ids: List<UUID>) = if (withDetails) {
+            EditorSupport.revisions(designSystemId, versionId, type, ids)
+        } else {
+            emptyMap()
+        }
         val lookups = ValueLookups(
-            properties = PropertiesTable.selectAll()
-                .where { PropertiesTable.componentId eq appearance[ComponentAppearancesTable.componentId] }
-                .associate { it[PropertiesTable.id] to it[PropertiesTable.name] },
-            stateNames = EditorSupport.stateNames(setIds.toSet()),
+            properties = if (withDetails) {
+                DiagnosticPropertiesTable.selectAll()
+                    .associate { it[DiagnosticPropertiesTable.id] to it[DiagnosticPropertiesTable.name] }
+            } else {
+                emptyMap()
+            },
+            stateNames = if (withDetails) EditorSupport.stateNames(setIds.toSet()) else emptyMap(),
             references = references(designSystemId),
             revisions = mapOf(
                 "invariant" to revisions(
@@ -132,19 +214,41 @@ internal object AppearanceEditorModelReader {
         )
         val values = invariantValues(invariants, lookups) + variationValues(variations, lookups) +
             combinationValues(combinations, lookups)
-        val tokenIds = values.mapNotNull { it.tokenId }.distinct()
-        val tokenNames = if (tokenIds.isEmpty()) {
-            emptyMap()
-        } else {
-            ComponentTokensTable.selectAll().where { ComponentTokensTable.id inList tokenIds }
-                .associate { row ->
-                    row[ComponentTokensTable.id] to
-                        referenceName(row[ComponentTokensTable.name], row[ComponentTokensTable.type])
-                }
+        val owners = buildMap {
+            invariants.forEach {
+                put(
+                    EditorValueKind.INVARIANT to it[InvariantPropertyValuesTable.id],
+                    it[InvariantPropertyValuesTable.appearanceId],
+                )
+            }
+            variations.forEach {
+                put(
+                    EditorValueKind.VARIATION to it[VariationPropertyValuesTable.id],
+                    it[VariationPropertyValuesTable.appearanceId],
+                )
+            }
+            combinations.forEach {
+                put(
+                    EditorValueKind.COMBINATION to it[StyleCombinationsTable.id],
+                    it[StyleCombinationsTable.appearanceId],
+                )
+            }
         }
-        return values.map { it.copy(tokenName = it.tokenId?.let(tokenNames::get)) }.sortedWith(
+        if (!withDetails) return values.groupBy { owners.getValue(it.kind to it.id) }
+        val names = tokenNames(values)
+        return values.map { it.copy(tokenName = it.tokenId?.let(names::get)) }.sortedWith(
             compareBy({ it.propertyName }, { it.kind }, { it.styleIds.joinToString() }, { it.position }),
-        )
+        ).groupBy { owners.getValue(it.kind to it.id) }
+    }
+
+    private fun tokenNames(values: List<EditorPropertyValue>): Map<UUID, String?> {
+        val tokenIds = values.mapNotNull { it.tokenId }.distinct()
+        if (tokenIds.isEmpty()) return emptyMap()
+        return ComponentTokensTable.selectAll().where { ComponentTokensTable.id inList tokenIds }
+            .associate { row ->
+                row[ComponentTokensTable.id] to
+                    referenceName(row[ComponentTokensTable.name], row[ComponentTokensTable.type])
+            }
     }
 
     private fun invariantValues(rows: List<ResultRow>, lookups: ValueLookups) = rows.map {
@@ -222,13 +326,13 @@ internal object AppearanceEditorModelReader {
             styles[row[ComponentStyleReferencesTable.id]].orEmpty(),
             row[ComponentStyleReferencesTable.reference],
         )
+        fun byOwner(column: Column<UUID?>) = rows.mapNotNull { row ->
+            row[column]?.let { owner -> owner to model(row) }
+        }.toMap()
         return References(
-            rows.filter { it[ComponentStyleReferencesTable.invariantPropertyValueId] != null }
-                .associate { it[ComponentStyleReferencesTable.invariantPropertyValueId]!! to model(it) },
-            rows.filter { it[ComponentStyleReferencesTable.variationPropertyValueId] != null }
-                .associate { it[ComponentStyleReferencesTable.variationPropertyValueId]!! to model(it) },
-            rows.filter { it[ComponentStyleReferencesTable.styleCombinationId] != null }
-                .associate { it[ComponentStyleReferencesTable.styleCombinationId]!! to model(it) },
+            byOwner(ComponentStyleReferencesTable.invariantPropertyValueId),
+            byOwner(ComponentStyleReferencesTable.variationPropertyValueId),
+            byOwner(ComponentStyleReferencesTable.styleCombinationId),
         )
     }
 

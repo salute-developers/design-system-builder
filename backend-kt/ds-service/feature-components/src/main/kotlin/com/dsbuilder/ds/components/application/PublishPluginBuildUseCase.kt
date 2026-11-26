@@ -1,6 +1,5 @@
 package com.dsbuilder.ds.components.application
 
-import com.dsbuilder.ds.components.domain.ApiMetaImportReport
 import com.dsbuilder.ds.components.domain.NewPluginBuild
 import com.dsbuilder.ds.components.domain.PluginBuild
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
@@ -8,6 +7,7 @@ import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.TransactionRunner
+import com.dsbuilder.ds.core.application.valueOr
 import kotlinx.coroutines.CancellationException
 import java.time.Instant
 
@@ -34,16 +34,24 @@ class PublishPluginBuildUseCase(
         if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
             return DsResult.Failure(DsFailure.Forbidden)
         }
+        if (CoreMetaValidation.missingMetadata(command.meta)) {
+            return DsResult.Failure(
+                DsFailure.InvalidRequest(
+                    "CORE_RELEASE_METADATA_REQUIRED",
+                    message = "Обновите CLI: нужны координаты Core и канал",
+                ),
+            )
+        }
         val target = storages.configured(platform)
             ?.let { Target(platform, it.storage, it.settings) }
             ?: return DsResult.Failure(DsFailure.DependencyUnavailable(storageDependency(platform)))
         if (command.meta.platform != platform.wire) return DsResult.Failure(DsFailure.InvalidRequest(INVALID_BODY))
-        val prepared = when (val result = prepare(target, command.archive)) {
-            is DsResult.Failure -> return result
-            is DsResult.Success -> result.value
-        }
+        val prepared = prepare(target, command.archive).valueOr { return it }
         val archive = prepared.archive
         val manifest = prepared.manifest
+        if (!matchesCore(command.meta, prepared)) {
+            return DsResult.Failure(DsFailure.InvalidRequest("CORE_PREVIEW_META_MISMATCH"))
+        }
         val newBuild = NewPluginBuild(
             buildId = manifest.version,
             platform = platform.wire,
@@ -55,8 +63,34 @@ class PublishPluginBuildUseCase(
             sizeBytes = archive.uncompressedBytes,
             fileCount = archive.files.size,
             publishedBy = context.principal.actorId,
+            coreRelease = manifest.coreRelease,
+            storageKey = if (command.meta.channel == "dev") {
+                "${manifest.version}-${archive.sha256}"
+            } else {
+                manifest.version
+            },
         )
-        return if (command.dryRun) dryRun(target, command, newBuild) else publish(target, command, archive, newBuild)
+        val meta = command.meta.copy(existingReleaseOnly = !context.principal.globalAdmin)
+        val publication = PublishPluginBuild(command.archive, meta, command.dryRun)
+        if (command.dryRun) return dryRun(target, publication, newBuild)
+        if (meta.existingReleaseOnly) {
+            // Короткая транзакция завершается до S3. Повторная проверка остаётся при записи билда.
+            transactions.readOnly { apiMeta.import(meta).toDsResult() }.valueOr { return it }
+        }
+        return publish(target, publication, archive, newBuild)
+    }
+
+    private fun matchesCore(meta: ImportApiMeta, prepared: Prepared): Boolean {
+        val release = requireNotNull(meta.coreRelease)
+        val manifest = prepared.manifest
+        val coordinatesMatch = release == manifest.coreRelease
+        val source = meta.sourceMetaBase64?.let {
+            runCatching { java.util.Base64.getDecoder().decode(it) }.getOrNull()
+        }
+        val archived = prepared.archive.files.getValue(PluginManifestParser.META_FILE)
+        val bytesMatch = source?.contentEquals(archived) == true
+        return coordinatesMatch &&
+            meta.metaSha256 == manifest.apiMetaSha256 && bytesMatch
     }
 
     /** Платформа публикации с её хранилищем и настройками. */
@@ -66,22 +100,40 @@ class PublishPluginBuildUseCase(
         val settings: PluginBuildSettings,
     )
 
-    private fun classify(existing: PluginBuild?, newBuild: NewPluginBuild): DsResult<PublishKind> = when {
-        existing != null && existing.platform != newBuild.platform -> DsResult.Failure(
-            DsFailure.Conflict(
-                code = BUILD_PLATFORM_CONFLICT,
-                message = "Билд ${existing.buildId} уже опубликован для платформы ${existing.platform}",
-            ),
-        )
-        existing != null && existing.zipSha256 != newBuild.zipSha256 -> DsResult.Failure(
+    private fun classify(
+        existing: PluginBuild?,
+        newBuild: NewPluginBuild,
+        replace: Boolean,
+    ): DsResult<PublishKind> {
+        if (existing == null) return DsResult.Success(PublishKind.PUBLISHED)
+        return when {
+            existing.platform != newBuild.platform -> DsResult.Failure(
+                DsFailure.Conflict(
+                    code = BUILD_PLATFORM_CONFLICT,
+                    message = "Билд ${existing.buildId} уже опубликован для платформы ${existing.platform}",
+                ),
+            )
+            existing.zipSha256 != newBuild.zipSha256 -> classifyChanged(existing, newBuild, replace)
+            existing.active -> DsResult.Success(PublishKind.UNCHANGED)
+            else -> DsResult.Success(PublishKind.ACTIVATED)
+        }
+    }
+
+    private fun classifyChanged(
+        existing: PluginBuild,
+        newBuild: NewPluginBuild,
+        replace: Boolean,
+    ): DsResult<PublishKind> = when {
+        !replace -> DsResult.Failure(
             DsFailure.Conflict(
                 code = BUILD_CONTENT_CHANGED,
                 message = "Билд ${existing.buildId} уже опубликован с другим содержимым архива",
             ),
         )
-        existing == null -> DsResult.Success(PublishKind.PUBLISHED)
-        existing.active -> DsResult.Success(PublishKind.UNCHANGED)
-        else -> DsResult.Success(PublishKind.ACTIVATED)
+        existing.libraryVersion != newBuild.libraryVersion || existing.metaSha256 != newBuild.metaSha256 ||
+            existing.protocolVersion != newBuild.protocolVersion || existing.commit != newBuild.commit ->
+            DsResult.Failure(DsFailure.Conflict("CORE_PREVIEW_META_MISMATCH"))
+        else -> DsResult.Success(PublishKind.REPLACED)
     }
 
     /** Архив и manifest, прошедшие проверки. */
@@ -109,25 +161,20 @@ class PublishPluginBuildUseCase(
         command: PublishPluginBuild,
         newBuild: NewPluginBuild,
     ): DsResult<PublishResult> {
-        val existing = when (val found = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }) {
-            is DsResult.Failure -> return found
-            is DsResult.Success -> found.value
+        val existing = transactions.readOnly { DsResult.Success(builds.find(newBuild.buildId)) }.valueOr { return it }
+        val kind = classify(existing, newBuild, command.meta.channel == "dev").valueOr { return it }
+        val predicted = if (kind == PublishKind.REPLACED) {
+            transactions.readOnly { builds.validateReplacement(newBuild) }.valueOr { return it }
+            predicted(replacement(newBuild))
+        } else {
+            existing ?: predicted(newBuild)
         }
-        val kind = when (val classified = classify(existing, newBuild)) {
-            is DsResult.Failure -> return classified
-            is DsResult.Success -> classified.value
-        }
-        return when (val reportResult = transactions.rollback { importMeta(command.meta.copy(dryRun = true)) }) {
-            is DsResult.Failure -> reportResult
-            is DsResult.Success -> DsResult.Success(
-                PublishResult(
-                    kind,
-                    existing ?: predicted(newBuild),
-                    target.settings.pluginUrl(newBuild.buildId),
-                    reportResult.value,
-                ),
-            )
-        }
+        val report = transactions.rollback {
+            apiMeta.import(command.meta.copy(dryRun = true)).toDsResult()
+        }.valueOr { return it }
+        return DsResult.Success(
+            PublishResult(kind, predicted, target.settings.pluginUrl(predicted.storageKey), report),
+        )
     }
 
     /**
@@ -140,19 +187,24 @@ class PublishPluginBuildUseCase(
         archive: PluginArchive,
         newBuild: NewPluginBuild,
     ): DsResult<PublishResult> {
+        var obsolete: String? = null
         val written = transactions.required {
             builds.lockPublications()
             val existing = builds.find(newBuild.buildId)
-            when (val kind = classify(existing, newBuild)) {
-                is DsResult.Failure -> kind
-                is DsResult.Success -> register(target, command, archive, newBuild, existing, kind.value)
-            }
+            val kind = classify(existing, newBuild, command.meta.channel == "dev").valueOr { return@required it }
+            if (kind == PublishKind.REPLACED) obsolete = existing?.storageKey
+            register(target, command, archive, newBuild, existing, kind)
         }
-        if (written is DsResult.Success) cleanup(target)
+        if (written is DsResult.Success) {
+            obsolete?.let { discardUnused(target, it) }
+            cleanup(target)
+        } else {
+            discardUnused(target, newBuild.storageKey)
+        }
         return written
     }
 
-    @Suppress("LongParameterList")
+    @Suppress("LongParameterList", "ReturnCount")
     private suspend fun register(
         target: Target,
         command: PublishPluginBuild,
@@ -161,16 +213,48 @@ class PublishPluginBuildUseCase(
         existing: PluginBuild?,
         kind: PublishKind,
     ): DsResult<PublishResult> {
-        if (existing == null) {
-            val uploaded = upload(target, archive, newBuild.buildId)
-            if (uploaded is DsResult.Failure) return uploaded
+        if (kind == PublishKind.REPLACED && builds.isVersionPinned(newBuild.buildId)) {
+            return DsResult.Failure(DsFailure.Conflict("PREVIEW_BUILD_PINNED"))
         }
-        return when (val report = importMeta(command.meta.copy(dryRun = false))) {
-            is DsResult.Failure -> report
-            is DsResult.Success -> {
-                val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
-                DsResult.Success(PublishResult(kind, build, target.settings.pluginUrl(build.buildId), report.value))
+        if (kind in setOf(PublishKind.PUBLISHED, PublishKind.REPLACED)) {
+            upload(target, archive, newBuild.storageKey).valueOr { return it }
+        }
+        if (kind == PublishKind.REPLACED) return replace(target, command, newBuild)
+        val report = apiMeta.import(command.meta.copy(dryRun = false)).toDsResult().valueOr { return it }
+        val build = if (existing == null) builds.insertActive(newBuild) else builds.activate(newBuild.buildId)
+        return DsResult.Success(PublishResult(kind, build, target.settings.pluginUrl(build.storageKey), report))
+    }
+
+    private fun replacement(build: NewPluginBuild) = build.copy(storageKey = "${build.buildId}-${build.zipSha256}")
+
+    private suspend fun replace(
+        target: Target,
+        command: PublishPluginBuild,
+        build: NewPluginBuild,
+    ): DsResult<PublishResult> {
+        // Барьер импорта платформы всегда берётся раньше эксклюзивного барьера Core.
+        val report = apiMeta.import(command.meta.copy(dryRun = false)).toDsResult().valueOr { return it }
+        builds.validateReplacement(build).valueOr { return it }
+        val next = replacement(build)
+        val saved = builds.replaceActive(next)
+        return DsResult.Success(
+            PublishResult(PublishKind.REPLACED, saved, target.settings.pluginUrl(saved.storageKey), report),
+        )
+    }
+
+    private suspend fun discardUnused(target: Target, storageKey: String) {
+        try {
+            transactions.required {
+                builds.lockPublications()
+                if (builds.listByRecency(target.platform.wire).none { it.storageKey == storageKey }) {
+                    discard(target, storageKey)
+                }
+                DsResult.Success(Unit)
             }
+        } catch (cancelled: CancellationException) {
+            throw cancelled
+        } catch (_: Exception) {
+            // Повторит очистка осиротевших каталогов.
         }
     }
 
@@ -191,13 +275,6 @@ class PublishPluginBuildUseCase(
         DsResult.Failure(DsFailure.DependencyUnavailable(storageDependency(target.platform)))
     }
 
-    private suspend fun importMeta(meta: ImportApiMeta): DsResult<ApiMetaImportReport> =
-        when (val attempt = apiMeta.import(meta)) {
-            is ApiMetaRepository.ImportAttempt.Success -> DsResult.Success(attempt.value)
-            is ApiMetaRepository.ImportAttempt.Failed ->
-                DsResult.Failure(DsFailure.Unprocessable("Import failed", attempt.reason))
-        }
-
     /**
      * Удаляет лишние билды и осиротевшие каталоги платформы под той же блокировкой, что и публикация: билд, который
      * в этот момент активируется откатом, не попадёт в удаление. Строка снимается раньше файлов, чтобы билд без файлов
@@ -208,17 +285,25 @@ class PublishPluginBuildUseCase(
     private suspend fun cleanup(target: Target) {
         val settings = target.settings
         try {
+            val removed = mutableListOf<PluginBuild>()
             transactions.required {
                 builds.lockPublications()
                 val recent = builds.listByRecency(target.platform.wire)
-                val inactive = recent.filterNot(PluginBuild::active)
+                val pinned = builds.pinnedBuildIds()
+                val inactive = recent.filterNot { it.active || it.buildId in pinned }
                 val keep = (recent.filter(PluginBuild::active) + inactive.take(settings.keepBuilds))
-                    .map { it.buildId }.toSet()
+                    .map { it.buildId }.toSet() + pinned
                 recent.filter { it.buildId !in keep }.forEach { stale ->
-                    builds.delete(stale.buildId)
-                    discard(target, stale.buildId)
+                    if (builds.deleteIfUnpinned(stale.buildId)) removed.add(stale)
                 }
-                val known = recent.map { it.buildId }.toSet()
+                DsResult.Success(Unit)
+            }
+            // Реестр уже зафиксирован. Повторная регистрация держит ту же блокировку;
+            // если она успела восстановить строку, её файлы не трогаем.
+            transactions.required {
+                builds.lockPublications()
+                removed.forEach { old -> if (builds.find(old.buildId) == null) discard(target, old.storageKey) }
+                val known = builds.listByRecency(target.platform.wire).map { it.storageKey }.toSet()
                 val threshold = Instant.now().minus(settings.orphanGrace)
                 target.storage.listBuilds().filter { it.buildId !in known && it.lastModified.isBefore(threshold) }
                     .forEach { discard(target, it.buildId) }
@@ -256,6 +341,7 @@ class PublishPluginBuildUseCase(
         publishedBy = build.publishedBy,
         publishedAt = Instant.now(),
         active = true,
+        storageKey = build.storageKey,
     )
 
     /** Константы публикации. */

@@ -24,12 +24,9 @@ export class VersionJournalRepository {
 
     async getDesignSystem(context: EditorContextKey, signal?: AbortSignal) {
         return (
-            await readEditor<DesignSystemDto>(
-                `${apiRoot(context.projectId, context.designSystemId)}`,
-                {
-                    signal,
-                },
-            )
+            await readEditor<DesignSystemDto>(`${apiRoot(context.projectId, context.designSystemId)}`, {
+                signal,
+            })
         ).data;
     }
 
@@ -157,11 +154,19 @@ export class VersionJournalRepository {
         version: string,
         changelog: string,
         idempotencyKey: string,
+        coreSelectionRevision?: number | null,
     ) {
         const response = await http.post<DesignSystemVersionDto>(
             `${apiRoot(context.projectId, context.designSystemId)}/versions`,
             { draftId, draftRevision, version, changelog },
-            { headers: { 'Idempotency-Key': idempotencyKey } },
+            {
+                headers: {
+                    'Idempotency-Key': idempotencyKey,
+                    ...(coreSelectionRevision != null
+                        ? { 'X-DS-Core-Selection-Revision': String(coreSelectionRevision) }
+                        : {}),
+                },
+            },
         );
         invalidateEditorReads(context);
         return response.data;

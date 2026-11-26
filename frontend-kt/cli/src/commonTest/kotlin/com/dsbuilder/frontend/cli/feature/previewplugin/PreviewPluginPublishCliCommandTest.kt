@@ -33,7 +33,7 @@ class PreviewPluginPublishCliCommandTest {
         from: String = "/work/preview-compose-plugin.zip",
         apiUrl: String? = "http://backend",
     ): List<String> = buildList {
-        addAll(listOf("preview-plugin", "publish", "--platform", platform, "--from", from))
+        addAll(listOf("preview-plugin", "publish", "--platform", platform, "--from", from, "--channel", "dev"))
         apiUrl?.let { addAll(listOf("--api-url", it)) }
     }
 
@@ -60,6 +60,39 @@ class PreviewPluginPublishCliCommandTest {
             },
         ),
     ).execute(args)
+
+    @Test
+    fun publicationChannelIsRequired() = runTest {
+        val result = run(
+            listOf(
+                "preview-plugin",
+                "publish",
+                "--platform",
+                "compose",
+                "--from",
+                "plugin.zip",
+                "--api-url",
+                "http://backend",
+            ),
+        )
+        assertTrue(result.exitCode != 0)
+        assertTrue(result.output.contains("--channel"), result.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
+    fun coreImportRequestIsPreparedWithoutAnApiUrlAndCannotBeCombinedWithApply() = runTest {
+        val args = base(apiUrl = null) + "--print-core-import-request"
+
+        val missingArchive = run(args)
+        assertEquals(1, missingArchive.exitCode, missingArchive.output)
+        assertTrue(missingArchive.output.contains("/work/preview-compose-plugin.zip"), missingArchive.output)
+
+        val withApply = run(args + "--apply")
+        assertEquals(1, withApply.exitCode, withApply.output)
+        assertTrue(withApply.output.contains("cannot be used with --apply"), withApply.output)
+        assertTrue(requests.isEmpty())
+    }
 
     @Test
     fun theClientSecretCannotBeACommandLineArgument() = runTest {
@@ -134,12 +167,14 @@ class PreviewPluginPublishCliCommandTest {
         assertEquals(0, group.exitCode, group.output)
         assertTrue(group.output.contains("publish"), group.output)
         assertEquals(0, publish.exitCode, publish.output)
+        assertTrue(!publish.output.contains("--replace-dev-preview"), publish.output)
         listOf(
             "--platform",
             "compose or react",
             "--from",
             "--api-url",
             "--apply",
+            "--channel",
             "DSBUILDER_CLIENT_ID",
             "DSBUILDER_CLIENT_SECRET",
         )

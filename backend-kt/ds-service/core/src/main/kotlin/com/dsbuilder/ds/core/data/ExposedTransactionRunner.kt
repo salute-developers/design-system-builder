@@ -131,13 +131,19 @@ class ExposedTransactionRunner(
     override suspend fun <T> readOnly(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
-    ): DsResult<T> = execute(readOnly = true) {
-        configure(context)
-        requireRequestDesignSystemAccessible()
-        if (context.versionId != null && !versionAccessible(context)) {
-            DsResult.Failure(DsFailure.NotFound)
-        } else {
-            block()
+    ): DsResult<T> {
+        val designSystemId = context.designSystemId
+        if (designSystemId != null) {
+            return readOnly(context, ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId)) { block() }
+        }
+        return execute(readOnly = true) {
+            configure(context)
+            requireRequestDesignSystemAccessible()
+            if (context.versionId != null && !versionAccessible(context)) {
+                DsResult.Failure(DsFailure.NotFound)
+            } else {
+                block()
+            }
         }
     }
 
@@ -193,6 +199,9 @@ class ExposedTransactionRunner(
             TransactionManager.current().putUserData(expectedDraftKey, expectedDraftId)
         } else {
             TransactionManager.current().removeUserData(expectedDraftKey)
+        }
+        context.expectedCoreSelectionRevision?.let {
+            TransactionManager.current().putUserData(expectedCoreSelectionRevision, it)
         }
         TransactionManager.current().exec(
             "SELECT set_config('ds.design_system_id', ?, true)",
@@ -279,6 +288,8 @@ class ExposedTransactionRunner(
                 return executeAttempt(readOnly, attempt, block)
             } catch (cancelled: CancellationException) {
                 throw cancelled
+            } catch (_: CoreSelectionStaleException) {
+                return DsResult.Failure(DsFailure.Conflict("CORE_SELECTION_STALE"))
             } catch (_: InaccessibleDesignSystemException) {
                 return DsResult.Failure(DsFailure.NotFound)
             } catch (_: DraftChangedException) {

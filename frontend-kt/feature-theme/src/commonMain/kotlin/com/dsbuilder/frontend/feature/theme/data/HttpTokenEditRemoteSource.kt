@@ -28,6 +28,7 @@ internal class HttpTokenEditRemoteSource(private val clients: AuthenticatedHttpC
         val encoded = editorCommandJson.encodeToJsonElement<TokenEditCommand>(command).jsonObject
         val endpoint = endpoints.getValue(encoded.getValue("operation").jsonPrimitive.content)
         val request = endpoint.request(root, encoded, options.idempotencyKey, options.baseRevision)
+            .copy(coreSelectionRevision = options.coreSelectionRevision)
         val client = clients.create(runtime.apiUrl.value, runtime.credential)
         val response = client.mutate(request)
         val createdPath = when (command) {

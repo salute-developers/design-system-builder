@@ -37,6 +37,13 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
         command: StyleCombinationRepository.Create,
     ): StyleCombination? {
         if (!canWriteReferences(projectId, systemAdmin, command)) return null
+        validateCoreAssignment(
+            command.propertyId,
+            command.appearanceId,
+            command.tokenId,
+            command.value,
+            command.stateSetId,
+        )
         IconValueGuard.check(command.propertyId, command.tokenId, command.value, null)
         val designSystemId = ComponentAppearancesTable.selectAll()
             .where { ComponentAppearancesTable.id eq command.appearanceId }
@@ -93,7 +100,7 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
                 ComponentOwnership.writableProperty(StyleCombinationsTable.propertyId, projectId, systemAdmin) and
                 ComponentOwnership.writableAppearance(StyleCombinationsTable.appearanceId, projectId, systemAdmin)
         }.singleOrNull() ?: return null
-        checkIcon(existing, command)
+        validateUpdate(existing, command)
         val designSystemId = existing[StyleCombinationsTable.designSystemId]
         val changedPaths = buildSet {
             if (command.value != null) add("/value")
@@ -126,6 +133,19 @@ class ExposedStyleCombinationRepository : StyleCombinationRepository {
             statement[stateSetId] = command.stateSetId ?: existing[StyleCombinationsTable.stateSetId]
         }
         return find(projectId, systemAdmin, id)
+    }
+
+    private fun validateUpdate(existing: ResultRow, command: StyleCombinationRepository.Update) {
+        checkIcon(existing, command)
+        validateCoreAssignment(
+            existing[StyleCombinationsTable.propertyId],
+            existing[StyleCombinationsTable.appearanceId],
+
+            if (command.tokenIdPresent) command.tokenId else existing[StyleCombinationsTable.tokenId],
+            command.value ?: existing[StyleCombinationsTable.value],
+            command.stateSetId ?: existing[StyleCombinationsTable.stateSetId],
+            StyleReferenceWriter.Source.Combination(existing[StyleCombinationsTable.id]),
+        )
     }
 
     /** Значение свойства-иконки проверяется по каталогу; сохранённое значение принимается повторно. */

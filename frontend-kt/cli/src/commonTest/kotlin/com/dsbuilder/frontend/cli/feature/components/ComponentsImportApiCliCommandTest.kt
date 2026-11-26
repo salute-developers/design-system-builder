@@ -44,6 +44,7 @@ class ComponentsImportApiCliCommandTest {
         assertTrue(!body.contains("designSystemId"), body)
         assertTrue(body.contains("\"source\":\"uikit-compose-api-meta.json\""), body)
         assertTrue(result.output.contains("Status: dry run"), result.output)
+        assertTrue(!result.output.contains("Core release ID:"), result.output)
         assertTrue(result.output.contains("Components: 2"), result.output)
         assertTrue(result.output.contains("Properties: 3"), result.output)
         assertTrue(result.output.contains("Created components: 1"), result.output)
@@ -66,6 +67,9 @@ class ComponentsImportApiCliCommandTest {
         assertEquals(0, result.exitCode, result.output)
         assertTrue(requests.single().second.contains("\"dryRun\":false"), requests.single().second)
         assertTrue(result.output.contains("Status: API meta imported"), result.output)
+        assertTrue(result.output.contains("Core: test-library/compose/1.0.0"), result.output)
+        assertTrue(result.output.contains("Channel: stable"), result.output)
+        assertTrue(result.output.contains("Core release ID: release-123"), result.output)
     }
 
     @Test
@@ -208,12 +212,11 @@ class ComponentsImportApiCliCommandTest {
     }
 
     @Test
-    fun anEmptyMetaIsRefusedAndNothingIsSent() = runTest {
+    fun anEmptyArrayPublishesAnEmptyCoreRelease() = runTest {
         val result = run(base(), files = mapOf(META_PATH to "[]"))
 
-        assertEquals(1, result.exitCode, result.output)
-        assertTrue(result.output.contains(META_PATH), result.output)
-        assertTrue(requests.isEmpty(), "пустой манифест отправлен")
+        assertEquals(0, result.exitCode, result.output)
+        assertTrue(requests.single().second.contains("\"components\":[]"))
     }
 
     @Test
@@ -332,7 +335,10 @@ class ComponentsImportApiCliCommandTest {
         // `hovered` — состояние взаимодействия, а не компонента.
         assertTrue(body.contains("\"states\":[]"), body)
         // `AvatarGroup` без токенов уходит компонентом без свойств.
-        assertTrue(body.contains("{\"name\":\"AvatarGroup\",\"properties\":[],\"states\":[]}"), body)
+        assertTrue(
+            body.contains("{\"name\":\"AvatarGroup\",\"properties\":[],\"states\":[],\"dependencies\":[]}"),
+            body,
+        )
         listOf("Platform: react", "Source: $WEB_META_PATH", "Components: 2", "Properties: 2", "States: 0")
             .forEach { assertTrue(result.output.contains(it), "нет '$it' в выводе:\n${result.output}") }
     }
@@ -436,7 +442,7 @@ class ComponentsImportApiCliCommandTest {
             credentialStore = sessionStore(session),
             tokenClient = tokenClient(),
         ),
-    ).execute(args)
+    ).execute(args + listOf("--library-id", "test-library", "--core-version", "1.0.0", "--channel", "stable"))
 
     private fun sessionStore(present: Boolean): CredentialStore = object : CredentialStore {
         override suspend fun read(apiUrl: String): UserSession? = UserSession(
@@ -523,7 +529,7 @@ class ComponentsImportApiCliCommandTest {
         """
 
         const val REPORT = """
-            {"createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,
+            {"releaseId":"release-123","createdComponents":1,"createdProperties":3,"createdStates":1,"createdAliases":3,
              "unchangedProperties":0,"rejected":[],"typeMismatches":[]}
         """
 

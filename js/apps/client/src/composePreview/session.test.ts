@@ -132,6 +132,41 @@ describe('ComposePreviewSession', () => {
         await expect(pending.result).rejects.toBeInstanceOf(ComposePreviewDisposedError);
     });
 
+    it.each([
+        ['string', 'label', true],
+        ['boolean', false, true],
+        ['int', 12, true],
+        ['float', 0.5, true],
+        ['string', 12, false],
+        ['boolean', 'false', false],
+        ['int', 1.5, false],
+        ['int', '12', false],
+        ['float', '0.5', false],
+        ['constructor', 1, false],
+        ['toString', 1, false],
+    ])('validates described %s default %s', async (type, defaultValue, valid) => {
+        const { hostWindow, targetWindow, session } = createSession();
+        ready(hostWindow, targetWindow);
+        await session.waitUntilReady();
+        const described = session.describeComponent('BasicButton');
+        hostWindow.emit(targetWindow, 'https://plugin.example', {
+            type: PREVIEW_MESSAGE_TYPES.description,
+            result: {
+                type: 'success',
+                requestId: described.requestId,
+                description: {
+                    protocolVersion: 1,
+                    componentId: 'BasicButton',
+                    storyId: 'BasicButton',
+                    properties: [{ type, name: 'value', defaultValue }],
+                },
+            },
+        });
+        if (valid) await expect(described.result).resolves.toMatchObject({ componentId: 'BasicButton' });
+        else await expect(described.result).rejects.toThrow(/incompatible default value|unsupported type/);
+        session.dispose();
+    });
+
     it('describes a component independently from render requests', async () => {
         const { hostWindow, targetWindow, session } = createSession();
         ready(hostWindow, targetWindow);

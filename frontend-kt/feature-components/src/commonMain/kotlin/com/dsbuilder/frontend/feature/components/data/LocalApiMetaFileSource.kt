@@ -19,7 +19,12 @@ internal class LocalApiMetaFileSource(
             fileSystem.isDirectory(absolute) ->
                 ApiMetaSourceResult.Failed("Error: '$absolute' is a directory, expected an API meta file.")
             else -> try {
-                ApiMetaSourceResult.Read(path = absolute, text = fileSystem.readText(absolute))
+                val bytes = fileSystem.readBytes(absolute)
+                ApiMetaSourceResult.Read(
+                    path = absolute,
+                    text = bytes.decodeToString(throwOnInvalidSequence = true),
+                    bytes = bytes,
+                )
             } catch (exception: Exception) {
                 ApiMetaSourceResult.Failed(
                     "Error: API meta file '$absolute' cannot be read: ${exception.message ?: "unknown error"}.",

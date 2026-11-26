@@ -99,11 +99,12 @@ function smoke(tarball) {
         const library = require(require.resolve('fflate', { paths: [path.dirname(path.dirname(command)),
             path.join(prefix, process.platform === 'win32' ? '' : 'lib', 'node_modules', '@sddsjs', 'design-system-builder-cli')] }));
         const plugin = path.join(temporary, 'plugin.zip');
+        const publishArgs = ['preview-plugin', 'publish', '--platform', 'compose', '--channel', 'dev', '--from', plugin];
         fs.writeFileSync(plugin, library.zipSync({ 'preview-plugin.json': Buffer.from('{}') }));
-        assert.match(run(command, ['preview-plugin', 'publish', '--platform', 'compose', '--from', plugin],
+        assert.match(run(command, publishArgs,
             { env, cwd: temporary, expectedStatus: 1 }), /has no api-meta\.json/);
         fs.writeFileSync(plugin, 'not a zip');
-        assert.match(run(command, ['preview-plugin', 'publish', '--platform', 'compose', '--from', plugin],
+        assert.match(run(command, publishArgs,
             { env, cwd: temporary, expectedStatus: 1 }), /not a readable zip/);
         // Exercise the installed CLI's actual ProcessRunner, including .cmd on Windows.
         run(command, ['init', '--project-id', 'fixture-project', '--design-system-id', 'fixture-system', '--platform', 'react'],

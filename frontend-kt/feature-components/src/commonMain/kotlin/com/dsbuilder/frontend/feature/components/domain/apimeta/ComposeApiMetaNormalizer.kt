@@ -53,25 +53,16 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
             return ApiMetaNormalizationResult.Invalid(exception.message.orEmpty())
         }
 
+        // Точное соответствие квалифицированных имён из самой меты; короткие имена не угадываем.
+        val componentByStyleType = styleTargets(source)
         val conflicts = mutableListOf<String>()
         val byName = LinkedHashMap<String, MutableComponent>()
         source.filter { it.componentName.isNotBlank() }.forEach { component ->
             val target = byName.getOrPut(component.componentName) { MutableComponent() }
-            component.params.filter { it.id.isNotBlank() && it.type.isNotBlank() }.forEach { param ->
-                val type = typeMap[param.type] ?: param.type
-                val known = target.properties[param.id]
-                if (known == null) {
-                    target.properties[param.id] = MutableProperty(type, param.methodName?.takeIf { it.isNotBlank() })
-                        .also {
-                            it.addParamType(param.paramSimpleType)
-                            it.markDeprecated(param.deprecated)
-                        }
-                } else if (known.type != type) {
-                    conflicts += "${component.componentName}.${param.id}: kept ${known.type}, ignored $type"
-                } else {
-                    known.addParamType(param.paramSimpleType)
-                    known.markDeprecated(param.deprecated)
-                }
+            collectProperties(component, target, typeMap, conflicts)
+            component.params.filter { (typeMap[it.type] ?: it.type) == "component_style" }.forEach { param ->
+                val nested = componentByStyleType[param.valueQualifiedType ?: param.paramQualifiedType]
+                if (nested != null) target.properties[param.id]?.componentTargets?.add(nested)
             }
             component.stateEnum?.values.orEmpty()
                 .map { it.toStateName() }
@@ -87,6 +78,7 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
                         property.toManifest(id, metaSupport?.let { property.stateSupport(it, component.states) })
                     },
                     states = component.states.toList(),
+                    dependencies = component.properties.values.flatMap { it.componentTargets }.distinct(),
                 )
             }
         if (components.isEmpty()) {
@@ -97,6 +89,35 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
             ApiMetaManifest(components, metaSupport?.interactionStates),
             conflicts,
         )
+    }
+
+    private fun styleTargets(source: List<ComposeMetaComponent>) = source.filter {
+        !it.styleQualifiedName.isNullOrBlank() && it.params.any { p -> p.id.isNotBlank() && p.type.isNotBlank() }
+    }
+        .groupBy { it.styleQualifiedName }.filterValues { it.map { c -> c.componentName }.distinct().size == 1 }
+        .mapValues { it.value.first().componentName }
+    private fun collectProperties(
+        component: ComposeMetaComponent,
+        target: MutableComponent,
+        typeMap: Map<String, String>,
+        conflicts: MutableList<String>,
+    ) {
+        component.params.filter { it.id.isNotBlank() && it.type.isNotBlank() }.forEach { param ->
+            val type = typeMap[param.type] ?: param.type
+            val known = target.properties[param.id]
+            if (known == null) {
+                target.properties[param.id] = MutableProperty(type, param.methodName?.takeIf { it.isNotBlank() })
+                    .also {
+                        it.addParamType(param.paramSimpleType)
+                        it.markDeprecated(param.deprecated)
+                    }
+            } else if (known.type != type) {
+                conflicts += "${component.componentName}.${param.id}: kept ${known.type}, ignored $type"
+            } else {
+                known.addParamType(param.paramSimpleType)
+                known.markDeprecated(param.deprecated)
+            }
+        }
     }
 
     private fun ComposeMetaState.toStateName(): String =
@@ -116,6 +137,7 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
      */
     private class MutableProperty(val type: String, private val methodName: String?) {
         private val paramTypes = LinkedHashSet<String>()
+        val componentTargets = LinkedHashSet<String>()
 
         /**
          * Устаревание относится к свойству целиком: производитель меты распространяет пометку на все
@@ -149,6 +171,7 @@ internal class ComposeApiMetaNormalizer : ApiMetaNormalizer {
                 name = id,
                 type = type,
                 platformNames = listOf(id),
+                componentTargets = componentTargets.toList(),
                 description = parts.takeIf { it.isNotEmpty() }?.joinToString("; "),
                 deprecations = deprecation?.let { mapOf(id to it) }.orEmpty(),
                 stateSupport = stateSupport,
@@ -184,6 +207,7 @@ private data class ComposeMetaComponent(
     val params: List<ComposeMetaParam> = emptyList(),
     val stateEnum: ComposeMetaStateEnum? = null,
     val stateSupport: MetaStateSupport? = null,
+    val styleQualifiedName: String? = null,
 )
 
 @Serializable
@@ -192,6 +216,8 @@ private data class ComposeMetaParam(
     val type: String = "",
     val methodName: String? = null,
     val paramSimpleType: String? = null,
+    val valueQualifiedType: String? = null,
+    val paramQualifiedType: String? = null,
     val deprecated: ComposeMetaDeprecation? = null,
 )
 

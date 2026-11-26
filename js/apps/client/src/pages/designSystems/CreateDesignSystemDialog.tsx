@@ -37,7 +37,7 @@ export const CreateDesignSystemDialog = () => {
             });
             setQueryCache(`system:${projectId}:${system.id}`, system);
             setQueryCache(`themes:${projectId}:${system.id}`, []);
-            navigate(`/projects/${projectId}/design-systems/${system.id}`);
+            navigate(`/projects/${projectId}/design-systems/${system.id}/settings?section=core&onboarding=1`);
         } catch {
             setError('Не удалось создать Design System.');
             setBusy(false);

@@ -7,9 +7,13 @@ import org.jetbrains.exposed.v1.core.Transaction
 /** Таблица запроса, собирающего сущность на границе активного черновика без отдельного представления в БД. */
 internal open class ResolvedRevisionTable(
     alias: String,
-    private val sourceSql: String,
+    private val sourceSql: String?,
 ) : Table(alias) {
     override fun describe(s: Transaction, queryBuilder: QueryBuilder) {
+        if (sourceSql == null) {
+            super.describe(s, queryBuilder)
+            return
+        }
         queryBuilder.append("(")
         queryBuilder.append(sourceSql)
         queryBuilder.append(") AS ")

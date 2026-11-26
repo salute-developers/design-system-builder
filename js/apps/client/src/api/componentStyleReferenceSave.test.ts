@@ -25,7 +25,11 @@ const meta = {
     description: '',
     platform: 'compose',
     serverBinding: { componentId: 'component', appearanceId: 'appearance' },
-    sources: { api: [{ id: 'button-style', name: 'buttonStyle', type: 'component_style' }], variations: [], configs: [] },
+    sources: {
+        api: [{ id: 'button-style', name: 'buttonStyle', type: 'component_style' }],
+        variations: [],
+        configs: [],
+    },
 } as never;
 const reference = { targetAppearanceId: 'button-appearance', styleIds: ['size-xxs', 'view-default'] };
 const mutation = (
@@ -45,6 +49,30 @@ describe('сохранение ссылки на стиль вложенного
         put.mockResolvedValue({ data: {}, headers: {} });
     });
 
+    it('повтор вложенного стиля передаёт исходную Core-ревизию операции и сохраняет отказ 409', async () => {
+        const operation = mutation([{ id: 'button-style', value: 'basic-button.xxs' }]);
+        operation.coreSelectionRevision = 1;
+        const selected = {
+            ...(meta as object),
+            serverBinding: { componentId: 'component', appearanceId: 'appearance', coreSelectionRevision: 2 },
+        };
+        put.mockRejectedValue({
+            isAxiosError: true,
+            response: { status: 409, data: { code: 'CORE_SELECTION_STALE' } },
+        });
+        await expect(
+            componentRepository.saveComponentMutation(
+                context,
+                selected as never,
+                operation,
+                {},
+                undefined,
+                () => reference,
+            ),
+        ).rejects.toMatchObject({ response: { status: 409 } });
+        expect(put.mock.calls[0][2].headers['X-DS-Core-Selection-Revision']).toBe('1');
+    });
+
     it('пишет выбор операцией оформления с reference, а не значением свойства', async () => {
         await componentRepository.saveComponentMutation(
             context,
@@ -58,7 +86,7 @@ describe('сохранение ссылки на стиль вложенного
         expect(put).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/appearances/appearance/property-values',
             { propertyId: 'button-style', styleIds: [], states: [], reference },
-            { headers: { 'Idempotency-Key': expect.any(String) } },
+            { headers: { 'Idempotency-Key': expect.any(String) }, signal: expect.any(AbortSignal) },
         );
         expect(post).not.toHaveBeenCalled();
         expect(patch).not.toHaveBeenCalled();
@@ -67,9 +95,21 @@ describe('сохранение ссылки на стиль вложенного
     it('передаёт стиль области в styleIds', async () => {
         const scoped = mutation([]);
         scoped.after.variations = [
-            { id: 'size', styles: [{ id: 's-m', name: 'm', intersections: null, props: [{ id: 'button-style', value: 'basic-button.xxs' }] }] },
+            {
+                id: 'size',
+                styles: [
+                    {
+                        id: 's-m',
+                        name: 'm',
+                        intersections: null,
+                        props: [{ id: 'button-style', value: 'basic-button.xxs' }],
+                    },
+                ],
+            },
         ] as never;
-        scoped.before.variations = [{ id: 'size', styles: [{ id: 's-m', name: 'm', intersections: null, props: [] }] }] as never;
+        scoped.before.variations = [
+            { id: 'size', styles: [{ id: 's-m', name: 'm', intersections: null, props: [] }] },
+        ] as never;
 
         await componentRepository.saveComponentMutation(context, meta, scoped, {}, undefined, () => reference);
 
@@ -82,7 +122,11 @@ describe('сохранение ссылки на стиль вложенного
         );
         const withState = mutation([]);
         withState.after.invariantProps = [
-            { id: 'button-style', value: 'basic-button.xxs', states: [{ state: ['hovered'], value: 'basic-button.xs' }] },
+            {
+                id: 'button-style',
+                value: 'basic-button.xxs',
+                states: [{ state: ['hovered'], value: 'basic-button.xs' }],
+            },
         ] as never;
 
         await componentRepository.saveComponentMutation(context, meta, withState, {}, undefined, () => reference);
@@ -94,7 +138,10 @@ describe('сохранение ссылки на стиль вложенного
         'показывает сообщение для кода %s',
         async (code) => {
             put.mockRejectedValue(
-                Object.assign(new Error('Request failed'), { isAxiosError: true, response: { status: 422, data: { code } } }),
+                Object.assign(new Error('Request failed'), {
+                    isAxiosError: true,
+                    response: { status: 422, data: { code } },
+                }),
             );
 
             await expect(
@@ -150,9 +197,7 @@ describe('сохранение ссылки на стиль вложенного
                 undefined,
                 () => reference,
             ),
-        ).rejects.toSatisfy(
-            (error) => autosaveErrorMessage(error)?.includes('цикл') === true,
-        );
+        ).rejects.toSatisfy((error) => autosaveErrorMessage(error)?.includes('цикл') === true);
     });
 
     it('не сохраняет ссылку, которую не удалось развернуть', async () => {
@@ -172,7 +217,17 @@ describe('сохранение ссылки на стиль вложенного
     it('очистка идёт обычным удалением значения', async () => {
         get.mockImplementation(async (url: string) => {
             if (url.includes('/invariant-property-values/by-component/'))
-                return { data: [{ id: 'value-1', appearanceId: 'appearance', propertyId: 'button-style', stateSetId: 'empty', value: 'a.b' }] };
+                return {
+                    data: [
+                        {
+                            id: 'value-1',
+                            appearanceId: 'appearance',
+                            propertyId: 'button-style',
+                            stateSetId: 'empty',
+                            value: 'a.b',
+                        },
+                    ],
+                };
             if (url.endsWith('/state-sets')) return { data: [{ id: 'empty', stateIds: [] }] };
             return { data: [] };
         });

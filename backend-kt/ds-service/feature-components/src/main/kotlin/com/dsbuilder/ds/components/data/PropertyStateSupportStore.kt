@@ -50,20 +50,20 @@ internal object PropertyStateSupportStore {
     }
 
     /** Списки состояний признака по свойствам [ids], каждый в порядке создания состояний. */
-    private fun statesOf(ids: Collection<UUID>): Map<UUID, List<UUID>> {
+    fun statesOf(ids: Collection<UUID>): Map<UUID, List<UUID>> {
         val states = HashMap<UUID, MutableList<UUID>>()
         ids.distinct().chunked(CHUNK_SIZE).forEach { part ->
-            PropertySupportedStatesTable.join(
+            SelectedPropertySupportedStatesTable.join(
                 ComponentStatesTable,
                 JoinType.INNER,
-                PropertySupportedStatesTable.stateId,
+                SelectedPropertySupportedStatesTable.stateId,
                 ComponentStatesTable.id,
-            ).select(PropertySupportedStatesTable.propertyId, PropertySupportedStatesTable.stateId)
-                .where { PropertySupportedStatesTable.propertyId inList part }
+            ).select(SelectedPropertySupportedStatesTable.propertyId, SelectedPropertySupportedStatesTable.stateId)
+                .where { SelectedPropertySupportedStatesTable.propertyId inList part }
                 .orderBy(ComponentStatesTable.createdAt to SortOrder.ASC, ComponentStatesTable.id to SortOrder.ASC)
                 .forEach { row ->
-                    states.getOrPut(row[PropertySupportedStatesTable.propertyId]) { mutableListOf() } +=
-                        row[PropertySupportedStatesTable.stateId]
+                    states.getOrPut(row[SelectedPropertySupportedStatesTable.propertyId]) { mutableListOf() } +=
+                        row[SelectedPropertySupportedStatesTable.stateId]
                 }
         }
         return states
@@ -73,7 +73,7 @@ internal object PropertyStateSupportStore {
     fun replace(supports: Map<UUID, PropertyStateSupport>) {
         supports.keys.chunked(CHUNK_SIZE).forEach { part ->
             part.groupBy { supports.getValue(it).combinations }.forEach { (flag, ids) ->
-                PropertiesTable.update({ PropertiesTable.id inList ids }) { it[stateCombinations] = flag }
+                StablePropertiesTable.update({ StablePropertiesTable.id inList ids }) { it[stateCombinations] = flag }
             }
             PropertySupportedStatesTable.deleteWhere { PropertySupportedStatesTable.propertyId inList part }
             val rows = part.flatMap { id -> supports.getValue(id).stateIds.distinct().map { id to it } }

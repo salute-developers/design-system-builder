@@ -454,6 +454,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             """{"componentId":"$compose","name":"shape","type":"value"}""",
             admin = true,
         )
+        importFixtureCore(service.postgres)
         val linkBody = """{"componentId":"$compose"}"""
         val link =
             id(post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true).bodyAsText())
@@ -532,6 +533,7 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             """{"componentId":"$compose","name":"shape","type":"value"}""",
             admin = true,
         )
+        importFixtureCore(service.postgres)
         val linkBody = """{"componentId":"$compose"}"""
         val link =
             id(post("/api/design-systems/$designSystem/design-system-components", linkBody, editor = true).bodyAsText())
@@ -715,8 +717,11 @@ class ComponentPlatformHttpPostgresIntegrationTest {
             )
         val withoutTemplate =
             post("/api/design-systems/$designSystem/design-system-components", add(compose), editor = true)
-        assertEquals(HttpStatusCode.UnprocessableEntity, withoutTemplate.status, withoutTemplate.bodyAsText())
-        assertTrue(withoutTemplate.bodyAsText().contains("template_not_found"), withoutTemplate.bodyAsText())
+        assertEquals(HttpStatusCode.Created, withoutTemplate.status, withoutTemplate.bodyAsText())
+        assertTrue(
+            count("appearances WHERE component_id = '$compose' AND design_system_id = '$designSystem'") > 0,
+            "a selected native Core component gets an empty editable appearance without a preview",
+        )
 
         val roundCircle = query(
             "SELECT token_id FROM token_revisions " +
@@ -1084,6 +1089,12 @@ class ComponentPlatformHttpPostgresIntegrationTest {
         idempotencyKey?.let { header("Idempotency-Key", it) }
         contentType(ContentType.Application.Json)
         setBody(body)
+    }.also { response ->
+        if ((path.startsWith("/api/design-systems/catalog/") || path == "/api/design-systems") &&
+            response.status.value < 300
+        ) {
+            importFixtureCore(service.postgres)
+        }
     }
 
     private suspend fun patch(path: String, body: String) = service.builder.client.patch(path) {

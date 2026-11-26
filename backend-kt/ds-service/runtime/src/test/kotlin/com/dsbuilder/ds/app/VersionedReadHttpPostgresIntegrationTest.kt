@@ -45,6 +45,7 @@ class VersionedReadHttpPostgresIntegrationTest {
             integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "lists").field("id")
+                importFixtureCore(database)
                 val base = "/api/design-systems/$ds"
                 val tenant =
                     api(
@@ -117,6 +118,7 @@ class VersionedReadHttpPostgresIntegrationTest {
             integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "access").field("id")
+                importFixtureCore(database)
                 val path = "/api/design-systems/$ds/tokens?limit=1"
                 val key = UUID.randomUUID().toString()
                 val allowed = api(client, "GET", path, key = key, scopes = "tokens:read")
@@ -139,6 +141,7 @@ class VersionedReadHttpPostgresIntegrationTest {
                 application { module(configuration(database)) }
                 val system = createSystem(client, "concurrent")
                 val ds = system.field("id")
+                importFixtureCore(database)
                 val created = api(
                     client,
                     "POST",
@@ -181,6 +184,7 @@ class VersionedReadHttpPostgresIntegrationTest {
             integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "axes").field("id")
+                importFixtureCore(database)
                 val appearances = api(client, "GET", "/api/design-systems/$ds/appearances").array()
                 assertTrue(appearances.isNotEmpty())
                 val appearance = appearances.first().jsonObject
@@ -235,6 +239,7 @@ class VersionedReadHttpPostgresIntegrationTest {
                 application { module(configuration(database)) }
                 val system = createSystem(client, "first")
                 val ds = system.field("id")
+                importFixtureCore(database)
                 val path = "/api/design-systems/$ds/tokens"
                 listOf("read-a", "read-b", "read-c").forEach { name ->
                     val response = api(

@@ -43,14 +43,19 @@ Options:
            Do not create the design system and do not load the components.
   --help   Show this help.
 
+Setup imports Web and Compose Core from the selected preview archives. A separate DSBUILDER_WEB_API_META requires
+DSBUILDER_WEB_CORE_VERSION with its exact version. The default preview channels are dev
+(DSBUILDER_COMPOSE_CORE_CHANNEL and DSBUILDER_WEB_CORE_CHANNEL).
+
 The setup starts the Kotlin backend, whose ds-service creates the schema of its own database
 with Flyway, prepares a project and global Web API through the gateway (backend-kt/bootstrap-base.sh)
 and starts the client.
 
 The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
 ./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
-the plasma package packages/sdds-preview-web-plugin builds the web one). The setup publishes both plugins with ./publish-preview-plugin.sh, which
-also imports the API meta of each platform from the archive. The starter icon set local-dev/icons is loaded with
+the plasma package packages/sdds-preview-web-plugin builds the Web one).
+The setup registers the Core API metadata and publishes both preview plugins into local MinIO.
+The starter icon set local-dev/icons is loaded with
 ./publish-local-icons.sh (./refresh-local-dev-icons.sh rebuilds it from a plasma checkout).
 User design systems and themes are created in the editor with backend defaults.
 Only an explicit --components-package (or COMPOSE_COMPONENTS_PACKAGE) invokes ./seed-local-design-system.sh
@@ -164,6 +169,11 @@ if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && "$SKIP_DESIGN_SYSTEM" ==
   exit 2
 fi
 
+if [[ "$ACTION" == "setup" && "$BACKEND_ONLY" == "0" && -n "${DSBUILDER_WEB_API_META:-}" && ! "${DSBUILDER_WEB_CORE_VERSION:-}" =~ [^[:space:]] ]]; then
+  echo "[local-setup] Set DSBUILDER_WEB_CORE_VERSION to the exact version used to generate the Web API meta before setup" >&2
+  exit 2
+fi
+
 require docker
 
 if ! docker compose version >/dev/null 2>&1; then
@@ -190,6 +200,22 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
+# Bootstrap and publication share one snapshot, including when a local build overwrites the original ZIP.
+web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
+if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" && -z "${DSBUILDER_WEB_API_META:-}" &&
+      ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
+  web_preview_download="$(mktemp -d)"
+  trap 'rm -f "$web_preview_download/preview-web-plugin.zip"; rmdir "$web_preview_download"' EXIT
+  WEB_PLUGIN_ZIP="$web_preview_download/preview-web-plugin.zip"
+  if [[ "$web_preview_source" =~ ^https?:// ]]; then
+    require curl
+    log "Downloading the Web preview archive"
+    curl --fail --silent --show-error --location --max-time 120 --output "$WEB_PLUGIN_ZIP" "$web_preview_source"
+  else
+    cp -- "$web_preview_source" "$WEB_PLUGIN_ZIP"
+  fi
+fi
+
 if [[ "$RESET" == "1" ]]; then
   log "Resetting local data: removing the volumes of both stacks"
   docker compose -f "$ROOT_DIR/backend-kt/docker-compose.local.yml" down -v
@@ -206,17 +232,19 @@ if [[ "$BACKEND_ONLY" == "1" ]]; then
   exit 0
 fi
 
+export GATEWAY_URL="${DSBUILDER_GATEWAY_URL:-http://localhost:8080}"
+export DSBUILDER_PROJECT_CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-dsbuilder-api}"
+
 log "Preparing the project and global Web API through the gateway"
-"$ROOT_DIR/backend-kt/bootstrap-base.sh"
+WEB_PREVIEW_PLUGIN_ZIP="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}" "$ROOT_DIR/backend-kt/bootstrap-base.sh"
 
 log "Starting the client"
 js_compose up -d --build client
 
-# The plugins are published as CI does it: the backend stores each one in its local MinIO bucket (compose-preview,
-# web-preview) and imports the API meta of its platform from the archive. Without an archive the editor simply shows
-# no preview of that platform.
+# Preview publication links each plugin to its registered Core release and stores files in its local MinIO bucket.
+# Setup can continue without previews when a bundled archive is missing or cannot be published.
 publish_plugin() {
-  local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6"
+  local platform="$1" title="$2" archive="$3" explicit="$4" bundled="$5" hint="$6" channel="$7"
   if [[ -z "$archive" && -f "$bundled" ]]; then
     archive="$bundled"
   fi
@@ -225,20 +253,22 @@ publish_plugin() {
     return
   fi
   log "Publishing the $title"
-  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --from "$archive"; then
+  local args=(--platform "$platform" --channel "$channel" --from "$archive")
+  if [[ "$platform" == "compose" ]]; then args+=(--register-core); fi
+  if ! "$ROOT_DIR/publish-preview-plugin.sh" "${args[@]}"; then
     if [[ "$explicit" == "1" ]]; then
       echo "[local-setup] The requested $title could not be published" >&2
       exit 1
     fi
-    log "The $title could not be published; the setup continues without its preview"
+    log "The $title could not be published; setup continues without its preview. See local-dev/README.md for archive requirements."
   fi
 }
 
 if [[ "$SKIP_PLUGIN" == "0" ]]; then
   publish_plugin compose "Compose preview plugin" "$PLUGIN_ZIP" "$PLUGIN_ZIP_EXPLICIT" "$BUNDLED_PLUGIN_ZIP" \
-    "restore local-dev/compose-preview or pass --plugin-zip"
+    "restore local-dev/compose-preview or pass --plugin-zip" "${DSBUILDER_COMPOSE_CORE_CHANNEL:-dev}"
   publish_plugin react "web preview plugin" "$WEB_PLUGIN_ZIP" "$WEB_PLUGIN_ZIP_EXPLICIT" "$BUNDLED_WEB_PLUGIN_ZIP" \
-    "restore local-dev/web-preview or pass --web-plugin-zip"
+    "restore local-dev/web-preview or pass --web-plugin-zip" "${DSBUILDER_WEB_CORE_CHANNEL:-dev}"
 fi
 
 # The icon catalog is loaded as CI does it (`dsbuilder icons publish --apply`): the backend stores the SVG files in the
@@ -268,7 +298,7 @@ fi
 if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; then
   if [[ -n "$COMPONENTS_PACKAGE" ]]; then
     log "Creating the design system with a theme and loading the components"
-    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
+    if ! "$ROOT_DIR/seed-local-design-system.sh" --package "$COMPONENTS_PACKAGE" --core-archive "${PLUGIN_ZIP:-$BUNDLED_PLUGIN_ZIP}" "${THEME_PACKAGE_ARGS[@]+"${THEME_PACKAGE_ARGS[@]}"}" "${PUBLISH_VERSION_ARGS[@]+"${PUBLISH_VERSION_ARGS[@]}"}"; then
       echo "[local-setup] The requested component package could not be loaded" >&2
       exit 1
     fi
@@ -279,5 +309,5 @@ if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; 
 fi
 
 log "Local setup is ready"
-log "API gateway: http://localhost:8080"
+log "API gateway: $GATEWAY_URL"
 log "Client: http://localhost:3002"

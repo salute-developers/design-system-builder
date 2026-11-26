@@ -33,8 +33,8 @@ object PluginManifestParser {
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "commit должен быть sha коммита")
         val version = root.string("version")
             ?: return invalid("PLUGIN_MANIFEST_INVALID", "version не задана")
-        if (version != commit.take(BUILD_ID_LENGTH)) {
-            return invalid("PLUGIN_VERSION_COMMIT_MISMATCH", "version должна равняться первым 12 символам commit")
+        if (!Regex("^[0-9a-f]{12}$").matches(version)) {
+            return invalid("PLUGIN_MANIFEST_INVALID", "version должна содержать 12 шестнадцатеричных символов")
         }
         val libraryField = platform.libraryVersionField
         val libraryVersion = root.string(libraryField)?.takeIf(SEMVER::matches)
@@ -49,8 +49,18 @@ object PluginManifestParser {
         if (entrypoint !in archive.files) {
             return invalid("PLUGIN_ENTRYPOINT_MISSING", "Файл entrypoint $entrypoint отсутствует в архиве")
         }
+        val core = root["coreRelease"] as? JsonObject
+            ?: return invalid("PLUGIN_MANIFEST_INVALID", "Требуются координаты coreRelease")
+        val release = com.dsbuilder.ds.core.domain.CoreReleaseRef(
+            core.string("libraryId").orEmpty(),
+            core.string("platform").orEmpty(),
+            core.string("version").orEmpty(),
+        )
+        if (!release.valid() || release.platform != platform.wire || release.version != libraryVersion) {
+            return invalid("CORE_PREVIEW_META_MISMATCH", "Core не соответствует платформе и версии preview")
+        }
         return PluginManifestResult.Valid(
-            PluginManifest(platform, version, commit, libraryVersion, metaSha, protocol, entrypoint),
+            PluginManifest(platform, version, commit, libraryVersion, metaSha, protocol, entrypoint, release),
         )
     }
 

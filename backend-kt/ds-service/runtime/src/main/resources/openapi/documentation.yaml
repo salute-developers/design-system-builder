@@ -116,6 +116,7 @@ paths:
         - Design Systems
       summary: Update design system
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - schema:
             type: string
             format: uuid
@@ -166,6 +167,7 @@ paths:
         - Design Systems
       summary: Delete design system
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - schema:
             type: string
             format: uuid
@@ -421,6 +423,7 @@ paths:
         - Tokens
       summary: Create token
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -655,6 +658,7 @@ paths:
         - Tenants
       summary: Create tenant
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -731,6 +735,7 @@ paths:
       description: >-
         Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -961,6 +966,7 @@ paths:
         - Design System Versions
       summary: Publish the active design system draft
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1084,6 +1090,7 @@ paths:
         - Tenants
       summary: Update tenant
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1140,6 +1147,7 @@ paths:
         - Tenants
       summary: Delete tenant
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1321,6 +1329,7 @@ paths:
         - Tenants
       summary: Atomically save token values for one tenant
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1566,6 +1575,7 @@ paths:
         - Tenant palette
       summary: Create a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1635,6 +1645,7 @@ paths:
         - Tenant palette
       summary: Rename a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1707,6 +1718,7 @@ paths:
         - Tenant palette
       summary: Delete a custom palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1780,6 +1792,7 @@ paths:
         - Tenant palette
       summary: Assign a color token to a palette group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1854,6 +1867,7 @@ paths:
         - Tenant palette
       summary: Add a template ramp to a group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -1928,6 +1942,7 @@ paths:
         - Tenant palette
       summary: Remove a ramp from a group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2014,6 +2029,7 @@ paths:
         - Tenant palette
       summary: Replace the ramp source within a group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2100,6 +2116,7 @@ paths:
         - Tenant palette
       summary: Rebuild a ramp from an anchor color or preview it
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2190,6 +2207,7 @@ paths:
         - Tenant palette
       summary: Edit one step of a ramp in a group
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2284,6 +2302,7 @@ paths:
       description: Требует tenants:write и tokens:write. Атомарно создаёт предметные
         редакции во всех темах. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2362,6 +2381,7 @@ paths:
         Технические редакции изменённых значений и определений — в X-DS-Mutation-Metadata.
         editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2440,6 +2460,7 @@ paths:
       description: Требует tenants:write и tokens:delete. Логическое удаление сохраняет
         опубликованные данные. editRevision оставлен для совместимости и равен 0.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2682,6 +2703,7 @@ paths:
         names are recomputed. Increments editRevision of every theme of the design
         system.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2762,6 +2784,7 @@ paths:
         a code derived from its label. Increments editRevision of every theme of the
         design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2834,6 +2857,7 @@ paths:
         group with another code renames its tokens keeping definition ids. Increments
         editRevision of every theme of the design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -2910,6 +2934,7 @@ paths:
         theme and palette group bindings are deleted, component value references become
         null. Increments editRevision of every theme of the design system.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3048,6 +3073,7 @@ paths:
         чтения. Повтор с тем же Idempotency-Key возвращает сохранённый ответ. Мутация
         с versionId отклоняется historical_version_read_only.'
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3127,6 +3153,7 @@ paths:
         Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
         другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3210,6 +3237,7 @@ paths:
         на стиль, в том числе текстом без экрана (body.m.normal), становятся пустыми.
         Опубликованные версии сохраняют данные; отмена — через журнал изменений.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3285,6 +3313,7 @@ paths:
         инварианты и комбинации стилей. Выгрузка конфигурации отдаёт для них имя без
         экрана.'
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3364,6 +3393,7 @@ paths:
         Текстовые ссылки компонентов на стили группы привязываются по token_id, как
         при переименовании стиля.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3440,6 +3470,7 @@ paths:
         на них, в том числе текстовые, становятся пустыми. Системные группы не удаляются
         (SYSTEM_TYPOGRAPHY_GROUP).
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3565,6 +3596,7 @@ paths:
         с тем же Idempotency-Key и телом возвращает сохранённый ответ. Мутация с versionId
         отклоняется historical_version_read_only.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3648,6 +3680,7 @@ paths:
         Повтор той же команды возвращает сохранённый ответ до сравнения базовых редакций;
         другая команда с тем же ключом получает 409 IDEMPOTENCY_KEY_REUSED.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3731,6 +3764,7 @@ paths:
         на него становятся пустыми. Опубликованные версии сохраняют данные; отмена
         — через журнал изменений. Тело не нужно. Мутация с versionId отклоняется historical_version_read_only.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3798,6 +3832,7 @@ paths:
         Полное скругление round.circle не переименовывается. Отмена — через журнал
         изменений. Мутация с versionId отклоняется historical_version_read_only.'
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3925,6 +3960,7 @@ paths:
         - Tokens
       summary: Update token
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -3981,6 +4017,7 @@ paths:
         - Tokens
       summary: Delete token
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -4158,6 +4195,7 @@ paths:
         - Token Values
       summary: Create token value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -4242,6 +4280,7 @@ paths:
         - Token Values
       summary: Update token value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -4298,6 +4337,7 @@ paths:
         - Token Values
       summary: Delete token value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5012,6 +5052,7 @@ paths:
         - Design System Components
       summary: Create design system component
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5123,6 +5164,7 @@ paths:
         - Design System Components
       summary: Delete design system component
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5329,6 +5371,7 @@ paths:
         - Component Reuse Configs
       summary: Create component reuse config
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5413,6 +5456,7 @@ paths:
         - Component Reuse Configs
       summary: Update component reuse config
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5469,6 +5513,7 @@ paths:
         - Component Reuse Configs
       summary: Delete component reuse config
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5578,6 +5623,7 @@ paths:
         - Variations
       summary: Create variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -5662,6 +5708,7 @@ paths:
         - Variations
       summary: Update variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6085,6 +6132,7 @@ paths:
         - Property Variations
       summary: Create property variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6192,6 +6240,7 @@ paths:
         - Variation Platform Param Adjustments
       summary: Create variation platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6276,6 +6325,7 @@ paths:
         - Variation Platform Param Adjustments
       summary: Update variation platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6332,6 +6382,7 @@ paths:
         - Variation Platform Param Adjustments
       summary: Delete variation platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6405,6 +6456,7 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Create invariant platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6489,6 +6541,7 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Update invariant platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6545,6 +6598,7 @@ paths:
         - Invariant Platform Param Adjustments
       summary: Delete invariant platform param adjustment
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6631,6 +6685,7 @@ paths:
       description: >-
         Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6687,6 +6742,7 @@ paths:
         - Appearances
       summary: Delete appearance
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6921,6 +6977,7 @@ paths:
         - Appearance editor
       summary: Add an axis with values
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -6991,6 +7048,7 @@ paths:
         - Appearance editor
       summary: Remove an axis with dependent values
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7060,6 +7118,7 @@ paths:
         - Appearance editor
       summary: Set the order of axes
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7125,6 +7184,7 @@ paths:
         - Appearance editor
       summary: Add an axis value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7202,6 +7262,7 @@ paths:
         - Appearance editor
       summary: Remove an axis value with dependent values
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7271,6 +7332,7 @@ paths:
         - Appearance editor
       summary: Set the order of axis values
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7341,6 +7403,7 @@ paths:
         - Appearance editor
       summary: Set a property value for a scope and a state set
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7403,6 +7466,7 @@ paths:
         - Appearance editor
       summary: Remove a property value of a scope and a state set
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7472,6 +7536,7 @@ paths:
         - Appearance editor
       summary: Set the order of state values of a property
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7539,6 +7604,7 @@ paths:
       description: >-
         Без имени в запросе конфигурация получает имя new (new-2, new-3 при занятом); первая конфигурация компонента — имя компонента в kebab-case. Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис, например dense-mode); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7604,6 +7670,7 @@ paths:
       description: >-
         Без имени в запросе копия получает имя <имя источника в kebab-case>-copy (-copy-2 при занятом). Имя конфигурации — kebab-case (строчные латинские буквы и цифры через дефис); имя не по правилу — 422 appearance_name_invalid.
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7702,6 +7769,7 @@ paths:
         - Appearance Variations
       summary: Create appearance variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7786,6 +7854,7 @@ paths:
         - Appearance Variations
       summary: Update appearance variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7842,6 +7911,7 @@ paths:
         - Appearance Variations
       summary: Delete appearance variation
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7915,6 +7985,7 @@ paths:
         - Appearance Variation Values
       summary: Create appearance variation value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -7999,6 +8070,7 @@ paths:
         - Appearance Variation Values
       summary: Update appearance variation value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8055,6 +8127,7 @@ paths:
         - Appearance Variation Values
       summary: Delete appearance variation value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8128,6 +8201,7 @@ paths:
         - Styles
       summary: Create style
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8212,6 +8286,7 @@ paths:
         - Styles
       summary: Update style
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8268,6 +8343,7 @@ paths:
         - Styles
       summary: Delete style
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8378,6 +8454,7 @@ paths:
         - Variation Property Values
       summary: Create variation property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8470,6 +8547,7 @@ paths:
         - Variation Property Values
       summary: Update variation property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8534,6 +8612,7 @@ paths:
         - Variation Property Values
       summary: Delete variation property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8679,6 +8758,7 @@ paths:
         - Invariant Property Values
       summary: Create invariant property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8771,6 +8851,7 @@ paths:
         - Invariant Property Values
       summary: Update invariant property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -8835,6 +8916,7 @@ paths:
         - Invariant Property Values
       summary: Delete invariant property value
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9255,6 +9337,7 @@ paths:
         - Style Combinations
       summary: Create style combination
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9339,6 +9422,7 @@ paths:
         - Style Combinations
       summary: Update style combination
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9395,6 +9479,7 @@ paths:
         - Style Combinations
       summary: Delete style combination
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9475,6 +9560,7 @@ paths:
         - Style Combinations
       summary: Add style to combination
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9555,6 +9641,7 @@ paths:
         - Style Combination Members
       summary: Create style combination member
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9639,6 +9726,7 @@ paths:
         - Style Combination Members
       summary: Delete style combination member
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -9785,6 +9873,7 @@ paths:
       tags:
         - Component Config
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -10070,6 +10159,10 @@ paths:
         Свойства вне глобального слоя здесь не перечисляются: их значения импорт не записывает,
         и о них сообщает отчёт /import.
 
+        Совместимость проверяется в пределах `platform`, `components` и `styles`. Если для запрошенной
+        платформы требуется выбрать Core или в выбранной области есть блокирующие проблемы, частичный
+        пакет не возвращается.
+
         Требует scope components:read, если запрос пришёл с ключом проекта.
       requestBody:
         required: true
@@ -10102,6 +10195,14 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: |-
+            CORE_SELECTION_REQUIRED, если требуется выбрать Core для запрошенной платформы.
+            CORE_COMPATIBILITY_CONFLICT, если в области экспорта есть блокирующие проблемы.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '422':
           description: Имя компонента не восстанавливается обратно
           content:
@@ -10116,6 +10217,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -10175,6 +10277,7 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
       x-permission: components:read
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -10305,6 +10408,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RevertDraftChanges'
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -10370,6 +10474,7 @@ paths:
             schema:
               $ref: '#/components/schemas/RevertDraftChange'
       parameters:
+        - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
         - name: designSystemId
           in: path
           required: true
@@ -10481,8 +10586,1617 @@ paths:
         '429':
           description: Too many concurrent event streams for this project participant
       x-permission: design-systems:read
+  "/api/design-systems/{designSystemId}/compatibility":
+    {
+      "get": {
+        "summary": "Совместимость настроек с выбранным Core",
+        "description": "Проверяет сохранённые значения до фильтрации экспорта. Собственные настройки скрытых компонентов не учитываются; ссылки на скрытую цель блокируют. Counts всегда относятся ко всей ДС. Курсор связан с draftRevision и Core; устаревший курсор возвращает CORE_CONTEXT_STALE.",
+        "x-permission": "components:variations:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "componentId",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "severity",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "blocking",
+                "warning"
+              ]
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 200,
+              "default": 100
+            }
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreCompatibilityReport"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/compatibility/repair":
+    {
+      "post": {
+        "summary": "Удалить или перенести сохранённое назначение",
+        "description": "Удаление работает и после исчезновения свойства. Перенос дополнительно требует components:variations:write, совместимой свободной цели и отсутствия platform adjustments. Сохраняет журнал и проверяет expectedRevision. CORE_PROBLEM_STALE, CORE_TRANSFER_TARGET_OCCUPIED, CORE_TRANSFER_PLATFORM_ADJUSTMENTS и IDEMPOTENCY_KEY_REUSED дают 409. Опубликованная граница доступна только для чтения.",
+        "x-permission": "components:variations:delete",
+        "parameters": [
+          { "$ref": "#/components/parameters/OptionalCoreSelectionRevision" },
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "$ref": "#/components/parameters/OptionalIdempotencyKey"
+          },
+          {
+            "$ref": "#/components/parameters/OptionalBaseRevision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OkResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CoreProblemRepairRequest"
+              }
+            }
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/preview/{platform}":
+    {
+      "get": {
+        "summary": "Preview выбранного Core",
+        "description": "Для черновика выбирает сборку текущего Core, для опубликованной границы — закреплённую. Пустой слот можно заполнить один раз поздней сборкой того же Core. Отсутствие сборки даёт 404 и не запрещает редактирование или публикацию.",
+        "x-permission": "components:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "compose",
+                "web"
+              ]
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успешно",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CorePreviewResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Некорректный запрос",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Нет права",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Граница или сущность недоступна",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Конфликт Core или конкурентной правки",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Невалидный состав Core",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  /api/design-systems/{designSystemId}/components/{id}:
+    get:
+      tags:
+        - Components
+      summary: 'Core выбранной ДС: Get component by ID'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            type: string
+            format: uuid
+            example: 550e8400-e29b-41d4-a716-446655440000
+          required: true
+          name: id
+          in: path
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: Item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Component'
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  /api/design-systems/{designSystemId}/properties:
+    get:
+      tags:
+        - Properties
+      summary: 'Core выбранной ДС: List all properties'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Property'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  /api/design-systems/{designSystemId}/property-platform-params:
+    get:
+      tags:
+        - Property Platform Params
+      summary: 'Core выбранной ДС: List all property platform params'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PropertyPlatformParam'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  /api/design-systems/{designSystemId}/component-deps:
+    get:
+      tags:
+        - Component Deps
+      summary: 'Core выбранной ДС: List all component deps'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: List of items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ComponentDep'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:read
+  /api/design-systems/{designSystemId}/states:
+    get:
+      tags:
+        - States
+      summary: 'Core выбранной ДС: List states, optionally filtered by component'
+      parameters:
+        - $ref: '#/components/parameters/VersionId'
+        - schema:
+            anyOf:
+              - type: string
+                format: uuid
+              - type: string
+                enum:
+                  - 'null'
+            example: 'null'
+          required: false
+          name: componentId
+          in: query
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: States
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/State'
+        '400':
+          description: Invalid filter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+      x-permission: components:variations:read
+  "/api/design-systems/{designSystemId}/catalog/components":
+    {
+      "get": {
+        "tags": [
+          "Components"
+        ],
+        "summary": "Каталог компонентов выбранного Core",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/Component"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "components:read"
+      }
+    }
+  "/api/design-systems/{designSystemId}/component-templates":
+    {
+      "get": {
+        "tags": [
+          "Design System Components"
+        ],
+        "summary": "Доступные компоненты выбранного Core для добавления",
+        "responses": {
+          "200": {
+            "description": "List of items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/ComponentTemplate"
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                }
+              }
+            }
+          }
+        },
+        "x-permission": "components:variations:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          }
+        ]
+      }
+    }
+  "/api/design-systems/{designSystemId}/core-settings":
+    {
+      "get": {
+        "summary": "Чтение настроек Core",
+        "x-permission": "design-systems:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка 400"
+          },
+          "403": {
+            "description": "Ошибка 403"
+          },
+          "404": {
+            "description": "Ошибка 404"
+          },
+          "409": {
+            "description": "Ошибка 409"
+          },
+          "500": {
+            "description": "Ошибка 500"
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/core-releases":
+    {
+      "get": {
+        "summary": "Каталог версий Core",
+        "x-permission": "design-systems:read",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "platform",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "channel",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CoreReleaseSnapshot"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка 400"
+          },
+          "403": {
+            "description": "Ошибка 403"
+          },
+          "404": {
+            "description": "Ошибка 404"
+          },
+          "409": {
+            "description": "Ошибка 409"
+          },
+          "500": {
+            "description": "Ошибка 500"
+          }
+        }
+      }
+    }
+  "/api/design-systems/{designSystemId}/core-settings/{platform}":
+    {
+      "put": {
+        "summary": "Выбор Core платформы",
+        "x-permission": "design-systems:write",
+        "parameters": [
+          {
+            "name": "designSystemId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "$ref": "#/components/parameters/VersionId"
+          },
+          {
+            "$ref": "#/components/parameters/ModelVersion"
+          },
+          {
+            "name": "platform",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "web",
+                "compose",
+                "xml",
+                "ios"
+              ]
+            }
+          },
+          {
+            "$ref": "#/components/parameters/OptionalCoreSelectionRevision"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Успех",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CoreSettings"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Ошибка 400"
+          },
+          "403": {
+            "description": "Ошибка 403"
+          },
+          "404": {
+            "description": "Ошибка 404"
+          },
+          "409": {
+            "description": "Ошибка 409"
+          },
+          "500": {
+            "description": "Ошибка 500"
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "channel",
+                  "expectedDraftId",
+                  "expectedCoreSelectionRevision"
+                ],
+                "oneOf": [
+                  { "required": ["releaseId"], "properties": { "selectionMode": { "enum": ["pinned"] } } },
+                  { "required": ["selectionMode"], "properties": { "selectionMode": { "enum": ["latest"] } } }
+                ],
+                "properties": {
+                  "channel": {
+                    "type": "string",
+                    "enum": [
+                      "stable",
+                      "dev"
+                    ]
+                  },
+                  "selectionMode": {
+                    "type": "string",
+                    "enum": ["pinned", "latest"],
+                    "default": "pinned",
+                    "description": "latest разрешается сервером по последнему зарегистрированному релизу канала; пустой канал отклоняется"
+                  },
+                  "releaseId": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Обязателен для pinned; не требуется для latest"
+                  },
+                  "expectedDraftId": {
+                    "type": "string",
+                    "format": "uuid"
+                  },
+                  "expectedCoreSelectionRevision": {
+                    "type": "integer",
+                    "format": "int64",
+                    "minimum": 0
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+x-admin-preview-publication:
+  /api/admin/compose-preview/plugin-builds:
+    post:
+      tags: [Preview]
+      summary: Загрузить или заменить dev-preview
+      description: >-
+        Системный администратор может зарегистрировать Core вместе с preview.
+        Роль публикации preview может загрузить сборку только для ранее зарегистрированного Core.
+        Канал обязателен в meta запроса, задаётся CLI --channel, не читается из ZIP и не выводится из URL.
+        Обычная загрузка заменяет изменённый dev-ZIP под прежним build ID без специального флага.
+        Замена разрешена только для dev с прежними Core/метой/протоколом и базовым commit,
+        пока build ID не закреплён исторической версией ДС. Сборки черновиков заменять можно.
+        PREVIEW_BUILD_PINNED, CORE_PREVIEW_META_MISMATCH и DEV_PREVIEW_REPLACEMENT_FORBIDDEN дают 409.
+        Запись атомарно меняет URL полной редакции, сохраняя build ID; старые файлы удаляются после фиксации.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: {type: boolean, default: true}
+          description: Проверить без записи файлов и БД
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [plugin, meta]
+              properties:
+                plugin: {type: string, format: binary, description: ZIP preview-плагина}
+                meta: {type: string, description: JSON нормализованной ImportApiMetaRequest с исходной метой, координатами Core и обязательным channel stable/dev из CLI}
+      responses:
+        '200':
+          description: Результат проверки либо загрузки
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [outcome, dryRun, buildId, metaSha256, pluginUrl, report]
+                properties:
+                  outcome: {type: string, enum: [published, activated, unchanged, replaced]}
+                  dryRun: {type: boolean}
+                  buildId: {type: string}
+                  uikitComposeVersion: {type: string}
+                  libraryVersion: {type: string}
+                  platform: {type: string}
+                  metaSha256: {type: string}
+                  pluginUrl: {type: string, description: URL полной редакции, меняется при замене}
+                  report: {$ref: '#/components/schemas/ImportApiMetaResponse'}
+        '400': {description: Некорректный запрос или архив}
+        '403': {description: Нет права публикации или новый Core требует регистрации администратором}
+        '409': {description: Недопустимая замена, закреплённая сборка или неизменяемый Core}
+        '413': {description: Превышен размер запроса}
+        '422': {description: Ошибка меты}
+        '503': {description: Хранилище недоступно}
+  /api/admin/web-preview/plugin-builds:
+    post:
+      tags: [Preview]
+      summary: Загрузить или заменить dev-preview
+      description: >-
+        Системный администратор может зарегистрировать Core вместе с preview.
+        Роль публикации preview может загрузить сборку только для ранее зарегистрированного Core.
+        Канал обязателен в meta запроса, задаётся CLI --channel, не читается из ZIP и не выводится из URL.
+        Обычная загрузка заменяет изменённый dev-ZIP под прежним build ID без специального флага.
+        Замена разрешена только для dev с прежними Core/метой/протоколом и базовым commit,
+        пока build ID не закреплён исторической версией ДС. Сборки черновиков заменять можно.
+        PREVIEW_BUILD_PINNED, CORE_PREVIEW_META_MISMATCH и DEV_PREVIEW_REPLACEMENT_FORBIDDEN дают 409.
+        Запись атомарно меняет URL полной редакции, сохраняя build ID; старые файлы удаляются после фиксации.
+      parameters:
+        - name: dryRun
+          in: query
+          schema: {type: boolean, default: true}
+          description: Проверить без записи файлов и БД
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [plugin, meta]
+              properties:
+                plugin: {type: string, format: binary, description: ZIP preview-плагина}
+                meta: {type: string, description: JSON нормализованной ImportApiMetaRequest с исходной метой, координатами Core и обязательным channel stable/dev из CLI}
+      responses:
+        '200':
+          description: Результат проверки либо загрузки
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [outcome, dryRun, buildId, metaSha256, pluginUrl, report]
+                properties:
+                  outcome: {type: string, enum: [published, activated, unchanged, replaced]}
+                  dryRun: {type: boolean}
+                  buildId: {type: string}
+                  uikitComposeVersion: {type: string}
+                  libraryVersion: {type: string}
+                  platform: {type: string}
+                  metaSha256: {type: string}
+                  pluginUrl: {type: string, description: URL полной редакции, меняется при замене}
+                  report: {$ref: '#/components/schemas/ImportApiMetaResponse'}
+        '400': {description: Некорректный запрос или архив}
+        '403': {description: Нет права публикации или новый Core требует регистрации администратором}
+        '409': {description: Недопустимая замена, закреплённая сборка или неизменяемый Core}
+        '413': {description: Превышен размер запроса}
+        '422': {description: Ошибка меты}
+        '503': {description: Хранилище недоступно}
 components:
   schemas:
+    "CoreReleaseRef":
+      {
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
+          "version": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "libraryId",
+          "platform",
+          "version"
+        ]
+      }
+    "CoreReleaseSnapshot":
+      {
+        "type": "object",
+        "properties": {
+          "libraryId": {
+            "type": "string"
+          },
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
+          "version": {
+            "type": "string"
+          },
+          "releaseId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "metaSha256": {
+            "type": "string",
+            "nullable": true
+          },
+          "provenance": {
+            "type": "string",
+            "enum": [
+              "imported",
+              "migration-snapshot"
+            ]
+          },
+          "selectionMode": {
+            "type": "string",
+            "enum": ["pinned", "latest"],
+            "default": "pinned",
+            "description": "Политика выбора черновика; опубликованная граница всегда pinned"
+          },
+          "channel": {
+            "type": "string",
+            "nullable": true,
+            "enum": [
+              "stable",
+              "dev"
+            ],
+            "description": "NULL у наследованных привязок с неизвестным каналом"
+          }
+        },
+        "required": [
+          "libraryId",
+          "platform",
+          "version",
+          "releaseId",
+          "metaSha256",
+          "provenance"
+        ]
+      }
+    "CoreReadContext":
+      {
+        "type": "object",
+        "properties": {
+          "designSystemId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "versionId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "draftId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "draftRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "coreReleases": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreReleaseSnapshot"
+            }
+          },
+          "coreSelectionRevision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true,
+            "minimum": 0
+          }
+        },
+        "required": [
+          "designSystemId",
+          "versionId",
+          "draftId",
+          "draftRevision",
+          "coreReleases"
+        ]
+      }
+    "CoreProblemLocation":
+      {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "appearanceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "propertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "propertyName": {
+            "type": "string",
+            "nullable": true
+          },
+          "valueKind": {
+            "type": "string",
+            "nullable": true
+          },
+          "valueId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "componentId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "componentName": {
+            "type": "string"
+          },
+          "platform": { "type": "string", "enum": ["web", "compose", "xml", "ios"] },
+          "styleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "styleLabels": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          }
+        },
+        "required": [
+          "appearanceId",
+          "appearanceName",
+          "propertyId",
+          "propertyName",
+          "valueKind",
+          "valueId",
+          "componentId",
+          "componentName",
+          "platform",
+          "styleIds",
+          "styleLabels",
+          "states",
+          "revision"
+        ]
+      }
+    "CoreProblemAdjustment":
+      {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "platformParamId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "revision": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "value": {
+            "type": "string",
+            "nullable": true
+          },
+          "template": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "id",
+          "platformParamId",
+          "revision",
+          "value",
+          "template"
+        ]
+      }
+    "CoreProblemValue":
+      {
+        "type": "object",
+        "properties": {
+          "literal": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenId": {
+            "type": "string",
+            "nullable": true
+          },
+          "tokenName": {
+            "type": "string",
+            "nullable": true
+          },
+          "alpha": {
+            "type": "string",
+            "nullable": true
+          },
+          "adjustment": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetAppearanceId": {
+            "type": "string",
+            "nullable": true
+          },
+          "targetStyleIds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          "platformAdjustments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreProblemAdjustment"
+            }
+          }
+        },
+        "required": [
+          "literal",
+          "tokenId",
+          "tokenName",
+          "alpha",
+          "adjustment",
+          "targetAppearanceId",
+          "targetStyleIds",
+          "platformAdjustments"
+        ]
+      }
+    "CoreCompatibilityIssue":
+      {
+        "type": "object",
+        "properties": {
+          "issueId": {
+            "type": "string"
+          },
+          "code": {
+            "type": "string"
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "blocking",
+              "warning"
+            ]
+          },
+          "location": {
+            "$ref": "#/components/schemas/CoreProblemLocation"
+          },
+          "storedValue": {
+            "allOf": [
+              {
+                "$ref": "#/components/schemas/CoreProblemValue"
+              }
+            ],
+            "nullable": true
+          },
+          "allowedActions": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "remove",
+                "transfer"
+              ]
+            }
+          }
+        },
+        "required": [
+          "issueId",
+          "code",
+          "severity",
+          "location",
+          "storedValue",
+          "allowedActions"
+        ]
+      }
+    "CoreSettings":
+      {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/CoreReadContext"
+          },
+          "blockingCount": {
+            "type": "integer"
+          },
+          "warningCount": {
+            "type": "integer"
+          }
+        },
+        "required": [
+          "context",
+          "blockingCount",
+          "warningCount"
+        ]
+      }
+    "CoreCompatibilityReport":
+      {
+        "type": "object",
+        "properties": {
+          "context": {
+            "$ref": "#/components/schemas/CoreReadContext"
+          },
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreCompatibilityIssue"
+            }
+          },
+          "blockingCount": {
+            "type": "integer"
+          },
+          "warningCount": {
+            "type": "integer"
+          },
+          "validatorVersion": {
+            "type": "integer"
+          },
+          "nextCursor": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "required": [
+          "context",
+          "items",
+          "blockingCount",
+          "warningCount",
+          "validatorVersion",
+          "nextCursor"
+        ]
+      }
+    "CoreProblemRepairRequest":
+      {
+        "type": "object",
+        "properties": {
+          "appearanceId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "valueId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "valueKind": {
+            "type": "string",
+            "enum": [
+              "invariant",
+              "variation",
+              "combination"
+            ]
+          },
+          "expectedRevision": {
+            "type": "integer",
+            "format": "int64",
+            "minimum": 0
+          },
+          "targetPropertyId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          }
+        },
+        "required": [
+          "appearanceId",
+          "valueId",
+          "valueKind",
+          "expectedRevision"
+        ]
+      }
+    "CorePreviewResponse":
+      {
+        "type": "object",
+        "properties": {
+          "buildId": {
+            "type": "string"
+          },
+          "pluginUrl": {
+            "type": "string"
+          },
+          "coreRelease": {
+            "$ref": "#/components/schemas/CoreReleaseSnapshot"
+          },
+          "metaSha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "buildId",
+          "pluginUrl",
+          "coreRelease",
+          "metaSha256"
+        ]
+      }
+    "CoreMetaProperty":
+      {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "platformNames": {
+            "type": "array",
+            "items": {
+              "oneOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string"
+                    },
+                    "deprecated": {
+                      "type": "object",
+                      "nullable": true,
+                      "properties": {
+                        "message": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              ]
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "defaultValue": {
+            "type": "string",
+            "nullable": true
+          },
+          "componentTargets": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "name",
+          "type",
+          "platformNames"
+        ]
+      }
+    "CoreMetaComponent":
+      {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "properties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreMetaProperty"
+            }
+          },
+          "states": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "dependencies": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "component": {
+                  "type": "string"
+                },
+                "type": {
+                  "type": "string",
+                  "enum": [
+                    "compose"
+                  ]
+                },
+                "order": {
+                  "type": "integer",
+                  "nullable": true
+                }
+              },
+              "required": [
+                "component"
+              ]
+            }
+          }
+        },
+        "required": [
+          "name"
+        ]
+      }
+    "ImportCoreMetaRequest":
+      {
+        "type": "object",
+        "properties": {
+          "platform": {
+            "type": "string",
+            "enum": [
+              "web",
+              "compose",
+              "xml",
+              "ios"
+            ]
+          },
+          "dryRun": {
+            "type": "boolean",
+            "default": true
+          },
+          "coreRelease": {
+            "$ref": "#/components/schemas/CoreReleaseRef"
+          },
+          "channel": {
+            "type": "string",
+            "enum": [
+              "stable",
+              "dev"
+            ],
+            "description": "Явный канал Core; не выводится из версии или окружения."
+          },
+          "sourceMetaBase64": {
+            "type": "string",
+            "format": "byte",
+            "description": "Исходные байты меты без повторной сериализации: массив Compose/React/SwiftUI, объект Android View с components."
+          },
+          "metaSha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CoreMetaComponent"
+            }
+          }
+        },
+        "required": [
+          "platform",
+          "coreRelease",
+          "channel",
+          "sourceMetaBase64",
+          "metaSha256",
+          "components"
+        ]
+      }
+    "ImportApiMetaResponse":
+      {
+        "type": "object",
+        "properties": {
+          "releaseId": {
+            "type": "string",
+            "nullable": true,
+            "format": "uuid"
+          },
+          "dryRun": {
+            "type": "boolean"
+          }
+        }
+      }
     OkResponse:
       type: object
       properties:
@@ -10523,6 +12237,13 @@ components:
           type: integer
           format: int64
           minimum: 0
+        coreContext:
+          $ref: '#/components/schemas/CoreReadContext'
+        blockingCount:
+          type: integer
+          minimum: 0
+        compatibilityPath:
+          type: string
       required:
         - error
     ThemePreview:
@@ -11418,7 +13139,12 @@ components:
           items:
             $ref: '#/components/schemas/Appearance'
         export:
-          $ref: '#/components/schemas/ComponentExportPackage'
+          allOf:
+            - $ref: '#/components/schemas/ComponentExportPackage'
+          nullable: true
+        exportConflict:
+          type: boolean
+          description: Сохранённые настройки доступны для диагностики; новый экспорт заблокирован
         properties:
           type: array
           items:
@@ -11456,6 +13182,23 @@ components:
           description: Общие состояния и собственные состояния компонента без «теней» общих, в порядке создания
           items:
             $ref: '#/components/schemas/State'
+        editorConfigurations:
+          type: array
+          items:
+            type: object
+            properties:
+              componentName:
+                type: string
+                description: Имя компонента в написании meta.json
+              styleName:
+                type: string
+                description: Имя стиля, оно же имя appearance
+              config:
+                nullable: true
+                description: Конфигурация в общем формате
+            required:
+              - componentName
+              - styleName
       required:
         - component
         - appearances
@@ -13452,6 +15195,10 @@ components:
             version:
               type: string
               description: Версия последней опубликованной записи
+            coreReleases:
+              type: array
+              items:
+                $ref: '#/components/schemas/CoreReleaseSnapshot'
           required:
             - name
             - version
@@ -15544,6 +17291,18 @@ components:
       description: Точный оттенок; требует type.
       schema:
         type: string
+    OptionalCoreSelectionRevision:
+      {
+        "name": "X-DS-Core-Selection-Revision",
+        "in": "header",
+        "required": false,
+        "description": "Ревизия выбора Core из прочитанной модели черновика. Устаревшее значение даёт 409 CORE_SELECTION_STALE до записи; этот заголовок не заменяет предметный baseRevision или проверку доступа.",
+        "schema": {
+          "type": "integer",
+          "format": "int64",
+          "minimum": 0
+        }
+      }
     OptionalBaseRevision:
       name: X-DS-Base-Revision
       in: header

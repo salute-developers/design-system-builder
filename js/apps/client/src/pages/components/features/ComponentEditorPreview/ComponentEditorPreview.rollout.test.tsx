@@ -14,7 +14,7 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../../composePreview')>();
     return {
         ...actual,
-        getComposePreviewPluginUrl: () => pluginState.url,
+        useComposePreviewHost: (platform = 'compose') => platform === 'compose' ? { pluginUrl: pluginState.url } : undefined,
         isComposePreviewEnvironmentSupported: () => pluginState.supported,
         loadComposePreviewManifest: (url: string) => pluginState.loadManifest(url),
         createComponentPreviewDraft: () => ({ ok: true, draft: {} }),

@@ -272,6 +272,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
                     createdId(
                         api(client, "POST", ROOT, """{"name":"matrix-c","projectName":"scope"}""", project = "other"),
                     )
+                importFixtureCore(database)
                 val tenant = createdId(api(client, "POST", "$ROOT/$b/tenants", """{"name":"b-theme"}"""))
                 val families = listOf(
                     "tokens", "token_values", "tenants", "design_system_components", "variations", "styles",

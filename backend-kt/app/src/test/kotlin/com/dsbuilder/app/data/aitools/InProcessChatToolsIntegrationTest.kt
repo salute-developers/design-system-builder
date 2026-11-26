@@ -53,6 +53,7 @@ class InProcessChatToolsIntegrationTest {
                 ChatToolsComponentSeed.seed(postgres)
                 val system = id(call(client, "POST", ROOT, """{"name":"chat-tools","projectName":"chat"}"""))
                 val tenant = id(call(client, "POST", "$ROOT/$system/tenants", """{"name":"chat-theme"}"""))
+                ChatToolsCoreSeed.capture(postgres, system)
                 val tools = inProcessChatTools(koin)
                 val run = Runner(tools, system)
                 assertEquals(ChatToolCatalog.names, tools.supportedTools, "Every catalog tool needs a handler")

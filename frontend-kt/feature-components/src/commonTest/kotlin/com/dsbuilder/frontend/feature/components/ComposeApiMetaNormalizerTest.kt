@@ -19,6 +19,23 @@ class ComposeApiMetaNormalizerTest {
         assertIs<ApiMetaNormalizationResult.Normalized>(normalizer.normalize(text, typeMap))
 
     @Test
+    fun nestedTargetsUseOnlyUnambiguousQualifiedStyleTypes() {
+        val source = """[
+            {"componentName":"Button","params":[
+                {"id":"iconStyle","type":"component_style","valueQualifiedType":"core.IconStyle"},
+                {"id":"other","type":"component_style","valueQualifiedType":"foreign.IconStyle"}
+            ]},
+            {"componentName":"Icon","styleQualifiedName":"core.IconStyle",
+                "params":[{"id":"size","type":"dimension"}]}
+        ]"""
+        val parsed = assertIs<ApiMetaNormalizationResult.Normalized>(ComposeApiMetaNormalizer().normalize(source))
+        val button = parsed.manifest.components.first { it.name == "Button" }
+        assertEquals(listOf("Icon"), button.dependencies)
+        assertEquals(listOf("Icon"), button.properties.first { it.name == "iconStyle" }.componentTargets)
+        assertEquals(emptyList(), button.properties.first { it.name == "other" }.componentTargets)
+    }
+
+    @Test
     fun collapsesParametersOfSeveralGroupsIntoOnePropertyPerId() {
         val manifest = normalized().manifest
 

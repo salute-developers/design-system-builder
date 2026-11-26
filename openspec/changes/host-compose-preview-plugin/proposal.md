@@ -40,3 +40,5 @@ Compose-preview в редакторе компонентов работает с
 - Публичные API: два новых маршрута; контракт `import-api-meta` не меняется. `js/services/db-service` не затрагивается: таблица принадлежит `ds-service` (как `token_groups`).
 - Конфигурация и секреты: переменные S3 и публичный адрес плагина у `ds-service`; секрет служебной учётки живёт в секретах `plasma-android`.
 - Проверка: `cd backend-kt && ./gradlew build`, `cd backend-kt/identity-gateway && ./gradlew build`, `cd frontend-kt && ./gradlew build`, `cd js/apps/client && npm run build && npm test`, локальный контур `./setup-local.sh` со сквозной публикацией.
+
+Интеграция с version-core-entities-and-preview заменяет глобальный выбор адреса на разрешение DS/version/Core. Закреплённые или используемые выбранным Core черновика сборки сохраняются вне лимита очистки; отсутствие preview не закрывает редактор. Дельты этого Change применяются до Core Change; глобальный active остаётся только атрибутом реестра.

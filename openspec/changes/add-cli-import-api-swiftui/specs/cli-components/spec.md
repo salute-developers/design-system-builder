@@ -2,7 +2,7 @@
 
 ### Requirement: API meta import platform
 
-Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose`, `android-view` и `swiftui`.
+Команда SHALL требовать платформу опцией `--platform` и поддерживать платформы `compose`, `android-view`, `swiftui` и `react`.
 
 #### Scenario: Платформа обязательна
 
@@ -21,10 +21,16 @@
 - **THEN** CLI MUST нормализовать мету SwiftUI и отправить её одним запросом
 - **THEN** CLI MUST передать backend `platform` со значением `ios`
 
-#### Scenario: Неподдержанная платформа
+#### Scenario: Платформа react
 
 - **WHEN** платформа — `react`
-- **THEN** CLI MUST завершиться ненулевым кодом с сообщением, что платформа пока не поддержана
+- **THEN** CLI MUST нормализовать веб-мету и отправить её одним запросом
+- **THEN** CLI MUST передать backend `platform` со значением `web`
+
+#### Scenario: Неподдержанная платформа
+
+- **WHEN** значение `--platform` не входит в перечень поддержанных платформ
+- **THEN** CLI MUST завершиться ненулевым кодом и назвать поддержанные платформы
 - **THEN** CLI MUST NOT читать файл и MUST NOT обращаться к backend
 
 #### Scenario: Соответствие платформы значению backend
@@ -109,3 +115,9 @@ CLI SHALL преобразовывать API-мету SwiftUI в тот же м�
 
 - **WHEN** корень файла не является массивом записей компонентов
 - **THEN** нормализатор MUST вернуть ошибку разбора и MUST NOT выбрасывать исключение
+
+#### Scenario: Нормализация не разрешает частичный Core-релиз
+
+- **WHEN** результат SwiftUI-нормализации используется релизным импортом version-core-entities-and-preview
+- **THEN** CLI MUST использовать общий запрос с coreRelease/channel/sourceMetaBase64/metaSha256
+- **AND** недопустимые conflicts MUST остановить отправку независимо от --strict; предусмотренные unmapped/служебные пропуски MUST сохранять прежний смысл

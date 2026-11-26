@@ -145,7 +145,7 @@ describe('ThemeEditorRepository with the component editor disabled', () => {
 
         await loadThemeEditor(context);
 
-        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(1);
+        expect(post.mock.calls.filter(([url]) => String(url).endsWith('/component-config/export'))).toHaveLength(2);
     });
 });
 
@@ -204,13 +204,13 @@ describe('ThemeEditorRepository Compose components', () => {
         sources: { api: [], variations: [], configs },
     });
 
-    it('does not request Compose components without a plugin URL', async () => {
+    it('loads configured Compose components even without a preview plugin', async () => {
         get.mockImplementation(configsOf([meta('BasicButton')]));
 
         const snapshot = await loadThemeEditor(context);
 
-        expect(snapshot.composeComponentsData).toEqual([]);
-        expect(get.mock.calls.filter(([, options]) => options?.params?.platform === 'compose')).toHaveLength(0);
+        expect(snapshot.composeComponentsData.map((item) => item.name)).toEqual(['BasicButton']);
+        expect(post.mock.calls.some(([, body]) => body?.platform === 'compose')).toBe(true);
     });
 
     it('loads Compose components separately and binds them to the plugin by name', async () => {
@@ -1261,12 +1261,12 @@ describe('Editor repositories', () => {
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/appearance-variations/axis-1',
             { defaultStyleId: 'style-2' },
-            { headers: { 'X-DS-Base-Revision': '2' } },
+            { headers: { 'X-DS-Base-Revision': '2' }, signal: expect.any(AbortSignal) },
         );
         expect(patch).toHaveBeenCalledWith(
             '/api/projects/project-1/design-systems/ds-1/variation-property-values/value-1',
             { tokenId: null, value: '48', adjustment: null },
-            { headers: { 'X-DS-Base-Revision': '4' } },
+            { headers: { 'X-DS-Base-Revision': '4' }, signal: expect.any(AbortSignal) },
         );
         expect(revisions['variation-property-value:value-1']).toBe(5);
         expect(post.mock.calls.some(([url]) => String(url).includes('/component-config/import'))).toBe(false);

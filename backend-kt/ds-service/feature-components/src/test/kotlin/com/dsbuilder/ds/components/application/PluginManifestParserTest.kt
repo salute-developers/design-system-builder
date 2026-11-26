@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:max-line-length")
+
 package com.dsbuilder.ds.components.application
 
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
@@ -20,7 +22,7 @@ class PluginManifestParserTest {
         entrypoint: String = "\"index.html\"",
     ) = """{"schemaVersion":$schemaVersion,"platform":$platform,"protocolVersion":$protocolVersion,""" +
         """"commit":$commitValue,"version":$version,"uikitComposeVersion":$uikit,"apiMetaSha256":$metaSha,""" +
-        """"entrypoint":$entrypoint}"""
+        """"channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":$platform,"version":$uikit},"entrypoint":$entrypoint}"""
 
     private fun archive(
         manifest: String = manifest(),
@@ -36,10 +38,16 @@ class PluginManifestParserTest {
         library: String? = "\"0.386.0\"",
     ) = """{"schemaVersion":1,"platform":$platform,"protocolVersion":1,"commit":"$commit",""" +
         """"version":"${commit.take(12)}",""" + (library?.let { """"plasmaNewHopeVersion":$it,""" } ?: "") +
-        """"apiMetaSha256":"${sha256Hex(meta.toByteArray())}","entrypoint":"index.html"}"""
+        """"channel":"stable","coreRelease":{"libraryId":"plasma-new-hope","platform":$platform,"version":${library ?: "null"}},"apiMetaSha256":"${sha256Hex(meta.toByteArray())}","entrypoint":"index.html"}"""
 
     private fun code(archive: PluginArchive, platform: PreviewPluginPlatform = PreviewPluginPlatform.COMPOSE) =
         assertIs<PluginManifestResult.Invalid>(PluginManifestParser.parse(archive, platform)).code
+
+    @Test
+    fun `publication channel is not required in the archive`() {
+        val source = manifest().replace("\"channel\":\"stable\",", "")
+        assertIs<PluginManifestResult.Valid>(PluginManifestParser.parse(archive(source), PreviewPluginPlatform.COMPOSE))
+    }
 
     @Test
     fun `a consistent manifest is accepted`() {
@@ -100,8 +108,11 @@ class PluginManifestParserTest {
     }
 
     @Test
-    fun `version must match the commit and the meta digest must match the file`() {
-        assertEquals("PLUGIN_VERSION_COMMIT_MISMATCH", code(archive(manifest(version = "\"000000000000\""))))
+    fun `build ID is independent of commit and the meta digest matches the file`() {
+        assertIs<PluginManifestResult.Valid>(
+            PluginManifestParser.parse(archive(manifest(version = "\"000000000000\"")), PreviewPluginPlatform.COMPOSE),
+        )
+        assertEquals("PLUGIN_MANIFEST_INVALID", code(archive(manifest(version = "\"bad\""))))
         assertEquals("PLUGIN_META_SHA256_MISMATCH", code(archive(manifest(metaSha = "\"${"1".repeat(64)}\""))))
     }
 

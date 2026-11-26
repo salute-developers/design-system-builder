@@ -11,6 +11,7 @@ import {
 
 interface ComponentTreeProps {
     groups: ComponentTreeGroup[];
+    problemComponentIds?: ReadonlySet<string>;
     platform: ComponentPlatformFilter;
     selected?: string;
     query: string;
@@ -24,6 +25,7 @@ interface ComponentTreeProps {
     error?: string;
     /** Разделитель для изменения ширины панели: лежит на её правом крае. */
     resizer?: ReactNode;
+    onProblemSelect?: (entry: ComponentTreeEntry) => void;
     onPlatform: (platform: ComponentPlatformFilter) => void;
     onSelect: (entry: ComponentTreeEntry) => void;
     onRemove: (entry: ComponentTreeEntry) => void;
@@ -128,7 +130,7 @@ export const ComponentTree = (props: ComponentTreeProps) => {
                                 group.items.map((entry) => (
                                     <div
                                         key={entry.name}
-                                        className={`token-row ${entry.name === selected ? 'is-selected' : ''} ${removing.has(entry.name) ? 'is-removing' : ''}`}
+                                        className={`token-row ${entry.name === selected ? 'is-selected' : ''} ${removing.has(entry.name) ? 'is-removing' : ''} ${entry.configs.some((config) => props.problemComponentIds?.has(config.getComponentId() ?? '')) ? 'has-core-problems' : ''}`}
                                         aria-busy={removing.has(entry.name) || undefined}
                                     >
                                         <button
@@ -148,6 +150,19 @@ export const ComponentTree = (props: ComponentTreeProps) => {
                                         >
                                             <TyGlyph name="close" />
                                         </button>
+                                        {entry.configs.some((config) =>
+                                            props.problemComponentIds?.has(config.getComponentId() ?? ''),
+                                        ) && (
+                                            <button
+                                                type="button"
+                                                className="core-component-indicator"
+                                                aria-label={`Проблемы совместимости: ${entry.name}`}
+                                                title="Проблемы совместимости"
+                                                onClick={() => props.onProblemSelect?.(entry)}
+                                            >
+                                                <TyGlyph name="warning" />
+                                            </button>
+                                        )}
                                     </div>
                                 ))}
                         </div>

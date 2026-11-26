@@ -169,7 +169,7 @@ internal class GatewayRequestHandler(
         call.response.header(
             HttpHeaders.AccessControlAllowHeaders,
             "Authorization, Content-Type, Accept, X-Requested-With, " +
-                "X-Consent-Key, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key",
+                "X-Consent-Key, X-DS-Base-Revision, X-DS-Core-Selection-Revision, X-DS-Client-Id, Idempotency-Key",
         )
         call.response.header(
             HttpHeaders.AccessControlExposeHeaders,

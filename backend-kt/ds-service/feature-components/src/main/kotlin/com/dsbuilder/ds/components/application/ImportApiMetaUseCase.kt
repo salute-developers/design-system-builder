@@ -38,14 +38,7 @@ class ImportApiMetaUseCase(
             return DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
         }
         return policy.read(context, ProjectScope.COMPONENTS_WRITE) {
-            val execute = suspend {
-                when (val attempt = repository.import(command)) {
-                    is ApiMetaRepository.ImportAttempt.Success -> DsResult.Success(attempt.value)
-                    is ApiMetaRepository.ImportAttempt.Failed -> DsResult.Failure(
-                        DsFailure.Unprocessable("Import failed", attempt.reason),
-                    )
-                }
-            }
+            val execute = suspend { repository.import(command).toDsResult() }
             if (command.dryRun) {
                 transactions.rollback(execute)
             } else {

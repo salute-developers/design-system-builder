@@ -21,6 +21,7 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
+import com.dsbuilder.frontend.feature.components.data.encodePreviewCoreImportRequest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.WebApiMetaNormalizer
@@ -42,7 +43,11 @@ class PublishPreviewPluginUseCaseTest {
         uikit: String = "0.55.0",
         sha: String? = metaSha,
     ) = buildString {
-        append("""{"version":"$version","uikitComposeVersion":"$uikit"""")
+        append(
+            """{"channel":"stable","coreRelease":{"libraryId":"uikit-compose","platform":"compose",""" +
+                """"version":"$uikit"},""" +
+                """"version":"$version","uikitComposeVersion":"$uikit"""",
+        )
         if (sha != null) append(""","apiMetaSha256":"$sha"""")
         append("}")
     }
@@ -50,7 +55,12 @@ class PublishPreviewPluginUseCaseTest {
     private fun webManifest(platform: String? = "web", sha: String = webMetaSha) = buildString {
         append("{")
         if (platform != null) append(""""platform":"$platform",""")
-        append(""""version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0","apiMetaSha256":"$sha"}""")
+        append(
+            """"channel":"stable","coreRelease":{"libraryId":"plasma-new-hope","platform":"web",""" +
+                """"version":"0.384.0"},""" +
+                """"version":"0a1b2c3d4e5f","plasmaNewHopeVersion":"0.384.0",""" +
+                """"apiMetaSha256":"$sha"}""",
+        )
     }
 
     private fun webArchive(manifestText: String = webManifest()) = PreviewPluginArchiveResult.Read(
@@ -77,6 +87,7 @@ class PublishPreviewPluginUseCaseTest {
     private suspend fun execute(
         platform: TargetPlatform = TargetPlatform.COMPOSE,
         apply: Boolean = false,
+        channel: String? = "stable",
         apiUrlOverride: String? = "http://localhost:8080",
         archive: PreviewPluginArchiveResult = PreviewPluginArchiveResult.Read(archive()),
         credential: CredentialResult = CredentialResult.Selected(
@@ -90,6 +101,7 @@ class PublishPreviewPluginUseCaseTest {
         onTarget: () -> Unit = {},
     ): PublishPreviewPluginResult {
         val useCase = PublishPreviewPluginUseCase(
+            encodeCoreImportRequest = ::encodePreviewCoreImportRequest,
             credentialProvider = object : CredentialProvider {
                 override suspend fun resolve(request: CredentialRequest): CredentialResult {
                     touched.credentialResolved = true
@@ -125,9 +137,26 @@ class PublishPreviewPluginUseCaseTest {
             ),
         )
         return useCase.execute(
-            PublishPreviewPluginCommand(platform, "plugin.zip", apply, apiUrlOverride),
+            PublishPreviewPluginCommand(platform, "plugin.zip", apply, apiUrlOverride, channel),
             onTarget = { onTarget() },
         )
+    }
+
+    @Test
+    fun missingOrInvalidPublicationChannelIsRejectedBeforeCredentials() = runTest {
+        for (channel in listOf(null, "latest")) {
+            val touched = Touched()
+            val result = execute(channel = channel, touched = touched)
+            assertIs<PublishPreviewPluginResult.Failed>(result)
+            assertTrue(!touched.credentialResolved)
+        }
+    }
+
+    @Test
+    fun commandChannelOverridesAnyLegacyArchiveChannel() = runTest {
+        val sent = mutableListOf<PublishPreviewPluginRemoteCommand>()
+        assertIs<PublishPreviewPluginResult.Published>(execute(channel = "dev", onPublish = { sent += it }))
+        assertEquals("dev", sent.single().channel)
     }
 
     @Test
@@ -264,8 +293,11 @@ class PublishPreviewPluginUseCaseTest {
 
     @Test
     fun aComposeManifestThatNamesItsPlatformIsAccepted() = runTest {
-        val manifestText = """{"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
-            """"apiMetaSha256":"$metaSha"}"""
+        val manifestText =
+            """{"channel":"stable","coreRelease":{"libraryId":"uikit-compose",""" +
+                """"platform":"compose","version":"0.55.0"},""" +
+                """"platform":"compose","version":"0123456789ab","uikitComposeVersion":"0.55.0",""" +
+                """"apiMetaSha256":"$metaSha"}"""
 
         val result = execute(archive = PreviewPluginArchiveResult.Read(archive(manifestText)))
 
@@ -318,7 +350,7 @@ class PublishPreviewPluginUseCaseTest {
     }
 
     @Test
-    fun anEmptyMetaIsRefusedBeforeAnyRequest() = runTest {
+    fun anExplicitEmptyReleaseCanBePublished() = runTest {
         val empty = "[]".encodeToByteArray()
         val touched = Touched()
 
@@ -327,8 +359,8 @@ class PublishPreviewPluginUseCaseTest {
             touched = touched,
         )
 
-        assertTrue(assertIs<PublishPreviewPluginResult.Failed>(result).message.contains("api-meta.json"))
-        assertEquals(false, touched.published)
+        assertIs<PublishPreviewPluginResult.Published>(result)
+        assertEquals(true, touched.published)
     }
 
     @Test

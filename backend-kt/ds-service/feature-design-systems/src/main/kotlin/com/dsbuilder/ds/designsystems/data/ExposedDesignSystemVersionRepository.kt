@@ -1,9 +1,12 @@
 package com.dsbuilder.ds.designsystems.data
 
+import com.dsbuilder.ds.core.application.CompatibilityChecker
 import com.dsbuilder.ds.core.application.ModelReadItems
 import com.dsbuilder.ds.core.application.ModelReadQuery
 import com.dsbuilder.ds.core.application.mapItems
+import com.dsbuilder.ds.core.data.bindVersionCoreReleases
 import com.dsbuilder.ds.core.data.lockDesignSystemPublication
+import com.dsbuilder.ds.core.data.lockDraftCoreSelection
 import com.dsbuilder.ds.core.data.modelReadVersionPage
 import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.data.resolvedDraftRevision
@@ -33,6 +36,7 @@ import java.time.Instant
 /** Хранилище новых опубликованных границ; прежние строки со снимками намеренно скрыты. */
 class ExposedDesignSystemVersionRepository(
     private val changes: DraftChangeRepository,
+    private val compatibility: CompatibilityChecker,
 ) : DesignSystemVersionRepository {
     override suspend fun list(projectId: ProjectId): List<DesignSystemVersion> = publishedRows(projectId)
         .map(::toDomain)
@@ -89,6 +93,10 @@ class ExposedDesignSystemVersionRepository(
         if (changes.hasChanges(projectId, command.designSystemId) != true) {
             return PublishDesignSystemResult.EmptyDraft
         }
+        lockDraftCoreSelection()
+        val report = compatibility.check(projectId, command.designSystemId.value, null)
+        if (report.blockingCount > 0) return PublishDesignSystemResult.CoreConflict(report)
+        bindVersionCoreReleases(actualId.value)
         val published = VersionBoundariesTable.updateReturning(
             where = { VersionBoundariesTable.id eq actualId.value },
         ) {
@@ -113,7 +121,24 @@ class ExposedDesignSystemVersionRepository(
             it[publicationStatus] = null
             it[publishedAt] = null
         }
+        inheritCoreSelection(actualId.value, command.designSystemId.value)
         return PublishDesignSystemResult.Published(toDomain(published))
+    }
+
+    private fun inheritCoreSelection(publishedId: java.util.UUID, designSystemId: java.util.UUID) {
+        TransactionManager.current().exec(
+            "UPDATE design_system_versions next SET core_selection_revision = previous.core_selection_revision " +
+                "FROM design_system_versions previous WHERE previous.id = ? " +
+                "AND next.design_system_id = previous.design_system_id AND next.status = 'draft'",
+            listOf(UUIDColumnType() to publishedId),
+        )
+        TransactionManager.current().exec(
+            "INSERT INTO design_system_version_core_releases(version_id, platform, release_id, selection_mode) " +
+                "SELECT next.id, binding.platform, binding.release_id, binding.selection_mode " +
+                "FROM design_system_versions next JOIN design_system_version_core_releases binding ON " +
+                "binding.version_id = ? WHERE next.design_system_id = ? AND next.status = 'draft'",
+            listOf(UUIDColumnType() to publishedId, UUIDColumnType() to designSystemId),
+        )
     }
 
     private fun publishedRows(

@@ -15,7 +15,14 @@
 Backend ничего не знает о форматах мет. Он получает **манифест**: компоненты, их свойства, состояния и
 платформенные имена свойств. Ваша задача — научить CLI превращать файл меты вашей платформы в этот манифест.
 
-Сейчас есть три готовых образца, на которые стоит опираться:
+Координаты Core передаются отдельно от файла; нормализатор не добавляет обёртку к исходной мете.
+CLI сохраняет её точные байты для SHA-256. `conflicts` отклоняет весь релиз до сетевого запроса.
+`Empty` допустим только для явно пустого массива или Android View `{ "components": [] }`.
+Неподдержанные определения не должны превращать непустой файл в пустой релиз.
+Системные общие состояния не включаются в Core. Вложенность и допустимые `componentTargets`
+передаются только по однозначным данным платформенной меты, без сопоставления по похожим именам.
+
+Сейчас есть четыре готовых образца, на которые стоит опираться:
 
 | Платформа | Нормализатор | Тесты | Корпус |
 |---|---|---|---|
@@ -199,14 +206,18 @@ cd frontend-kt
 
 Поднимите локальный контур (`./setup-local.sh`: gateway, Keycloak, ds-service из вашей ветки), соберите CLI
 (`frontend-kt/install-local-cli.sh`) и войдите администратором: импорт доступен только системному
-администратору (`dsbuilder auth login --username admin@example.com`).
+администратору (`DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login`).
 
 ```bash
-dsbuilder components import-api --from <файл меты> --platform swiftui          # dry run
-dsbuilder components import-api --from <файл меты> --platform swiftui --apply
-dsbuilder components import-api --from <файл меты> --platform swiftui --apply # повтор
+# Dry run.
+dsbuilder components import-api --from ./swiftui-api-meta.json --platform swiftui \
+  --library-id my-swiftui-library --core-version 1.0.0 --channel dev
+# Запись. Повтор той же команды возвращает тот же Core release ID.
+dsbuilder components import-api --from ./swiftui-api-meta.json --platform swiftui \
+  --library-id my-swiftui-library --core-version 1.0.0 --channel dev --apply
 ```
 
+В отчёте `--apply` сверьте координаты, канал и `Core release ID`.
 Ожидаемо: на чистой платформе все счётчики `Created` растут, на повторе нули, `Rejected: 0`, раздел
 `Absent from meta` пуст, `Property type mismatches` пуст (у каждой платформы свои компоненты, конфликтовать
 не с чем). Затем сверьте базу с метой своим скриптом: каждому `(компонент, id)` из меты соответствует

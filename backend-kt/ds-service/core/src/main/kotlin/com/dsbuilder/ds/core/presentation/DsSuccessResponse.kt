@@ -24,3 +24,15 @@ suspend inline fun <reified T : Any> ApplicationCall.respondSuccess(
     appendReadPage(result.readPage)
     respond(status, message)
 }
+
+/** Преобразует успешное значение use case в HTTP DTO, сохраняя общую обработку отказа и метаданных. */
+suspend inline fun <V, reified R : Any> ApplicationCall.respondResult(
+    result: DsResult<V>,
+    status: HttpStatusCode = HttpStatusCode.OK,
+    transform: (V) -> R,
+) {
+    when (result) {
+        is DsResult.Success -> respondSuccess(result, status, transform(result.value))
+        is DsResult.Failure -> respondFailure(result.error)
+    }
+}

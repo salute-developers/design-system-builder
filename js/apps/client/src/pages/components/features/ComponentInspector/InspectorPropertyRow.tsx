@@ -1,3 +1,6 @@
+import { numericPropertyTypes } from '../../../../controllers/componentBuilder/propertyTypes';
+import { useInspectorCompatibility } from '../../../../features/coreCompatibility/InspectorCompatibility';
+import { coreIssueMessages, issueMatchesSource, issueNodeId } from '../../../../features/coreCompatibility/model';
 import { useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 
@@ -24,6 +27,7 @@ import {
     type TokenOption,
 } from '../../../../features/InspectorControls';
 import { TyGlyph } from '../../../../components/TyGlyph';
+import { PropertyWarningIndicator } from '../../../../features/coreCompatibility/PropertyWarningIndicator';
 import { IconPicker, useIconCatalog } from '../../../../modules/icons';
 
 import { InspectorStyleReference } from './InspectorStyleReference';
@@ -133,6 +137,18 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const value = prop.getValue();
     const text = value === undefined || value === null ? '' : String(value);
     const states = [...(prop.getStates() ?? [])].sort((a, b) => compareStates(a.state, b.state));
+    const compatibility = useInspectorCompatibility();
+    const issues =
+        compatibility?.issues.filter(
+            (i) => i.severity === 'blocking' && i.location.propertyId === id && issueMatchesSource(i, source),
+        ) ?? [];
+    const deprecated =
+        api.find((item) => item.id === id)?.deprecated ??
+        (compatibility?.issues.some((i) => i.code === 'CORE_PROPERTY_DEPRECATED' && i.location.propertyId === id)
+            ? {}
+            : undefined);
+    const focused = issues.find((i) => i.issueId === compatibility?.focused) ?? issues[0];
+    const issueAttributes = focused ? { id: issueNodeId(focused), tabIndex: -1, 'data-core-invalid': true } : {};
 
     const isCombination = source.kind === 'combination';
     const composeStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
@@ -369,19 +385,44 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const layout = (controlNode: ReactNode, rows?: ReactNode) => (
         <div
             className={`component-variation-property-group-row ${props.inheritedFrom ? 'is-inherited' : ''}`}
+            {...issueAttributes}
+            data-core-deprecated={deprecated ? true : undefined}
             data-property={prop.getName()}
             data-property-type={type}
         >
             <div className="component-variation-style-row">
-                {/* Подсказка своя, а не `title`: нативная появляется с задержкой и не везде. */}
                 <span
-                    className="sdds-style-role-label"
                     data-tooltip={`${label} · ${props.inheritedFrom ?? sourceLabel(source)}`}
+                    className={`sdds-style-role-label${deprecated || issues.length ? ' has-deprecated-property' : ''}`}
                 >
+                    {issues.length > 0 ? (
+                        <PropertyWarningIndicator
+                            blocking
+                            message={issues.map((issue) => coreIssueMessages[issue.code] ?? issue.code).join('\n')}
+                        />
+                    ) : deprecated ? (
+                        <PropertyWarningIndicator
+                            message={`Свойство устарело${deprecated.message ? `: ${deprecated.message}` : ''}`}
+                        />
+                    ) : null}
                     <b>{label}</b>
                 </span>
                 <div className="component-variation-property-value">
-                    {controlNode}
+                    {issues.some((issue) => issue.code === 'CORE_VALUE_TYPE_CONFLICT') ? (
+                        <div className="component-number-control is-raw core-invalid-control">
+                            <input
+                                aria-label={label}
+                                aria-invalid="true"
+                                readOnly
+                                value={
+                                    issues.find((issue) => issue.code === 'CORE_VALUE_TYPE_CONFLICT')?.storedValue
+                                        ?.literal ?? text
+                                }
+                            />
+                        </div>
+                    ) : (
+                        controlNode
+                    )}
                     {type !== 'color' && <span className="component-property-clear-slot">{clear}</span>}
                 </div>
             </div>

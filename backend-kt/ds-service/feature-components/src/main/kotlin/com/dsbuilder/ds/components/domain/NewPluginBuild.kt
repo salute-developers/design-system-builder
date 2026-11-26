@@ -22,4 +22,8 @@ data class NewPluginBuild(
     val fileCount: Int,
     /** Идентификатор опубликовавшего. */
     val publishedBy: String,
+    /** Полные координаты Core, проверенные по manifest и исходной мете. */
+    val coreRelease: com.dsbuilder.ds.core.domain.CoreReleaseRef,
+    /** Физический каталог полной редакции файлов, независимый от логического build ID. */
+    val storageKey: String = buildId,
 )

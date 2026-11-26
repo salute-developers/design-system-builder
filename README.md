@@ -146,6 +146,9 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 .\setup-local.ps1
 ```
 
+По умолчанию setup регистрирует Web и Compose Core в канале `dev` по метаданным комплектных ZIP
+и публикует оба плагина в локальный MinIO. При отдельном файле `DSBUILDER_WEB_API_META` укажите его точную версию в `DSBUILDER_WEB_CORE_VERSION`.
+
 Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
 Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
 `bootstrap-base.sh`, `publish-preview-plugin.sh` и `seed-local-design-system.sh` выполняются во вспомогательном
@@ -154,23 +157,16 @@ Linux-контейнере. PowerShell-сценарий управляет Docke
 `-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Пути к собственным архивам плагинов или пакету
 компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
 
-После наполнения `base` скрипт публикует Compose- и web-плагин превью из `local-dev/` в локальный MinIO
-(`./publish-preview-plugin.sh --platform compose|react`), и клиент загружает оба плагина оттуда по адресу,
-который выдаёт бэкенд. Архивы и их обновление описаны в [local-dev/README.md](./local-dev/README.md).
-
-Скрипт запускает Kotlin backend в detached-режиме,
-готовит проект, глобальный Web API и Compose API/плагин, затем поднимает клиент. База `ds_registry` живёт в стеке
-`backend-kt` (сервис `ds-db`, хостовый порт `5433`, переопределяется `DS_DB_PORT`), её схему создаёт Flyway;
-Drizzle-миграции не запускаются. `backend-kt/bootstrap-base.sh` через Gateway находит или создаёт проект
-пользователя `admin@example.com` и импортирует глобальный Web API из `web-api-meta.json` в `js/cli`.
-Для генерации этого файла нужны зависимости `js/cli` (`cd js/cli && npm ci`);
-готовый файл можно передать через `DSBUILDER_WEB_API_META`.
+Скрипт запускает Kotlin backend и клиент, готовит проект и регистрирует Core через Gateway.
+Схему базы `ds_registry` (сервис `ds-db`, порт хоста `5433`, настройка `DS_DB_PORT`) создаёт Flyway.
+Выбор канала и обновление архивов описаны в [local-dev/README.md](./local-dev/README.md).
 
 Обычный запуск не создаёт демонстрационные `base`/`sdds_serv_local` и темы, не импортирует значения токенов
 и конфигурации компонентов. Создайте ДС и тему в интерфейсе: начальные токены и компоненты backend заполнит
 из собственных ресурсов. Существующие ДС и журналы сохраняются.
 
-Для отдельной проверки готовой Compose-темы импорт можно запустить явно:
+Чтобы импортировать готовую Compose-тему и конфигурации компонентов, явно передайте пакет.
+Setup сначала зарегистрирует Core из выбранного Compose ZIP.
 
 ```bash
 ./setup-local.sh --components-package ./local-dev/design-system/components

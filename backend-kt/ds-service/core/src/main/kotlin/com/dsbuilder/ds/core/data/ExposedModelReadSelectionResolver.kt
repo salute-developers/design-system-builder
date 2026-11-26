@@ -8,6 +8,7 @@ import com.dsbuilder.ds.core.application.ModelReadSelection
 import com.dsbuilder.ds.core.application.ModelReadSelectionResolver
 import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.ResolvedModelRead
+import com.dsbuilder.ds.core.application.valueOr
 import org.jetbrains.exposed.v1.core.IColumnType
 import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.UUIDColumnType
@@ -17,15 +18,10 @@ import java.util.UUID
 /** Разрешает ресурс и границу внутри текущей JDBC-транзакции. */
 class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
     override suspend fun resolve(context: DsRequestContext, target: ModelReadTarget): DsResult<ResolvedModelRead> {
-        val selection = when (
-            val parsed = ModelReadSelection.parse(
-                listOfNotNull(context.version),
-                listOfNotNull(context.versionId?.toString()),
-            )
-        ) {
-            is DsResult.Failure -> return parsed
-            is DsResult.Success -> parsed.value
-        }
+        val selection = ModelReadSelection.parse(
+            listOfNotNull(context.version),
+            listOfNotNull(context.versionId?.toString()),
+        ).valueOr { return it }
         val owner = owner(context, target) ?: return DsResult.Failure(DsFailure.NotFound)
         return if (context.designSystemId != null && context.designSystemId != owner) {
             DsResult.Failure(DsFailure.NotFound)
@@ -45,7 +41,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
         }
     }
 
-    private fun resolveBoundary(
+    private suspend fun resolveBoundary(
         context: DsRequestContext,
         owner: UUID,
         selection: ModelReadSelection,
@@ -73,21 +69,33 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
                 "draft",
                 draftId = boundary.first,
                 draftRevision = resolvedDraftRevision(boundary.first),
+                coreSelectionRevision = coreSelectionRevision(boundary.first),
             )
         } else {
             ModelReadContext(owner, boundary.second, versionId = boundary.first)
         }
+        if (metadata.draftId != null && context.expectedCoreSelectionRevision != null &&
+            context.expectedCoreSelectionRevision != metadata.coreSelectionRevision
+        ) {
+            return DsResult.Failure(DsFailure.Conflict("CORE_CONTEXT_STALE"))
+        }
+        val coreReleases = withCoreReadScope(owner, metadata.versionId) {
+            ExposedCoreContextResolver().resolve(metadata.versionId)
+        }
+        val coreScope = coreReleases.joinToString(",") { it.releaseId.toString() }
         return DsResult.Success(
             ResolvedModelRead(
                 context.copy(
+                    designSystemId = owner,
                     versionId = metadata.versionId,
                     version = null,
                     readQuery = context.readQuery.copy(
                         version = null,
-                        scope = "${context.projectId.value}/$owner/${metadata.versionId ?: metadata.draftId}",
+                        scope = "${context.projectId.value}/$owner/" +
+                            "${metadata.versionId ?: metadata.draftId}/$coreScope",
                     ),
                 ),
-                metadata,
+                metadata.copy(coreReleases = coreReleases),
             ),
         )
     }

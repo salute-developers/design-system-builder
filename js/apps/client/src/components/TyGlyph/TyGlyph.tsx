@@ -1,5 +1,13 @@
 // Глифы `uiIcon` прототипа (app.js, UI_GLYPHS), которые нужны экрану Typography.
 const GLYPHS = {
+    'arrow-up-right': <path d="M6 18 18 6M7 6h11v11" />,
+    warning: (
+        <>
+            <path d="M12 3 22 21H2Z" />
+            <path d="M12 9v5" />
+            <circle cx="12" cy="17.5" r="0.8" fill="currentColor" stroke="none" />
+        </>
+    ),
     add: <path d="M12 5v14M5 12h14" />,
     search: (
         <>

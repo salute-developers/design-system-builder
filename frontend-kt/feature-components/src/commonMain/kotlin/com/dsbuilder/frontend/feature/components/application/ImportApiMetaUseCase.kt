@@ -5,6 +5,7 @@ import com.dsbuilder.frontend.core.application.CredentialRequest
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.auth.AuthErrorCode
 import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
+import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.CredentialEnvName
 import com.dsbuilder.frontend.core.domain.CredentialPolicy
 import com.dsbuilder.frontend.core.domain.ProjectApiUrl
@@ -13,9 +14,11 @@ import com.dsbuilder.frontend.core.network.ApiUrlResolver
 import com.dsbuilder.frontend.core.network.ResolvedApiUrl
 import com.dsbuilder.frontend.core.network.WriteApiUrlResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizationResult
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaSkipped
+import com.dsbuilder.frontend.feature.components.domain.apimeta.isExplicitlyEmptyApiMeta
 import com.dsbuilder.frontend.feature.components.domain.apimeta.toApiMetaPlatform
 
 /**
@@ -67,22 +70,46 @@ public class ImportApiMetaUseCase internal constructor(
             is WriteApiUrlResult.Resolved -> resolved.url
         }
 
+        if (command.channel !in setOf("stable", "dev")) {
+            return ImportApiMetaResult.Failed("Error: provide --channel stable or --channel dev.")
+        }
+        val release = command.coreRelease
+        if (!validRelease(release, command.platform)) {
+            return ImportApiMetaResult.Failed(
+                "Error: provide --library-id and --core-version for the selected platform.",
+            )
+        }
+
         val file = when (val read = metaSource.read(command.from)) {
             is ApiMetaSourceResult.Failed -> return ImportApiMetaResult.Failed(read.message)
             is ApiMetaSourceResult.Read -> read
         }
 
-        val normalized = when (val result = normalizer.normalize(file.text, command.typeMap)) {
+        val normalized = when (val result = normalizeFile(normalizer, file, command)) {
             is ApiMetaNormalizationResult.Invalid -> return ImportApiMetaResult.Failed(
                 "Error: cannot read ${file.path}: ${result.message}",
             )
             ApiMetaNormalizationResult.Empty -> return ImportApiMetaResult.Failed(
-                "Error: ${file.path} contains no components with parameters; it is not an API meta of " +
-                    "platform '${command.platform.cliValue}' or it is empty.",
+                "Error: metadata ${file.path} has no supported component definitions.",
             )
             is ApiMetaNormalizationResult.Normalized -> result
         }
 
+        if (normalized.conflicts.isNotEmpty()) {
+            return ImportApiMetaResult.Failed(
+                "Error: conflicting metadata definitions: ${normalized.conflicts.joinToString()}",
+            )
+        }
+        return send(command, apiUrl, file, normalized, onTarget)
+    }
+
+    private suspend fun send(
+        command: ImportApiMetaCommand,
+        apiUrl: ResolvedApiUrl,
+        file: ApiMetaSourceResult.Read,
+        normalized: ApiMetaNormalizationResult.Normalized,
+        onTarget: (ImportApiMetaTarget) -> Unit,
+    ): ImportApiMetaResult {
         val credential = when (val selected = resolveCredential(apiUrl)) {
             is CredentialResult.Failed -> return ImportApiMetaResult.Failed(selected.withLoginHint(apiUrl))
             is CredentialResult.Selected -> selected.credential
@@ -98,26 +125,48 @@ public class ImportApiMetaUseCase internal constructor(
         )
         onTarget(target)
 
-        val imported = remoteSource.import(
-            ImportApiMetaRemoteCommand(
-                apiUrl = ProjectApiUrl(apiUrl.value),
-                credential = credential,
-                platform = command.platform.toApiMetaPlatform(),
-                source = file.path.substringAfterLast('/').substringAfterLast('\\'),
-                dryRun = command.dryRun,
-                manifest = normalized.manifest,
-            ),
+        val request = ImportApiMetaRemoteCommand(
+            apiUrl = ProjectApiUrl(apiUrl.value),
+            credential = credential,
+            platform = command.platform.toApiMetaPlatform(),
+            source = file.path.substringAfterLast('/').substringAfterLast('\\'),
+            dryRun = command.dryRun,
+            manifest = normalized.manifest,
+            coreRelease = requireNotNull(command.coreRelease).copy(platform = command.platform.toApiMetaPlatform()),
+            sourceBytes = file.bytes,
+            channel = command.channel,
         )
 
-        return when (imported) {
+        return when (val imported = remoteSource.import(request)) {
             is ImportApiMetaRemoteResult.Failed -> ImportApiMetaResult.Failed(imported.message, target)
             is ImportApiMetaRemoteResult.Imported -> ImportApiMetaResult.Imported(
                 report = imported.report,
                 target = target,
                 dryRun = command.dryRun,
+                coreRelease = requireNotNull(request.coreRelease),
+                channel = requireNotNull(request.channel),
                 conflicts = normalized.conflicts,
                 skipped = normalized.skipped,
             )
+        }
+    }
+
+    private fun validRelease(release: CoreReleaseRef?, platform: TargetPlatform): Boolean =
+        release != null && release.libraryId.isNotBlank() && release.version.isNotBlank() &&
+            release.platform in setOf(platform.toApiMetaPlatform(), platform.cliValue)
+
+    private fun normalizeFile(
+        normalizer: ApiMetaNormalizer,
+        file: ApiMetaSourceResult.Read,
+        command: ImportApiMetaCommand,
+    ): ApiMetaNormalizationResult {
+        val result = normalizer.normalize(file.text, command.typeMap)
+        return if (result == ApiMetaNormalizationResult.Empty &&
+            isExplicitlyEmptyApiMeta(file.text, command.platform.toApiMetaPlatform())
+        ) {
+            ApiMetaNormalizationResult.Normalized(ApiMetaManifest(emptyList()), emptyList())
+        } else {
+            result
         }
     }
 
@@ -150,6 +199,8 @@ public class ImportApiMetaUseCase internal constructor(
  * @property dryRun выполнять ли импорт без сохранения изменений.
  * @property typeMap подмена типа свойства `from → to` до отправки.
  * @property apiUrlOverride backend API URL, переданный аргументом.
+ * @property coreRelease координаты неизменяемого релиза Core.
+ * @property channel явный канал поставки stable/dev.
  */
 public data class ImportApiMetaCommand(
     public val platform: TargetPlatform,
@@ -157,6 +208,8 @@ public data class ImportApiMetaCommand(
     public val dryRun: Boolean,
     public val typeMap: Map<String, String> = emptyMap(),
     public val apiUrlOverride: String? = null,
+    public val coreRelease: CoreReleaseRef? = null,
+    public val channel: String? = null,
 )
 
 /**
@@ -191,6 +244,8 @@ public sealed interface ImportApiMetaResult {
      * @property report отчёт импорта.
      * @property target цель запроса и состав манифеста.
      * @property dryRun выполнялся ли импорт без сохранения изменений.
+     * @property coreRelease отправленные координаты Core в обозначениях сервера.
+     * @property channel канал из запроса импорта.
      * @property conflicts повторы свойства с другим типом внутри меты: побеждало первое вхождение.
      * @property skipped то, что нормализатор сознательно не включил в манифест, по категориям.
      */
@@ -198,6 +253,8 @@ public sealed interface ImportApiMetaResult {
         public val report: ApiMetaImportReport,
         override val target: ImportApiMetaTarget,
         public val dryRun: Boolean,
+        public val coreRelease: CoreReleaseRef,
+        public val channel: String,
         public val conflicts: List<String> = emptyList(),
         public val skipped: List<ApiMetaSkipped> = emptyList(),
     ) : ImportApiMetaResult

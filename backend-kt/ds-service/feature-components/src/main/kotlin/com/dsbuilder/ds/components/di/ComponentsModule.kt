@@ -7,6 +7,7 @@ import com.dsbuilder.ds.components.application.ComponentRepository
 import com.dsbuilder.ds.components.application.ComponentReuseConfigRepository
 import com.dsbuilder.ds.components.application.ComponentTemplateRepository
 import com.dsbuilder.ds.components.application.ComponentWebAdapterRepository
+import com.dsbuilder.ds.components.application.CoreProblemRepairRepository
 import com.dsbuilder.ds.components.application.CreateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.CreateComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.CreateComponentUseCase
@@ -25,6 +26,8 @@ import com.dsbuilder.ds.components.application.GetComponentPropertiesWithPlatfor
 import com.dsbuilder.ds.components.application.GetComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.GetComponentUseCase
 import com.dsbuilder.ds.components.application.GetComponentWebAdapterUseCase
+import com.dsbuilder.ds.components.application.GetCoreCompatibilityUseCase
+import com.dsbuilder.ds.components.application.GetCorePreviewUseCase
 import com.dsbuilder.ds.components.application.GetDesignSystemComponentUseCase
 import com.dsbuilder.ds.components.application.GetIconCatalogUseCase
 import com.dsbuilder.ds.components.application.IconCatalogRepository
@@ -43,24 +46,31 @@ import com.dsbuilder.ds.components.application.ListDesignSystemComponentsUseCase
 import com.dsbuilder.ds.components.application.PluginBuildRepository
 import com.dsbuilder.ds.components.application.PublishIconCatalogUseCase
 import com.dsbuilder.ds.components.application.PublishPluginBuildUseCase
+import com.dsbuilder.ds.components.application.RepairCoreProblemUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentDependencyUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentReuseConfigUseCase
 import com.dsbuilder.ds.components.application.UpdateComponentUseCase
+import com.dsbuilder.ds.components.data.AppearanceEditorValueOperations
 import com.dsbuilder.ds.components.data.ExposedApiMetaRepository
+import com.dsbuilder.ds.components.data.ExposedCompatibilityChecker
 import com.dsbuilder.ds.components.data.ExposedComponentConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentDependencyRepository
 import com.dsbuilder.ds.components.data.ExposedComponentRepository
 import com.dsbuilder.ds.components.data.ExposedComponentReuseConfigRepository
 import com.dsbuilder.ds.components.data.ExposedComponentTemplateRepository
 import com.dsbuilder.ds.components.data.ExposedComponentWebAdapterRepository
+import com.dsbuilder.ds.components.data.ExposedCoreSettingsRepository
 import com.dsbuilder.ds.components.data.ExposedDesignSystemComponentRepository
 import com.dsbuilder.ds.components.data.ExposedIconCatalogRepository
 import com.dsbuilder.ds.components.data.ExposedIconUsageReader
 import com.dsbuilder.ds.components.data.ExposedPluginBuildRepository
 import com.dsbuilder.ds.components.data.GeneratedDesignSystemComponentInitializer
 import com.dsbuilder.ds.components.data.componentDraftChangeHandlers
+import com.dsbuilder.ds.core.application.CompatibilityChecker
+import com.dsbuilder.ds.core.application.CoreContextResolver
 import com.dsbuilder.ds.core.application.DesignSystemComponentInitializer
 import com.dsbuilder.ds.core.application.DraftChangeHandler
+import com.dsbuilder.ds.core.data.ExposedCoreContextResolver
 import org.koin.core.qualifier.named
 import org.koin.dsl.module
 
@@ -71,9 +81,22 @@ val componentsModule = module {
     }
     single { GeneratedDesignSystemComponentInitializer() }
     single<DesignSystemComponentInitializer> { get<GeneratedDesignSystemComponentInitializer>() }
-    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get()) }
+    single<ComponentTemplateRepository> { ExposedComponentTemplateRepository(get(), get()) }
     single<ComponentRepository> { ExposedComponentRepository() }
-    single<ComponentConfigRepository> { ExposedComponentConfigRepository() }
+    single<ComponentConfigRepository> { ExposedComponentConfigRepository(get()) }
+    factory { RepairCoreProblemUseCase(get(), get(), get()) }
+    single<CoreProblemRepairRepository> {
+        val values = AppearanceEditorValueOperations(get())
+        CoreProblemRepairRepository { project, admin, command -> values.repairValue(project, admin, command) }
+    }
+    single<CoreContextResolver> { ExposedCoreContextResolver() }
+    factory { GetCorePreviewUseCase(get(), get(), get(), get(), get()) }
+    factory { GetCoreCompatibilityUseCase(get(), get(), get()) }
+    factory { com.dsbuilder.ds.components.application.ReadCoreSettingsUseCase(get(), get(), get()) }
+    single<com.dsbuilder.ds.components.application.CoreSettingsRepository> { ExposedCoreSettingsRepository() }
+    factory { com.dsbuilder.ds.components.application.ListCoreReleasesUseCase(get(), get(), get()) }
+    factory { com.dsbuilder.ds.components.application.SelectCoreReleaseUseCase(get(), get(), get(), get()) }
+    single<CompatibilityChecker> { ExposedCompatibilityChecker() }
     single<ApiMetaRepository> { ExposedApiMetaRepository() }
     single<PluginBuildRepository> { ExposedPluginBuildRepository() }
     single<IconCatalogRepository> { ExposedIconCatalogRepository() }

@@ -28,4 +28,6 @@ data class PluginBuild(
     val publishedAt: Instant,
     /** Активен ли билд. */
     val active: Boolean,
+    /** Физический каталог полной редакции файлов, независимый от логического build ID. */
+    val storageKey: String = buildId,
 )

@@ -5,36 +5,41 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 GATEWAY_URL="${GATEWAY_URL:-http://localhost:8080}"
 PLUGIN_SOURCE=""
 PLATFORM=""
+CHANNEL=""
 CLI="${DSBUILDER_CLI:-}"
+REGISTER_CORE=0
 
 usage() {
   cat <<'USAGE'
 Usage:
-  ./publish-preview-plugin.sh --platform compose --from path/to/preview-compose-plugin.zip
-  ./publish-preview-plugin.sh --platform react --from path/to/preview-web-plugin.zip
-  ./publish-preview-plugin.sh --platform compose --from https://example.com/preview-compose-plugin.zip
+  ./publish-preview-plugin.sh --platform compose --channel dev --from path/to/preview-compose-plugin.zip
+  ./publish-preview-plugin.sh --platform react --channel dev --from path/to/preview-web-plugin.zip
+  ./publish-preview-plugin.sh --platform compose --channel dev --from https://example.com/preview-compose-plugin.zip
 
 Local dev helper for the stack started by ./setup-local.sh. It sends a prebuilt preview plugin to the local backend,
 exactly as CI does: the backend stores the files in the local MinIO bucket of the platform (compose-preview or
-web-preview), imports the API meta from the archive into the component layer of the platform and makes the build
+web-preview), verifies the archive against the registered Core release and makes the build
 active, so the component editor shows the preview.
 
-Archives bundled in this repository (setup-local.sh uses them by default):
+Rebuild the bundled archives if their manifest lacks coreRelease:
   compose  local-dev/compose-preview/preview-compose-plugin.zip  (./refresh-local-dev-assets.sh updates it; a fresh
            build comes from plasma-android: ./gradlew :integration-core:preview-compose-plugin:previewPluginArtifact)
   react    local-dev/web-preview/preview-web-plugin.zip           (npm run package in plasma packages/sdds-preview-web-plugin)
 
 Options:
   --platform compose|react  Plugin platform: compose (Compose plugin) or react (web plugin).
+  --channel stable|dev     Publication channel (required, independent of the archive and server).
   --from FILE|URL           Plugin archive: a local file or an http(s) address.
+  --register-core           Import Core from the same archive with the local setup administrator before publication.
   --gateway-url URL         Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
   --cli PATH                dsbuilder CLI with the `preview-plugin` command. Env: DSBUILDER_CLI. By default the
-                            JVM CLI of this checkout is built (needs JDK 17), so the imported API meta matches
-                            the repository's current capabilities.
+                            JVM CLI of this checkout is built (needs JDK 17), so publication uses the current
+                            Core metadata format.
   --help                    Show this help.
 
 The publication signs in as the local service account of the Keycloak dev realm. Override it with
-DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. A repeated publication of the same build is harmless.
+DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. With --register-core, the helper registers the Core as
+the local setup administrator first. A repeated publication of the same build is harmless.
 USAGE
 }
 
@@ -53,6 +58,8 @@ while [[ $# -gt 0 ]]; do
       PLATFORM="${2:-}"
       shift 2
       ;;
+    --channel) CHANNEL="${2:-}"; shift 2 ;;
+    --register-core) REGISTER_CORE=1; shift ;;
     --from)
       PLUGIN_SOURCE="${2:-}"
       shift 2
@@ -82,6 +89,7 @@ case "$PLATFORM" in
   react) ARCHIVE_NAME="preview-web-plugin.zip" ;;
   *) usage >&2; fail "Pass --platform compose or --platform react" ;;
 esac
+[[ "$CHANNEL" =~ ^(stable|dev)$ ]] || fail "Pass --channel stable or dev"
 [[ -n "$PLUGIN_SOURCE" ]] || { usage >&2; fail "Pass the plugin archive with --from"; }
 
 WORK_DIR="$(mktemp -d)"
@@ -95,13 +103,17 @@ if [[ "$PLUGIN_SOURCE" =~ ^https?:// ]]; then
   curl -fsSL -o "$ARCHIVE" "$PLUGIN_SOURCE" || fail "Could not download $PLUGIN_SOURCE"
 fi
 [[ -f "$ARCHIVE" ]] || fail "Plugin archive not found: $ARCHIVE"
+if [[ "$REGISTER_CORE" == "1" && "$ARCHIVE" == "$PLUGIN_SOURCE" ]]; then
+  cp -- "$ARCHIVE" "$WORK_DIR/$ARCHIVE_NAME"
+  ARCHIVE="$WORK_DIR/$ARCHIVE_NAME"
+fi
 
 resolve_cli() {
   if [[ -n "$CLI" ]]; then
     echo "$CLI"
     return
   fi
-  # Command availability cannot detect an older CLI that silently drops newer API meta fields.
+  # A CLI on PATH can support --channel and still omit newer fields from Core metadata.
   local jvm="$ROOT_DIR/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder"
   log "Building the JVM dsbuilder CLI of this checkout" >&2
   (cd "$ROOT_DIR/frontend-kt" && ./gradlew --quiet :cli:installJvmDist >&2) || fail "The CLI build failed (JDK 17 is required)"
@@ -111,12 +123,24 @@ resolve_cli() {
 
 CLI="$(resolve_cli)"
 
+if [[ "$REGISTER_CORE" == "1" ]]; then
+  log "Registering Core for the $PLATFORM plugin in the $CHANNEL channel"
+  request="$WORK_DIR/core-import.json"
+  if ! DSBUILDER_ANALYTICS_DISABLED=1 "$CLI" preview-plugin publish --platform "$PLATFORM" \
+    --channel "$CHANNEL" --from "$ARCHIVE" --print-core-import-request > "$request"; then
+    cat "$request" >&2
+    fail "Could not prepare Core API meta from $ARCHIVE"
+  fi
+  DSBUILDER_GATEWAY_URL="$GATEWAY_URL" DSBUILDER_PROJECT_CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-dsbuilder-api}" \
+    "$ROOT_DIR/backend-kt/bootstrap-base.sh" --import-core-request "$request"
+fi
+
 # The Keycloak dev realm (backend-kt/identity-gateway) creates this service account with the publisher role only.
 export DSBUILDER_CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-preview-publisher}"
 export DSBUILDER_CLIENT_SECRET="${DSBUILDER_CLIENT_SECRET:-dev-preview-publisher-secret}"
 
 log "Publishing the $PLATFORM plugin $ARCHIVE to $GATEWAY_URL"
-"$CLI" preview-plugin publish --platform "$PLATFORM" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
-  || fail "The publication failed. Is the stack running (./setup-local.sh)?"
+"$CLI" preview-plugin publish --platform "$PLATFORM" --channel "$CHANNEL" --from "$ARCHIVE" --api-url "$GATEWAY_URL" --apply \
+  || fail "The publication failed. Use an archive with coreRelease and register its Core in the chosen channel. See local-dev/README.md."
 
 log "Done. The component editor loads the plugin from the local MinIO bucket."

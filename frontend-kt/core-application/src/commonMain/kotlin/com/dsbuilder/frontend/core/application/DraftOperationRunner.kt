@@ -10,6 +10,8 @@ public data class DraftEditOptions(
     public val version: String? = null,
     /** Базовая предметная редакция. */
     public val baseRevision: Long? = null,
+    /** Ревизия выбора Core прочитанной модели. */
+    public val coreSelectionRevision: Long? = null,
 )
 
 /** Результат операции редактора с однократно разрешённым контекстом. */
@@ -43,7 +45,9 @@ public class DraftOperationRunner(private val resolver: RuntimeRequestResolver) 
         request: RuntimeRequest,
         operation: suspend (RuntimeResolution.Resolved) -> HttpMutationResult,
     ): DraftOperationResult {
-        if (options.idempotencyKey.isBlank() || options.baseRevision?.let { it < 0 } == true) {
+        if (options.idempotencyKey.isBlank() || options.baseRevision?.let { it < 0 } == true ||
+            options.coreSelectionRevision?.let { it < 0 } == true
+        ) {
             return DraftOperationResult.Failed("VALIDATION_FAILED", "A key and non-negative revision are required.")
         }
         return execute(options.version, options.idempotencyKey, request, operation)

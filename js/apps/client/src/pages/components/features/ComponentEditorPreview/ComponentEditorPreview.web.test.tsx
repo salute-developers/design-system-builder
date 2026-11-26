@@ -1,5 +1,8 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { useEffect } from 'react';
+import { useEffect, type ReactNode } from 'react';
+import { MemoryRouter } from 'react-router-dom';
+import { ComposePreviewHostProvider } from '../../../../composePreview';
+import { useCorePreview } from '../../../../composePreview/useCorePreview';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import type {
@@ -7,7 +10,6 @@ import type {
     PreviewPayloadInput,
     WebPreviewPayloadOptions,
 } from '../../../../composePreview';
-import { resetWebPreviewPluginLocation } from '../../../../composePreview/webPluginLocation';
 import { ComponentEditorPreview } from './ComponentEditorPreview';
 import { withStoryArgs } from './storyArgsTestHarness';
 
@@ -43,7 +45,6 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../../composePreview')>();
     return {
         ...actual,
-        getComposePreviewPluginUrl: () => undefined,
         isComposePreviewEnvironmentSupported: () => pluginState.wasmSupported,
         loadComposePreviewManifest: (url: string, platform?: string) => pluginState.loadManifest(url, platform),
         // Compose-payload здесь не нужен: адреса Compose-плагина нет.
@@ -84,17 +85,28 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     };
 });
 
-// Доступность web-плагина проверяет `useWebPreviewPlugin` через внутренние модули, минуя `index`.
+// Доступность выбранного web-плагина проверяет `useWebPreviewPluginAt` через внутренние модули.
 vi.mock('../../../../composePreview/config', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/config')>()),
     getWebPreviewPluginOverride: () => pluginState.webUrl,
 }));
-vi.mock('../../../../api/webPreviewPluginRepository', () => ({
-    fetchWebPreviewPluginDescriptor: (projectId: string) => pluginState.fetchDescriptor(projectId),
+vi.mock('../../../../api/http', () => ({
+    http: {
+        get: async (url: string, options: unknown) => {
+            const data = await pluginState.fetchDescriptor(url, options);
+            if (!data) throw { isAxiosError: true, response: { status: 404 } };
+            return { data };
+        },
+    },
 }));
 vi.mock('../../../../composePreview/manifest', async (importOriginal) => ({
     ...(await importOriginal<typeof import('../../../../composePreview/manifest')>()),
     loadComposePreviewManifest: (url: string, platform?: string) => pluginState.loadManifest(url, platform),
+}));
+
+vi.mock('../../../../modules/icons', () => ({
+    useIconCatalog: () => ({ data: undefined }),
+    iconPreviewAsset: () => undefined,
 }));
 
 vi.mock('../../../../hooks', async (importOriginal) => {
@@ -123,21 +135,42 @@ const theme = {
     getRevision: () => 1,
 };
 
-const designSystem = { getParameters: () => ({ projectId: 'project-1' }) };
+const designSystem = { getParameters: () => ({ projectId: 'project-1', designSystemId: 'ds-1' }) };
+
+const SelectedWebPreview = ({ children, enabled }: { children: ReactNode; enabled: boolean }) => {
+    const selected = useCorePreview('web', designSystem.getParameters(), enabled);
+    return (
+        <ComposePreviewHostProvider
+            platform="web"
+            pluginUrl={selected.pluginUrl}
+            scope={selected.key}
+            error={selected.error}
+            loading={selected.loading}
+        >
+            {children}
+        </ComposePreviewHostProvider>
+    );
+};
 
 const previewElement = (config = configOf('Button')) => (
-    <ComponentEditorPreview
-        config={config as never}
-        theme={theme as never}
-        designSystem={designSystem as never}
-        args={{ view: 'style-accent' }}
-        themeModeList={[{ label: 'Тёмный', value: 'dark' }]}
-        themeMode={{ label: 'Тёмный', value: 'dark' }}
-        onUpdateThemeMode={vi.fn()}
-        title="Preview"
-        platforms={[]}
-        onPlatformSelect={vi.fn()}
-    />
+    <MemoryRouter>
+        <SelectedWebPreview enabled={config.getPlatform() === 'web'}>
+            {withStoryArgs(
+                <ComponentEditorPreview
+                    config={config as never}
+                    theme={theme as never}
+                    designSystem={designSystem as never}
+                    args={{ view: 'style-accent' }}
+                    themeModeList={[{ label: 'Тёмный', value: 'dark' }]}
+                    themeMode={{ label: 'Тёмный', value: 'dark' }}
+                    onUpdateThemeMode={vi.fn()}
+                    title="Preview"
+                    platforms={[]}
+                    onPlatformSelect={vi.fn()}
+                />,
+            )}
+        </SelectedWebPreview>
+    </MemoryRouter>
 );
 
 const lastWebPayload = () =>
@@ -147,7 +180,6 @@ const lastWebPayload = () =>
 
 describe('ComponentEditorPreview web plugin', () => {
     beforeEach(() => {
-        resetWebPreviewPluginLocation();
         pluginState.webUrl = WEB_PLUGIN_URL;
         pluginState.fetchDescriptor = vi.fn();
         pluginState.wasmSupported = true;
@@ -163,7 +195,7 @@ describe('ComponentEditorPreview web plugin', () => {
     });
 
     it('renders a web component listed by the web plugin manifest through the web host slot', async () => {
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
         expect(pluginState.loadManifest).toHaveBeenCalledWith(WEB_PLUGIN_URL, 'web');
@@ -186,7 +218,7 @@ describe('ComponentEditorPreview web plugin', () => {
     });
 
     it('builds the story controls from the plugin description and sends only changed values', async () => {
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
         await screen.findByTestId('web-frame');
 
         for (const label of ['Text', 'Disabled', 'Stretching']) {
@@ -196,7 +228,7 @@ describe('ComponentEditorPreview web plugin', () => {
         expect(screen.queryByText('View')).not.toBeInTheDocument();
         expect(lastWebPayload()?.example.props).toEqual({});
 
-        fireEvent.change(screen.getByDisplayValue('Hello'), { target: { value: 'Купить' } });
+        fireEvent.change(await screen.findByDisplayValue('Hello'), { target: { value: 'Купить' } });
 
         await waitFor(() => expect(lastWebPayload()?.example).toEqual({ id: 'Default', props: { text: 'Купить' } }));
         expect(lastWebPayload()?.component.variations).toEqual({ view: 'accent' });
@@ -222,7 +254,7 @@ describe('ComponentEditorPreview web plugin', () => {
             ],
         });
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByText('Stretching')).toBeInTheDocument();
         expect(screen.queryByRole('combobox', { name: 'View' })).not.toBeInTheDocument();
@@ -250,12 +282,12 @@ describe('ComponentEditorPreview web plugin', () => {
         );
         pluginState.describe = describeStory;
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
         await screen.findByTestId('web-frame');
         expect(await screen.findByText('История')).toBeInTheDocument();
         expect(describeStory).toHaveBeenLastCalledWith(undefined);
 
-        fireEvent.change(screen.getByDisplayValue('Hello'), { target: { value: 'Купить' } });
+        fireEvent.change(await screen.findByDisplayValue('Hello'), { target: { value: 'Купить' } });
         await waitFor(() => expect(lastWebPayload()?.example).toEqual({ id: 'Default', props: { text: 'Купить' } }));
 
         fireEvent.click(screen.getByText('Default'));
@@ -274,7 +306,7 @@ describe('ComponentEditorPreview web plugin', () => {
     it('does not offer a story choice for a component with a single plugin story', async () => {
         pluginState.describe = () => ({ ...description, stories: [{ id: 'Default', name: 'Default' }] });
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByText('Text')).toBeInTheDocument();
         expect(screen.queryByText('История')).not.toBeInTheDocument();
@@ -284,14 +316,14 @@ describe('ComponentEditorPreview web plugin', () => {
     it('loads the web plugin without a WebAssembly check', async () => {
         pluginState.wasmSupported = false;
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
         expect(screen.queryByRole('status')).not.toBeInTheDocument();
     });
 
     it('uses the direct address without asking the backend', async () => {
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
         expect(pluginState.fetchDescriptor).not.toHaveBeenCalled();
@@ -302,10 +334,13 @@ describe('ComponentEditorPreview web plugin', () => {
         const backendUrl = 'http://localhost:9000/web-preview/builds/0123456789ab/';
         pluginState.fetchDescriptor.mockResolvedValue({ buildId: '0123456789ab', pluginUrl: backendUrl });
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
-        expect(pluginState.fetchDescriptor).toHaveBeenCalledWith('project-1');
+        expect(pluginState.fetchDescriptor).toHaveBeenCalledWith(
+            '/api/projects/project-1/design-systems/ds-1/preview/web',
+            expect.anything(),
+        );
         expect(pluginState.loadManifest).toHaveBeenCalledWith(backendUrl, 'web');
     });
 
@@ -316,7 +351,7 @@ describe('ComponentEditorPreview web plugin', () => {
             .mockResolvedValue({ manifest: { platform: 'web', components: ['Button', 'Checkbox'] } });
         pluginState.fetchDescriptor.mockResolvedValue({ buildId: '0123456789ab', pluginUrl: 'https://plugins.test/' });
 
-        const { rerender } = render(withStoryArgs(previewElement()));
+        const { rerender } = render(previewElement());
         await screen.findByTestId('web-frame');
         rerender(previewElement(configOf('Checkbox')));
         await waitFor(() => expect(pluginState.webAssemblies.at(-1)?.config.getName()).toBe('Checkbox'));
@@ -328,10 +363,10 @@ describe('ComponentEditorPreview web plugin', () => {
         pluginState.webUrl = undefined;
         pluginState.fetchDescriptor.mockResolvedValue(undefined);
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: web-плагин превью не опубликован',
+            'Превью недоступно: Для выбранного Core пока нет preview',
         );
         expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(screen.queryByTestId('web-frame')).not.toBeInTheDocument();
@@ -342,11 +377,10 @@ describe('ComponentEditorPreview web plugin', () => {
         pluginState.webUrl = undefined;
         pluginState.fetchDescriptor.mockRejectedValue(new Error('Network Error'));
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
-        expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
-            'Превью недоступно: адрес web-плагина превью не получен: Network Error',
-        );
+        expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось загрузить preview');
+        expect(screen.queryByText('Для выбранного Core пока нет preview')).not.toBeInTheDocument();
         expect(screen.getByRole('switch', { name: 'Тёмная тема' })).toBeInTheDocument();
         expect(pluginState.loadManifest).not.toHaveBeenCalled();
     });
@@ -366,7 +400,7 @@ describe('ComponentEditorPreview web plugin', () => {
             .fn()
             .mockRejectedValue(new Error('unsupported platform: expected web, got compose'));
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
             'манифест web-плагина не загрузился: unsupported platform: expected web, got compose',
@@ -377,7 +411,7 @@ describe('ComponentEditorPreview web plugin', () => {
     it('shows the assembly diagnostic instead of the frame when the payload cannot be built', async () => {
         pluginState.webFailure = 'Theme token surface.x is missing';
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('preview-unavailable')).toHaveTextContent(
             'Превью недоступно: Theme token surface.x is missing',
@@ -388,7 +422,7 @@ describe('ComponentEditorPreview web plugin', () => {
     it('offers no React renderer in the debug mode and shows the WEB payload', async () => {
         localStorage.setItem('debug_mode', 'true');
 
-        render(withStoryArgs(previewElement()));
+        render(previewElement());
 
         expect(await screen.findByTestId('web-frame')).toBeInTheDocument();
         expect(screen.queryByText('React')).not.toBeInTheDocument();

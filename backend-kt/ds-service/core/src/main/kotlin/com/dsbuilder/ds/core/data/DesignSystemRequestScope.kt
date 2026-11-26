@@ -71,7 +71,7 @@ fun requireRequestDesignSystemMutable() {
 /** Проверяет систему успешной пустой команды, если до записи проверка ещё не потребовалась. */
 internal fun verifyRequestMutationScope(expected: UUID?) {
     if (expected != null && TransactionManager.current().getUserData(requestMutationScopeChecked) != true) {
-        requireRequestDesignSystemMutable()
+        lockDraftCoreSelection()
     }
 }
 

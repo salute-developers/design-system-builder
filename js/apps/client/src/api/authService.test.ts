@@ -4,12 +4,17 @@ import { authService } from './authService';
 import { tokenStore } from './tokenStore';
 
 vi.mock('./keycloak', () => ({
-    loginWithPassword: vi.fn(), logoutOnServer: vi.fn(), refreshTokens: vi.fn(),
+    loginWithPassword: vi.fn(),
+    logoutOnServer: vi.fn(),
+    refreshTokens: vi.fn(),
 }));
 
 const encodePayload = (payload: object) => {
     const bytes = new TextEncoder().encode(JSON.stringify(payload));
-    const base64 = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const base64 = btoa(String.fromCharCode(...bytes))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '');
     return `header.${base64}.signature`;
 };
 
@@ -19,10 +24,13 @@ afterEach(async () => {
 });
 
 const tokens = (name: string) => ({ access_token: name, refresh_token: `refresh-${name}`, expires_in: 60 });
-const deferred = <T,>() => {
+const deferred = <T>() => {
     let resolve!: (value: T) => void;
     let reject!: (reason: Error) => void;
-    const promise = new Promise<T>((yes, no) => { resolve = yes; reject = no; });
+    const promise = new Promise<T>((yes, no) => {
+        resolve = yes;
+        reject = no;
+    });
     return { promise, resolve, reject };
 };
 
@@ -117,4 +125,84 @@ describe('authService current user', () => {
         tokenStore.save({ access_token: 'not-a-jwt', refresh_token: 'refresh', expires_in: 60 });
         expect(authService.getCurrentUser()).toBeNull();
     });
+});
+
+it('cancels an old queue on a different stored user even before the storage event', () => {
+    tokenStore.save({ ...tokens('old'), access_token: encodePayload({ iss: 'realm', sub: 'old', sid: 'old-login' }) });
+    const signal = authService.getSessionSignal();
+    tokenStore.save({ ...tokens('new'), access_token: encodePayload({ iss: 'realm', sub: 'new', sid: 'new-login' }) });
+    expect(() => authService.assertSession(signal)).toThrow();
+    expect(signal.aborted).toBe(true);
+    expect(authService.getUserKey()).toBe(JSON.stringify(['realm', 'new']));
+});
+
+it('keeps the queue alive through a token rotation for the same user and login', () => {
+    const identity = { iss: 'realm', sub: 'own', sid: 'login' };
+    tokenStore.save({ ...tokens('old'), access_token: encodePayload({ ...identity, iat: 1 }) });
+    const signal = authService.getSessionSignal();
+    tokenStore.save({ ...tokens('fresh'), access_token: encodePayload({ ...identity, iat: 2 }) });
+    window.dispatchEvent(new StorageEvent('storage', { key: 'auth.access_token' }));
+    expect(authService.getSessionSignal()).toBe(signal);
+    expect(signal.aborted).toBe(false);
+});
+
+it('reads the original token format without writing or migrating on startup', async () => {
+    tokenStore.save(tokens('existing'));
+    const nativeSet = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new DOMException('quota', 'QuotaExceededError');
+    });
+    expect(await authService.getValidAccessToken()).toBe('existing');
+    expect(nativeSet).not.toHaveBeenCalled();
+    nativeSet.mockRestore();
+    expect(localStorage.getItem('auth.access_token')).toBe('existing');
+    expect(localStorage.getItem('auth.refresh_token')).toBe('refresh-existing');
+    expect(localStorage.getItem('auth.session')).toBeNull();
+});
+
+it('cancels the original queue when another user logs in just after refresh writes', async () => {
+    const oldIdentity = { iss: 'realm', sub: 'old', sid: 'old-login' };
+    tokenStore.save({ ...tokens('old'), access_token: encodePayload(oldIdentity) });
+    const original = authService.getSessionSignal();
+    vi.mocked(refreshTokens).mockResolvedValueOnce({
+        ...tokens('refreshed'),
+        access_token: encodePayload({ ...oldIdentity, iat: 2 }),
+    });
+    const nativeSet = localStorage.setItem.bind(localStorage);
+    let switched = false;
+    const write = vi.spyOn(localStorage, 'setItem').mockImplementation((key, bytes) => {
+        nativeSet(key, bytes);
+        if (key === 'auth.expires_at' && !switched) {
+            switched = true;
+            tokenStore.save({
+                ...tokens('new'),
+                access_token: encodePayload({ iss: 'realm', sub: 'new', sid: 'new-login' }),
+            });
+        }
+    });
+    try {
+        await expect(authService.refreshAccessToken()).rejects.toThrow('Session changed');
+        expect(original.aborted).toBe(true);
+        expect(() => authService.assertSession(original)).toThrow();
+        expect(authService.getUserKey()).toBe(JSON.stringify(['realm', 'new']));
+    } finally {
+        write.mockRestore();
+    }
+});
+
+it('cancels an old queue if a mixed token pair refreshes as another known user', async () => {
+    tokenStore.save({
+        ...tokens('mixed'),
+        access_token: encodePayload({ iss: 'realm', sub: 'A', sid: 'A' }),
+        refresh_token: 'refresh-B',
+    });
+    const old = authService.getSessionSignal();
+    vi.mocked(refreshTokens).mockResolvedValueOnce({
+        ...tokens('B'),
+        access_token: encodePayload({ iss: 'realm', sub: 'B', sid: 'B' }),
+    });
+    await expect(authService.refreshAccessToken()).rejects.toThrow('Session changed');
+    expect(refreshTokens).toHaveBeenCalledWith('refresh-B');
+    expect(old.aborted).toBe(true);
+    expect(() => authService.assertSession(old)).toThrow();
+    expect(authService.getUserKey()).toBe(JSON.stringify(['realm', 'B']));
 });

@@ -43,6 +43,7 @@ import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageDirec
 import com.dsbuilder.frontend.feature.components.data.LocalComponentPackageFileWriter
 import com.dsbuilder.frontend.feature.components.data.LocalPreviewPluginArchiveSource
 import com.dsbuilder.frontend.feature.components.data.LocalWebAdapterFileWriter
+import com.dsbuilder.frontend.feature.components.data.encodePreviewCoreImportRequest
 import com.dsbuilder.frontend.feature.components.domain.ComponentPackageWritePlanBuilder
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.SwiftUiApiMetaNormalizer
@@ -135,6 +136,7 @@ private fun Module.apiMetaBindings() {
             apiUrlResolver = get<ApiUrlResolver>(),
             archiveSource = get<PreviewPluginArchiveSource>(),
             remoteSource = get<PreviewPluginRemoteSource>(),
+            encodeCoreImportRequest = ::encodePreviewCoreImportRequest,
             normalizers = mapOf(
                 TargetPlatform.COMPOSE to get<ComposeApiMetaNormalizer>(),
                 TargetPlatform.REACT to get<WebApiMetaNormalizer>(),

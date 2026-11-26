@@ -1,14 +1,23 @@
+import { authService } from '../../api/authService';
+import {
+    archiveCoreSave,
+    ComponentRecoveryChanged,
+    readComponentRecovery,
+    readPendingComponentMutation,
+    hasStaleCoreSave,
+    coreSaveChain,
+    waitForComponentRequests,
+} from '../../api/componentRecovery';
+import { CoreSaveRecovery, CoreSaveCopy } from './ui/CoreSaveRecovery';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
 
 import {
     ComposePreviewHostProvider,
-    getComposePreviewPluginUrl,
     isComposePreviewEnvironmentSupported,
     loadComposePreviewManifest,
     parseComponentRoute,
     toComponentRoute,
-    useWebPreviewPluginLocation,
 } from '../../composePreview';
 import type { ComponentRoute, ComposePreviewComponentGroup } from '../../composePreview';
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
@@ -29,7 +38,9 @@ import {
     type ComponentCatalogEntry,
     type ComponentTemplateEntry,
 } from '../../api/componentRepository';
-import { fetchWebPreviewPluginDescriptor } from '../../api/webPreviewPluginRepository';
+import { useModelPreviewUrl } from '../../composePreview/useModelPreviewUrl';
+import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
+import { useCorePreview } from '../../composePreview/useCorePreview';
 import { TokenAutosaveQueue, type AutosaveOperation, type AutosaveStatus } from '../../api/tokenAutosaveQueue';
 
 import '../../styles/component-tree.css';
@@ -60,6 +71,7 @@ import {
     isRetryableAutosaveError,
     isStateRejection,
     isUnknownIconError,
+    isCoreSelectionStaleError,
 } from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
@@ -89,6 +101,7 @@ const sameName = (a: string, b: string) => a.toLowerCase() === b.toLowerCase();
 type PendingComponentSave = PendingComponentMutation &
     AutosaveOperation & {
         metadataKey: string;
+        author?: string | null;
         predecessor?: PendingComponentSave;
     };
 
@@ -108,13 +121,18 @@ export const Components = () => {
     const { componentName } = useParams<{ componentName?: string }>();
     const location = useLocation();
     const navigate = useNavigate();
+    const parameters = designSystem?.getParameters();
+    const selectedVersionId = new URLSearchParams(location.search).get('versionId') ?? undefined;
+    const composeLocation = useCorePreview('compose', parameters, Boolean(composeComponents?.length));
+    const webLocation = useCorePreview('web', parameters, Boolean(components?.length));
 
     const [configs, setConfigs] = useState<Config[] | undefined>([]);
     // Группы компонентов из манифеста плагина: до загрузки и без них меню строится по таблице клиента.
     const [pluginGroups, setPluginGroups] = useState<ComposePreviewComponentGroup[]>();
 
     useEffect(() => {
-        const pluginUrl = getComposePreviewPluginUrl();
+        const pluginUrl = composeLocation.pluginUrl;
+        setPluginGroups(undefined);
         if (!pluginUrl || !composeComponents?.length) return;
 
         let cancelled = false;
@@ -127,7 +145,7 @@ export const Components = () => {
         return () => {
             cancelled = true;
         };
-    }, [composeComponents]);
+    }, [composeComponents, composeLocation.pluginUrl]);
 
     const componentGroups = useMemo(
         () => ({
@@ -262,6 +280,35 @@ export const Components = () => {
         value: PendingComponentMutation['before'];
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
+    const queues = useRef(
+        new Map<string, Map<TokenAutosaveQueue<PendingComponentSave, Record<string, number>>, () => void>>(),
+    );
+    const pendingSaves = useRef(new Map<string, PendingComponentSave>());
+    const requests = useRef(new Map<string, Set<Promise<unknown>>>());
+    const recoverySource = useRef<{
+        key: string;
+        stop: () => void;
+        activity: ReturnType<typeof registerDraftAutosaveSource>;
+        signal: AbortSignal;
+    }>();
+    const [recovery, setRecovery] = useState<{ key: string; operation: PendingComponentSave }>();
+    const [recoveryError, setRecoveryError] = useState<string>();
+    const [recovering, setRecovering] = useState(false);
+    const recoveryAttempt = useRef<string>();
+    const [recoveryVersion, setRecoveryVersion] = useState(0);
+    const [initialSession] = useState(() => authService.getSessionSignal());
+    const [sessionChanged, setSessionChanged] = useState(false);
+    useEffect(() => {
+        const reset = () => {
+            queues.current.forEach((items) => items.forEach((_release, queue) => queue.dispose()));
+            queues.current.clear();
+            pendingSaves.current.clear();
+            setSessionChanged(true);
+        };
+        const unsubscribe = authService.onSessionReset(reset);
+        if (initialSession.aborted) reset();
+        return unsubscribe;
+    }, [initialSession]);
     // Догрузка цели при повторе правки не должна пересоздавать очередь сама по себе: функция читается из ссылки.
     const loadComponentRef = useRef(loadComponent);
     loadComponentRef.current = loadComponent;
@@ -329,15 +376,21 @@ export const Components = () => {
     }, [theme, openConfig]);
 
     const config = configs?.[0];
-    const parameters = designSystem?.getParameters();
     const editorContext = useMemo<EditorContextKey | null>(() => {
         if (!parameters?.projectId || !parameters.designSystemId || !parameters.tenantId) return null;
         return {
             projectId: parameters.projectId,
             designSystemId: parameters.designSystemId,
             tenantId: parameters.tenantId,
+            versionId: selectedVersionId,
         };
-    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId]);
+    }, [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId, selectedVersionId]);
+    const compatibility = useCoreCompatibility(editorContext, undefined, reload, config?.getCoreSelectionRevision?.());
+    const problemComponentIds = new Set(
+        compatibility.report?.items.filter((i) => i.severity === 'blocking').map((i) => i.location.componentId),
+    );
+    const modelCore = config?.getCoreReleaseId?.();
+    const modelPlatform = config?.getPlatform();
     const designSystemReadOnly = parameters?.readOnly === true;
 
     // Структурная операция «Структуры»: сначала уходят несохранённые правки, затем запрос, затем компонент
@@ -354,7 +407,7 @@ export const Components = () => {
             }
             await runStructureOperationOnServer(
                 operation,
-                editorContext,
+                { ...editorContext, coreSelectionRevision: openConfig.getCoreSelectionRevision?.() },
                 toComponentRoute(openConfig.getPlatform(), openConfig.getName()),
                 (route) => loadComponent?.(route, true),
                 onConfigurationSelect,
@@ -447,22 +500,44 @@ export const Components = () => {
     // Compose-плагин живёт на уровне раздела: запускается при входе, переживает смену компонента и уничтожается
     // при уходе из раздела, смене адреса плагина или контекста дизайн-системы.
     const composeEnvironmentSupported = useMemo(() => isComposePreviewEnvironmentSupported(), []);
-    const composePluginUrl = composeEnvironmentSupported ? getComposePreviewPluginUrl() : undefined;
-    // Web-плагин превью — свой хост рядом с Compose: отдельные iframe и сессия, без проверки WebAssembly. Адрес
-    // (прямой из сборки или от бэкенда) запрашивается при входе в раздел, только если в нём есть web-компоненты;
-    // без адреса хост не создаётся, а область превью web-компонента показывает причину.
-    const webPluginLocation = useWebPreviewPluginLocation(
-        components?.length ? parameters?.projectId : undefined,
-        fetchWebPreviewPluginDescriptor,
+    const matchingComposeUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'compose' ? modelCore : undefined,
+        composeLocation,
+        reload,
     );
-    const webPluginUrl = webPluginLocation.status === 'resolved' ? webPluginLocation.pluginUrl : undefined;
-    const composeHostScope = [parameters?.projectId, parameters?.designSystemId, parameters?.tenantId].join(':');
+    const composePluginUrl = composeEnvironmentSupported ? matchingComposeUrl : undefined;
+    const webPluginUrl = useModelPreviewUrl(
+        editorContext,
+        modelPlatform === 'web' ? modelCore : undefined,
+        webLocation,
+        reload,
+    );
+    const composeHostScope = [
+        parameters?.projectId,
+        parameters?.designSystemId,
+        parameters?.tenantId,
+        selectedVersionId,
+        composeLocation.coreRelease?.releaseId,
+        composeLocation.buildId,
+        webLocation.coreRelease?.releaseId,
+        webLocation.buildId,
+    ].join(':');
     const storagePrefix = editorContext
         ? `ds_pending_component:${editorContext.projectId}:${editorContext.designSystemId}:${editorContext.tenantId}`
         : null;
 
     useEffect(() => {
-        if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
+        if (
+            !config ||
+            !storagePrefix ||
+            !editorContext ||
+            !designSystem ||
+            parameters?.readOnly ||
+            sessionChanged ||
+            recovering
+        )
+            return;
         // Ключ правок — компонент и открытая конфигурация: у каждой конфигурации своя очередь и своё «до».
         const editorKey = componentEditorKey(config);
         const requestKey = `${storagePrefix}:${editorKey}:request`;
@@ -470,11 +545,26 @@ export const Components = () => {
         // конфигурации есть несохранённая правка, основа сравнения не сбрасывается: иначе правка, уже лежащая в
         // `config`, стала бы «уже сохранённой» и на сервер не ушла бы.
         const hasUnsaved =
-            confirmedConfig.current?.componentName === editorKey && readStoredJson(requestKey, null) !== null;
+            confirmedConfig.current?.componentName === editorKey &&
+            (pendingSaves.current.has(requestKey) || readStoredJson(requestKey, null) !== null);
         if (!hasUnsaved) {
             confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
         }
         let mounted = true;
+        const signal = authService.getSessionSignal();
+        const activeRequests = requests.current.get(requestKey) ?? new Set<Promise<unknown>>();
+        requests.current.set(requestKey, activeRequests);
+        const storedHead = () =>
+            pendingSaves.current.get(requestKey) ?? readStoredJson<PendingComponentSave | null>(requestKey, null);
+        const showRecovery = (operation: PendingComponentSave) => {
+            const head = storedHead();
+            const full =
+                head && [...coreSaveChain(head)].some((item) => item.generation === operation.generation)
+                    ? head
+                    : operation;
+            pendingSaves.current.set(requestKey, full);
+            if (mounted) setRecovery({ key: requestKey, operation: full });
+        };
         const componentName = config.getName();
         const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
         const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
@@ -494,6 +584,16 @@ export const Components = () => {
                 // Compose-компонент ищется среди Compose-компонентов: имя по умолчанию совпало бы с web и выбрало бы чужой.
                 const meta =
                     designSystem.getComponentData(config) ?? designSystem.getComponentDataByName(componentName);
+                authService.assertSession(signal);
+                if (
+                    hasStaleCoreSave(
+                        operation,
+                        config.getCoreSelectionRevision?.() ?? meta.serverBinding?.coreSelectionRevision,
+                    )
+                ) {
+                    showRecovery(operation);
+                    return Promise.reject(new Error('Требуется восстановление правки предыдущего Core.'));
+                }
                 if (!operation.prepared) {
                     if (confirmedConfig.current?.componentName === operation.componentName)
                         operation.before = structuredClone(confirmedConfig.current.value);
@@ -503,13 +603,14 @@ export const Components = () => {
                 const currentOperation = operation;
                 const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
-                return repository
+                const request = repository
                     .saveComponentMutation(
                         editorContext,
                         meta,
                         currentOperation,
                         readRevisions(),
                         (revisions) => {
+                            authService.assertSession(signal);
                             persistStoredJson(revisionKey, revisions);
                             styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
                             persistStoredJson(aliasesKey, styleAliases);
@@ -525,8 +626,14 @@ export const Components = () => {
                             const resolved = designSystem.resolveComposeStyleReference(value);
                             return resolved && toStyleReferenceInput(resolved);
                         },
+                        signal,
                     )
                     .catch((error: unknown) => {
+                        authService.assertSession(signal);
+                        if (isCoreSelectionStaleError(error)) {
+                            showRecovery(operation);
+                            throw error;
+                        }
                         if (!isUnknownIconError(error) && !isStateRejection(error)) throw error;
                         // Иконки нет в каталоге или признак свойства не допускает набор состояний: повтор не поможет,
                         // поэтому правка отбрасывается, прежнее значение возвращается перечитыванием, причина видна.
@@ -537,8 +644,15 @@ export const Components = () => {
                         reload();
                         return readRevisions();
                     });
+                activeRequests.add(request);
+                void request.finally(() => activeRequests.delete(request)).catch(() => {});
+                return request;
             },
             confirmed: (operation, revisions) => {
+                if (signal.aborted) return;
+                const memory = pendingSaves.current.get(requestKey);
+                if (memory?.generation === operation.generation) pendingSaves.current.delete(requestKey);
+                else if (memory?.predecessor?.generation === operation.generation) delete memory.predecessor;
                 persistStoredJson(revisionKey, revisions);
                 if (confirmedConfig.current?.componentName === operation.componentName) {
                     confirmedConfig.current = {
@@ -554,23 +668,47 @@ export const Components = () => {
                     persistStoredJson(requestKey, stored);
                 }
                 reload();
+                compatibility.reload();
             },
             retryable: isRetryableAutosaveError,
             statusChanged: (status, error) => {
                 latestActivityStatus = status;
-                setActivity(!mounted && status === 'saved' ? null : status, autosaveErrorMessage(error));
+                const finished = !mounted && status === 'saved';
+                if (finished) queues.current.get(requestKey)?.delete(queue);
+                setActivity(finished ? null : status, autosaveErrorMessage(error));
             },
         });
+        const liveQueues = queues.current.get(requestKey) ?? new Map();
+        liveQueues.set(queue, () => setActivity(null));
+        queues.current.set(requestKey, liveQueues);
+        recoverySource.current = {
+            key: requestKey,
+            signal,
+            activity: setActivity,
+            stop: () => {
+                queues.current.get(requestKey)?.forEach((release, active) => {
+                    active.dispose();
+                    release();
+                });
+                queues.current.delete(requestKey);
+                setDraftAutosaveRetry(editorContext, activitySource, null);
+            },
+        };
         setActivity('saved');
         // Ошибку сохранения компонента показывает и повторяет индикатор редактора в тулбаре.
         setDraftAutosaveRetry(editorContext, activitySource, () => queue.retryFailed());
         autosaveQueue.current = queue;
-        const stored = readStoredJson<(Partial<PendingComponentSave> & PendingComponentMutation) | null>(
-            requestKey,
-            null,
-        );
+        const stored = storedHead();
         const replayStored = () => {
-            if (!stored) return;
+            if (!stored || signal.aborted) return;
+            if (
+                hasStaleCoreSave(stored, config.getCoreSelectionRevision?.()) ||
+                (stored.author != null && stored.author !== authService.getUserKey())
+            ) {
+                showRecovery(stored);
+                setActivity('error');
+                return;
+            }
             try {
                 const operation: PendingComponentSave = {
                     ...stored,
@@ -583,6 +721,7 @@ export const Components = () => {
                     retryCount: stored.retryCount ?? 0,
                     metadataKey: requestKey,
                 };
+                pendingSaves.current.set(requestKey, operation);
                 persistStoredJson(requestKey, operation);
                 if (operation.predecessor) {
                     queue.enqueue(
@@ -615,12 +754,24 @@ export const Components = () => {
             mounted = false;
             queue.flushAll();
             if (latestActivityStatus === 'saved') {
+                queues.current.get(requestKey)?.delete(queue);
+                queue.dispose();
                 setActivity(null);
                 setDraftAutosaveRetry(editorContext, activitySource, null);
             } else setActivity.detach();
             if (autosaveQueue.current === queue) autosaveQueue.current = null;
         };
-    }, [config, designSystem, editorContext, parameters?.readOnly, reload, storagePrefix]);
+    }, [
+        config,
+        designSystem,
+        editorContext,
+        parameters?.readOnly,
+        reload,
+        storagePrefix,
+        recoveryVersion,
+        sessionChanged,
+        recovering,
+    ]);
 
     const onConfigUpdate = useCallback(() => {
         rerender();
@@ -629,24 +780,34 @@ export const Components = () => {
         const before = confirmedConfig.current?.componentName === editorKey ? confirmedConfig.current.value : undefined;
         if (!before) return;
         const requestKey = `${storagePrefix}:${editorKey}:request`;
-        const previous = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+        if (sessionChanged || recovery?.key === requestKey) return;
+        const previous =
+            pendingSaves.current.get(requestKey) ??
+            readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+        const coreSelectionRevision = config.getCoreSelectionRevision?.();
         const pending: PendingComponentSave = {
             componentName: editorKey,
+            author: authService.getUserKey(),
+            coreSelectionRevision,
             appearanceId: config.getConfigurationId(),
             before: structuredClone(before),
             after: structuredClone(config.getMeta()),
             idempotencyKeys: {},
             requestBodies: {},
-            predecessor: previous?.prepared ? (previous as PendingComponentSave) : previous?.predecessor,
+            predecessor:
+                previous && (previous.prepared || previous.coreSelectionRevision !== coreSelectionRevision)
+                    ? (previous as PendingComponentSave)
+                    : previous?.predecessor,
             tokenKey: editorKey,
             operationKey: editorKey,
             generation: crypto.randomUUID(),
             retryCount: 0,
             metadataKey: requestKey,
         };
+        pendingSaves.current.set(requestKey, pending);
         persistStoredJson(requestKey, pending);
-        autosaveQueue.current?.enqueue(pending);
-    }, [config, parameters?.readOnly, rerender, storagePrefix]);
+        if (recoverySource.current?.key === requestKey) autosaveQueue.current?.enqueue(pending);
+    }, [config, designSystem, parameters?.readOnly, rerender, storagePrefix, sessionChanged, recovery]);
 
     const openComponent = (target: Platform, name: string) => {
         navigate(componentNavigationTarget(`../components/${toComponentRoute(target, name)}`, location.search));
@@ -702,8 +863,8 @@ export const Components = () => {
         );
         setCatalogError(undefined);
         try {
-            for (const { linkId } of links) {
-                await repository.hideComponent(editorContext, linkId!);
+            for (const { linkId, coreSelectionRevision } of links) {
+                await repository.hideComponent(editorContext, linkId!, coreSelectionRevision);
             }
         } catch {
             setCatalogError('Не удалось скрыть компонент. Проверьте права на удаление компонентов.');
@@ -726,12 +887,15 @@ export const Components = () => {
         setCatalogBusy(true);
         setCatalogError(undefined);
         try {
+            const revisionFor = (id: string) =>
+                catalog?.find((item) => item.componentId === id)?.coreSelectionRevision ??
+                templates.find((item) => item.componentId === id)?.coreSelectionRevision;
             const hidden = componentIds.filter((id) => !isNewComponent(id));
             for (const componentId of withHiddenDependencies(hidden)) {
-                await repository.restoreComponent(editorContext, componentId);
+                await repository.restoreComponent(editorContext, componentId, false, revisionFor(componentId));
             }
             for (const componentId of componentIds.filter(isNewComponent)) {
-                await repository.restoreComponent(editorContext, componentId, true);
+                await repository.restoreComponent(editorContext, componentId, true, revisionFor(componentId));
             }
             const first =
                 catalog?.find((item) => item.componentId === componentIds[0]) ??
@@ -767,6 +931,17 @@ export const Components = () => {
                         <>
                             <ComponentTree
                                 groups={tree}
+                                problemComponentIds={problemComponentIds}
+                                onProblemSelect={(entry) => {
+                                    const ids = entry.configs.map((config) => config.getComponentId());
+                                    const issue = compatibility.report?.items.find(
+                                        (i) => i.severity === 'blocking' && ids.includes(i.location.componentId),
+                                    );
+                                    const query = new URLSearchParams();
+                                    if (selectedVersionId) query.set('versionId', selectedVersionId);
+                                    if (issue) query.set('issueId', issue.issueId);
+                                    navigate(`${location.pathname.split('/components')[0]}/validation?${query}`);
+                                }}
                                 platform={platformFilter}
                                 selected={selectedConfig?.getName()}
                                 query={query}
@@ -834,6 +1009,16 @@ export const Components = () => {
                     }
                     content={
                         <>
+                            {config &&
+                                storagePrefix &&
+                                !recovery &&
+                                (() => {
+                                    const copy = readStoredJson<PendingComponentSave | null>(
+                                        `${storagePrefix}:${componentEditorKey(config)}:request:recovery`,
+                                        null,
+                                    );
+                                    return copy ? <CoreSaveCopy operation={copy} /> : null;
+                                })()}
                             {unknownIconNotice && (
                                 <div role="alert">
                                     Иконка не найдена в каталоге, прежнее значение восстановлено.{' '}
@@ -850,7 +1035,65 @@ export const Components = () => {
                                     </button>
                                 </div>
                             )}
-                            {!platform ? (
+                            {sessionChanged ? (
+                                <LoadErrorState
+                                    text="Пользователь изменился. Перезагрузите страницу."
+                                    kind="workspace"
+                                    retry={() => window.location.reload()}
+                                />
+                            ) : recovery &&
+                              !parameters?.readOnly &&
+                              config &&
+                              recovery.key === `${storagePrefix}:${componentEditorKey(config)}:request` ? (
+                                <CoreSaveRecovery
+                                    operation={recovery.operation}
+                                    busy={recovering}
+                                    error={recoveryError}
+                                    onContinue={async () => {
+                                        const source = recoverySource.current;
+                                        if (!source || source.key !== recovery.key) return;
+                                        const attempt = crypto.randomUUID();
+                                        recoveryAttempt.current = attempt;
+                                        source.stop();
+                                        setRecovering(true);
+                                        setRecoveryError(undefined);
+                                        try {
+                                            await waitForComponentRequests(
+                                                () => (requests.current.get(source.key)?.size ?? 0) > 0,
+                                            );
+                                            authService.assertSession(source.signal);
+                                            if (recoverySource.current !== source)
+                                                throw new Error('Редактор изменился');
+                                            archiveCoreSave(
+                                                source.key,
+                                                pendingSaves.current.get(source.key) ?? recovery.operation,
+                                            );
+                                            await loadComponentRef.current?.(
+                                                toComponentRoute(config.getPlatform(), config.getName()),
+                                                true,
+                                            );
+                                            authService.assertSession(source.signal);
+                                            if (recoverySource.current !== source)
+                                                throw new Error('Редактор изменился');
+                                            pendingSaves.current.delete(source.key);
+                                            confirmedConfig.current = undefined;
+                                            setRecovery(undefined);
+                                            setRecoveryVersion((value) => value + 1);
+                                            reload();
+                                            compatibility.reload();
+                                        } catch (error) {
+                                            if (recoveryAttempt.current === attempt)
+                                                setRecoveryError(
+                                                    error instanceof ComponentRecoveryChanged
+                                                        ? error.message
+                                                        : 'Не удалось сохранить копию или загрузить серверную версию. Повторите попытку.',
+                                                );
+                                        } finally {
+                                            if (recoveryAttempt.current === attempt) setRecovering(false);
+                                        }
+                                    }}
+                                />
+                            ) : !platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
                                 <ComponentEditorSkeleton />
@@ -869,6 +1112,24 @@ export const Components = () => {
                                     structure={designSystemReadOnly ? undefined : structure}
                                     onLoadComponent={loadComponent}
                                     readOnly={designSystemReadOnly}
+                                    compatibility={
+                                        editorContext && compatibility.report
+                                            ? {
+                                                  context: editorContext,
+                                                  report: compatibility.report,
+                                                  readOnly: designSystemReadOnly,
+                                                  beforeRepair: async () => {
+                                                      autosaveQueue.current?.flushAll();
+                                                  },
+                                                  onRepaired: () => {
+                                                      compatibility.reload();
+                                                      reload();
+                                                  },
+                                              }
+                                            : undefined
+                                    }
+                                    compatibilityError={compatibility.error}
+                                    onCompatibilityReload={compatibility.reload}
                                 />
                             )}
                         </>
@@ -881,13 +1142,17 @@ export const Components = () => {
         <ComposePreviewHostProvider
             pluginUrl={composePluginUrl}
             scope={composeHostScope}
-            preload={Boolean(composeComponents?.length)}
+            preload={composeEnvironmentSupported && Boolean(composeComponents?.length)}
+            error={composeLocation.error}
+            loading={composeLocation.loading}
         >
             <ComposePreviewHostProvider
                 platform="web"
                 pluginUrl={webPluginUrl}
                 scope={composeHostScope}
                 preload={Boolean(components?.length)}
+                error={webLocation.error}
+                loading={webLocation.loading}
             >
                 {section}
             </ComposePreviewHostProvider>
@@ -940,7 +1205,11 @@ const componentEditorKey = (config: Config) => {
 
 const readStoredJson = <T,>(key: string, fallback: T): T => {
     try {
-        const stored = localStorage.getItem(key);
+        const stored = key.endsWith(':request')
+            ? readPendingComponentMutation(key)
+            : key.endsWith(':request:recovery')
+              ? readComponentRecovery(key.slice(0, -':recovery'.length))
+              : localStorage.getItem(key);
         return stored === null ? fallback : (JSON.parse(stored) as T);
     } catch {
         removeStoredValue(key);

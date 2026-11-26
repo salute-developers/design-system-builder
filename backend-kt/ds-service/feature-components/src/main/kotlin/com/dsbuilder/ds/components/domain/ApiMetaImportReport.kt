@@ -31,6 +31,8 @@ data class ApiMetaImportReport(
     val absent: List<String> = emptyList(),
     /** Имена состояний признака, не найденные ни среди общих, ни среди состояний компонента. */
     val unresolvedStates: List<String> = emptyList(),
+    /** Идентификатор релиза; при dryRun не сохраняется. */
+    val releaseId: String? = null,
 ) {
     /** One property that was not written. */
     @Serializable

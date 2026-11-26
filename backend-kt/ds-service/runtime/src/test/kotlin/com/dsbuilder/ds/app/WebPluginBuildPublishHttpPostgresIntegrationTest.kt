@@ -157,8 +157,14 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
 
     @Test
     fun `only the publisher role or a system administrator publishes the web plugin`() = withService {
-        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, webArchive(), actor = Actor.USER).status)
-        assertEquals(HttpStatusCode.OK, publish(PluginKind.WEB, webArchive(), actor = Actor.ADMIN).status)
+        val archive = webArchive()
+        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, archive, actor = Actor.USER).status)
+        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, archive, actor = Actor.PUBLISHER).status)
+
+        val initial = publish(PluginKind.WEB, archive, dryRun = false, actor = Actor.ADMIN).ok()
+        val repeat = publish(PluginKind.WEB, archive, actor = Actor.PUBLISHER).ok()
+        assertEquals("published", initial.string("outcome"))
+        assertEquals("unchanged", repeat.string("outcome"))
         assertEquals(HttpStatusCode.Forbidden, service.builder.client.get(PluginKind.WEB.active).status)
     }
 
@@ -189,7 +195,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         kind: PluginKind,
         bytes: ByteArray,
         dryRun: Boolean = true,
-        actor: Actor = Actor.PUBLISHER,
+        actor: Actor = Actor.ADMIN,
         meta: String = if (kind == PluginKind.WEB) webMeta() else composeMeta(),
     ): HttpResponse = service.builder.client.post("${kind.publish}?dryRun=$dryRun") {
         actor(actor)
@@ -204,7 +210,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
                             append(HttpHeaders.ContentDisposition, "filename=\"plugin.zip\"")
                         },
                     )
-                    append("meta", meta)
+                    append("meta", releaseMetaBody(meta, bytes))
                 },
             ),
         )
@@ -247,10 +253,11 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
             """[{"name":"shape","type":"shape","platformNames":["shape"]}]}]}"""
 
     private fun webArchive(commit: String = COMMIT_A, library: String? = "0.386.0"): ByteArray {
-        val meta = """{"components":[{"name":"Button"}]}"""
+        val meta = """[{"name":"Button"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.web.preview","platform":"web","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
             (library?.let { """"plasmaNewHopeVersion":"$it",""" } ?: "") +
+            """"channel":"stable","coreRelease":{"libraryId":"fixture-web","platform":"web","version":"$library"},""" +
             """"apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         return zip(
             mapOf(
@@ -266,6 +273,8 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         val meta = """[{"componentName":"Avatar"}]"""
         val manifest = """{"schemaVersion":1,"id":"sdds.compose.preview","platform":"compose","protocolVersion":1,""" +
             """"entrypoint":"index.html","version":"${commit.take(12)}","commit":"$commit",""" +
+            """"channel":"stable","coreRelease":{"libraryId":"fixture-compose",""" +
+            """"platform":"compose","version":"0.55.0"},""" +
             """"uikitComposeVersion":"0.55.0","apiMetaSha256":"${sha256Hex(meta.toByteArray())}"}"""
         return zip(
             mapOf(

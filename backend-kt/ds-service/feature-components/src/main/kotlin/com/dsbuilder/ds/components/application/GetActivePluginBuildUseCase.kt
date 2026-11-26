@@ -21,7 +21,7 @@ class GetActivePluginBuildUseCase(
             val binding = storages.configured(platform) ?: return@read DsResult.Failure(DsFailure.NotFound)
             transactions.readOnly {
                 builds.active(platform.wire)
-                    ?.let { DsResult.Success(ActivePluginBuild(it, binding.settings.pluginUrl(it.buildId))) }
+                    ?.let { DsResult.Success(ActivePluginBuild(it, binding.settings.pluginUrl(it.storageKey))) }
                     ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

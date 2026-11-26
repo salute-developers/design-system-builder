@@ -38,6 +38,7 @@ class ComponentConfigRoundTripHttpPostgresIntegrationTest {
                     assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
                     val system = Json.parseToJsonElement(created.bodyAsText()).field("id")
                     typePropertiesByTokens(database)
+                    importFixtureCore(database.jdbcUrl, database.username, database.password)
 
                     val exported = api(client, "POST", "/api/design-systems/$system/component-config/export", WEB)
                     assertEquals(HttpStatusCode.OK, exported.status, exported.bodyAsText())

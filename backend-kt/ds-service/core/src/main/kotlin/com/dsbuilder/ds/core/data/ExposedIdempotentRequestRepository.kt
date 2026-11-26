@@ -19,11 +19,26 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
     ): IdempotentRequestLookup {
         require(key.isNotBlank()) { "Idempotency key is required" }
         require(key.length <= MAX_IDEMPOTENCY_KEY_LENGTH) { "Idempotency key is too long" }
+        val stored = peek(projectId, key, operation, requestHash)
+        if (stored != IdempotentRequestLookup.New) return stored
+        lockDraftCoreSelection()
         val lockKey = "idempotency:${projectId.value}:$key"
         TransactionManager.current().exec(
             "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))",
             listOf(TextColumnType() to lockKey),
         )
+        val found = peek(projectId, key, operation, requestHash)
+        if (found == IdempotentRequestLookup.New) requireRequestDesignSystemMutable()
+        return found
+    }
+
+    /** Читает только уже сохранённый ответ до проверки существования ДС, не захватывая блокировку ключа. */
+    suspend fun peek(
+        projectId: ProjectId,
+        key: String,
+        operation: String,
+        requestHash: String,
+    ): IdempotentRequestLookup {
         val sql = "SELECT operation, request_hash, response_status, response_body, response_mutation_metadata " +
             "FROM idempotent_requests WHERE project_id = ? AND idempotency_key = ?"
         return TransactionManager.current().exec(
@@ -31,7 +46,6 @@ class ExposedIdempotentRequestRepository : IdempotentRequestRepository {
             listOf(TextColumnType() to projectId.value, TextColumnType() to key),
         ) { rows ->
             if (!rows.next()) {
-                requireRequestDesignSystemMutable()
                 return@exec IdempotentRequestLookup.New
             }
             if (rows.getString("operation") != operation || rows.getString("request_hash") != requestHash) {

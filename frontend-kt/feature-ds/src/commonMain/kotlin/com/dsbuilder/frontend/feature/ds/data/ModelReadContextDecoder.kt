@@ -1,6 +1,9 @@
 package com.dsbuilder.frontend.feature.ds.data
 
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.longOrNull
@@ -29,9 +32,48 @@ internal object ModelReadContextDecoder {
         val idName = if (version.content == "draft") "draftId" else "versionId"
         val id = value[idName] as JsonPrimitive
         require(id.isString && UUID_PATTERN.matches(id.content))
-        return JsonObject(value.filterKeys { it in names })
+        val selected = value.filterKeys { it in names }.toMutableMap()
+        if (version.content == "draft") {
+            value["coreSelectionRevision"]?.let { raw ->
+                val revision = raw as JsonPrimitive
+                require(!revision.isString && revision.longOrNull?.let { it in 0..MAX_WIRE_REVISION } == true)
+                selected["coreSelectionRevision"] = revision
+            }
+        }
+        value["coreReleases"]?.let { selected["coreReleases"] = decodeCoreReleases(it) }
+        return JsonObject(selected)
     }
 
+    private fun decodeCoreReleases(raw: JsonElement): JsonArray {
+        val releases = raw as JsonArray
+        val platforms = hashSetOf<String>()
+        return JsonArray(
+            releases.map { entry ->
+                val release = entry as JsonObject
+                fun string(key: String): String {
+                    val field = release[key] as JsonPrimitive
+                    require(field.isString && field.content.isNotBlank())
+                    return field.content
+                }
+                require(UUID_PATTERN.matches(string("releaseId")))
+                val platform = string("platform")
+                require(platform in setOf("web", "compose", "xml", "ios") && platforms.add(platform))
+                string("libraryId")
+                string("version")
+                require(string("provenance") in setOf("imported", "migration-snapshot"))
+                val hash = release["metaSha256"]
+                if (hash != null && hash != JsonNull) require(SHA256_PATTERN.matches(string("metaSha256")))
+                release["channel"]?.takeIf { it != JsonNull }?.let {
+                    require(string("channel") in setOf("stable", "dev"))
+                }
+                JsonObject(release.filterKeys { it in CORE_FIELDS })
+            },
+        )
+    }
+
+    private val CORE_FIELDS =
+        setOf("releaseId", "libraryId", "platform", "version", "metaSha256", "provenance", "channel")
+    private val SHA256_PATTERN = Regex("[0-9a-f]{64}")
     private const val MAX_WIRE_REVISION = 9_007_199_254_740_991L
     private val UUID_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
     private val EXACT_VERSION = Regex("(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)")

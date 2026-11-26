@@ -49,10 +49,11 @@ class ExposedDesignSystemComponentRepository : DesignSystemComponentRepository {
         componentId: UUID,
     ): DesignSystemComponent? {
         if (!ComponentOwnership.canWriteDesignSystem(projectId, systemAdmin, designSystemId)) return null
+        com.dsbuilder.ds.core.data.lockDesignSystemMutation(designSystemId)
+        requireSelectedComponentCore(componentId)
         if (ComponentsTable.selectAll().where { ComponentsTable.id eq componentId }.none()) return null
-        val linkId = restoreDesignSystemComponentLink(designSystemId, componentId)
-        return DesignSystemComponentsTable.selectAll()
-            .where { DesignSystemComponentsTable.id eq linkId }
+        val id = restoreDesignSystemComponentLink(designSystemId, componentId)
+        return DesignSystemComponentsTable.selectAll().where { DesignSystemComponentsTable.id eq id }
             .single().let(::link)
     }
 

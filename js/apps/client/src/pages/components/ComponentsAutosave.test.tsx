@@ -1,13 +1,17 @@
+import { authService } from '../../api/authService';
+import { readPendingComponentMutation } from '../../api/componentRecovery';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect, useState, type ReactNode } from 'react';
 import { MemoryRouter, Outlet, Route, Routes, useNavigate } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({
+    coreRevision: undefined as number | undefined,
     currentMeta: { enabled: true } as Record<string, unknown>,
     config: {
         getName: () => 'Button',
         getPlatform: () => 'web' as const,
+        getCoreSelectionRevision: () => mocks.coreRevision,
         getMeta: () => structuredClone(mocks.currentMeta),
         getConfigurationId: () => undefined,
         getConfigurations: () => [],
@@ -73,8 +77,8 @@ const renderEditor = () => {
     const context = {
         designSystem: {
             getParameters: () => editorContext,
-            getComponentDataByName: () => ({}),
-            getComponentData: () => ({}),
+            getComponentDataByName: () => ({ serverBinding: { coreSelectionRevision: mocks.coreRevision } }),
+            getComponentData: () => ({ serverBinding: { coreSelectionRevision: mocks.coreRevision } }),
         },
         theme: {},
         components: [mocks.config, mocks.inputConfig],
@@ -303,7 +307,9 @@ describe('Components autosave', () => {
             });
         }
     });
-    beforeEach(() => {
+    beforeEach(async () => {
+        await authService.logout();
+        mocks.coreRevision = undefined;
         localStorage.clear();
         mocks.currentMeta = { enabled: true };
         mocks.inputMeta = { enabled: true, kind: 'input' };
@@ -314,6 +320,111 @@ describe('Components autosave', () => {
     afterEach(() => {
         cleanup();
         vi.restoreAllMocks();
+    });
+
+    it('новая локальная операция сохраняет ревизию от открытой Config до отправки', async () => {
+        mocks.coreRevision = 3;
+        let finish!: (value: Record<string, number>) => void;
+        mocks.saveComponentMutation.mockImplementation(
+            () =>
+                new Promise((resolve) => {
+                    finish = resolve;
+                }),
+        );
+        renderEditor();
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        mocks.coreRevision = 4;
+        expect(mocks.saveComponentMutation.mock.calls[0][2]).toMatchObject({ coreSelectionRevision: 3 });
+        expect(
+            JSON.parse(localStorage.getItem('ds_pending_component:project:ds:tenant:Button:request')!),
+        ).toMatchObject({ coreSelectionRevision: 3 });
+        await act(async () => {
+            finish({ style: 1 });
+        });
+    });
+
+    it.each([1, undefined])('даёт восстановить старую правку Core %s и продолжить сохранение', async (revision) => {
+        mocks.coreRevision = 2;
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        const operation = {
+            componentName: 'Button',
+            coreSelectionRevision: revision,
+            before: { enabled: true },
+            after: { enabled: false },
+            idempotencyKeys: {},
+            generation: 'old',
+            retryCount: 0,
+        };
+        localStorage.setItem(key, JSON.stringify(operation));
+        renderEditor();
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent('false');
+        expect(mocks.saveComponentMutation).not.toHaveBeenCalled();
+        fireEvent.click(screen.getByRole('button', { name: 'Продолжить с серверной версией' }));
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+        expect(readPendingComponentMutation(key)).toBeNull();
+        expect(JSON.parse(localStorage.getItem(key + ':recovery')!).after).toEqual({ enabled: false });
+        mocks.currentMeta = { enabled: true, next: 'new edit' };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(1));
+        expect(mocks.saveComponentMutation.mock.calls[0][2]).toMatchObject({
+            coreSelectionRevision: 2,
+            after: mocks.currentMeta,
+        });
+        expect(mocks.saveComponentMutation.mock.calls[0][2].predecessor).toBeUndefined();
+    });
+
+    it('переводит CORE_SELECTION_STALE от сервера в восстановление', async () => {
+        mocks.coreRevision = 2;
+        mocks.saveComponentMutation.mockRejectedValueOnce({
+            isAxiosError: true,
+            response: { status: 409, data: { code: 'CORE_SELECTION_STALE' } },
+        });
+        renderEditor();
+        mocks.currentMeta = { enabled: false };
+        fireEvent.click(await screen.findByRole('button', { name: 'изменить' }));
+        expect(await screen.findByRole('alertdialog')).toHaveTextContent('false');
+        mocks.coreRevision = 3;
+        fireEvent.click(screen.getByRole('button', { name: 'Продолжить с серверной версией' }));
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
+        mocks.currentMeta = { enabled: true, fixed: true };
+        fireEvent.click(screen.getByRole('button', { name: 'изменить' }));
+        await waitFor(() => expect(mocks.saveComponentMutation).toHaveBeenCalledTimes(2));
+        expect(mocks.saveComponentMutation.mock.calls[1][2]).toMatchObject({
+            coreSelectionRevision: 3,
+            after: mocks.currentMeta,
+        });
+    });
+
+    it('не продолжает работу, пока копию старой правки нельзя сохранить', async () => {
+        const key = 'ds_pending_component:project:ds:tenant:Button:request';
+        mocks.coreRevision = 2;
+        localStorage.setItem(
+            key,
+            JSON.stringify({
+                componentName: 'Button',
+                generation: 'old',
+                coreSelectionRevision: 1,
+                before: {},
+                after: { enabled: false },
+                idempotencyKeys: {},
+            }),
+        );
+        renderEditor();
+        await screen.findByRole('alertdialog');
+        const nativeSet = localStorage.setItem.bind(localStorage);
+        const quota = vi.spyOn(localStorage, 'setItem').mockImplementation((slot, bytes) => {
+            if (slot.startsWith(key + ':recovery')) throw new DOMException('quota', 'QuotaExceededError');
+            nativeSet(slot, bytes);
+        });
+        fireEvent.click(screen.getByRole('button', { name: 'Продолжить с серверной версией' }));
+        expect(await screen.findByRole('alert')).toHaveTextContent('Не удалось сохранить копию');
+        expect(readPendingComponentMutation(key)).not.toBeNull();
+        expect(mocks.saveComponentMutation).not.toHaveBeenCalled();
+        quota.mockRestore();
+        fireEvent.click(screen.getByRole('button', { name: 'Продолжить с серверной версией' }));
+        await waitFor(() => expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument());
     });
 
     it('сохраняет исходную базу частично выполненной операции после открытия редактора', async () => {
@@ -358,7 +469,7 @@ describe('Components autosave', () => {
     });
 
     it('отправляет изменение даже при переполненном localStorage', async () => {
-        vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+        vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
             throw new DOMException('quota', 'QuotaExceededError');
         });
         const context = {

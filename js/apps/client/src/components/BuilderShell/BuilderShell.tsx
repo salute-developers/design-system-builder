@@ -12,8 +12,10 @@ import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
 export type SettingsSection =
+    | 'Совместимость'
     | 'Основное'
     | 'Темы'
+    | 'Версии библиотек'
     | 'Участники и роли'
     | 'Администрирование'
     | 'Удаление'
@@ -23,8 +25,10 @@ export type SettingsSection =
 /** `render` заменяет ссылку сегмента своим элементом, например переключателем тем. */
 export type BreadcrumbSegment = { label: string; to: string; render?: ReactNode };
 export const settingsSectionIds: Record<SettingsSection, string> = {
+    Совместимость: 'compatibility',
     Основное: 'general',
     Общее: 'user-general',
+    'Версии библиотек': 'core',
     'Personal Access Token': 'personal-access-token',
     'Участники и роли': 'members',
     Администрирование: 'lifecycle',
@@ -296,6 +300,8 @@ export const SettingsFrame = ({
     aside,
     sectionActions,
     asideHeaders,
+    sectionBadges,
+    asideFooter,
     embedded = false,
 }: {
     title: string;
@@ -310,6 +316,8 @@ export const SettingsFrame = ({
     aside?: ReactNode;
     sectionActions?: Partial<Record<string, ReactNode>>;
     asideHeaders?: Partial<Record<string, { title: string; subtitle: string }>>;
+    sectionBadges?: Partial<Record<string, number>>;
+    asideFooter?: ReactNode;
     embedded?: boolean;
 }) => {
     const [, setSearchParams] = useSearchParams();
@@ -354,7 +362,10 @@ export const SettingsFrame = ({
                                 })
                             }
                         >
-                            {section}
+                            <span>{section}</span>
+                            {sectionBadges?.[settingsSectionIds[section]] != null && (
+                                <span className="ps-count-badge">{sectionBadges[settingsSectionIds[section]]}</span>
+                            )}
                         </button>
                     ))}
                 </nav>
@@ -376,7 +387,7 @@ export const SettingsFrame = ({
                         {visibleChildren(children)}
                     </div>
                 </section>
-                <aside className="ps-aside">
+                <aside className={`ps-aside ${asideFooter ? 'has-footer' : ''}`}>
                     <header className="ps-aside-header">
                         <strong>{asideHeader.title}</strong>
                         <span>{asideHeader.subtitle}</span>
@@ -389,6 +400,7 @@ export const SettingsFrame = ({
                             </div>
                         )}
                     </div>
+                    {asideFooter && <footer className="ps-aside-footer">{asideFooter}</footer>}
                 </aside>
             </div>
         </BuilderShell>

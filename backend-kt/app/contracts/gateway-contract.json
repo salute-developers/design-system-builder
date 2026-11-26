@@ -374,7 +374,7 @@
           "directives": [
             "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
             "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
-            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Core-Selection-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
             "add_header Vary Origin always;",
             "return 401;"
           ]
@@ -384,7 +384,7 @@
           "directives": [
             "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
             "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
-            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Core-Selection-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
             "add_header Vary Origin always;",
             "return 403;"
           ]
@@ -767,7 +767,7 @@
           "directives": [
             "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
             "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
-            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Core-Selection-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
             "add_header Vary Origin always;",
             "return 401;"
           ]
@@ -777,7 +777,7 @@
           "directives": [
             "add_header Access-Control-Allow-Origin $cors_allowed_origin always;",
             "add_header Access-Control-Allow-Methods \"GET, POST, PUT, PATCH, DELETE, OPTIONS\" always;",
-            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
+            "add_header Access-Control-Allow-Headers \"Authorization, Content-Type, Accept, X-Requested-With, X-DS-Base-Revision, X-DS-Core-Selection-Revision, X-DS-Client-Id, Idempotency-Key\" always;",
             "add_header Vary Origin always;",
             "return 403;"
           ]

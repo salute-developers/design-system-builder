@@ -1,3 +1,4 @@
+import { ComposePreviewHostProvider } from '../../../../composePreview/ComposePreviewHost';
 import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { useEffect } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -6,6 +7,7 @@ import type { PreviewComponentDescription, PreviewPayloadInput } from '../../../
 import { ComponentEditorPreview } from './ComponentEditorPreview';
 import { withStoryArgs } from './storyArgsTestHarness';
 
+const environment = vi.hoisted(() => ({ supported: true }));
 const createDraft = vi.fn();
 const payload: PreviewPayloadInput = {
     protocolVersion: 1,
@@ -37,7 +39,9 @@ vi.mock('../../../../composePreview', async (importOriginal) => {
     const actual = await importOriginal<typeof import('../../../../composePreview')>();
     return {
         ...actual,
-        getComposePreviewPluginUrl: () => 'https://plugin.example/',
+        isComposePreviewEnvironmentSupported: () => environment.supported,
+        useComposePreviewHost: (platform = 'compose') =>
+            platform === 'compose' && environment.supported ? { pluginUrl: 'https://plugin.example/' } : undefined,
         loadComposePreviewManifest: async () => ({
             manifest: { components: ['BasicButton'] },
         }),
@@ -76,21 +80,23 @@ const theme = {
     getRevision: () => 1,
 };
 
-const renderPreview = () =>
+const renderPreview = (componentConfig = config, webError?: string) =>
     render(
-        withStoryArgs(
-            <ComponentEditorPreview
-                config={config as never}
-                theme={theme as never}
-                args={{ reactOnly: 'React', variant: 'variation-value' }}
-                themeModeList={[{ label: 'Светлый', value: 'light' }]}
-                themeMode={{ label: 'Светлый', value: 'light' }}
-                onUpdateThemeMode={vi.fn()}
-                title="Preview"
-                platforms={[]}
-                onPlatformSelect={vi.fn()}
-            />,
-        ),
+        <ComposePreviewHostProvider platform="web" error={webError}>
+            {withStoryArgs(
+                <ComponentEditorPreview
+                    config={componentConfig as never}
+                    theme={theme as never}
+                    args={{ reactOnly: 'React', variant: 'variation-value' }}
+                    themeModeList={[{ label: 'Светлый', value: 'light' }]}
+                    themeMode={{ label: 'Светлый', value: 'light' }}
+                    onUpdateThemeMode={vi.fn()}
+                    title="Preview"
+                    platforms={[]}
+                    onPlatformSelect={vi.fn()}
+                />,
+            )}
+        </ComposePreviewHostProvider>,
     );
 
 /** Выбор рендерера в меню панели окружения превью. */
@@ -102,10 +108,26 @@ const chooseRenderer = async (label: string) => {
 describe('ComponentEditorPreview Compose controls', () => {
     beforeEach(() => {
         createDraft.mockClear();
+        environment.supported = true;
         emittedDescription = description;
         emitDescription = undefined;
     });
     afterEach(cleanup);
+
+    it('does not show a web URL failure after switching to the available Compose renderer', async () => {
+        renderPreview(config, 'web URL failure');
+        expect(await screen.findByText(/web URL failure/)).toBeInTheDocument();
+        await chooseRenderer('Compose');
+        expect(await screen.findByTestId('compose-frame')).toBeInTheDocument();
+        expect(screen.queryByText(/web URL failure/)).not.toBeInTheDocument();
+    });
+
+    it('shows the unsupported browser message even when the Compose host has no URL', async () => {
+        environment.supported = false;
+        renderPreview({ ...config, getPlatform: () => 'compose' });
+        expect(await screen.findByText('Compose-preview недоступен в этом браузере.')).toBeInTheDocument();
+        expect(screen.queryByTestId('compose-frame')).not.toBeInTheDocument();
+    });
 
     it('renders exactly the BasicButton descriptor controls and excludes non-variation editor args', async () => {
         renderPreview();

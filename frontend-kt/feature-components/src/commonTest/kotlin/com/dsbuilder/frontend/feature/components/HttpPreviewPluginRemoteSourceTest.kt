@@ -49,7 +49,10 @@ class HttpPreviewPluginRemoteSourceTest {
         }
     }
 
-    private fun command(dryRun: Boolean, platform: TargetPlatform) = PublishPreviewPluginRemoteCommand(
+    private fun command(
+        dryRun: Boolean,
+        platform: TargetPlatform,
+    ) = PublishPreviewPluginRemoteCommand(
         platform = platform,
         apiUrl = ProjectApiUrl("https://api.test"),
         credential = BackendCredential.ServiceToken("t"),

@@ -1,3 +1,6 @@
+import { useCoreCompatibility } from '../hooks/useCoreCompatibility';
+import { TyGlyph } from '../components/TyGlyph';
+import '../styles/core-compatibility.css';
 import { useChangedTokenNames } from '../features/versionJournal/useChangedTokenNames';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router-dom';
@@ -44,6 +47,7 @@ const editorSectionLabels: Record<string, string> = {
     icons: 'Иконки',
     changes: 'Журнал изменений',
     versions: 'Версии',
+    validation: 'Валидация',
     settings: 'Настройки дизайн-системы',
 };
 export const Main = () => {
@@ -73,6 +77,7 @@ export const Main = () => {
                 : undefined,
         [projectId, designSystemId, tenantId, editorVersionId],
     );
+    const compatibility = useCoreCompatibility(editorContext);
     const editorSection = currentPath[editorContext ? 6 : 3];
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
     /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
@@ -296,6 +301,23 @@ export const Main = () => {
                                         title="Изменения дизайн-системы"
                                     >
                                         <img className="builder-rail-icon" src={railChangesIcon} alt="" />
+                                    </StyledIconButton>
+                                    <StyledIconButton
+                                        className={`builder-rail-button ${currentPath.includes('validation') ? 'is-active' : ''}`}
+                                        data-testid="editor-nav-validation"
+                                        selected={currentPath.includes('validation')}
+                                        onClick={() => onClickPanelButton('validation')}
+                                        aria-label={
+                                            compatibility.report?.blockingCount
+                                                ? 'Валидация, есть проблемы совместимости'
+                                                : 'Валидация'
+                                        }
+                                        title="Валидация"
+                                    >
+                                        <TyGlyph name="warning" />
+                                        {Boolean(compatibility.report?.blockingCount) && (
+                                            <span className="core-rail-danger-dot" aria-hidden="true" />
+                                        )}
                                     </StyledIconButton>
                                     <StyledIconButton
                                         className={`builder-rail-button ${currentPath.includes('versions') ? 'is-active' : ''}`}

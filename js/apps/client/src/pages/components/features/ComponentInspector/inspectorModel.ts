@@ -1,3 +1,4 @@
+import { numericPropertyTypes } from '../../../../controllers/componentBuilder/propertyTypes';
 import { upperFirstLetter } from '@salutejs/plasma-tokens-utils';
 
 import { humanizeName } from '../../../../utils/text';
@@ -91,7 +92,7 @@ export const sectionOf = (type: PropType | undefined, name: string): InspectorSe
         return 'Color';
     }
     if (type === 'typography') return 'Text';
-    if (type !== 'dimension' && type !== 'float' && type !== 'integer' && type !== 'value') return 'Additional';
+    if (!numericPropertyTypes.has(type) && type !== 'value') return 'Additional';
     if (/(width|height)$/i.test(name)) return 'Size';
     return 'Layout';
 };

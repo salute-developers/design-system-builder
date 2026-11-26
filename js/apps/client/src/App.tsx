@@ -1,3 +1,4 @@
+import { ValidationPage } from './pages/designSystems/ValidationPage';
 import type { ReactNode } from 'react';
 import { IconsPage } from './modules/icons';
 import { UserSettingsPage } from './pages/userSettings/UserSettingsPage';
@@ -139,6 +140,7 @@ function App() {
                         <Route path="icons" element={<IconsPage embedded />} />
                         <Route path="changes" element={<DesignSystemChangesPage />} />
                         <Route path="versions" element={<DesignSystemVersionsPage />} />
+                        <Route path="validation" element={<ValidationPage />} />
                         <Route path="settings" element={<DesignSystemSettingsPage embedded />} />
                     </Route>
                     <Route path="/" element={<Main />}>

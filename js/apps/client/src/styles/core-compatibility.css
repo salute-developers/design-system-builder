@@ -1,0 +1,287 @@
+.core-problem-count {
+    color: var(--p-danger);
+    margin-left: 8px;
+    flex: none;
+}
+.project-settings .core-validation-report button.core-problem-row,
+.component-inspector-body button.core-problem-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+    width: 100%;
+    height: auto;
+    padding: 12px 16px;
+    border: 0;
+    border-bottom: 1px solid var(--p-line);
+    background: transparent;
+    color: var(--p-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+}
+.project-settings .core-validation-report button.core-problem-row:hover,
+.project-settings .core-validation-report button.core-problem-row.is-selected,
+.component-inspector-body button.core-problem-row:hover {
+    background: var(--p-surface);
+}
+.core-problem-row span,
+.core-problem-row small {
+    color: var(--p-muted);
+    font-size: 12px;
+}
+.core-problem-row .core-problem-link {
+    color: var(--p-accent);
+}
+.core-validation-group {
+    margin-top: 24px;
+}
+.core-validation-group h2 {
+    font-size: 13px;
+    margin: 0 0 8px;
+}
+.core-validation-report .core-problem-row strong {
+    font-size: 13px;
+    font-weight: 600;
+}
+.project-settings #settings-compatibility {
+    width: 100%;
+    max-width: none;
+}
+.ps-content[data-active-section='compatibility'] #settings-compatibility {
+    display: block;
+}
+.ps-aside .ps-aside-section-block > .ps-button {
+    margin: 0 12px;
+}
+.core-report-value {
+    margin: 12px 0;
+}
+.core-validation-details .ps-aside-section {
+    height: auto;
+    min-height: 32px;
+    overflow-wrap: anywhere;
+}
+.core-validation-details .ps-aside-note {
+    overflow-wrap: anywhere;
+}
+.sdds-style-role-label.has-deprecated-property {
+    align-items: center;
+}
+.sdds-style-role-label.has-deprecated-property > b {
+    flex: 0 1 auto;
+    color: #e5b93f;
+}
+[data-core-deprecated='true']:not([data-core-invalid='true']) .component-variation-property-value > :first-child {
+    border-color: #e5b93f;
+}
+.core-property-deprecated {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #e5b93f1a;
+    color: #e5b93f;
+    cursor: help;
+}
+.core-property-deprecated .ui-glyph {
+    width: 14px;
+    height: 14px;
+}
+.core-property-deprecated.is-blocking {
+    color: var(--p-danger);
+    background: color-mix(in srgb, var(--p-danger) 10%, transparent);
+}
+.core-assignment-row,
+[data-core-invalid='true'] {
+    scroll-margin: 24px;
+}
+.core-assignment-row:focus,
+[data-core-invalid='true']:focus {
+    outline: none;
+}
+.core-invalid-control,
+[data-core-invalid='true'] .component-variation-property-value > :first-child {
+    border-color: var(--p-danger);
+}
+.core-assignment-row .sdds-style-role-label > b,
+[data-core-invalid='true'] .sdds-style-role-label > b {
+    color: var(--p-danger);
+}
+.core-assignment-row .component-property-error,
+[data-core-invalid='true'] .component-property-error {
+    background: transparent;
+    padding: 0;
+    margin: 4px 0;
+    font-size: 11px;
+    color: var(--p-danger);
+}
+.core-assignment-state {
+    color: var(--p-muted);
+    font-size: 11px;
+}
+/* Индикатор занимает отдельную колонку: кнопка скрытия остаётся на той же строке. */
+.component-tree-panel .token-row.has-core-problems {
+    grid-template-columns: minmax(0, 1fr) 23px 23px;
+}
+.component-tree-panel button.core-component-indicator {
+    border: 0;
+    background: transparent;
+    color: var(--p-danger);
+    cursor: pointer;
+    margin: 0;
+    width: 23px;
+    height: 23px;
+    padding: 4px;
+    display: grid;
+    place-items: center;
+}
+.component-tree-panel .core-component-indicator .ui-glyph {
+    width: 15px;
+    height: 15px;
+}
+.component-inspector-tabs button {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+}
+.component-inspector-tabs > button.has-problems::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    flex: 0 0 6px;
+    border-radius: 50%;
+    background: var(--p-danger);
+}
+.builder-rail-button:has(.core-rail-danger-dot) {
+    position: relative;
+}
+.core-rail-danger-dot {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--p-danger);
+    pointer-events: none;
+}
+.builder-rail-button .ui-glyph {
+    width: 16px;
+    height: 16px;
+}
+.release-validation p {
+    margin: 0 0 8px;
+    color: var(--p-muted);
+    font-size: 12px;
+}
+.release-validation .release-validation-button {
+    width: 100%;
+    background: var(--p-danger);
+}
+/* Подпись занимает только колонку самого поля, не колонку названия и не место очистки. */
+.core-assignment-row .component-variation-property-value {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 24px;
+    align-items: start;
+    column-gap: 4px;
+}
+.core-assignment-row .core-invalid-control {
+    grid-column: 1;
+    grid-row: 1;
+    min-width: 0;
+}
+.core-assignment-row .component-property-clear-slot {
+    grid-column: 2;
+    grid-row: 1;
+}
+.core-assignment-hint {
+    grid-column: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+.core-assignment-row .component-variation-style-row {
+    align-items: start;
+}
+.core-assignment-row .sdds-style-role-label {
+    padding-top: 4px;
+}
+.core-problem-count {
+    color: var(--p-muted);
+}
+.ps-nav-item:has(.ps-count-badge) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+.ps-count-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 20px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--p-surface);
+    color: var(--p-text);
+    font-size: 11px;
+}
+.ps-aside.has-footer .ps-aside-body {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+}
+.ps-aside-footer {
+    padding: 12px;
+    border-top: 1px solid var(--p-line);
+}
+.ps-aside-footer .ps-button {
+    width: 100%;
+    justify-content: center;
+}
+.core-problem-entry {
+    display: flex;
+    align-items: stretch;
+    border-radius: 5px;
+    border-bottom: 1px solid var(--p-line);
+}
+.core-problem-entry:hover,
+.core-problem-entry.is-selected {
+    background: var(--p-surface);
+}
+.project-settings .core-validation-report .core-problem-entry button.core-problem-row {
+    background: transparent;
+}
+.project-settings .core-validation-report button.core-problem-row {
+    flex: 1;
+    min-width: 0;
+    width: auto;
+    padding-left: 12px;
+    border-bottom: 0;
+}
+.project-settings .core-validation-report button.core-problem-jump {
+    flex: none;
+    align-self: center;
+    display: grid;
+    place-items: center;
+    width: 28px;
+    height: 28px;
+    padding: 6px;
+    margin: 0 8px 0 0;
+    border: 0;
+    border-radius: 4px;
+    background: transparent;
+    color: var(--p-muted);
+}
+.project-settings .core-validation-report button.core-problem-jump:hover {
+    background: var(--p-surface);
+    color: var(--p-text);
+}
+.core-problem-jump .ui-glyph {
+    width: 16px;
+    height: 16px;
+}

@@ -10,7 +10,15 @@ import type { AppearanceDto, AppearanceEditorModelDto, EditorContextKey, TokenDe
  */
 // Конфигурации, их вариации и значения свойств — ресурсы дизайн-системы контекста.
 const root = (context: EditorContextKey) => apiRoot(context.projectId, context.designSystemId);
-const create = { headers: () => ({ 'Idempotency-Key': crypto.randomUUID() }) };
+const coreHeaders = (context: EditorContextKey) =>
+    context.coreSelectionRevision == null
+        ? {}
+        : {
+              'X-DS-Core-Selection-Revision': String(context.coreSelectionRevision),
+          };
+const create = {
+    headers: (context: EditorContextKey) => ({ ...coreHeaders(context), 'Idempotency-Key': crypto.randomUUID() }),
+};
 
 /** Ссылка на токен — имя через точки (`text.default.primary`); число, `#RRGGBB` и прочие литералы — нет. */
 const TOKEN_REFERENCE = /^[a-z][\w-]*(\.[\w-]+)+$/i;
@@ -50,7 +58,7 @@ export const componentStructureRepository = {
         const { data } = await http.post<AppearanceDto>(
             `${root(context)}/appearances/new`,
             { componentId },
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, data);
     },
@@ -59,18 +67,18 @@ export const componentStructureRepository = {
         const { data } = await http.post<AppearanceDto>(
             `${root(context)}/appearances/${appearanceId}/duplicate`,
             {},
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, data);
     },
 
     async renameConfiguration(context: EditorContextKey, appearanceId: string, name: string) {
-        await http.patch(`${root(context)}/appearances/${appearanceId}`, { name });
+        await http.patch(`${root(context)}/appearances/${appearanceId}`, { name }, { headers: coreHeaders(context) });
         return done(context, undefined);
     },
 
     async deleteConfiguration(context: EditorContextKey, appearanceId: string) {
-        await http.delete(`${root(context)}/appearances/${appearanceId}`);
+        await http.delete(`${root(context)}/appearances/${appearanceId}`, { headers: coreHeaders(context) });
         return done(context, undefined);
     },
 
@@ -79,7 +87,7 @@ export const componentStructureRepository = {
         await http.post(
             `${root(context)}/appearances/${appearanceId}/axes`,
             { name, values: ['default'], defaultValue: 'default' },
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, undefined);
     },
@@ -87,6 +95,7 @@ export const componentStructureRepository = {
     /** Удаляет вариацию из конфигурации вместе со значениями свойств её стилей. */
     async deleteAxis(context: EditorContextKey, appearanceId: string, axisId: string) {
         await http.delete(`${root(context)}/appearances/${appearanceId}/axes/${axisId}`, {
+            headers: coreHeaders(context),
             params: { confirmCascade: true },
         });
         return done(context, undefined);
@@ -94,18 +103,30 @@ export const componentStructureRepository = {
 
     /** Порядок вариаций конфигурации: список должен содержать каждую ось ровно один раз. */
     async reorderAxes(context: EditorContextKey, appearanceId: string, axisIds: string[]) {
-        await http.post(`${root(context)}/appearances/${appearanceId}/axis-order`, { axisIds });
+        await http.post(
+            `${root(context)}/appearances/${appearanceId}/axis-order`,
+            { axisIds },
+            { headers: coreHeaders(context) },
+        );
         return done(context, undefined);
     },
 
     /** Переименование вариации только в этой конфигурации (отображаемое имя оси). */
     async renameAxis(context: EditorContextKey, axisId: string, name: string) {
-        await http.patch(`${root(context)}/appearance-variations/${axisId}`, { displayName: name });
+        await http.patch(
+            `${root(context)}/appearance-variations/${axisId}`,
+            { displayName: name },
+            { headers: coreHeaders(context) },
+        );
         return done(context, undefined);
     },
 
     async setDefaultValue(context: EditorContextKey, axisId: string, styleId: string) {
-        await http.patch(`${root(context)}/appearance-variations/${axisId}`, { defaultStyleId: styleId });
+        await http.patch(
+            `${root(context)}/appearance-variations/${axisId}`,
+            { defaultStyleId: styleId },
+            { headers: coreHeaders(context) },
+        );
         return done(context, undefined);
     },
 
@@ -113,20 +134,25 @@ export const componentStructureRepository = {
         await http.post(
             `${root(context)}/appearances/${appearanceId}/axes/${axisId}/values`,
             { name },
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, undefined);
     },
 
     /** Переименование значения только в этой конфигурации (отображаемое имя значения). */
     async renameValue(context: EditorContextKey, valueId: string, name: string) {
-        await http.patch(`${root(context)}/appearance-variation-values/${valueId}`, { displayName: name });
+        await http.patch(
+            `${root(context)}/appearance-variation-values/${valueId}`,
+            { displayName: name },
+            { headers: coreHeaders(context) },
+        );
         return done(context, undefined);
     },
 
     /** Удаляет значение из вариации конфигурации вместе со значениями свойств его стиля. */
     async deleteValue(context: EditorContextKey, appearanceId: string, valueId: string) {
         await http.delete(`${root(context)}/appearances/${appearanceId}/axis-values/${valueId}`, {
+            headers: coreHeaders(context),
             params: { confirmCascade: true },
         });
         return done(context, undefined);
@@ -137,7 +163,7 @@ export const componentStructureRepository = {
         await http.post(
             `${root(context)}/property-variations`,
             { propertyId, variationId },
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, undefined);
     },
@@ -174,7 +200,7 @@ export const componentStructureRepository = {
                 ...(alpha !== undefined ? { alpha: String(alpha) } : {}),
                 ...(reference ? { reference } : {}),
             },
-            { headers: create.headers() },
+            { headers: create.headers(context) },
         );
         return done(context, undefined);
     },
@@ -188,6 +214,7 @@ export const componentStructureRepository = {
         states?: string[],
     ) {
         await http.delete(`${root(context)}/appearances/${appearanceId}/property-values`, {
+            headers: coreHeaders(context),
             params: { propertyId, styleIds: styleIds.join(','), ...(states ? { states: states.join(',') } : {}) },
         });
         return done(context, undefined);
@@ -202,6 +229,7 @@ export const componentStructureRepository = {
         );
         for (const item of own) {
             await http.delete(`${root(context)}/appearances/${appearanceId}/property-values`, {
+                headers: coreHeaders(context),
                 params: {
                     propertyId: item.propertyId,
                     styleIds: item.styleIds.join(','),

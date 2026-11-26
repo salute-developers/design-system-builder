@@ -11,7 +11,9 @@ import com.dsbuilder.frontend.feature.components.application.ExportComponentsCom
 import com.dsbuilder.frontend.feature.components.application.ExportComponentsResult
 import com.dsbuilder.frontend.feature.components.application.ImportComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.ImportComponentsResult
+import com.dsbuilder.frontend.feature.components.application.WebAdapterFileResult
 import com.dsbuilder.frontend.feature.components.data.HttpComponentConfigRemoteSource
+import com.dsbuilder.frontend.feature.components.data.HttpWebAdapterFileSource
 import com.dsbuilder.frontend.feature.components.domain.ConvertedComponentConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.CommonConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.ConfigCodec
@@ -166,6 +168,22 @@ class HttpComponentConfigRemoteSourceTest {
     }
 
     @Test
+    fun exportUsesTheSelectedVersionAndEscapesItsBuildSuffix() = runTest {
+        var requested = ""
+        export(
+            onPost = { path, _ ->
+                requested = path
+                AuthenticatedHttpResult.Success(PACKAGE)
+            },
+            version = "1.0.0+build",
+        )
+        assertEquals(
+            "/api/projects/project-a/design-systems/ds-a/component-config/export?version=1.0.0%2Bbuild",
+            requested,
+        )
+    }
+
+    @Test
     fun exportSendsSinglePostAddressedByIdentifier() = runTest {
         val requests = mutableListOf<Pair<String, String>>()
         val result = export(
@@ -216,8 +234,41 @@ class HttpComponentConfigRemoteSourceTest {
         assertEquals("Error: 403 Forbidden.", (result as ExportComponentsResult.Failed).message)
     }
 
+    @Test
+    fun webAdapterRejectsAChangedOrMissingSnapshotContext() = runTest {
+        val command = ExportComponentsCommand(
+            ProjectApiUrl("http://localhost"),
+            BackendCredential.PersonalAccessToken("key"),
+            ProjectId("project"),
+            DesignSystemId("system"),
+            "web",
+            readContext = "snapshot-A",
+        )
+        for (actual in listOf("snapshot-A", "snapshot-B", null)) {
+            val factory = FakeHttpClientFactory(
+                { _, _ -> },
+                {},
+                { _, _ ->
+                    AuthenticatedHttpResult.Success("[]", actual?.let { mapOf("x-ds-read-context" to it) }.orEmpty())
+                },
+            )
+            val result = HttpWebAdapterFileSource(factory).fetch(command)
+            assertEquals(
+                actual == "snapshot-A",
+                result is WebAdapterFileResult.Loaded,
+            )
+        }
+        val exported = export(
+            onPost = { _, _ ->
+                AuthenticatedHttpResult.Success(PACKAGE, mapOf("x-ds-read-context" to "snapshot-A"))
+            },
+        ) as ExportComponentsResult.Exported
+        assertEquals("snapshot-A", exported.value.readContext)
+    }
+
     private suspend fun export(
         onPost: (String, String) -> AuthenticatedHttpResult,
+        version: String? = null,
     ): ExportComponentsResult =
         HttpComponentConfigRemoteSource(FakeHttpClientFactory({ _, _ -> }, {}, onPost)).export(
             ExportComponentsCommand(
@@ -226,6 +277,7 @@ class HttpComponentConfigRemoteSourceTest {
                 projectId = ProjectId("project-a"),
                 designSystemId = DesignSystemId("ds-a"),
                 platform = "compose",
+                version = version,
             ),
         )
 

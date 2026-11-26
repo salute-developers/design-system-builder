@@ -482,14 +482,15 @@ components:write
 Нужна user session администратора на **том же API URL**, который задан через `DSBUILDER_API_URL`:
 
 ```bash
-dsbuilder auth login --username admin@example.com
-dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose # план, ничего не пишется
+dsbuilder auth login
 dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
-  --apply   # запись
+  --library-id uikit-compose --core-version 0.55.0 --channel stable # план, ничего не пишется
+dsbuilder components import-api --from path/to/uikit-compose-api-meta.json --platform compose \
+  --library-id uikit-compose --core-version 0.55.0 --channel stable --apply   # запись
 ```
 
 Команде не нужны проект, `.sdds/config.json`, Gradle и дизайн-система: только файл, платформа и API URL.
-`--from` и `--platform` обязательны. Поддержаны `compose`, `android-view`, `swiftui` и `react`; остальные
+`--from`, `--platform`, `--library-id`, `--core-version` и `--channel stable|dev` обязательны. Поддержаны `compose`, `android-view`, `swiftui` и `react`; остальные
 платформы команда отклоняет до чтения файла и обращения к backend.
 
 Файл меты — вывод генератора меты платформы (`uikit-compose-api-meta.json`, `uikit-api-meta.json`,
@@ -533,18 +534,22 @@ Unchanged properties: 1251
 Rejected: 0
 ```
 
-Запись только добавляет. Существующие компоненты, свойства, состояния и платформенные имена не
-меняются и не удаляются; единственное исключение — статус устаревания платформенного имени (см. ниже).
-Компонент идентифицируется парой «имя и платформа запроса»: компоненты других платформ не читаются и не
-меняются, поэтому расхождения типов между платформами нет. Если тип существующего свойства в базе отличается от типа в мете, тип не меняется, а свойство
-попадает в раздел `Property type mismatches`: глобальный слой общий для всех дизайн-систем. Свойство с
-типом, которого нет в схеме БД, попадает в `Rejected` с причиной; остальной импорт от этого не зависит.
-Повторный запуск без изменений в мете не создаёт ничего. Компоненты ни к какой дизайн-системе не
-привязываются: привязка делается отдельными маршрутами `design-system-components`.
+Импорт создаёт неизменяемый релиз Core с координатами `(libraryId, platform, version)`.
+При успешном `--apply` CLI выводит координаты, канал и `Core release ID` из ответа сервера.
+Dry run показывает координаты и канал без ID регистрации.
+CLI передаёт координаты отдельно, исходные байты меты и их SHA-256, а также нормализованный состав.
+Формат файла сохраняется: массив для Compose/React/SwiftUI, объект с `components` для Android View.
+Одна платформа в каталоге соответствует одной библиотеке; смена `libraryId` отклоняется.
 
-Импорт записывается в журнал `design_system_changes` со значением `design_system_id = NULL`
-(`entity_type = components:import-api-meta`, в `data` — пользователь, платформа, имя файла и счётчики).
-Dry run ничего не пишет, в том числе в журнал. В ленты дизайн-систем такая запись не попадает.
+Устойчивые ID компонентов и свойств сохраняются. Новый Core может убрать свойство или изменить его
+поддерживаемый тип: опубликованные версии ДС продолжают читать прежний Core, черновики — новый.
+Неизвестный нормализованный тип или противоречащие определения отклоняют весь релиз. Повтор тех же
+координат и содержимого ничего не создаёт и не переключает текущий Core назад; другое содержимое
+под теми же координатами отклоняется. Dry run не сохраняет релиз или изменения каталога.
+
+Импорт не меняет настройки, revision или журнал ДС, не публикует ДС и не запускает выпуск её пакета.
+Отдельная публикация с пустым журналом по-прежнему запрещена. Общие состояния остаются системными;
+вложенность описывает Core, а выбранные вложенные оформления относятся к настройкам ДС.
 
 ### Отказ доступа
 
@@ -645,34 +650,44 @@ Absent from meta (informational, nothing was removed): 2
 ## Публикация Compose preview plugin
 
 Команда отправляет билд плагина Compose-превью на бэкенд: архив `preview-compose-plugin.zip`, собранный в
-`plasma-android`, и мета компонентов из него. Бэкенд за один шаг кладёт файлы в хранилище, импортирует мету и
-делает билд активным; клиент редактора берёт адрес плагина у бэкенда.
+`plasma-android`, и мета компонентов из него. Бэкенд связывает билд с релизом Core, кладёт файлы в хранилище
+и делает билд активным. Клиент редактора получает адрес плагина у бэкенда.
 
 ```bash
 # Пробная отправка: бэкенд проверяет архив и мету и ничего не записывает.
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com
 
 # Запись билда.
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com --apply
 ```
+
+Manifest архива содержит `coreRelease: {libraryId, platform, version}`; `version` этих координат
+совпадает с `uikitComposeVersion` или `plasmaNewHopeVersion`. Это версия Core, тогда как верхнеуровневая
+`version` manifest остаётся идентификатором сборки превью. Платформа координат — `compose` или `web`.
 
 Перед отправкой CLI проверяет архив локально: в нём должны быть `preview-plugin.json` и `api-meta.json`, а sha256
 файла меты обязан совпасть с `apiMetaSha256` manifest. Мета нормализуется так же, как в `components import-api`.
-Платформа поддерживается только `compose`, а `--api-url` обязателен, потому что команда пишет на бэкенд.
+Поддержаны платформы `compose` и `react`. Укажите `--api-url` и `--channel stable|dev`.
 
-Итог: `published` (новый билд записан и активен), `activated` (ранее опубликованный билд снова активен: так
-выполняется откат повторной публикацией старого билда) или `unchanged` (билд уже опубликован и активен). Если
-билд с тем же идентификатором опубликован с другим содержимым архива, команда завершается ошибкой и ничего не
-меняет.
+Локальный setup использует `--print-core-import-request` для подготовки тела запроса регистрации Core из ZIP.
+В этом режиме CLI пишет JSON в стандартный вывод без обращения к серверу. Нужны платформа, архив и канал.
+Параметр `--apply` с этим режимом несовместим.
+
+Итог: `published` (записан новый билд), `activated` (снова активирован старый билд), `unchanged`
+(билд уже опубликован и активен) или `replaced` (в `dev` заменились файлы билда с тем же ID и метой).
+В `stable` содержимое уже опубликованного билда неизменяемо. Для изменения меты зарегистрируйте новую версию Core.
 
 ### Авторизация
 
-В CI команда входит служебной учёткой Keycloak с ролью публикации (без прав системного администратора):
+В CI команда входит служебной учёткой Keycloak с ролью публикации. Системный администратор сначала
+регистрирует Core через `components import-api --apply` с исходной метой из ZIP, её координатами
+и тем же каналом. Служебная учётка публикует preview для этого релиза. Системный администратор
+также может зарегистрировать новый Core вместе с первым preview за один вызов `--apply`.
 
 ```bash
 export DSBUILDER_CLIENT_ID=dsbuilder-preview-publisher
 export DSBUILDER_CLIENT_SECRET=...   # секрет передаётся только через окружение
-dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --api-url https://api.example.com --apply
+dsbuilder preview-plugin publish --platform compose --from preview-compose-plugin.zip --channel stable --api-url https://api.example.com --apply
 ```
 
 CLI получает короткоживущий токен (`client_credentials`) через `/auth/token` и не сохраняет его на диск. Секрет
@@ -782,6 +797,14 @@ Android, web-генератор `dsbuilder-web-generator` для React. CLI вы
 dsbuilder theme generate
 dsbuilder components generate
 ```
+
+`components fetch` сохраняет происхождение Core рядом с конфигурациями в `core-context.json`.
+Этот файл не меняет формат `meta.json` или `*_config.json`, которые читает генератор.
+Новый fetch/export при блокирующих конфликтах завершается отказом; CLI не подменяет его старым снимком.
+
+`components generate` использует выбранные локальные файлы без обращения к серверу, проверки текущего
+Core или автоматического fetch. Можно генерировать из снимка Core A в репозитории с ещё не выпущенным
+Core B. Совместимость результата с B проверяется локальной сборкой и тестами платформы.
 
 Платформа берётся из `.sdds/config.json`. Если она там не объявлена или платформ несколько,
 её нужно назвать явно:

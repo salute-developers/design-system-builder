@@ -19,6 +19,12 @@ sealed interface PublishDesignSystemResult {
         val draftRevision: Long,
     ) : PublishDesignSystemResult
 
+    /** Сохранённые настройки несовместимы с текущим Core. */
+    data class CoreConflict(
+        /** Полный отчёт, объясняющий отказ операции. */
+        val report: com.dsbuilder.ds.core.application.CoreCompatibilityReport,
+    ) : PublishDesignSystemResult
+
     /** В черновике нет предметных отличий. */
     data object EmptyDraft : PublishDesignSystemResult
 
