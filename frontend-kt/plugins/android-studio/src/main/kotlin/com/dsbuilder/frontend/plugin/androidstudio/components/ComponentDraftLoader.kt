@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.plugin.androidstudio.components
 
 import com.dsbuilder.frontend.plugin.androidstudio.preview.ComponentPreviewDraft
 import com.dsbuilder.frontend.plugin.androidstudio.preview.PreviewAssemblyException
+import com.dsbuilder.frontend.plugin.androidstudio.preview.PreviewTokenResolver
 import com.dsbuilder.frontend.plugin.androidstudio.preview.failAssembly
 import com.dsbuilder.frontend.plugin.androidstudio.preview.jsonObject
 import com.dsbuilder.frontend.plugin.androidstudio.preview.obj
@@ -30,6 +31,24 @@ internal class ComponentDraftLoader(
 
     suspend fun bundle(component: CatalogComponent): ComponentBundle =
         bundles.get(component.id) { catalog.bundle(context, component) }
+
+    /** Прогревает шрифт общего text-default до выбора первого компонента. */
+    suspend fun defaultFontPayload(): JsonObject {
+        val themeTokens = projectTokens(tokens.get("tokens") { catalog.tokens(context) }, context, "light")
+        val resolver = PreviewTokenResolver(
+            jsonObject(
+                "themeMode" to string("light"),
+                "themeTokens" to JsonArray(themeTokens),
+            ),
+        )
+        try {
+            resolver.resolve("body.m.normal")
+        } catch (_: PreviewAssemblyException) {
+            // Не каждая ДС содержит общий text-default; её компоненты собираются обычным путём.
+            return jsonObject()
+        }
+        return jsonObject("assets" to JsonArray(resolver.assets.values.toList()), "theme" to JsonObject(resolver.theme))
+    }
 
     private suspend fun target(reference: String): Pair<ComponentBundle, ComponentConfiguration> {
         val name = reference.substringBefore('.')

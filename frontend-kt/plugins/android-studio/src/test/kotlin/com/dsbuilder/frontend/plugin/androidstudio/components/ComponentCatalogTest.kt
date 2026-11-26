@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.plugin.androidstudio.preview.AssemblyResult
 import com.dsbuilder.frontend.plugin.androidstudio.preview.PayloadAssembler
 import com.dsbuilder.frontend.plugin.androidstudio.preview.PreviewAssemblyException
 import com.dsbuilder.frontend.plugin.androidstudio.preview.obj
+import com.dsbuilder.frontend.plugin.androidstudio.preview.objects
 import com.dsbuilder.frontend.plugin.androidstudio.preview.text
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.mock.MockEngine
@@ -62,6 +63,50 @@ private fun apiFor(http: HttpClient): AuthenticatedApiClient {
 
 class ComponentCatalogTest {
     private val context = ComponentContext("project", "system", "tenant")
+
+    @Test
+    fun preloadsOnlyDefaultTextFontsAndSharesTheTokenReadCache() = runBlocking {
+        val reads = mutableListOf<String>()
+        HttpClient(
+            MockEngine { request ->
+                val path = request.url.encodedPath
+                reads.add(path)
+                val json = when {
+                    path.endsWith("/tokens") ->
+                        """[
+                    {"id":"font","name":"body","type":"fontFamily"},
+                    {"id":"text","name":"screen-s.body.m.normal","type":"typography"}
+                ]"""
+                    path.endsWith("/token-values") ->
+                        """[
+                    {"tokenId":"font","platform":"android","value":{"fonts":[
+                        {"link":"https://fonts.example/body.otf","fontWeight":400}
+                    ]}},
+                    {"tokenId":"text","platform":"android","value":{
+                        "fontFamilyRef":"fontFamily.body","fontSize":16,"lineHeight":20,"fontWeight":400
+                    }}
+                ]"""
+                    else -> error("Unexpected preloading request: $path")
+                }
+                respond(json)
+            },
+        ).use { http ->
+            val loader = ComponentDraftLoader(ComponentCatalog(apiFor(http)), context, this, emptyList())
+            val payload = loader.defaultFontPayload()
+            assertEquals("https://fonts.example/body.otf", payload.objects("assets").single().text("url"))
+            assertEquals("fontFamily", payload.obj("theme").obj("fontFamily.body").text("type"))
+            assertEquals(payload, loader.defaultFontPayload())
+            assertEquals(2, reads.size)
+        }
+    }
+
+    @Test
+    fun missingDefaultTypographyDoesNotPreventOpeningComponents() = runBlocking {
+        HttpClient(MockEngine { respond("[]") }).use { http ->
+            val loader = ComponentDraftLoader(ComponentCatalog(apiFor(http)), context, this, emptyList())
+            assertEquals(JsonObject(emptyMap()), loader.defaultFontPayload())
+        }
+    }
 
     @Test
     fun acceptsScopedSummaryWithoutPlatformAndRejectsExplicitOtherPlatforms() = runBlocking {

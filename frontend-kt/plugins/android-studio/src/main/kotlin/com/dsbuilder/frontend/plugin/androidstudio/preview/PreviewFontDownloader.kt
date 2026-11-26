@@ -33,16 +33,23 @@ internal class PreviewFontDownloader(
             }
         }
     },
+    private val cache: PreviewFontCache? = null,
 ) : AutoCloseable {
     private val clients = ConcurrentHashMap<String, HttpClient>()
 
     @Volatile
     private var closed = false
 
-    suspend fun download(url: String): ByteArray {
+    suspend fun download(url: String, type: String? = null): ByteArray {
         check(!closed) { "Сессия превью закрыта" }
         val uri = URI(url)
         require(uri.scheme == "https" && uri.host != null && uri.userInfo == null) { "Некорректный HTTPS-адрес шрифта" }
+        if (type != null) {
+            cache?.read(url, type)?.let {
+                check(!closed) { "Сессия превью закрыта" }
+                return it
+            }
+        }
         val addresses = resolve(uri.host)
         require(
             addresses.isNotEmpty() && addresses.all(::publicFontAddress),
@@ -60,7 +67,18 @@ internal class PreviewFontDownloader(
             check(response.status.value == 200) { "Файл шрифта недоступен: HTTP ${response.status.value}" }
             val length = response.headers[HttpHeaders.ContentLength]?.toLongOrNull()
             check(length == null || length <= MAX_FONT_BYTES) { "Файл шрифта слишком большой" }
-            response.bodyAsChannel().readRemaining(MAX_FONT_BYTES + 1L).readByteArray()
+            val bytes = response.bodyAsChannel().readRemaining(MAX_FONT_BYTES + 1L).readByteArray()
+            if (type != null) {
+                cache?.store(
+                    url,
+                    type,
+                    bytes,
+                    response.headers.getAll(HttpHeaders.CacheControl)?.joinToString(","),
+                    response.headers.getAll(HttpHeaders.Age)?.joinToString(","),
+                    response.headers.getAll(HttpHeaders.Vary)?.joinToString(","),
+                )
+            }
+            bytes
         }
     }
 

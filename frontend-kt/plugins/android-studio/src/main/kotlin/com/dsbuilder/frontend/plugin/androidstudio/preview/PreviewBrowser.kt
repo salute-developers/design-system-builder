@@ -1,6 +1,7 @@
 package com.dsbuilder.frontend.plugin.androidstudio.preview
 
 import com.dsbuilder.frontend.plugin.androidstudio.api.ApiJson
+import com.intellij.openapi.application.PathManager
 import com.intellij.ui.jcef.CefOsrBrowserFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
@@ -23,6 +24,7 @@ import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.browser.CefRequestContext
 import org.cef.handler.CefLifeSpanHandlerAdapter
+import java.nio.file.Path
 import java.util.UUID
 
 /** Одна изолированная сессия браузера на раздел; API-клиент и секреты в неё не передаются. */
@@ -47,7 +49,12 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
         .setOffScreenRendering(true).build()
 
     // Адреса assets видит iframe; их идентификатор не должен раскрывать секрет моста.
-    private val fonts = PreviewFontAssets(manifest.entrypoint.resolve("./.ide-fonts/${UUID.randomUUID()}/"))
+    private val fonts = PreviewFontAssets(
+        manifest.entrypoint.resolve("./.ide-fonts/${UUID.randomUUID()}/"),
+        PreviewFontDownloader(
+            cache = PreviewFontCache(Path.of(PathManager.getSystemPath(), "dsbuilder", "preview-fonts")),
+        ),
+    )
     private val query = JBCefJSQuery.create(browser as JBCefBrowserBase)
 
     @Volatile
@@ -87,6 +94,8 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
             },
             nativeBrowser,
         )
+        // Загружаем Wasm уже в списке компонентов, после установки всех ограничений и моста.
+        browser.createImmediately()
     }
 
     private fun wrapper(entrypoint: String): String = previewPage(
@@ -100,6 +109,10 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
     suspend fun render(payload: JsonObject) {
         session.render(fonts.prepare(payload))
         browser.cefBrowser.executeJavaScript("window.showPreview()", wrapperUrl, 0)
+    }
+
+    suspend fun preloadFonts(payload: JsonObject) {
+        fonts.prepare(payload)
     }
 
     fun clearFrame() {

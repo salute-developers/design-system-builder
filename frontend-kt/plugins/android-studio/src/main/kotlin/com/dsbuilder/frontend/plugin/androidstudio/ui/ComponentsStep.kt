@@ -138,6 +138,10 @@ internal fun ComponentsStep(
                     current.value,
                 )
             }
+            LaunchedEffect(loader, preview.state) {
+                val browser = (preview.state as? LoadState.Loaded)?.value
+                if (browser != null) runCatchingLoad { browser.preloadFonts(loader.defaultFontPayload()) }
+            }
             if (state.selected == null) {
                 ComponentList(current.value, state) {
                     state.selected = it
