@@ -18,7 +18,8 @@
 Происхождение текущих файлов:
 
 <!-- provenance:start -->
-- Plugin archive: build `ef8bd516cf90` (plasma-android commit `98c5181ab1436859ae2c27045a38c01b396293cc`), uikit-compose `0.57.0-dev.98c5181ab1436859ae2c27045a38c01b396293cc`, protocol 1, sha256 `e878247e3e7c1f73c3d1d786632dccc893defb68d643ef1b61ce3d20bf985737`.
+- Compose plugin archive: build `754c61a48f3d` (plasma-android commit `9d38c726e78831b60deaee7810937cc3868aecb7`), uikit-compose `0.57.0`, protocol 1, sha256 `1b179217428fa34ed17d67a86d1999dc82540b57a610c8619a4a7945caba3f25`. Core coordinates and build ID were added to the manifest of the build from DS Builder #196.
+- Compose API meta: sha256 `1457b62d34448f7ab302cb0721c673e4574511c850a033ff54c70932b63f33e1`. All 79 component records include `stateSupport`.
 - Theme (Android values): `sdds_serv` `0.9.0` from theme-converter.
 - Component package: `sdds_serv` `0.18.0`, 144 configurations, from theme-converter.
 - plasma-android commit for the bundled theme and component package: `0dc782c1cfa35302d71fb53ded20eb9282d388f9`.
@@ -122,6 +123,21 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
   (порт S3 меняется переменной `MINIO_PUBLIC_PORT`, если 9000 занят).
 
 ## Обновление файлов
+
+При создании окружения `setup-local.sh` (Windows: `setup-local.ps1`) автоматически публикует оба
+плагина и импортирует вложенную API-мету. `publish-preview-plugin.sh` по умолчанию собирает JVM CLI
+из текущего checkout (нужен JDK 17): установленный `dsbuilder` может ещё не переносить новые поля
+меты, например `stateSupport`. Явный выбор CLI через `--cli` или `DSBUILDER_CLI` сохраняется.
+
+Для обновления существующего окружения без сброса данных из корня DS Builder:
+
+```bash
+./publish-preview-plugin.sh --platform compose --channel dev --from ./local-dev/compose-preview/preview-compose-plugin.zip --register-core
+./publish-preview-plugin.sh --platform react --channel dev --from ./local-dev/web-preview/preview-web-plugin.zip --register-core
+```
+
+Команды обновляют архивы в локальном MinIO, импортируют вложенную API-мету и активируют сборки.
+Повторять импорт `sdds_serv_local` не требуется.
 
 Из чекаута plasma-android (нужны JDK 17, Node и доступ к GitHub):
 
