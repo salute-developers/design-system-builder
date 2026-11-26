@@ -165,7 +165,7 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
         val repeat = publish(PluginKind.WEB, archive, actor = Actor.PUBLISHER).ok()
         assertEquals("published", initial.string("outcome"))
         assertEquals("unchanged", repeat.string("outcome"))
-        assertEquals(HttpStatusCode.Forbidden, service.builder.client.get(PluginKind.WEB.active).status)
+        assertEquals(HttpStatusCode.OK, service.builder.client.get(PluginKind.WEB.active).status)
     }
 
     @Test

@@ -4,6 +4,9 @@ package com.dsbuilder.frontend.core.auth
  * Backend credential selected for one DS Builder API request.
  */
 public sealed interface BackendCredential {
+    /** Адресное чтение без учётных данных и заголовка Authorization. */
+    public data object Anonymous : BackendCredential
+
     /**
      * Project-scoped API key credential.
      *
@@ -37,6 +40,7 @@ public sealed interface BackendCredential {
  * Public credential category safe for diagnostics.
  */
 public enum class BackendCredentialType {
+    ANONYMOUS,
     PERSONAL_ACCESS_TOKEN,
     USER_SESSION,
     SERVICE_ACCOUNT,

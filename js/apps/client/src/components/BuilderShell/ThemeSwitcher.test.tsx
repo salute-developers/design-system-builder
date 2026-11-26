@@ -6,7 +6,13 @@ import * as autosave from '../../api/draftAutosaveActivity';
 import { themesApi } from '../../modules/themes/data/themesApi';
 import type { ThemeTenant } from '../../modules/themes/domain/theme';
 import { resetQueryCache } from '../../shared/data/useLoad';
-import { THEME_SEARCH_THRESHOLD, THEME_SWITCH_BLOCKED, ThemeSwitcher, themeSwitchPath } from './ThemeSwitcher';
+import {
+    THEME_SEARCH_THRESHOLD,
+    THEME_SWITCH_BLOCKED,
+    ThemeSwitcher,
+    themeSwitchPath,
+    switchTheme,
+} from './ThemeSwitcher';
 
 const theme = (id: string, name: string): ThemeTenant => ({
     id,
@@ -82,10 +88,14 @@ describe('ThemeSwitcher', () => {
         renderAt('/projects/p/design-systems/ds/themes/light/colors?tokenId=t1');
 
         fireEvent.click(screen.getByRole('button', { name: /Переключить тему/ }));
-        fireEvent.click(within(await screen.findByRole('listbox', { name: 'Темы' })).getByRole('option', { name: /Dark/ }));
+        fireEvent.click(
+            within(await screen.findByRole('listbox', { name: 'Темы' })).getByRole('option', { name: /Dark/ }),
+        );
 
         expect(await screen.findByText(THEME_SWITCH_BLOCKED)).toBeInTheDocument();
-        expect(screen.getByTestId('location')).toHaveTextContent('/projects/p/design-systems/ds/themes/light/colors?tokenId=t1');
+        expect(screen.getByTestId('location')).toHaveTextContent(
+            '/projects/p/design-systems/ds/themes/light/colors?tokenId=t1',
+        );
     });
 
     it('выбирает тему стрелками и Enter, Escape закрывает список', async () => {
@@ -104,7 +114,9 @@ describe('ThemeSwitcher', () => {
         fireEvent.keyDown(reopened, { key: 'Enter' });
 
         await waitFor(() =>
-            expect(screen.getByTestId('location')).toHaveTextContent('/projects/p/design-systems/ds/themes/dark/colors'),
+            expect(screen.getByTestId('location')).toHaveTextContent(
+                '/projects/p/design-systems/ds/themes/dark/colors',
+            ),
         );
     });
 
@@ -119,7 +131,9 @@ describe('ThemeSwitcher', () => {
         fireEvent.keyDown(trigger, { key: 'Enter' });
 
         await waitFor(() =>
-            expect(screen.getByTestId('location')).toHaveTextContent('/projects/p/design-systems/ds/themes/dark/colors'),
+            expect(screen.getByTestId('location')).toHaveTextContent(
+                '/projects/p/design-systems/ds/themes/dark/colors',
+            ),
         );
     });
 
@@ -239,8 +253,25 @@ describe('ThemeSwitcher', () => {
 
 describe('themeSwitchPath', () => {
     it('меняет только сегмент темы', () => {
-        expect(
-            themeSwitchPath('/projects/p/design-systems/ds/themes/light/components/Button', 'light', 'dark'),
-        ).toBe('/projects/p/design-systems/ds/themes/dark/components/Button');
+        expect(themeSwitchPath('/projects/p/design-systems/ds/themes/light/components/Button', 'light', 'dark')).toBe(
+            '/projects/p/design-systems/ds/themes/dark/components/Button',
+        );
     });
+});
+
+it('сохраняет разрешённую публикацию при смене темы по ссылке без версии', async () => {
+    const navigate = vi.fn();
+    const saved = vi.spyOn(autosave, 'waitForDraftAutosaveIdle');
+    await switchTheme(
+        { projectId: 'p', designSystemId: 'ds', tenantId: 'light', versionId: 'published-1' },
+        navigate,
+        '/projects/p/design-systems/ds/themes/light/colors',
+        '?tokenId=t1',
+        'dark',
+    );
+    expect(navigate).toHaveBeenCalledWith({
+        pathname: '/projects/p/design-systems/ds/themes/dark/colors',
+        search: '?tokenId=t1&versionId=published-1',
+    });
+    expect(saved).not.toHaveBeenCalled();
 });

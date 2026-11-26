@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.theme.application
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
@@ -75,6 +76,7 @@ public class FetchThemesUseCase internal constructor(
                 tenantCount = remoteData.tenants.size,
                 fileCount = writePlan.files.size,
                 configPath = result.configPath,
+                readContext = remoteData.readContext,
             )
         }
 
@@ -106,6 +108,7 @@ public class FetchThemesUseCase internal constructor(
                     context.credentialEnvName,
                     context.credentialPolicy,
                     found.projectEnvironment,
+                    requirement = CredentialRequirement.READ_OPTIONAL,
                 ),
             )
         ) {
@@ -137,6 +140,7 @@ internal data class ThemeRuntime(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
+    val readContext: String? = null,
 )
 
 private sealed interface RuntimeResolutionResult {
@@ -179,6 +183,8 @@ public sealed interface FetchThemesResult {
         public val tenantCount: Int,
         public val fileCount: Int,
         public val configPath: String,
+        /** Метаданные первого предметного ответа для продолжения согласованной загрузки. */
+        public val readContext: String? = null,
     ) : FetchThemesResult
 
     /**

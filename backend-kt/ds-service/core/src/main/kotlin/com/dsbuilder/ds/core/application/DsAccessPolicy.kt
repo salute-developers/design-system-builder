@@ -11,7 +11,9 @@ class DsAccessPolicy(private val evaluator: PolicyEvaluator) {
 
     /** Returns success when [context] grants [permission], otherwise a closed denial. */
     fun require(context: DsRequestContext, permission: String): DsResult<Unit> =
-        if (evaluator.isAllowed(context.principal, permission)) {
+        if ((context.access as? ProjectAccess)?.principal?.let { evaluator.isAllowed(it, permission) }
+            ?: (permission.endsWith(":read") && context.publicRead?.operation?.permission == permission)
+        ) {
             DsResult.Success(Unit)
         } else {
             DsResult.Failure(DsFailure.Forbidden)

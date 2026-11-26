@@ -79,6 +79,7 @@ public class RuntimeRequestResolver(
                     context.credentialEnvName,
                     context.credentialPolicy,
                     found.projectEnvironment,
+                    requirement = request.requirement,
                 ),
             )
         ) {

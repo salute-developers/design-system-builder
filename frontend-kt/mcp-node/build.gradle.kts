@@ -179,7 +179,7 @@ tasks.register("npmPackMcpNodeSmoke") {
             .redirectErrorStream(true)
         serveBuilder.environment()["HOME"] = homeDir.absolutePath
         serveBuilder.environment().remove("DSBUILDER_API_KEY")
-        serveBuilder.environment().remove("DSBUILDER_API_URL")
+        serveBuilder.environment()["DSBUILDER_API_URL"] = "http://localhost:9"
         val serveProcess = serveBuilder.start()
         val reader = serveProcess.inputStream.bufferedReader()
         serveProcess.outputStream.bufferedWriter().use { writer ->
@@ -272,8 +272,8 @@ tasks.register("npmPackMcpNodeSmoke") {
             check(!unknownToolResponse.contains(""""result"""")) {
                 "unknown tool response returned tool result instead of protocol error: $unknownToolResponse"
             }
-            check(explicitContextResponse.contains("AUTH_REQUIRED")) {
-                "Explicit context must require authentication: $explicitContextResponse"
+            check(explicitContextResponse.contains("BACKEND_UNAVAILABLE")) {
+                "Explicit public context must attempt the unavailable backend without requiring login: $explicitContextResponse"
             }
             check(missingContextResponse.contains("CONTEXT_REQUIRED")) {
                 "Missing context did not return CONTEXT_REQUIRED: $missingContextResponse"

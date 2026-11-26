@@ -2,15 +2,12 @@
 
 package com.dsbuilder.ds.components.application
 
-import com.dsbuilder.authorization.AuthorizationPolicyLoader
-import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.authorization.ProjectActorType
 import com.dsbuilder.authorization.ProjectPrincipal
 import com.dsbuilder.ds.components.domain.ApiMetaImportReport
 import com.dsbuilder.ds.components.domain.NewPluginBuild
 import com.dsbuilder.ds.components.domain.PluginBuild
 import com.dsbuilder.ds.components.domain.PreviewPluginPlatform
-import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
@@ -54,7 +51,6 @@ class PluginBuildPlatformUseCaseTest {
     ) = PublishPluginBuildUseCase(ImmediateTransactions, storages, builds, apiMeta)
 
     private fun active(storages: PluginBuildStorages = storages()) = GetActivePluginBuildUseCase(
-        DsAccessPolicy(PolicyEvaluator(AuthorizationPolicyLoader.loadEmbedded())),
         ImmediateTransactions,
         storages,
         builds,
@@ -262,22 +258,22 @@ class PluginBuildPlatformUseCaseTest {
 
     @Test
     fun `the active build is served per platform`() = runBlocking<Unit> {
-        assertEquals(DsFailure.NotFound, notFound(active().execute(PreviewPluginPlatform.WEB, USER)))
+        assertEquals(DsFailure.NotFound, notFound(active().execute(PreviewPluginPlatform.WEB)))
         publish(PreviewPluginPlatform.COMPOSE, COMMIT_A)
-        assertEquals(DsFailure.NotFound, notFound(active().execute(PreviewPluginPlatform.WEB, USER)))
+        assertEquals(DsFailure.NotFound, notFound(active().execute(PreviewPluginPlatform.WEB)))
         publish(PreviewPluginPlatform.WEB, COMMIT_B)
 
         val compose = assertIs<DsResult.Success<ActivePluginBuild>>(
-            active().execute(PreviewPluginPlatform.COMPOSE, USER),
+            active().execute(PreviewPluginPlatform.COMPOSE),
         )
-        val web = assertIs<DsResult.Success<ActivePluginBuild>>(active().execute(PreviewPluginPlatform.WEB, USER))
+        val web = assertIs<DsResult.Success<ActivePluginBuild>>(active().execute(PreviewPluginPlatform.WEB))
         assertEquals(COMMIT_A.take(12), compose.value.build.buildId)
         assertEquals("$COMPOSE_BASE/builds/${COMMIT_A.take(12)}/", compose.value.pluginUrl)
         assertEquals(COMMIT_B.take(12), web.value.build.buildId)
         assertEquals("$WEB_BASE/builds/${COMMIT_B.take(12)}/", web.value.pluginUrl)
 
         // without the web storage the address is not served even though a web build is registered
-        val withoutWeb = active(storages(web = UnconfiguredStorage)).execute(PreviewPluginPlatform.WEB, USER)
+        val withoutWeb = active(storages(web = UnconfiguredStorage)).execute(PreviewPluginPlatform.WEB)
         assertEquals(DsFailure.NotFound, notFound(withoutWeb))
     }
 

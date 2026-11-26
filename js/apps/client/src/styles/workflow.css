@@ -4835,3 +4835,74 @@ button:disabled {
     width: 100%;
     max-width: none;
 }
+
+
+/* Единая подпись режима для всех разделов редактора. */
+.editor-readonly-badge {
+    display: inline-flex;
+    align-items: center;
+    box-sizing: border-box;
+    flex-shrink: 0;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: rgba(163, 138, 10, 0.16);
+    color: var(--builder-text-secondary, #dbdbdc);
+    font-size: 12px;
+    font-weight: 400;
+    line-height: 16px;
+    white-space: nowrap;
+}
+
+.builder-icon-sidebar .builder-login-button:hover:not(:disabled):not(.is-active),
+.builder-icon-sidebar[data-testid='editor-rail'] .builder-login-button:hover:not(:disabled):not(.is-active) {
+    background: var(--builder-surface-transparent-secondary, #ffffff1a);
+    color: var(--builder-text-primary, #f3f3f3);
+    cursor: pointer;
+}
+.builder-icon-sidebar .builder-login-button:focus-visible {
+    outline: 2px solid var(--p-accent, #2b8ced);
+    outline-offset: 2px;
+}
+.ds-visibility-settings {
+    display: grid;
+    gap: 16px;
+    margin-top: 24px;
+}
+.ds-visibility-settings .entity-field {
+    display: grid;
+    gap: 8px;
+}
+.ds-visibility-settings p { margin: 0; }
+.ds-visibility-settings .actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+}
+
+.editor-load-error {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    padding: 32px;
+    text-align: center;
+}
+.editor-load-error h1 {
+    margin: 0;
+    font-size: 24px;
+    line-height: 32px;
+}
+.editor-load-error p {
+    margin: 0;
+    color: var(--builder-text-secondary, #dbdbdc);
+}
+.editor-load-error-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}

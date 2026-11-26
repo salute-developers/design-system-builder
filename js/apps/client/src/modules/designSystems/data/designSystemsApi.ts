@@ -23,14 +23,17 @@ export const designSystemsApi = {
         apiRequest<DesignSystem[]>(() =>
             readEditor<DesignSystem[]>(dsPath(projectId, '/design-systems'), { signal }, undefined, 30_000),
         ),
-    get: (projectId: string, id: string, signal?: AbortSignal) =>
+    get: (projectId: string, id: string, signal?: AbortSignal, freshFor = 30_000) =>
         apiRequest<DesignSystem>(() =>
-            readEditor<DesignSystem>(dsPath(projectId, `/design-systems/${id}`), { signal }, undefined, 30_000),
+            readEditor<DesignSystem>(dsPath(projectId, `/design-systems/${id}`), { signal }, undefined, freshFor),
         ),
     create: (projectId: string, body: { name: string; projectName: string; description?: string }) =>
         changed<DesignSystem>(projectId, () => http.post(dsPath(projectId, '/design-systems'), { ...body, projectId })),
-    update: (projectId: string, id: string, body: { name?: string; projectId?: string }) =>
-        changed<DesignSystem>(projectId, () => http.patch(dsPath(projectId, `/design-systems/${id}`), body), id),
+    update: (
+        projectId: string,
+        id: string,
+        body: { name?: string; projectId?: string; visibility?: 'private' | 'public' },
+    ) => changed<DesignSystem>(projectId, () => http.patch(dsPath(projectId, `/design-systems/${id}`), body), id),
     remove: (projectId: string, id: string) =>
         changed<void>(projectId, () => http.delete(dsPath(projectId, `/design-systems/${id}`)), id),
     tokens: (projectId: string, id: string) =>

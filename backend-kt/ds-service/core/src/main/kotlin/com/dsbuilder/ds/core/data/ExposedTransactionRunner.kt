@@ -1,6 +1,7 @@
 package com.dsbuilder.ds.core.data
 
 import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsReadOperationCatalog
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.IdempotentMutationRequest
@@ -9,6 +10,7 @@ import com.dsbuilder.ds.core.application.IdempotentRequestLookup
 import com.dsbuilder.ds.core.application.IdempotentResponse
 import com.dsbuilder.ds.core.application.MAX_IDEMPOTENCY_KEY_LENGTH
 import com.dsbuilder.ds.core.application.ModelReadTarget
+import com.dsbuilder.ds.core.application.ProjectAccess
 import com.dsbuilder.ds.core.application.RequestHash
 import com.dsbuilder.ds.core.application.TransactionFailureMapper
 import com.dsbuilder.ds.core.application.TransactionRunner
@@ -32,6 +34,8 @@ class ExposedTransactionRunner(
     private val database: Database,
     private val failureMapper: TransactionFailureMapper,
     private val poolState: (() -> Map<String, Int>)? = null,
+    private val publicReads: DsReadOperationCatalog =
+        DsReadOperationCatalog(emptyList()),
 ) : TransactionRunner {
     override suspend fun <T> required(block: suspend () -> DsResult<T>): DsResult<T> = execute(readOnly = false) {
         clearDesignSystemScope()
@@ -42,6 +46,7 @@ class ExposedTransactionRunner(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = false) {
+        if (context.publicRead != null) return@execute DsResult.Failure(DsFailure.Forbidden)
         if (context.versionId != null || context.version != null) {
             return@execute DsResult.Failure(DsFailure.InvalidRequest("historical_version_read_only"))
         }
@@ -88,7 +93,7 @@ class ExposedTransactionRunner(
         ExposedIdempotentRequestRepository().save(
             context.projectId,
             request.key,
-            context.principal.actorId,
+            context.actorId,
             request.operation,
             RequestHash.canonical(request.body),
             IdempotentResponse(request.responseStatus, encoder(value)),
@@ -116,6 +121,7 @@ class ExposedTransactionRunner(
         context: DsRequestContext,
         block: suspend () -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = false) {
+        if (context.publicRead != null) return@execute DsResult.Failure(DsFailure.Forbidden)
         configure(context)
         requireRequestDesignSystemMutable()
         val result = block()
@@ -153,6 +159,10 @@ class ExposedTransactionRunner(
         block: suspend (DsRequestContext) -> DsResult<T>,
     ): DsResult<T> = execute(readOnly = true) {
         configure(context)
+        val candidate = context.publicRead
+        if (candidate != null && candidate.operation !in publicReads.operations) {
+            return@execute DsResult.Failure(DsFailure.Forbidden)
+        }
         requireRequestDesignSystemAccessible()
         when (val resolved = ExposedModelReadSelectionResolver().resolve(context, target)) {
             is DsResult.Failure -> resolved
@@ -169,7 +179,7 @@ class ExposedTransactionRunner(
     private fun versionAccessible(context: DsRequestContext): Boolean {
         val versionId = requireNotNull(context.versionId)
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to versionId)
-        val access = if (context.principal.globalAdmin) {
+        val access = if (context.globalAdmin) {
             "TRUE"
         } else {
             args += TextColumnType() to context.projectId.value
@@ -191,6 +201,7 @@ class ExposedTransactionRunner(
     }
 
     private fun configure(context: DsRequestContext) {
+        TransactionManager.current().putUserData(publicReadScopeKey, context.publicRead != null)
         clearResolvedSubjectReads()
         TransactionManager.current().putUserData(DIAGNOSTIC_CORRELATION, context.correlationId)
         TransactionManager.current().putUserData(requestMutationScopeChecked, false)
@@ -209,7 +220,7 @@ class ExposedTransactionRunner(
         )
         TransactionManager.current().exec(
             "SELECT set_config('ds.actor_id', ?, true)",
-            listOf(TextColumnType() to context.principal.actorId),
+            listOf(TextColumnType() to (context.access as? ProjectAccess)?.principal?.actorId.orEmpty()),
         )
         TransactionManager.current().exec(
             "SELECT set_config('ds.project_id', ?, true)",
@@ -217,7 +228,7 @@ class ExposedTransactionRunner(
         )
         TransactionManager.current().exec(
             "SELECT set_config('ds.system_admin', ?, true)",
-            listOf(TextColumnType() to context.principal.globalAdmin.toString()),
+            listOf(TextColumnType() to context.globalAdmin.toString()),
         )
         context.baseRevision?.let { revision ->
             TransactionManager.current().exec(
@@ -231,12 +242,10 @@ class ExposedTransactionRunner(
                 listOf(TextColumnType() to clientId),
             )
         }
-        context.versionId?.let { versionId ->
-            TransactionManager.current().exec(
-                "SELECT set_config('ds.version_id', ?, true)",
-                listOf(TextColumnType() to versionId.toString()),
-            )
-        }
+        TransactionManager.current().exec(
+            "SELECT set_config('ds.version_id', ?, true)",
+            listOf(TextColumnType() to context.versionId?.toString().orEmpty()),
+        )
     }
 
     private fun mutationMetadata(): String? {

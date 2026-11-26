@@ -102,9 +102,9 @@ val componentsModule = module {
     single<IconCatalogRepository> { ExposedIconCatalogRepository() }
     single<IconUsageReader> { ExposedIconUsageReader() }
     factory { PublishIconCatalogUseCase(get(), get(), get(), get(), get()) }
-    factory { GetIconCatalogUseCase(get(), get(), get(), get()) }
+    factory { GetIconCatalogUseCase(get(), get(), get()) }
     factory { PublishPluginBuildUseCase(get(), get(), get(), get()) }
-    factory { GetActivePluginBuildUseCase(get(), get(), get(), get()) }
+    factory { GetActivePluginBuildUseCase(get(), get(), get()) }
     single<ComponentWebAdapterRepository> { ExposedComponentWebAdapterRepository() }
     single<DesignSystemComponentRepository> { ExposedDesignSystemComponentRepository() }
     single<ComponentDependencyRepository> { ExposedComponentDependencyRepository() }

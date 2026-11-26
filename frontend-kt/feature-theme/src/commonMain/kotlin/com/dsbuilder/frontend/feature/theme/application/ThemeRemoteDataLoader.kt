@@ -15,7 +15,11 @@ internal class ThemeRemoteDataLoader(private val remoteThemeDataSource: RemoteTh
         )
         return when (val tenantsResult = fetchTenants(remoteCommand)) {
             is TenantsLoadResult.Failed -> RemoteDataLoadResult.Failed(tenantsResult.message)
-            is TenantsLoadResult.Loaded -> fetchTokensAndValues(runtime, remoteCommand, tenantsResult.tenants)
+            is TenantsLoadResult.Loaded -> fetchTokensAndValues(
+                runtime.copy(readContext = tenantsResult.readContext),
+                remoteCommand.copy(readContext = tenantsResult.readContext),
+                tenantsResult.tenants,
+            )
         }
     }
 
@@ -64,6 +68,7 @@ internal class ThemeRemoteDataLoader(private val remoteThemeDataSource: RemoteTh
                     tokens = tokens,
                     paletteItems = paletteItems,
                     valuesByTenantId = valuesResult.valuesByTenantId,
+                    readContext = runtime.readContext,
                 ),
             )
         }
@@ -71,7 +76,7 @@ internal class ThemeRemoteDataLoader(private val remoteThemeDataSource: RemoteTh
     private suspend fun fetchTenants(command: RemoteThemeCommand): TenantsLoadResult =
         when (val result = remoteThemeDataSource.fetchTenants(command)) {
             is RemoteThemeResult.Failed -> TenantsLoadResult.Failed(result.message)
-            is RemoteThemeResult.Success -> TenantsLoadResult.Loaded(result.value)
+            is RemoteThemeResult.Success -> TenantsLoadResult.Loaded(result.value, result.readContext)
         }
 
     private suspend fun fetchTokens(command: RemoteThemeCommand): TokensLoadResult =
@@ -99,6 +104,7 @@ internal class ThemeRemoteDataLoader(private val remoteThemeDataSource: RemoteTh
                         apiUrl = runtime.apiUrl,
                         credential = runtime.credential,
                         tenantId = tenant.id,
+                        readContext = runtime.readContext,
                     ),
                 )
             ) {
@@ -116,6 +122,7 @@ internal data class ThemeRemoteData(
     val tokens: List<Token>,
     val paletteItems: List<PaletteItem>,
     val valuesByTenantId: Map<String, List<TokenValue>>,
+    val readContext: String? = null,
 )
 
 internal sealed interface RemoteDataLoadResult {
@@ -131,6 +138,7 @@ internal sealed interface RemoteDataLoadResult {
 private sealed interface TenantsLoadResult {
     data class Loaded(
         val tenants: List<Tenant>,
+        val readContext: String? = null,
     ) : TenantsLoadResult
 
     data class Failed(

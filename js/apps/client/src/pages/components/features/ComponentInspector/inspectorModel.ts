@@ -79,18 +79,25 @@ export { humanizeName };
  * не показывается (тип неизвестен). Сырой CSS (`value`) раскладывается по имени: цвета — в Color, ширина и высота —
  * в Size, остальное — в Layout.
  */
+// Порядок правил важен: например, outlineColor относится к обводке, а blurRadius — к эффектам.
+const PROPERTY_SECTION_RULES: { section: InspectorSection; type?: PropType; name: RegExp }[] = [
+    { section: 'Effects', type: 'shadow', name: /(shadow|blur)/i },
+    { section: 'Appearance', type: 'shape', name: /radius/i },
+    { section: 'Border', name: /(border|outline|stroke)/i },
+    { section: 'Color', type: 'color', name: /(opacity|alpha)/i },
+];
+const DEDICATED_SECTIONS = new Map<PropType, InspectorSection>([
+    ['icon', 'Icons'],
+    ['component_style', 'Nested styles'],
+]);
+
 export const sectionOf = (type: PropType | undefined, name: string): InspectorSection | undefined => {
     if (type === undefined) return undefined;
-    // Иконки — отдельная секция, развёрнутая по умолчанию: в свёрнутой группе Behaviour поля легко не заметить.
-    if (type === 'icon') return 'Icons';
-    // Стиль вложенного компонента: ссылка на оформление другого компонента, отдельная секция.
-    if (type === 'component_style') return 'Nested styles';
-    if (type === 'shadow' || /(shadow|blur)/i.test(name)) return 'Effects';
-    if (type === 'shape' || /radius/i.test(name)) return 'Appearance';
-    if (/(border|outline|stroke)/i.test(name)) return 'Border';
-    if (type === 'color' || /(opacity|alpha)/i.test(name) || (type === 'value' && /(color|background)/i.test(name))) {
-        return 'Color';
-    }
+    const dedicated = DEDICATED_SECTIONS.get(type);
+    if (dedicated) return dedicated;
+    const matched = PROPERTY_SECTION_RULES.find((rule) => rule.type === type || rule.name.test(name));
+    if (matched) return matched.section;
+    if (type === 'value' && /(color|background)/i.test(name)) return 'Color';
     if (type === 'typography') return 'Text';
     if (!numericPropertyTypes.has(type) && type !== 'value') return 'Additional';
     if (/(width|height)$/i.test(name)) return 'Size';

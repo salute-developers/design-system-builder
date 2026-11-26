@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.components.application
 
+import com.dsbuilder.authorization.ProjectScope
 import com.dsbuilder.ds.components.domain.AppearanceVariationAxis
 import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
@@ -17,12 +18,12 @@ class ListAppearanceVariationAxesUseCase(
 ) {
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<List<AppearanceVariationAxis>> =
-        policy.read(context, com.dsbuilder.authorization.ProjectScope.COMPONENT_VARIATIONS_READ) {
+        policy.read(context, ProjectScope.COMPONENT_VARIATIONS_READ) {
             transactions.readOnly(context, ModelReadTarget(ModelReadTarget.Kind.APPEARANCE, id)) { selected ->
-                if (repository.find(selected.projectId, selected.principal.globalAdmin, id) == null) {
+                if (repository.find(selected.projectId, selected.globalAdmin, id) == null) {
                     DsResult.Failure(DsFailure.NotFound)
                 } else {
-                    repository.axes(selected.projectId, selected.principal.globalAdmin, id)
+                    repository.axes(selected.projectId, selected.globalAdmin, id)
                         ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
                 }
             }

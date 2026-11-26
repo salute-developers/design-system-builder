@@ -161,10 +161,6 @@
         "indicatorHeight": {
             "type": "dimension",
             "value": 4
-        },
-        "disableAlpha": {
-            "type": "float",
-            "value": 0.4
         }
     },
     "bindings": [

@@ -5,8 +5,10 @@ import com.dsbuilder.ds.components.domain.ComponentState
 import com.dsbuilder.ds.components.domain.ComponentStateSet
 import com.dsbuilder.ds.components.domain.ResolvedStateSet
 import com.dsbuilder.ds.components.domain.StateImpact
+import com.dsbuilder.ds.core.data.isPublicReadScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.IColumnType
+import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.TextColumnType
 import org.jetbrains.exposed.v1.core.UUIDColumnType
@@ -17,6 +19,7 @@ import org.jetbrains.exposed.v1.core.isNull
 import org.jetbrains.exposed.v1.core.statements.StatementType
 import org.jetbrains.exposed.v1.jdbc.deleteWhere
 import org.jetbrains.exposed.v1.jdbc.insertReturning
+import org.jetbrains.exposed.v1.jdbc.select
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import org.jetbrains.exposed.v1.jdbc.updateReturning
@@ -31,6 +34,13 @@ class ExposedStateRepository : StateRepository {
         componentId: UUID?,
         componentFilterPresent: Boolean,
     ): List<ComponentState> {
+        if (isPublicReadScope()) {
+            val used = listSets(projectId, systemAdmin).flatMap { it.stateIds }.toSet()
+            return ComponentStatesTable.selectAll().where {
+                (ComponentStatesTable.id inList used) and
+                    ComponentOwnership.readableState(ComponentStatesTable.id, projectId, systemAdmin)
+            }.map(::componentState).filter { !componentFilterPresent || it.componentId == componentId }
+        }
         return if (componentFilterPresent) {
             ComponentStatesTable.selectAll().where {
                 (
@@ -165,10 +175,22 @@ class ExposedStateRepository : StateRepository {
     override suspend fun delete(id: UUID): Boolean =
         StableComponentStatesTable.deleteWhere { StableComponentStatesTable.id eq id } > 0
 
-    override suspend fun listSets(projectId: ProjectId, systemAdmin: Boolean): List<ComponentStateSet> =
-        ComponentStateSetsTable.selectAll().where {
-            ComponentOwnership.readableStateSet(ComponentStateSetsTable.id, projectId, systemAdmin)
+    override suspend fun listSets(projectId: ProjectId, systemAdmin: Boolean): List<ComponentStateSet> {
+        val used = if (isPublicReadScope()) {
+            VariationPropertyValuesTable.select(VariationPropertyValuesTable.stateSetId)
+                .map { it[VariationPropertyValuesTable.stateSetId] } +
+                InvariantPropertyValuesTable.select(InvariantPropertyValuesTable.stateSetId)
+                    .map { it[InvariantPropertyValuesTable.stateSetId] } +
+                StyleCombinationsTable.select(StyleCombinationsTable.stateSetId)
+                    .map { it[StyleCombinationsTable.stateSetId] }
+        } else {
+            null
+        }
+        return ComponentStateSetsTable.selectAll().where {
+            ComponentOwnership.readableStateSet(ComponentStateSetsTable.id, projectId, systemAdmin) and
+                (used?.let { ComponentStateSetsTable.id inList it } ?: Op.TRUE)
         }.map(::componentStateSet)
+    }
 
     override suspend fun findSet(projectId: ProjectId, systemAdmin: Boolean, id: UUID): ComponentStateSet? =
         ComponentStateSetsTable.selectAll().where {

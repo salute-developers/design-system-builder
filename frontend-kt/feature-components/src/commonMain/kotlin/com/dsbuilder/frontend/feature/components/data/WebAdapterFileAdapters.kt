@@ -1,8 +1,10 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.ReadBoundary
 import com.dsbuilder.frontend.core.workspace.ProjectConfigException
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.dsbuilder.frontend.feature.components.application.ComponentDestination
@@ -25,12 +27,20 @@ internal class HttpWebAdapterFileSource(
     override suspend fun fetch(command: ExportComponentsCommand): WebAdapterFileResult {
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         val path = "/api/projects/${command.projectId.value}/design-systems/" +
-            "${command.designSystemId.value}/component-config/web-adapter" + exportVersionQuery(command.version)
+            "${command.designSystemId.value}/component-config/web-adapter" +
+            exportVersionQuery(command.version, command.readContext)
         val body = buildJsonObject { }.toString()
         return when (val result = client.post(path, body)) {
             is AuthenticatedHttpResult.Failure -> WebAdapterFileResult.Failed(result.message)
             is AuthenticatedHttpResult.Success -> if (
-                !result.readHeadersValid || command.readContext != result.headers["x-ds-read-context"]
+                !ReadBoundary.validates(
+                    result.headers["x-ds-read-context"],
+                    command.designSystemId.value,
+                    command.version,
+                    command.readContext,
+                    required = command.credential == BackendCredential.Anonymous || command.readContext != null,
+                    headersValid = result.readHeadersValid,
+                )
             ) {
                 WebAdapterFileResult.Failed(
                     "Error: DS context changed during fetch; retry without changing local files.",

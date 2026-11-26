@@ -20,21 +20,24 @@ export const ThemeCard = ({
     projectId,
     theme,
     role,
+    versionId,
 }: {
     projectId: string;
     theme: ThemeTenant;
     role: ProjectDto['effectiveRole'];
+    versionId?: string;
 }) => {
     const preview = theme.preview ?? fallbackPreview;
     const [duplicating, setDuplicating] = useState(false);
     // Темами управляет раздел «Темы» настроек дизайн-системы; из карточки он открывается в редакторе этой темы.
     const settingsTo = `/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/settings`;
+    const section = versionId ? `colors?versionId=${encodeURIComponent(versionId)}` : 'overview';
 
     return (
         <article className="catalog-card clickable-card">
             <Link
                 className="catalog-card-link"
-                to={`/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/overview`}
+                to={`/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/${section}`}
             >
                 <div className="catalog-cover catalog-cover-theme theme-cover">
                     <div

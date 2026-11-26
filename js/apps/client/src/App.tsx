@@ -45,6 +45,12 @@ import {
 
 const ProtectedRoute = () => {
     const isAuthenticated = authService.isAuthenticated();
+    const location = useLocation();
+    const directRead =
+        /^\/projects\/[^/]+\/design-systems\/[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}(?:\/themes\/[^/]+(?:\/(?:overview|colors|palette|shapes|typography|components(?:\/[^/]+)?|icons|versions))?)?\/?$/.test(
+            location.pathname,
+        );
+    if (!isAuthenticated && directRead) return <Outlet />;
 
     return isAuthenticated ? (
         <AnalyticsConsent>
@@ -60,6 +66,11 @@ const PublicRoute = ({ children }: { children: ReactNode }) => {
     const isAuthenticated = authService.isAuthenticated();
 
     return !isAuthenticated ? children : <Navigate to="/" />;
+};
+
+const ThemeSectionRedirect = ({ to }: { to: string }) => {
+    const { search } = useLocation();
+    return <Navigate to={`${to}${search}`} replace />;
 };
 
 const LegacyThemeRedirect = () => {
@@ -130,8 +141,8 @@ function App() {
                         path="projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
                         element={<Main />}
                     >
-                        <Route index element={<Navigate to="colors" replace />} />
-                        <Route path="overview" element={<Navigate to="../colors" replace />} />
+                        <Route index element={<ThemeSectionRedirect to="colors" />} />
+                        <Route path="overview" element={<ThemeSectionRedirect to="../colors" />} />
                         <Route path="palette" element={<Palette />} />
                         <Route path="colors" element={<Colors />} />
                         <Route path="shapes" element={<Shapes />} />

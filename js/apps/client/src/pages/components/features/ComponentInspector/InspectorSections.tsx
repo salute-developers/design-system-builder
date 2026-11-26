@@ -74,9 +74,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
     const compatibility = useInspectorCompatibility();
     const relevant =
         compatibility?.issues.filter(
-            (issue) =>
-                issue.severity === 'blocking' &&
-                issueMatchesSource(issue, editSource(config, selection)),
+            (issue) => issue.severity === 'blocking' && issueMatchesSource(issue, editSource(config, selection)),
         ) ?? [];
     const missing = relevant.filter(
         (issue) =>
@@ -96,6 +94,7 @@ export const InspectorSections = (props: InspectorSectionsProps) => {
             api={api}
             prop={prop}
             source={source}
+            readOnly={props.readOnly}
             isSet={isSet}
             linked={linked}
             inheritedFrom={inheritedFrom}

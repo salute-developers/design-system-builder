@@ -21,7 +21,7 @@ interface PaletteInspectorProps {
     selection: PaletteSelection | null;
     editor: PaletteEditor;
     canEdit: boolean;
-    /** Баннеры раздела («Только просмотр») над содержимым, как на экранах токенов. */
+    /** Информация об источнике палитры над содержимым инспектора. */
     banners?: ReactNode;
     onOpenToken: (tokenName: string, mode: string | null) => void;
     onOpenColors: () => void;

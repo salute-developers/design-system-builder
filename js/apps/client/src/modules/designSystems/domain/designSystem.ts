@@ -5,6 +5,8 @@ export interface DesignSystem {
     projectId: string | null;
     isTechnical?: boolean;
     name: string;
+    visibility?: 'private' | 'public';
+    projectName?: string;
     description?: string | null;
     tenantCount: number;
     themePreviews: Array<{ tenantId: string; name: string; preview: ThemePreview }>;

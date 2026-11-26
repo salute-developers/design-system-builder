@@ -760,11 +760,6 @@ export const ColorTokensScreen = (props: ColorTokensScreenProps) => {
                             )}
                         </div>
                     )}
-                    {readOnly && (
-                        <div className="viewer-banner">
-                            <span>Только просмотр</span>
-                        </div>
-                    )}
                     {legacyFamilies > 0 && !readOnly && (
                         <div className="ct-banner" role="status" data-testid="color-tokens-legacy-draft">
                             <span>В черновике есть несохранённые правки цветов: {legacyFamilies}</span>

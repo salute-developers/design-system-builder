@@ -611,7 +611,6 @@ describe('экран «Типографика»', () => {
     it('в режиме просмотра поля недоступны, а дерево и экраны работают', async () => {
         const { repository } = setup(typographyStyles({ canEdit: false }));
         await screen.findByText('Body / M Regular', { selector: TITLE });
-        expect(screen.getByText('Только просмотр')).toBeTruthy();
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Семейство шрифта') as HTMLButtonElement).disabled).toBe(true);
         expect((inspector().getByLabelText('Weight Regular') as HTMLButtonElement).disabled).toBe(true);
@@ -641,7 +640,7 @@ describe('экран «Типографика»', () => {
         const { repository } = mount(typographyStyles({ canEdit: false }), { context: historical, readOnly: true });
         await screen.findByText('Body / M Regular', { selector: TITLE });
         expect(vi.mocked(repository.load).mock.calls[0][0]).toEqual(historical);
-        expect(screen.getByText('Только просмотр')).toBeTruthy();
+
         expect((inspector().getByLabelText('Size') as HTMLInputElement).disabled).toBe(true);
         expect(repository.update).not.toHaveBeenCalled();
         expect(getDraftAutosaveStatus(historical)).toBe('saved');

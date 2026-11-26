@@ -30,6 +30,8 @@ data class DesignSystemResponse(
     val draftId: String?,
     /** Техническая редакция активного черновика. */
     val draftRevision: Long?,
+    /** Доступность опубликованных версий. */
+    val visibility: String,
 ) {
     companion object {
         /** Performs the from operation. */
@@ -46,6 +48,7 @@ data class DesignSystemResponse(
             themePreviews = domain.themePreviews.map(ThemePreviewResponse::from),
             draftId = domain.draftId?.toString(),
             draftRevision = domain.draftRevision,
+            visibility = domain.visibility.value,
         )
     }
 }

@@ -1,7 +1,7 @@
 import { numericPropertyTypes } from '../../../../controllers/componentBuilder/propertyTypes';
 import { useInspectorCompatibility } from '../../../../features/coreCompatibility/InspectorCompatibility';
 import { coreIssueMessages, issueMatchesSource, issueNodeId } from '../../../../features/coreCompatibility/model';
-import { useState, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { useParams } from 'react-router-dom';
 
 import {
@@ -44,6 +44,7 @@ export interface InspectorTokenLists {
 }
 
 interface InspectorPropertyRowProps {
+    readOnly?: boolean;
     config: Config;
     api: ComponentAPI[];
     prop: PropUnion;
@@ -135,7 +136,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const type = prop.getType();
     const label = humanizeName(prop.getName());
     const value = prop.getValue();
-    const text = value === undefined || value === null ? '' : String(value);
+    const text = String(value ?? '');
     const states = [...(prop.getStates() ?? [])].sort((a, b) => compareStates(a.state, b.state));
     const compatibility = useInspectorCompatibility();
     const issues =
@@ -150,6 +151,14 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
     const focused = issues.find((i) => i.issueId === compatibility?.focused) ?? issues[0];
     const issueAttributes = focused ? { id: issueNodeId(focused), tabIndex: -1, 'data-core-invalid': true } : {};
 
+    const readOnly = useRef(props.readOnly);
+    readOnly.current = props.readOnly;
+    const editable =
+        <Args extends unknown[]>(action: (...args: Args) => void) =>
+        (...args: Args) => {
+            if (!readOnly.current) action(...args);
+        };
+
     const isCombination = source.kind === 'combination';
     const composeStyleReference = type === 'component_style' && config.getPlatform() === 'compose';
     const isStyleReference = composeStyleReference && !isCombination;
@@ -163,7 +172,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             : undefined;
     const ownsState = (key: string) =>
         !isCombination || Boolean(ownCombinationProp?.getStates()?.some((item) => stateKey(item.state) === key));
-    const update = (next: string) => {
+    const update = editable((next: string) => {
         if (isCombination) {
             if (next !== '' || isSet) props.onCombinationChange?.(id, next === '' ? null : next);
             return;
@@ -174,25 +183,27 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             // Непривязанное свойство сначала привязывается к вариации, затем значение уходит автосохранением.
             setLinkError(undefined);
             onLinkProperty(id, variationID)
-                .then(() => {
-                    config.addToken(id, next, api, variationID, styleID);
-                    onConfigUpdate();
-                })
+                .then(
+                    editable(() => {
+                        config.addToken(id, next, api, variationID, styleID);
+                        onConfigUpdate();
+                    }),
+                )
                 .catch(() => setLinkError('Не удалось привязать свойство к вариации'));
             return;
         } else config.addToken(id, next, api, variationID, styleID);
         onConfigUpdate();
-    };
+    });
 
-    const removeValue = () => {
+    const removeValue = editable(() => {
         if (isCombination) return props.onCombinationChange?.(id, null);
         config.removeToken(id, variationID, styleID);
         onConfigUpdate();
-    };
+    });
 
     // У иконки своя кнопка «Очистить» в пикере.
     const clear =
-        isSet && !readOnlyStyleReference && type !== 'icon' ? (
+        !props.readOnly && isSet && !readOnlyStyleReference && type !== 'icon' ? (
             <ClearButton label={label} onClear={removeValue} />
         ) : null;
 
@@ -208,6 +219,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
         const linked = Boolean(resolved) || tokens.colors.some((option) => option.value === current);
         return (
             <ColorControl
+                readOnly={props.readOnly}
                 label={name}
                 value={current}
                 color={(linked ? resolved : current) || 'transparent'}
@@ -228,8 +240,8 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             label={label}
             states={offered}
             combinations={allowsCombinations(propertyApi)}
-            disabled={!text}
-            onAdd={(selected: string[]) => {
+            disabled={props.readOnly || !text}
+            onAdd={editable((selected: string[]) => {
                 const key = stateKey(selected);
                 if (states.some((item) => stateKey(item.state) === key)) return;
                 if (isCombination) {
@@ -238,7 +250,7 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                 }
                 config.addTokenState(id, { state: selected, value: text }, variationID, styleID);
                 onConfigUpdate();
-            }}
+            })}
         />
     ) : null;
 
@@ -283,34 +295,42 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
                     />
                 );
             }
-            if (type === 'value') {
-                // Сырой CSS ядра (`3rem`, `calc(var(--plasma-avatar-size) …)`): строка как есть, без единиц и приведения.
-                return <NumberControl label={name} value={current} unit="" parse={rawValue} onCommit={onChange} />;
-            }
-            if (type === 'shape') {
-                return <TokenField label={name} value={current} options={tokens.shapes} mark="↔" onChange={onChange} />;
-            }
-            if (type === 'shadow') {
-                return (
+            const controls = new Map<typeof type, ReactNode>([
+                ['value', <NumberControl label={name} value={current} unit="" parse={rawValue} onCommit={onChange} />],
+                [
+                    'shape',
+                    <TokenField label={name} value={current} options={tokens.shapes} mark="↔" onChange={onChange} />,
+                ],
+                [
+                    'shadow',
                     <TokenField
                         label={name}
                         value={current}
                         options={tokens.shadows}
                         mark={<TyGlyph name="shadow" />}
                         onChange={onChange}
-                    />
-                );
-            }
-            if (type === 'typography') {
-                return <TypographyCombo label={name} value={current} options={tokens.typography} onChange={onChange} />;
-            }
-            if (type === 'icon') {
-                return <IconControl label={name} value={current} onChange={onChange} onClear={clearIcon} />;
-            }
+                    />,
+                ],
+                [
+                    'typography',
+                    <TypographyCombo label={name} value={current} options={tokens.typography} onChange={onChange} />,
+                ],
+                [
+                    'icon',
+                    <IconControl
+                        label={name}
+                        value={current}
+                        onChange={onChange}
+                        onClear={props.readOnly ? undefined : clearIcon}
+                    />,
+                ],
+            ]);
             return (
-                <div className="component-number-control is-raw">
-                    <input aria-label={name} readOnly value={current} />
-                </div>
+                controls.get(type) ?? (
+                    <div className="component-number-control is-raw">
+                        <input aria-label={name} readOnly value={current} />
+                    </div>
+                )
             );
         })();
         return (
@@ -326,21 +346,22 @@ export const InspectorPropertyRow = (props: InspectorPropertyRowProps) => {
             const key = stateKey(state.state);
             const name = stateLabel(state.state);
             const inheritedFrom = props.inheritedStateSources?.[key];
-            const remove = ownsState(key) ? (
-                <StateRemoveButton
-                    label={`${label} ${name}`}
-                    onRemove={() => {
-                        if (isCombination) return props.onCombinationChange?.(id, null, state.state);
-                        config.removeTokenState(id, key, variationID, styleID);
-                        onConfigUpdate();
-                    }}
-                />
-            ) : null;
-            const onChange = (next: string) => {
+            const remove =
+                !props.readOnly && ownsState(key) ? (
+                    <StateRemoveButton
+                        label={`${label} ${name}`}
+                        onRemove={editable(() => {
+                            if (isCombination) return props.onCombinationChange?.(id, null, state.state);
+                            config.removeTokenState(id, key, variationID, styleID);
+                            onConfigUpdate();
+                        })}
+                    />
+                ) : null;
+            const onChange = editable((next: string) => {
                 if (isCombination) return props.onCombinationChange?.(id, next, state.state, state.alpha);
                 config.updateTokenState(id, key, { ...state, value: next }, variationID, styleID);
                 onConfigUpdate();
-            };
+            });
             // Набор, который признак свойства не допускает, сервер не даст править (`states_not_supported`):
             // строка видна только для чтения и удаляется.
             const allowed = isStateSetAllowed(propertyApi, state.state);

@@ -63,7 +63,7 @@
             "config": "link_button_config.json"
         },
         {
-            "componentName": "bottom-sheet",
+            "componentName": "modal-bottom-sheet",
             "styleName": "modal-bottom-sheet",
             "config": "bottom_sheet_config.json"
         },

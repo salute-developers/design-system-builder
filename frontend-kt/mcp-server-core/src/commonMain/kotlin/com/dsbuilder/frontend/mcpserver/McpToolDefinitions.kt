@@ -2,7 +2,10 @@ package com.dsbuilder.frontend.mcpserver
 
 internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
     listOf(
-        McpToolDefinition(name = "project_get_status", description = "Verify backend project access."),
+        McpToolDefinition(
+            name = "project_get_status",
+            description = "Verify access to the selected design system, including public access without login.",
+        ),
         documentationSearchTool(),
         documentationPublicationsListTool(),
         tool("documentation_fetch", "Fetch one published documentation knowledge chunk.", "kbUrl"),
@@ -19,7 +22,7 @@ internal fun readOnlyMcpToolDefinitions(): List<McpToolDefinition> = (
         inputSchema = definition.inputSchema + (
             "designSystem" to stringInput(
                 "Optional dsbuilder://projects/{projectId}/design-systems/{designSystemId}" +
-                    "?version=... link. The platform query parameter is optional. " +
+                    "?version=... link. Version and platform are optional. " +
                     "Selects a resource for this call; it is not an API URL or credential.",
             )
             ),
@@ -181,7 +184,7 @@ private fun requiredStringInput(description: String? = null): McpToolInputDefini
 
 private fun modelVersionInput(): McpToolInputDefinition = stringInput(
     "Exact model version or draft. Explicit value overrides the selected context version; " +
-        "without either, reads the draft.",
+        "without either, public reads select the latest publication; project reads select the draft.",
 )
 
 private fun stringArrayInput(description: String): McpToolInputDefinition =

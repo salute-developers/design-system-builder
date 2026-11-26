@@ -84,7 +84,7 @@ internal suspend fun executeMutation(
     val response = client.request(url) {
         expectSuccess = false
         method = HttpMethod.parse(command.method.name)
-        header(HttpHeaders.Authorization, credential.authorizationValue())
+        credential.authorizationValue()?.let { header(HttpHeaders.Authorization, it) }
         header("Idempotency-Key", command.idempotencyKey)
         command.baseRevision?.let { header("X-DS-Base-Revision", it) }
         command.coreSelectionRevision?.let { header("X-DS-Core-Selection-Revision", it) }
@@ -113,12 +113,14 @@ private fun String.redact(credential: BackendCredential): String {
 
 /** Одно представление учётных данных для всех HTTP-операций. */
 internal fun BackendCredential.secretValue(): String = when (this) {
+    BackendCredential.Anonymous -> ""
     is BackendCredential.PersonalAccessToken -> value
     is BackendCredential.Bearer -> accessToken
     is BackendCredential.ServiceToken -> accessToken
 }
 
-internal fun BackendCredential.authorizationValue(): String {
+internal fun BackendCredential.authorizationValue(): String? {
+    if (this == BackendCredential.Anonymous) return null
     return "Bearer ${secretValue()}"
 }
 

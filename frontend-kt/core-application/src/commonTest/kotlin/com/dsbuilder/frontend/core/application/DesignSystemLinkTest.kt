@@ -31,6 +31,15 @@ class DesignSystemLinkTest {
     }
 
     @Test
+    fun versionlessLinksPreserveServerSelection() {
+        val link = "dsbuilder://projects/a/design-systems/b"
+        val selected = DesignSystemSelection(ProjectId("a"), DesignSystemId("b"))
+        assertEquals(selected, DesignSystemLink.parse(link))
+        assertEquals(link, DesignSystemLink.format(selected))
+        assertEquals(selected.copy(platform = TargetPlatform.COMPOSE), DesignSystemLink.parse("$link?platform=compose"))
+    }
+
+    @Test
     fun invalidLinksCannotFallBackToWorkspace() {
         listOf(
             "dsbuilder://projects/a/design-systems/b?version=1&version=2",
@@ -40,7 +49,6 @@ class DesignSystemLinkTest {
             "dsbuilder://projects/a/design-systems/b?version=1&version=2&platform=compose",
             "dsbuilder://projects/a/design-systems/b?version=1&platform=compose#part",
             "dsbuilder://projects/a/design-systems/b?version=1&platform=web",
-            "dsbuilder://projects/a/design-systems/b?platform=compose",
             "dsbuilder://projects/a%2Fb/design-systems/c?version=1&platform=compose",
             "dsbuilder://projects/a/design-systems/b?version=1&platform=compose&token=secret",
         ).forEach { assertNull(DesignSystemLink.parse(it), it) }

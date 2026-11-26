@@ -28,10 +28,6 @@
                     "value": "surface.default.transparent-secondary"
                 }
             ]
-        },
-        "disableAlpha": {
-            "type": "float",
-            "value": 0.4
         }
     },
     "bindings": [
@@ -71,7 +67,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -132,7 +128,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -192,7 +188,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -253,7 +249,7 @@
                     "type": "dimension",
                     "value": 6.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 6.0
                 },
@@ -313,7 +309,7 @@
                     "type": "dimension",
                     "value": 6.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 6.0
                 },

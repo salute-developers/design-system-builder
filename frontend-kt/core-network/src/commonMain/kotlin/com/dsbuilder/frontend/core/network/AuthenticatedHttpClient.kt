@@ -154,6 +154,7 @@ public interface AuthenticatedHttpClientFactory {
         credential: BackendCredential,
     ): AuthenticatedHttpClient =
         when (credential) {
+            BackendCredential.Anonymous -> error("Anonymous credentials are not supported by this legacy client.")
             is BackendCredential.PersonalAccessToken -> create(apiUrl, credential.value)
             is BackendCredential.Bearer -> error("Bearer credentials are not supported by this client.")
             is BackendCredential.ServiceToken -> error("Service tokens are not supported by this client.")
@@ -230,7 +231,7 @@ public class KtorAuthenticatedHttpClient(
 
     /**
      * Транспортные отказы Ktor приходят типами конкретных движков — CIO и Darwin, — у которых нет
-     * общего супертипа, видимого из `commonMain`. Без этого перехвата недоступный backend роняет
+     * общего типа Exception (JS fetch может выбросить Error). Без этого перехвата недоступный backend роняет
      * CLI необработанным исключением вместо детерминированного сообщения.
      */
     @Suppress("TooGenericExceptionCaught")
@@ -238,7 +239,7 @@ public class KtorAuthenticatedHttpClient(
         request().toResult()
     } catch (exception: CancellationException) {
         throw exception
-    } catch (exception: Exception) {
+    } catch (exception: Throwable) {
         AuthenticatedHttpResult.Failure("Status: failed. ${transportMessage(exception)}")
     }
 
@@ -246,7 +247,7 @@ public class KtorAuthenticatedHttpClient(
      * Движки описывают отказ многострочно и подробно — сообщение Darwin занимает больше килобайта.
      * Для вывода CLI берётся первая строка и ограниченная длина.
      */
-    private fun transportMessage(exception: Exception): String {
+    private fun transportMessage(exception: Throwable): String {
         val detail = exception.message
             ?.substringBefore('\n')
             ?.trim()
@@ -322,7 +323,7 @@ public class KtorAuthenticatedHttpClient(
     private fun url(path: String): String = "${apiUrl.trimEnd('/')}/${path.trimStart('/')}"
 
     private fun io.ktor.client.request.HttpRequestBuilder.authorizationHeader() {
-        header(HttpHeaders.Authorization, credential.authorizationValue())
+        credential.authorizationValue()?.let { header(HttpHeaders.Authorization, it) }
     }
 }
 

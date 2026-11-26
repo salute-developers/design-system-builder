@@ -4,10 +4,6 @@
         "backgroundColor": {
             "type": "color",
             "default": "overlay.default.soft"
-        },
-        "blurRadius": {
-            "type": "dimension",
-            "value": 16.0
         }
     },
     "bindings": [],

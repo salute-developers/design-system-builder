@@ -164,14 +164,6 @@
                 "paddingRight": {
                     "type": "dimension",
                     "value": 10
-                },
-                "paddingTop": {
-                    "type": "dimension",
-                    "value": 5
-                },
-                "paddingBottom": {
-                    "type": "dimension",
-                    "value": 5
                 }
             }
         },
@@ -204,14 +196,6 @@
                 "paddingRight": {
                     "type": "dimension",
                     "value": 8
-                },
-                "paddingTop": {
-                    "type": "dimension",
-                    "value": 5
-                },
-                "paddingBottom": {
-                    "type": "dimension",
-                    "value": 5
                 }
             }
         },
@@ -244,14 +228,6 @@
                 "paddingRight": {
                     "type": "dimension",
                     "value": 6
-                },
-                "paddingTop": {
-                    "type": "dimension",
-                    "value": 4
-                },
-                "paddingBottom": {
-                    "type": "dimension",
-                    "value": 4
                 }
             }
         },
@@ -284,14 +260,6 @@
                 "paddingRight": {
                     "type": "dimension",
                     "value": 4
-                },
-                "paddingTop": {
-                    "type": "dimension",
-                    "value": 1.5
-                },
-                "paddingBottom": {
-                    "type": "dimension",
-                    "value": 2.5
                 }
             }
         },
@@ -324,14 +292,6 @@
                 "paddingRight": {
                     "type": "dimension",
                     "value": 2
-                },
-                "paddingTop": {
-                    "type": "dimension",
-                    "value": 0
-                },
-                "paddingBottom": {
-                    "type": "dimension",
-                    "value": 0
                 }
             }
         }

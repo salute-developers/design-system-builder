@@ -510,7 +510,7 @@
         }
     },
     "props": {
-        "disableAlpha": {
+        "disabledAlpha": {
             "type": "float",
             "value": 0.4
         }

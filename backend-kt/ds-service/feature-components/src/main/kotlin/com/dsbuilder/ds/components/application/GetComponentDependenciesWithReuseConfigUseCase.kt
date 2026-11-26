@@ -28,15 +28,15 @@ class GetComponentDependenciesWithReuseConfigUseCase(
                 context,
                 ModelReadTarget(ModelReadTarget.Kind.DESIGN_SYSTEM, designSystemId),
             ) { selected ->
-                val linked = links.listAccessible(selected.projectId, selected.principal.globalAdmin)
+                val linked = links.listAccessible(selected.projectId, selected.globalAdmin)
                     .any { it.designSystemId == designSystemId && it.componentId == componentId }
                 if (!linked) return@readOnly DsResult.Failure(DsFailure.NotFound)
-                val graph = components.dependencies(selected.projectId, selected.principal.globalAdmin, componentId)
+                val graph = components.dependencies(selected.projectId, selected.globalAdmin, componentId)
                     ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 val dependencyIds = (
                     graph.asParent.map { it.dependency.id } + graph.asChild.map { it.dependency.id }
                     ).toSet()
-                val configs = reuseConfigs.listAccessible(selected.projectId, selected.principal.globalAdmin)
+                val configs = reuseConfigs.listAccessible(selected.projectId, selected.globalAdmin)
                     .filter { it.designSystemId == designSystemId && it.componentDepId in dependencyIds }
                     .groupBy { it.componentDepId }
                 DsResult.Success(ComponentDependenciesWithReuseConfig(graph, configs))

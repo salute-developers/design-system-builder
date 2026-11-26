@@ -1,6 +1,8 @@
 package com.dsbuilder.app.presentation
 
 import com.dsbuilder.app.GatewayConfiguration
+import com.dsbuilder.ds.core.presentation.configureDsPublicEntry
+import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
 import com.dsbuilder.identity.auth.application.GatewayAuthorizer
 import com.dsbuilder.identity.auth.application.usecase.GatewayAuthDecision
 import com.dsbuilder.identity.auth.domain.model.TrustedHeaders
@@ -43,6 +45,57 @@ class PublicGatewayTest {
             } else {
                 GatewayAuthDecision.Unauthorized("missing")
             }
+    }
+
+    @Test
+    fun `public read is address scoped and cannot be forged to open catalogs or writes`() = testApplication {
+        val id = "550e8400-e29b-41d4-a716-446655440000"
+        val root = "/api/projects/project/design-systems/$id"
+        val operation = com.dsbuilder.ds.core.application.DsReadOperation(
+            "GET",
+            "/api/design-systems/{designSystemId}",
+            "design-systems:read",
+            com.dsbuilder.ds.core.application.DsPublicReadKind.BOUNDARY,
+        )
+        val catalog = com.dsbuilder.ds.core.application.DsReadOperationCatalog(
+            listOf(operation),
+            setOf("/api/design-systems/catalog/icons"),
+        )
+        application {
+            installPublicGateway(configuration, authorizer, catalog)
+            configureDsPublicEntry(
+                "/api/projects/{projectId}/design-systems",
+            ) { it.verifiedRequestHeaders() }
+            routing {
+                get("/api/projects/{projectId}/design-systems/{designSystemId}") {
+                    val headers = call.dsTrustedHeaders()
+                    call.respondText(
+                        listOf(
+                            headers["X-Project-Id"],
+                            headers["X-DS-Expected-Design-System"],
+                            headers["X-System-Admin"],
+                            headers["X-DS-Public-Read"],
+                        ).joinToString("|"),
+                    )
+                }
+                get("/api/projects/{projectId}/design-systems/catalog/icons") { call.respondText("icons") }
+            }
+        }
+        val read = client.get("$root?designSystemId=foreign") {
+            header("X-Project-Id", "forged")
+            header("X-System-Admin", "true")
+            header("X-DS-Expected-Design-System", "foreign")
+        }
+        assertEquals(HttpStatusCode.OK, read.status)
+        assertEquals("project|$id|null|true", read.bodyAsText())
+        assertEquals("no-store", read.headers["Cache-Control"])
+        assertEquals(HttpStatusCode.Unauthorized, client.get(root) { header("Authorization", "Bearer invalid") }.status)
+        assertEquals(
+            HttpStatusCode.Unauthorized,
+            client.get("/api/projects/project/design-systems/catalog/components?designSystemId=$id").status,
+        )
+        assertEquals(HttpStatusCode.Unauthorized, client.post("$root/component-config/import").status)
+        assertEquals(HttpStatusCode.OK, client.get("/api/projects/project/design-systems/catalog/icons").status)
     }
 
     @Test

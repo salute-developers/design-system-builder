@@ -4,21 +4,27 @@
 Переносимые ссылки на дизайн-систему, разрешение явного контекста и проверка его полноты.
 
 ## Requirements
+
 ### Requirement: Переносимая ссылка на дизайн-систему
 
-CLI и MCP SHALL принимать `dsbuilder://projects/{projectId}/design-systems/{designSystemId}?version={version}&platform={platform}` как явный контекст; ссылка MUST NOT содержать credential или менять resolved backend API URL.
+CLI и MCP SHALL принимать `dsbuilder://projects/{projectId}/design-systems/{designSystemId}` с необязательными `version` и `platform` как явный контекст; ссылка MUST NOT содержать учётные данные или менять разрешённый API URL. Отсутствующая версия SHALL передаваться серверу без подстановки черновика.
 
 #### Scenario: Ссылка разрешена без workspace
 
 - **WHEN** клиент получает корректную ссылку вне директории с `.sdds/config.json`
-- **THEN** он MUST разрешить `projectId`, `designSystemId`, `version` и `platform` из ссылки
+- **THEN** он MUST разрешить `projectId`, `designSystemId` и явно переданные `version` и `platform` из ссылки
 - **THEN** он MUST использовать API URL из общего `ApiUrlResolver`, а не из ссылки
 
 #### Scenario: Ссылка содержит неподдерживаемые части
 
-- **WHEN** ссылка содержит userinfo, fragment, неизвестный путь, повторяющийся обязательный параметр или некорректный identifier
-- **THEN** resolver MUST вернуть `INVALID_CONTEXT` без backend-запроса
-- **THEN** resolver MUST NOT искать `.sdds` как fallback
+- **WHEN** ссылка содержит сведения пользователя, фрагмент, неизвестный путь, повторяющийся обязательный параметр или некорректный идентификатор
+- **THEN** механизм разрешения MUST вернуть `INVALID_CONTEXT` без запроса к серверу
+- **THEN** механизм разрешения MUST NOT искать `.sdds` как резервный переход
+
+#### Scenario: Прямая ссылка без версии
+- **WHEN** ссылка не содержит `version`
+- **THEN** клиент MUST сохранить отсутствие выбора до серверного разрешения
+- **THEN** гость MUST получить последнюю опубликованную версию публичной ДС либо серверный отказ
 
 ### Requirement: Приоритет явного контекста
 
@@ -37,16 +43,16 @@ CLI и MCP SHALL принимать `dsbuilder://projects/{projectId}/design-sys
 
 ### Requirement: Полный и проверенный контекст
 
-Контекст чтения публикации SHALL однозначно задавать version и platform; backend SHALL проверять доступ actor к проекту и принадлежность дизайн-системы этому проекту.
+Контекст чтения SHALL однозначно задавать проект и ДС. Сервер SHALL проверять проектный либо публичный доступ и разрешать отсутствующую версию; платформа MUST требоваться только операциям, которым она необходима.
 
 #### Scenario: Version или platform отсутствует
 
-- **WHEN** запрошенное чтение публикации не имеет однозначной version или platform
+- **WHEN** платформенная операция требует платформу, но она не задана однозначно
 - **THEN** клиент MUST вернуть `AMBIGUOUS_CONTEXT` или `CONTEXT_REQUIRED`
-- **THEN** клиент MUST NOT подставлять `0.0.0`, `web` либо другую неявную версию или платформу
+- **THEN** клиент MUST NOT подставлять `0.0.0`, `web` либо другую неявную версию или платформу; отсутствие версии MUST разрешаться сервером
 
 #### Scenario: Дизайн-система вне доступного проекта
 
-- **WHEN** backend не подтверждает доступ к выбранным project/design-system identifiers
-- **THEN** клиент MUST вернуть `FORBIDDEN` или `NOT_FOUND` согласно ответу backend
+- **WHEN** сервер не подтверждает ни проектный, ни публичный доступ к выбранным идентификаторам проекта и ДС
+- **THEN** клиент MUST вернуть `FORBIDDEN` или `NOT_FOUND` согласно ответу сервера
 - **THEN** ссылка MUST NOT считаться доказательством доступа

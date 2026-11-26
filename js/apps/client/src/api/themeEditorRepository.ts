@@ -1,4 +1,5 @@
 import { readEditor } from './editorReads';
+import { getDsReadBoundary } from './dsReadBoundary';
 import { PROJECTS_URL } from './constants';
 import type { ProjectDto, DesignSystemDto, TenantDto } from './contracts';
 import type {
@@ -17,13 +18,17 @@ import type { ThemeSource } from '../controllers/designSystem';
 export async function loadThemeShell(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
     const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
-    const [project, designSystem, tenant, links, version] = await Promise.all([
-        readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}`, request, undefined, 30_000),
+    const designSystem = await readEditor<DesignSystemDto>(`${root}`, request);
+    const boundary = getDsReadBoundary(context.projectId, context.designSystemId);
+    const publicRead = boundary?.accessMode === 'public';
+    const [project, tenant, links, version] = await Promise.all([
+        publicRead
+            ? Promise.resolve(undefined)
+            : readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
         readEditor<TenantDto>(`${root}/tenants/${context.tenantId}`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
         context.versionId
-            ? readEditor<DesignSystemVersionDto>(`${root}/versions/${context.versionId}`, request)
+            ? readEditor<DesignSystemVersionDto>(`${root}/versions/${context.versionId}`, { signal })
             : Promise.resolve(undefined),
     ]);
     if (tenant.data.designSystemId !== context.designSystemId) throw new Error('TENANT_DESIGN_SYSTEM_MISMATCH');
@@ -31,9 +36,8 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
     // но есть шаблоны: добавить и вернуть компоненты можно только из раздела. Дополнительные чтения — лишь без связей.
     const hasComponents =
         links.data.some((link) => link.designSystemId === context.designSystemId) ||
-        (await readEditor<AppearanceDto[]>(`${root}/appearances`, request))
-            .data.length > 0 ||
-        (await componentRepository.loadComponentTemplates(context, signal)).length > 0;
+        (await readEditor<AppearanceDto[]>(`${root}/appearances`, request)).data.length > 0 ||
+        (!publicRead && (await componentRepository.loadComponentTemplates(context, signal)).length > 0);
     if (version && version.data.designSystemId !== context.designSystemId)
         throw new Error('VERSION_DESIGN_SYSTEM_MISMATCH');
     const types = ['color', 'gradient', 'typography', 'fontFamily', 'shape', 'spacing', 'shadow'];
@@ -47,10 +51,11 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
         screen: [],
         weight: [],
     };
+    const publicationVersion = version?.data.version ?? boundary?.version ?? '0.1.0';
     const themeData = {
         meta: {
             name: tenant.data.name,
-            version: version?.data.version ?? '0.1.0',
+            version: publicationVersion,
             tokens: [],
             ...Object.fromEntries(types.map((type) => [type, empty])),
         },
@@ -66,25 +71,11 @@ export async function loadThemeShell(context: EditorContextKey, signal?: AbortSi
         tokenDefinitionsByName: {},
         tokenValueRevisionsByKey: {},
         tokenValueEntityIdsByKey: {},
-        publicationVersion: version?.data.version ?? '0.1.0',
+        publicationVersion,
         componentsData: [],
         composeComponentsData: [],
         hasComponents,
-        parameters: {
-            projectId: context.projectId,
-            projectName: project.data.name,
-            packagesName: designSystem.data.name,
-            tenantId: context.tenantId,
-            designSystemId: context.designSystemId,
-            effectiveRole: project.data.effectiveRole,
-            editRevision: tenant.data.editRevision,
-            draftId: designSystem.data.draftId ?? undefined,
-            draftRevision: designSystem.data.draftRevision ?? undefined,
-            readOnly:
-                Boolean(context.versionId) ||
-                project.data.status === 'archived' ||
-                project.data.effectiveRole === 'viewer',
-        },
+        parameters: themeParameters(context, designSystem.data, tenant.data.editRevision, project?.data),
     };
 }
 
@@ -104,9 +95,13 @@ export async function loadDesignSystemCursor(context: EditorContextKey, signal?:
 export async function loadThemeEditor(context: EditorContextKey, signal?: AbortSignal): Promise<ThemeEditorSnapshot> {
     const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
-    const [project, designSystem, tokenData, components, composeComponentsData] = await Promise.all([
-        readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
-        readEditor<DesignSystemDto>(`${root}`, request),
+    const designSystem = await readEditor<DesignSystemDto>(`${root}`, request);
+    const boundary = getDsReadBoundary(context.projectId, context.designSystemId);
+    const publicRead = boundary?.accessMode === 'public';
+    const [project, tokenData, components, composeComponentsData] = await Promise.all([
+        publicRead
+            ? Promise.resolve(undefined)
+            : readEditor<ProjectDto>(`${PROJECTS_URL}/${context.projectId}`, { signal }),
         tokenRepository.loadTokenData(context, signal),
         componentRepository.loadComponentData(context, signal),
         componentRepository.loadComposeComponentData(context, signal),
@@ -116,21 +111,33 @@ export async function loadThemeEditor(context: EditorContextKey, signal?: AbortS
         designSystem: designSystem.data,
         componentsData: components,
         composeComponentsData,
-        parameters: {
-            projectId: context.projectId,
-            projectName: project.data.name,
-            packagesName: designSystem.data.name,
-            tenantId: context.tenantId,
-            designSystemId: context.designSystemId,
-            effectiveRole: project.data.effectiveRole,
-            editRevision: tokenData.tenant.editRevision,
-            draftId: designSystem.data.draftId ?? undefined,
-            draftRevision: designSystem.data.draftRevision ?? undefined,
-            readOnly: [
-                Boolean(context.versionId),
-                project.data.status === 'archived',
-                project.data.effectiveRole === 'viewer',
-            ].some(Boolean),
-        },
+        parameters: themeParameters(context, designSystem.data, tokenData.tenant.editRevision, project?.data),
     };
 }
+
+/** Единые параметры снимка для полной и отложенной загрузки редактора. */
+const themeParameters = (
+    context: EditorContextKey,
+    system: DesignSystemDto,
+    editRevision: number,
+    project?: ProjectDto,
+): ThemeEditorSnapshot['parameters'] => {
+    const effectiveRole = project?.effectiveRole ?? 'viewer';
+    return {
+        projectId: context.projectId,
+        projectName: project?.name ?? system.projectName ?? '',
+        packagesName: system.name,
+        tenantId: context.tenantId,
+        designSystemId: context.designSystemId,
+        effectiveRole,
+        editRevision,
+        draftId: system.draftId ?? undefined,
+        draftRevision: system.draftRevision ?? undefined,
+        readOnly: [
+            Boolean(context.versionId),
+            Boolean(getDsReadBoundary(context.projectId, context.designSystemId)?.versionId),
+            project?.status === 'archived',
+            effectiveRole === 'viewer',
+        ].some(Boolean),
+    };
+};

@@ -30,9 +30,10 @@ vi.mock('../../api/draftAutosaveActivity', async (importOriginal) => {
 });
 
 vi.mock('../../hooks/useCoreCompatibility', () => ({
-    useCoreCompatibility: () => operations.compatibility(),
+    useCoreCompatibility: operations.compatibility,
 }));
 
+import { clearDsReadBoundaries, rememberDsReadBoundary } from '../../api/dsReadBoundary';
 import { deriveNative } from '../../modules/colorTokens/domain';
 import { DesignSystemChangesPage, DesignSystemVersionsPage } from './VersionJournalPages';
 
@@ -101,6 +102,7 @@ const renderPage = (page: 'changes' | 'versions', initial = page) =>
     );
 
 beforeEach(() => {
+    clearDsReadBoundaries();
     localStorage.clear();
     Object.values(operations).forEach((operation) => operation.mockReset());
     operations.compatibility.mockReturnValue({
@@ -128,7 +130,10 @@ beforeEach(() => {
     operations.reloadEditor.mockResolvedValue(undefined);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    clearDsReadBoundaries();
+});
 
 describe('DesignSystemChangesPage', () => {
     it('при отказе журнала после неизвестного результата блокирует отмену и повторяет только чтения', async () => {
@@ -785,4 +790,47 @@ describe('DesignSystemVersionsPage', () => {
         expect(screen.queryByRole('button', { name: /1\.0\.0/ })).not.toBeInTheDocument();
         expect(screen.getByRole('button', { name: /2\.0\.0/ })).toBeInTheDocument();
     });
+});
+
+it('public versions show the normal version layout without draft, publication or protected reads', async () => {
+    rememberDsReadBoundary('/api/projects/project-1/design-systems/ds-1', {
+        designSystemId: 'ds-1',
+        accessMode: 'public',
+        versionId: 'version-1',
+        version: '0.1.0',
+    });
+    operations.listVersions.mockResolvedValue([
+        {
+            id: 'version-1',
+            designSystemId: 'ds-1',
+            sequenceNumber: 1,
+            revision: 7,
+            version: '0.1.0',
+            changelog: 'Первая публикация',
+            publishedAt: '2026-10-16T11:00:00Z',
+        },
+        {
+            id: 'version-2',
+            designSystemId: 'ds-1',
+            sequenceNumber: 2,
+            revision: 8,
+            version: '0.2.0',
+            changelog: 'Вторая публикация',
+            publishedAt: '2026-10-17T11:00:00Z',
+        },
+    ]);
+    renderPage('versions');
+    fireEvent.click(await screen.findByRole('button', { name: /v0.1.0/ }));
+    expect(screen.getByRole('button', { name: 'v0.1.0' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('main', { name: 'Состав версии' })).toHaveTextContent('v0.1.0');
+    expect(screen.getByText('Первая публикация')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Открыть версию' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Черновик публикации' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Опубликовать версию' })).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Номер версии')).not.toBeInTheDocument();
+    expect(operations.listChanges).not.toHaveBeenCalled();
+    expect(operations.getDesignSystem).not.toHaveBeenCalled();
+    expect(operations.compatibility).toHaveBeenCalled();
+    expect(operations.compatibility.mock.calls.every(([context]) => context === undefined)).toBe(true);
+    expect(operations.publish).not.toHaveBeenCalled();
 });

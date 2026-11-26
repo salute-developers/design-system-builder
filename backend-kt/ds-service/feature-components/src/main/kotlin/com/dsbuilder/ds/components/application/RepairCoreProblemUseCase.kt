@@ -25,7 +25,7 @@ class RepairCoreProblemUseCase(
             when (writeAccess) {
                 is DsResult.Failure -> writeAccess
                 is DsResult.Success -> transactions.required(context) {
-                    guardEditorRules { repository.repair(context.projectId, context.principal.globalAdmin, command) }
+                    guardEditorRules { repository.repair(context.projectId, context.globalAdmin, command) }
                 }
             }
         }

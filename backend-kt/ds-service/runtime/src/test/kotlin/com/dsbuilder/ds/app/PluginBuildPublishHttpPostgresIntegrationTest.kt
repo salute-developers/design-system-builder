@@ -265,7 +265,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
     }
 
     @Test
-    fun `the active build address is served to project members and ignores the design system version`() = withService {
+    fun `the active build address is public and ignores the design system version`() = withService {
         assertEquals(HttpStatusCode.NotFound, active(Actor.USER).status)
         publish(archive(commit = COMMIT_A, uikit = "0.56.1"), Actor.ADMIN, dryRun = false).ok()
         val body = active(Actor.USER).ok()
@@ -276,7 +276,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         assertTrue(body.string("pluginUrl").endsWith("/"))
         val withVersion = service.builder.client.get("$ACTIVE?versionId=${UUID.randomUUID()}") { actor(Actor.USER) }
         assertEquals(COMMIT_A.take(12), withVersion.ok().string("buildId"))
-        assertEquals(HttpStatusCode.Forbidden, service.builder.client.get(ACTIVE).status)
+        assertEquals(body, service.builder.client.get(ACTIVE).ok())
     }
 
     @Test

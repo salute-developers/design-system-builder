@@ -30,12 +30,21 @@ internal class KeycloakJwtVerifier(
         try {
             tokenVerifier(rawToken).toResult()
         } catch (e: JWTVerificationException) {
-            JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
+            verificationFailure(e)
         } catch (e: IllegalArgumentException) {
-            JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
+            verificationFailure(e)
         } catch (e: JwkException) {
+            verificationFailure(e)
+        }
+
+    private fun verificationFailure(failure: Throwable): JwtVerificationResult {
+        val unavailable = generateSequence(failure) { it.cause }.take(32).any { it is java.io.IOException }
+        return if (unavailable) {
+            JwtVerificationResult.Unavailable
+        } else {
             JwtVerificationResult.Invalid(JwtInvalidReason.INVALID_TOKEN)
         }
+    }
 
     private fun DecodedJWT.toResult(): JwtVerificationResult {
         val subject = subject?.takeIf { it.isNotBlank() }

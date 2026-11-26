@@ -24,7 +24,12 @@ internal class McpReadToolContext(
     fun success(body: String): McpToolResult = McpToolResult(isError = false, body = body.ifBlank { "{}" })
 
     fun toolError(code: String, message: String): McpToolResult =
-        McpToolResult(isError = true, body = json.encodeToString(McpToolError(code, message)))
+        McpToolResult(
+            isError = true,
+            body = json.encodeToString(
+                McpToolError(code, message.replace("dsbuilder auth login", config.authLoginCommand)),
+            ),
+        )
 
     fun invalidArgument(message: String): McpToolResult = toolError("INVALID_ARGUMENT", message)
 

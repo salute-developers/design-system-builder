@@ -197,17 +197,12 @@ const PaletteScreen = ({
             { state: { tokenName: mode ? `${mode}.${tokenName}` : tokenName } },
         );
 
-    // Баннеры — в инспекторе, как на экранах токенов; при скрытом инспекторе — над бордом.
-    const banners: ReactNode = (paletteRepository.source === 'local' || !canEdit) && (
+    // Информация о локальном источнике — в инспекторе; при скрытом инспекторе — над бордом.
+    const banners: ReactNode = paletteRepository.source === 'local' && (
         <div className="palette-banners">
             {paletteRepository.source === 'local' && (
                 <div className="viewer-banner" role="status">
                     <span>Палитра хранится в этом браузере и не публикуется</span>
-                </div>
-            )}
-            {!canEdit && (
-                <div className="viewer-banner" role="status">
-                    <span>Только просмотр</span>
                 </div>
             )}
         </div>

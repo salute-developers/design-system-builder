@@ -8,5 +8,6 @@ internal object DesignSystemsTable : Table("design_systems") {
     val projectName = text("project_name")
     val projectId = text("project_id").nullable()
     val createdAt = timestamp("created_at")
+    val visibility = text("visibility").default("private")
     override val primaryKey = PrimaryKey(id)
 }

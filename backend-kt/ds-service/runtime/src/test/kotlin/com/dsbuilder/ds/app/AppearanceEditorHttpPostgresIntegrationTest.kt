@@ -220,7 +220,7 @@ class AppearanceEditorHttpPostgresIntegrationTest {
             )
             val model = ExposedAppearanceEditorRepository(ExposedStateRepository()).model(
                 selected.projectId,
-                selected.principal.systemAdmin,
+                selected.globalAdmin,
                 UUID.fromString(fixture.appearance),
                 selected.versionId,
             )!!

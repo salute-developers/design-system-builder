@@ -1,7 +1,8 @@
 # gateway-response-compression Specification
 
 ## Purpose
-TBD - created by archiving change speed-up-component-preview-loading. Update Purpose after archive.
+Определяет сжатие JSON-ответов дизайн-системы на gateway с сохранением корректных заголовков HTTP и возможности чтения ответа клиентом.
+
 ## Requirements
 ### Requirement: Gateway сжимает JSON-ответы маршрутов дизайн-системы
 

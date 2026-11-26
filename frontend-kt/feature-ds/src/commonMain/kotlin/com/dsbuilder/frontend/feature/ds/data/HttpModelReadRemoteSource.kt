@@ -43,6 +43,8 @@ internal fun modelReadFailure(
         "PAT is invalid or expired (HTTP 401)."
     } else if (status == 401) {
         "Authentication required (HTTP 401). Run dsbuilder auth login and retry."
+    } else if (status == 404 && credential == BackendCredential.Anonymous) {
+        "Check the link. If access requires authentication, run dsbuilder auth login."
     } else {
         "Model read failed${status?.let { " (HTTP $it)" }.orEmpty()}."
     },

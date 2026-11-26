@@ -56,7 +56,7 @@ fun Route.draftInvalidationRoutes(
         if (context.clientId == null) {
             return@get call.respondFailure(DsFailure.InvalidRequest("client_id_required"))
         }
-        val connectionLease = connectionLimiter.tryAcquire(context.projectId.value, context.principal.actorId)
+        val connectionLease = connectionLimiter.tryAcquire(context.projectId.value, context.actorId)
             ?: return@get call.respond(HttpStatusCode.TooManyRequests)
         try {
             coroutineScope {
@@ -124,7 +124,7 @@ fun Route.draftInvalidationRoutes(
                                         } else if (delivered.add(eventId)) {
                                             if (delivered.size > 512) delivered.remove(delivered.first())
                                             if (!isOwnDraftInvalidation(
-                                                    context.principal.actorId,
+                                                    context.actorId,
                                                     context.clientId,
                                                     event,
                                                 )

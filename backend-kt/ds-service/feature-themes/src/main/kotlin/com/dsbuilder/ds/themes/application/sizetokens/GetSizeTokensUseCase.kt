@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.application.palette.TenantPaletteRepository
 import com.dsbuilder.ds.themes.domain.palette.ShadowLayerColors
@@ -29,9 +30,15 @@ class GetSizeTokensUseCase(
     suspend fun execute(context: DsRequestContext, tenantId: UUID): DsResult<SizeTokens> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(context) {
-                tokens.tenant(context.projectId, tenantId)?.let { tenant ->
-                    val writable = policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(
+                    ModelReadTarget.Kind.TENANT,
+                    tenantId,
+                ),
+            ) { selected ->
+                tokens.tenant(selected.projectId, tenantId)?.let { tenant ->
+                    val writable = policy.require(selected, ProjectScope.TENANTS_WRITE) is DsResult.Success
                     val stored = tokens.tokens(tenant.designSystemId, tenantId)
                     val needsPalette = stored.any { token ->
                         token.kind == SizeTokenKind.SHADOW && token.values.values.any {
@@ -39,7 +46,7 @@ class GetSizeTokensUseCase(
                         }
                     }
                     val resolve: ShadowColorResolver = if (needsPalette) {
-                        ShadowColorPalette(palette).resolver(context.projectId, tenantId)
+                        ShadowColorPalette(palette).resolver(selected.projectId, tenantId)
                     } else {
                         { _, _ -> null }
                     }
@@ -47,7 +54,7 @@ class GetSizeTokensUseCase(
                     val dimensions = views.filterIsInstance<DimensionTokenView>()
                     DsResult.Success(
                         SizeTokens(
-                            canEdit = writable && tenant.owned && context.versionId == null,
+                            canEdit = writable && tenant.owned && selected.versionId == null,
                             radii = dimensions.filter { it.kind == SizeTokenKind.RADIUS },
                             spacing = dimensions.filter { it.kind == SizeTokenKind.SPACING },
                             shadows = views.filterIsInstance<ShadowTokenView>(),

@@ -109,11 +109,11 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     // Привязка свойства к вариации — сразу запросом, без перечитывания: значение следом уйдёт автосохранением.
     const linkProperty = useMemo(
         () =>
-            structure
+            structure && !props.readOnly
                 ? (propertyId: string, variationId: string) =>
                       componentStructureRepository.linkProperty(structure.context, propertyId, variationId)
                 : undefined,
-        [structure],
+        [structure, props.readOnly],
     );
     const selectTab = (next: InspectorTab) => {
         setStoredTab(next);
@@ -156,7 +156,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
     currentScope.current = scope;
     useEffect(() => setCombinationError(undefined), [configurationId, combination?.join('+')]);
     const changeCombination = (propertyId: string, value: string | null, states?: string[], alpha?: number) => {
-        if (!structure || !combination || !configurationId) return;
+        if (props.readOnly || !structure || !combination || !configurationId) return;
         setCombinationError(undefined);
         const property = designSystem.getComponentData(config)?.sources.api.find((item) => item.id === propertyId);
         const isReference =

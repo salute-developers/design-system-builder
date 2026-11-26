@@ -1,7 +1,8 @@
 # figma-plugin-token-browser Specification
 
 ## Purpose
-TBD - created by archiving change add-figma-tokens-plugin. Update Purpose after archive.
+Определяет выбор дизайн-системы, темы и версии в плагине Figma, просмотр и поиск токенов, а также состояния загрузки и ошибок.
+
 ## Requirements
 ### Requirement: Выбор контекста
 

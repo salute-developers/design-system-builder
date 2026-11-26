@@ -20,9 +20,7 @@ sealed interface ModelReadSelection {
     companion object {
         /** Отклоняет повтор параметров, конфликт селекторов и неточные номера. */
         fun parse(versions: List<String>, versionIds: List<String>): DsResult<ModelReadSelection> {
-            val repeated = versions.size > 1 || versionIds.size > 1
-            val conflicting = versions.isNotEmpty() && versionIds.isNotEmpty()
-            if (repeated || conflicting) {
+            if (versions.size + versionIds.size > 1) {
                 return invalidSelection()
             }
             val version = versions.singleOrNull()

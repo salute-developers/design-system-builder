@@ -86,7 +86,10 @@ class CoreCompatibilityUseCaseTest {
             personalAccessTokenId = "pat",
             projectScopes = setOf("components:read"),
         )
-        val denied = useCase.execute(context.copy(principal = key), GetCoreCompatibilityUseCase.Query())
+        val denied = useCase.execute(
+            context.copy(access = com.dsbuilder.ds.core.application.ProjectAccess(key)),
+            GetCoreCompatibilityUseCase.Query(),
+        )
         assertEquals(DsFailure.Forbidden, assertIs<DsResult.Failure>(denied).error)
         assertEquals(before, reads)
     }

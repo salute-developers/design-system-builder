@@ -1,13 +1,14 @@
 import type { ReactElement, ReactNode } from 'react';
 import { Children, cloneElement, isValidElement, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams, useParams, useLocation } from 'react-router-dom';
 import { authService } from '../../api';
+import { getDsReadBoundary } from '../../api/dsReadBoundary';
 import { projectsApi } from '../../modules/projects/data/projectsApi';
 import { useLoad } from '../../shared/data/useLoad';
 import '../../styles/workflow.css';
 import { choose, Visible } from '../rendering';
-import { ChevronLeftOutline, ChevronRightOutline } from '@salutejs/sdds-icons/16';
+import { ChevronLeftOutline, ChevronRightOutline, LoginOutline } from '@salutejs/sdds-icons/16';
 import railBrandItemIcon from '../../assets/catalog/icons/rail-brand-item.svg';
 import railProjectAddIcon from '../../assets/catalog/icons/rail-project-add.svg';
 
@@ -52,7 +53,11 @@ const railEntityInitials = (name: string, fallback = 'PR') => {
 };
 
 const ProjectRail = ({ selectedProjectId }: { selectedProjectId?: string }) => {
-    const projects = useLoad(projectsApi.list, [], 'projects');
+    const { projectId, designSystemId } = useParams();
+    const allowed =
+        !designSystemId || (projectId && getDsReadBoundary(projectId, designSystemId)?.accessMode === 'project');
+    const projects = useLoad(projectsApi.list, [], 'projects', Boolean(allowed));
+    if (!allowed) return null;
     return (
         <div className="builder-entity-list" aria-label="Projects">
             {(projects.data ?? []).map((project) => (
@@ -75,6 +80,7 @@ const ProjectRail = ({ selectedProjectId }: { selectedProjectId?: string }) => {
 
 export const BuilderAccount = () => {
     const navigate = useNavigate();
+    const location = useLocation();
     const user = authService.getCurrentUser();
     const [accountOpen, setAccountOpen] = useState(false);
     const accountRef = useRef<HTMLDivElement>(null);
@@ -97,6 +103,19 @@ export const BuilderAccount = () => {
             document.removeEventListener('keydown', close);
         };
     }, [accountOpen]);
+    if (!authService.isAuthenticated()) {
+        return (
+            <button
+                type="button"
+                className="builder-rail-button builder-login-button"
+                aria-label="Войти"
+                title="Войти"
+                onClick={() => navigate(`/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`)}
+            >
+                <LoginOutline aria-hidden="true" />
+            </button>
+        );
+    }
     return (
         <div className="builder-account" ref={accountRef}>
             <button

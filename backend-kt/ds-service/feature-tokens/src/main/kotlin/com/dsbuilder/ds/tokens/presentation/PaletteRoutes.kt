@@ -8,6 +8,7 @@ import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.repeatableMutation
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
@@ -44,6 +45,13 @@ fun Route.paletteRoutes(
     delete: DeletePaletteEntryUseCase,
     json: Json,
 ) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/palette")) {
+        val context = call.modelReadContext(evaluator) ?: return@get
+        when (val result = list.execute(context)) {
+            is DsResult.Success -> call.respondSuccess(result, result.value.map(PaletteEntryResponse::from))
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
     route(dsRoutePath("/api/design-systems/catalog/palette")) {
         get {
             val context = TrustedDsRequestContextMapper.map(

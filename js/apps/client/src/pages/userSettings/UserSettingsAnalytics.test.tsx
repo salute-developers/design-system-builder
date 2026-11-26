@@ -18,7 +18,7 @@ vi.mock('../../analytics/AnalyticsConsent', () => ({
     },
 }));
 vi.mock('./PersonalAccessTokensPanel', () => ({ PersonalAccessTokensPanel: () => <p>Управление PAT</p> }));
-vi.mock('../../api', () => ({ authService: { getCurrentUser: () => null } }));
+vi.mock('../../api', () => ({ authService: { getCurrentUser: () => null, isAuthenticated: () => true } }));
 vi.mock('../../modules/projects/data/projectsApi', () => ({ projectsApi: { list: async () => [] } }));
 import { UserSettingsPage } from './UserSettingsPage';
 

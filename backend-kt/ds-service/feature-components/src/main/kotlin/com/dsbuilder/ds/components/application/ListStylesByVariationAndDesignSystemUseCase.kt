@@ -21,7 +21,7 @@ class ListStylesByVariationAndDesignSystemUseCase(
     ): DsResult<List<ComponentStyleSummary>> = modelFindList(policy, transactions, context) {
         repository.listByVariationAndDesignSystem(
             context.projectId,
-            context.principal.globalAdmin,
+            context.globalAdmin,
             variationId,
             designSystemId,
         )

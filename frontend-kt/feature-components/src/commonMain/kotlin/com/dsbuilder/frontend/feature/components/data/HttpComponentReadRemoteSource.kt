@@ -20,13 +20,14 @@ public class HttpComponentReadRemoteSource(
     override suspend fun configurations(
         runtime: ComponentReadRuntime,
         componentId: String,
-        version: String,
+        version: String?,
         limit: Int,
         cursor: String?,
     ): ComponentReadResult = runtime.get(
         "/api/projects/${encodePart(runtime.context.projectId.value)}/design-systems/" +
             "${encodePart(runtime.context.designSystemId.value)}/appearances?" +
-            "componentId=${encodePart(componentId)}&version=${encodePart(version)}&limit=$limit" +
+            "componentId=${encodePart(componentId)}&limit=$limit" +
+            version?.let { "&version=${encodePart(it)}" }.orEmpty() +
             (cursor?.let { "&cursor=${encodePart(it)}" } ?: ""),
         version,
     )
@@ -35,7 +36,7 @@ public class HttpComponentReadRemoteSource(
         runtime: ComponentReadRuntime,
         appearanceId: String,
         selectedValueIds: List<String>,
-        version: String,
+        version: String?,
     ): ComponentReadResult = runtime.get(
         runtime.selectionPath(appearanceId, "resolved-properties", selectedValueIds, version),
         version,
@@ -45,13 +46,13 @@ public class HttpComponentReadRemoteSource(
         runtime: ComponentReadRuntime,
         appearanceId: String,
         selectedValueIds: List<String>,
-        version: String,
+        version: String?,
     ): ComponentReadResult = runtime.get(
         runtime.selectionPath(appearanceId, "token-references", selectedValueIds, version),
         version,
     )
 
-    private suspend fun ComponentReadRuntime.get(path: String, version: String): ComponentReadResult =
+    private suspend fun ComponentReadRuntime.get(path: String, version: String?): ComponentReadResult =
         when (val response = httpClientFactory.create(apiUrl.value, credential).get(path)) {
             is AuthenticatedHttpResult.Success -> parseSuccess(response, context.designSystemId.value, version)
             is AuthenticatedHttpResult.Failure -> response.toReadError(credential)
@@ -61,7 +62,7 @@ public class HttpComponentReadRemoteSource(
     private fun parseSuccess(
         response: AuthenticatedHttpResult.Success,
         designSystemId: String,
-        version: String,
+        version: String?,
     ): ComponentReadResult {
         if (!response.readHeadersValid) return unreadableContext()
         val body = response.body
@@ -79,7 +80,7 @@ public class HttpComponentReadRemoteSource(
                 ?: return unreadableContext()
         } ?: return unreadableContext()
         if ((context["designSystemId"] as? JsonPrimitive)?.content != designSystemId ||
-            (context["version"] as? JsonPrimitive)?.content != version
+            version != null && (context["version"] as? JsonPrimitive)?.content != version
         ) {
             return unreadableContext()
         }
@@ -100,11 +101,16 @@ private fun ComponentReadRuntime.selectionPath(
     appearanceId: String,
     operation: String,
     selectedValueIds: List<String>,
-    version: String,
-): String = "/api/projects/${encodePart(context.projectId.value)}/design-systems/" +
-    "${encodePart(context.designSystemId.value)}/appearances/" +
-    "${encodePart(appearanceId)}/$operation?version=${encodePart(version)}" +
-    selectedValueIds.joinToString("") { "&selectedValueId=${encodePart(it)}" }
+    version: String?,
+): String {
+    val query = (
+        listOfNotNull(version?.let { "version=${encodePart(it)}" }) +
+            selectedValueIds.map { "selectedValueId=${encodePart(it)}" }
+        ).joinToString("&")
+    return "/api/projects/${encodePart(context.projectId.value)}/design-systems/" +
+        "${encodePart(context.designSystemId.value)}/appearances/" +
+        "${encodePart(appearanceId)}/$operation" + if (query.isEmpty()) "" else "?$query"
+}
 
 internal fun encodePart(value: String): String = buildString {
     value.encodeToByteArray().forEach { raw ->
@@ -130,5 +136,12 @@ private fun AuthenticatedHttpResult.Failure.toReadError(credential: BackendCrede
         400 -> ComponentReadErrorCode.INVALID_QUERY
         else -> ComponentReadErrorCode.BACKEND_UNAVAILABLE
     }
-    return ComponentReadResult.Failed(code, message)
+    return ComponentReadResult.Failed(
+        code,
+        if (statusCode == 404 && credential == BackendCredential.Anonymous) {
+            "Check the link. If access requires authentication, run dsbuilder auth login."
+        } else {
+            message
+        },
+    )
 }

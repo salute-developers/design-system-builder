@@ -28,6 +28,7 @@ public class InitProjectUseCase internal constructor(
                     credentialEnvName = CredentialEnvName(command.apiKeyEnv),
                     platforms = command.platforms,
                     credentialSelection = command.credentialSelection,
+                    version = command.version,
                 ),
                 targetDirectory = command.targetDirectory,
             ),
@@ -57,6 +58,8 @@ public data class InitProjectCommand(
     public val platforms: List<TargetPlatform> = emptyList(),
     /** Авторизация записи; старые вызовы сохраняют env-режим. */
     public val credentialSelection: InitCredentialSelection = InitCredentialSelection.Environment(apiKeyEnv),
+    /** Необязательная версия из явной ссылки; отсутствие сохраняет серверный выбор. */
+    public val version: String? = null,
 )
 
 /**

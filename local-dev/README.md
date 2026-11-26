@@ -198,3 +198,9 @@ cd packages/sdds-preview-web-plugin && npm run package   # в клоне plasma
 Чтобы загрузить только черновик без публикации версии ДС, передайте `--skip-publish`.
 Например, для существующей ДС: `./seed-local-design-system.sh --name "Test DS" --package /path/to/components --theme-package '' --skip-publish`.
 Пустой `--theme-package` сохраняет существующие значения темы; выбранный Compose Core скрипт не меняет.
+
+## Согласование пакета с Core
+
+Текущие конфигурации адаптированы к Core из Android PR #978. Изменения и ограничения
+описаны в [design-system/CORE_COMPATIBILITY.md](design-system/CORE_COMPATIBILITY.md);
+исходные значения неподдерживаемых overrides сохранены отдельно.

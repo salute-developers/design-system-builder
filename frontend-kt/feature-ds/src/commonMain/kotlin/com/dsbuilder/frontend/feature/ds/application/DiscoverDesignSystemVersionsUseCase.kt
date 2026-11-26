@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.ds.application
 
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.DesignSystemLink
 import com.dsbuilder.frontend.core.application.UserSessionAccess
@@ -53,7 +54,7 @@ public class DiscoverDesignSystemVersionsUseCase internal constructor(
             )
         }
         val apiUrl = apiUrlResolver.resolve(apiUrlOverride).value
-        val access = sessionResolver.resolve(apiUrl)
+        val access = sessionResolver.resolve(apiUrl, requirement = CredentialRequirement.READ_OPTIONAL)
         if (access is CredentialResult.Failed) {
             return ModelReadResult.Failed(
                 access.code.name,

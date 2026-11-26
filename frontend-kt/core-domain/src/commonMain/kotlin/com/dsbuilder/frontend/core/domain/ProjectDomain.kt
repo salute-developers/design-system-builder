@@ -89,6 +89,8 @@ public data class ProjectConfigDraft(
     public val credentialSelection: InitCredentialSelection = InitCredentialSelection.Environment(
         credentialEnvName.value,
     ),
+    /** Необязательный явный выбор версии. */
+    public val version: String? = null,
 )
 
 /**

@@ -1,3 +1,4 @@
+import { getDsReadBoundary } from '../api/dsReadBoundary';
 import type { DraftRefreshOptions } from '../api/editorContracts';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { isAxiosError } from 'axios';
@@ -171,8 +172,8 @@ export const useDesignSystem = (
             setPaletteError(null);
             tenantRef.current = typeof designSystemProjectId === 'object' ? designSystemProjectId.tenantId : undefined;
             if (typeof designSystemProjectId === 'object') {
-                const historicalMode = Boolean(designSystemProjectId.versionId);
-                setActiveDraftContext(historicalMode ? null : designSystemProjectId);
+                let historicalMode = Boolean(designSystemProjectId.versionId);
+                setActiveDraftContext(null);
                 setDesignSystem(null);
                 setHasConfiguredComponents(false);
                 setTheme(null);
@@ -266,15 +267,22 @@ export const useDesignSystem = (
                     const snapshot = selectionRef.current
                         ? await loadThemeShell(designSystemProjectId, controller.signal)
                         : await loadThemeEditor(designSystemProjectId, controller.signal);
+                    const selectedBoundary = getDsReadBoundary(
+                        designSystemProjectId.projectId,
+                        designSystemProjectId.designSystemId,
+                    );
+                    historicalMode = historicalMode || Boolean(selectedBoundary?.versionId);
+                    setActiveDraftContext(historicalMode ? null : designSystemProjectId);
                     if (controller.signal.aborted) return;
                     applySnapshot(snapshot, true, true);
                     if (selectionRef.current) {
                         const sections = new EditorSectionData(designSystemProjectId, snapshot, controller.signal);
                         // Только восстановление реально неподтверждённых правок нуждается в данных скрытой зоны.
                         const pendingTypes = new Set(
-                            Object.values(pendingDraftTokens(snapshot.designSystem.name, '0.1.0')).map(
-                                (change) => change.type,
-                            ),
+                            (historicalMode
+                                ? []
+                                : Object.values(pendingDraftTokens(snapshot.designSystem.name, '0.1.0'))
+                            ).map((change) => change.type),
                         );
                         for (const zone of ['colors', 'typography', 'shapes'] as const) {
                             const types = sectionTokenTypes[zone] ?? [];

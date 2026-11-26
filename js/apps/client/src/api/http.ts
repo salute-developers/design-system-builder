@@ -80,7 +80,7 @@ http.interceptors.response.use(
             return http(original);
         }
 
-        if (error.response?.status === 401 && original && !original._retry) {
+        if (error.response?.status === 401 && original && !original._retry && authService.isAuthenticated()) {
             original._retry = true;
 
             try {

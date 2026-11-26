@@ -7,6 +7,8 @@ internal interface JwtVerifier {
 }
 
 internal sealed interface JwtVerificationResult {
+    /** Проверка невозможна из-за недоступности источника ключей; не является неверным токеном. */
+    data object Unavailable : JwtVerificationResult
     data class Valid(val actor: AuthenticatedActor) : JwtVerificationResult
     data class Invalid(val reason: JwtInvalidReason) : JwtVerificationResult
 }

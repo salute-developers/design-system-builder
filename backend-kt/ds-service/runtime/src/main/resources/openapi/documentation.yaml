@@ -2,6 +2,13 @@ openapi: 3.0.3
 info:
   title: DS Builder Design System API
   version: 1.0.0
+  description: >-
+    Addressed design-system reads marked x-ds-public-read accept anonymous requests for public published versions.
+    Without a selector public access resolves the latest publication; project access retains the live draft default.
+    Supplied invalid credentials return 401 and unavailable identity verification returns 503, without anonymous fallback.
+    Inaccessible systems and unpublished data return 404; an explicit draft on an accessible public system returns 403.
+    Public DS data and its preview descriptor use Cache-Control no-store. Shared preview/icon GET resources retain caching.
+    General catalogs, project discovery, change journals and mutations require project authorization.
 paths:
   "/api/design-systems":
     get:
@@ -110,6 +117,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: design-systems:read
     patch:
       tags:
@@ -267,6 +281,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   "/api/design-systems/{designSystemId}/token-groups":
     get:
@@ -336,6 +355,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
   "/api/design-systems/{designSystemId}/tokens":
     get:
@@ -417,6 +441,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
     post:
       tags:
@@ -528,6 +557,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   "/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle":
     get:
@@ -610,6 +644,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/tenants":
     get:
@@ -652,6 +691,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
     post:
       tags:
@@ -727,6 +775,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -960,6 +1017,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: history
       x-permission: design-systems:read
     post:
       tags:
@@ -1044,6 +1108,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: version-by-id
       x-permission: design-systems:read
   "/api/design-systems/{designSystemId}/tenants/{id}":
     get:
@@ -1084,6 +1155,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
     patch:
       tags:
@@ -1323,6 +1401,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
     put:
       tags:
@@ -1492,6 +1579,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
   "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/links":
     get:
@@ -1568,6 +1660,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
   "/api/design-systems/{designSystemId}/tenants/{tenantId}/palette/groups":
     post:
@@ -3058,6 +3155,11 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
     post:
       tags:
@@ -3584,6 +3686,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tenants:read
     post:
       tags:
@@ -3954,6 +4061,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
     patch:
       tags:
@@ -4138,6 +4252,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
   "/api/design-systems/{designSystemId}/token-values":
     get:
@@ -4189,6 +4308,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
     post:
       tags:
@@ -4274,6 +4402,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: tokens:read
     patch:
       tags:
@@ -4600,6 +4735,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      x-ds-public-resource: true
       x-permission: components:read
       parameters: []
   "/api/design-systems/catalog/icons":
@@ -4626,6 +4762,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      x-ds-public-resource: true
       x-permission: components:read
       parameters: []
   "/api/design-systems/catalog/web-preview/plugin":
@@ -4655,6 +4792,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+      x-ds-public-resource: true
       x-permission: components:read
       parameters: []
   "/api/design-systems/catalog/components":
@@ -4825,6 +4963,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/catalog/components/{id}/properties":
     get:
@@ -4911,6 +5058,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/catalog/components/{id}/deps":
     get:
@@ -5017,6 +5173,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   "/api/design-systems/{designSystemId}/design-system-components":
     get:
@@ -5046,6 +5211,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
     post:
       tags:
@@ -5158,6 +5332,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
     delete:
       tags:
@@ -5365,6 +5546,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
     post:
       tags:
@@ -5450,6 +5640,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
     patch:
       tags:
@@ -5588,6 +5785,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   "/api/design-systems/{designSystemId}/variations":
     get:
@@ -5617,6 +5823,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -5702,6 +5917,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -5795,6 +6017,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/variations/{id}/properties":
     get:
@@ -5831,6 +6062,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/catalog/properties":
     get:
@@ -6126,6 +6366,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -6205,6 +6454,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/variation-platform-param-adjustments":
     get:
@@ -6234,6 +6490,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -6319,6 +6584,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -6450,6 +6722,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -6535,6 +6816,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -6677,6 +6965,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -6838,6 +7133,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/appearances/{id}/editor-model":
     get:
@@ -6878,6 +7180,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/appearances/{id}/resolved-properties":
     get:
@@ -6924,6 +7233,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/appearances/{id}/token-references":
     get:
@@ -6970,6 +7286,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/appearances/{id}/axes":
     post:
@@ -7763,6 +8086,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -7848,6 +8180,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -7979,6 +8318,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -8064,6 +8412,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -8195,6 +8550,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -8280,6 +8644,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -8419,6 +8790,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/variation-property-values":
     get:
@@ -8448,6 +8828,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -8541,6 +8930,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -8687,6 +9083,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/variation-property-values/by-appearance/{appearanceId}":
     get:
@@ -8723,6 +9128,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/invariant-property-values":
     get:
@@ -8752,6 +9166,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -8845,6 +9268,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -8992,6 +9422,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/catalog/states":
     get:
@@ -9331,6 +9770,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -9416,6 +9864,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     patch:
       tags:
@@ -9554,6 +10009,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -9635,6 +10099,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     post:
       tags:
@@ -9720,6 +10193,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
     delete:
       tags:
@@ -9867,6 +10347,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   "/api/design-systems/{designSystemId}/component-config/import":
     post:
@@ -10215,6 +10702,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
       parameters:
         - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
@@ -10275,6 +10767,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
       parameters:
         - $ref: '#/components/parameters/OptionalCoreSelectionRevision'
@@ -10909,7 +11406,8 @@ paths:
               }
             }
           }
-        }
+        },
+        "x-ds-public-read": "boundary"
       }
     }
   /api/design-systems/{designSystemId}/components/{id}:
@@ -10952,6 +11450,13 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   /api/design-systems/{designSystemId}/properties:
     get:
@@ -10982,6 +11487,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   /api/design-systems/{designSystemId}/property-platform-params:
     get:
@@ -11012,6 +11526,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   /api/design-systems/{designSystemId}/component-deps:
     get:
@@ -11042,6 +11565,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:read
   /api/design-systems/{designSystemId}/states:
     get:
@@ -11089,6 +11621,15 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+      x-ds-public-read: boundary
       x-permission: components:variations:read
   "/api/design-systems/{designSystemId}/catalog/components":
     {
@@ -11447,6 +11988,70 @@ paths:
         }
       }
     }
+  /api/design-systems/{designSystemId}/palette:
+    get:
+      summary: Read definitions used by the selected design system boundary
+      x-permission: tokens:read
+      x-ds-public-read: boundary
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: Related definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Palette'
+
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
+  /api/design-systems/{designSystemId}/state-sets:
+    get:
+      summary: Read definitions used by the selected design system boundary
+      x-permission: components:variations:read
+      x-ds-public-read: boundary
+      parameters:
+        - name: designSystemId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - $ref: '#/components/parameters/VersionId'
+        - $ref: '#/components/parameters/ModelVersion'
+      responses:
+        '200':
+          description: Related definitions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StateSet'
+
+        '401':
+          $ref: '#/components/responses/PublicReadUnauthorized'
+        '403':
+          $ref: '#/components/responses/PublicReadForbidden'
+        '404':
+          $ref: '#/components/responses/PublicReadNotFound'
+        '503':
+          $ref: '#/components/responses/PublicReadUnavailable'
 x-admin-preview-publication:
   /api/admin/compose-preview/plugin-builds:
     post:
@@ -11553,6 +12158,23 @@ x-admin-preview-publication:
         '422': {description: Ошибка меты}
         '503': {description: Хранилище недоступно}
 components:
+  responses:
+    PublicReadUnauthorized:
+      description: Supplied credentials are invalid; no anonymous fallback.
+    PublicReadForbidden:
+      description: Accessible public system does not permit draft or the project actor lacks permission.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PublicReadNotFound:
+      description: System or published resource is unavailable; private systems are not disclosed.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    PublicReadUnavailable:
+      description: Identity verification is unavailable; no anonymous fallback.
   schemas:
     "CoreReleaseRef":
       {
@@ -12268,6 +12890,10 @@ components:
     DesignSystem:
       type: object
       properties:
+        visibility:
+          type: string
+          enum: [private, public]
+          description: Current publication accessibility, independent of version history.
         id:
           type: string
           format: uuid
@@ -14135,6 +14761,10 @@ components:
     UpdateDesignSystem:
       type: object
       properties:
+        visibility:
+          type: string
+          enum: [private, public]
+          description: Current publication accessibility, independent of version history.
         name:
           type: string
           minLength: 1
@@ -17215,7 +17845,7 @@ components:
       name: version
       in: query
       required: false
-      description: draft либо точный major.minor.patch; несовместим с versionId. В истории версий фильтрует номер публикации.
+      description: draft либо точный major.minor.patch; несовместим с versionId. Без выбора публичный запрос открывает последнюю публикацию; участник — живой черновик.
       schema:
         type: string
         pattern: '^(draft|(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*))$'
@@ -17328,7 +17958,7 @@ components:
       schema:
         type: string
         format: uuid
-      description: Published design-system version. Omit to read the active draft.
+      description: Published design-system version UUID; incompatible with version. Omission selects the latest publication for public access and the active draft for project access.
     BaseRevision:
       name: X-DS-Base-Revision
       in: header
@@ -17350,7 +17980,9 @@ components:
       description: >-
         Безопасный JSON из транзакции данных. Черновик содержит designSystemId, version=draft,
         draftId, draftRevision; публикация — designSystemId, version, versionId;
-        история — только designSystemId. Credentials и внутренние URL исключены.
+        история не содержит единственной версии. Все формы содержат accessMode=project/public;
+        публичное чтение не раскрывает draftId, draftRevision и coreSelectionRevision.
+        coreReleases описывает Core той же выбранной границы. Credentials и внутренние URL исключены.
       schema:
         type: string
       example: '{"designSystemId":"550e8400-e29b-41d4-a716-446655440000","version":"draft","draftId":"550e8400-e29b-41d4-a716-446655440001","draftRevision":42}'

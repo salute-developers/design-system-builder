@@ -13,12 +13,13 @@ The server writes only MCP protocol messages to stdout while running `serve`.
 
 `--workspace` is optional. Every read tool accepts an optional `designSystem` argument:
 `dsbuilder://projects/project-123/design-systems/ds-456?version=1.0.0&platform=compose`.
+The `version` query parameter is optional: public reads select the latest published version when omitted.
 The `platform` query parameter is optional; omitting it does not choose a default platform.
 The link selects context for that call only, so one server can read different design systems
 without changing its active state. An explicit link selects PAT from DSBUILDER_API_KEY, otherwise the saved user session (`dsbuilder-mcp
 auth login`); without a link, the nearest `.sdds/config.json` selects the context and its
 credential policy (`auto`, `user-session`, or `pat-env`). The `auto` policy checks a
-PAT environment variable before the user session. The link contains no credential
+PAT environment variable before the user session, then allows anonymous public reads if neither exists. The link contains no credential
 and does not select the backend API URL.
 
 When local `.sdds/config.json` is selected, both this launcher and `dsbuilder mcp serve` also read
@@ -128,7 +129,7 @@ combining them with a URI is rejected. Existing URI/workspace calls continue to 
 ## Model and documentation reads
 
 Both launchers expose the same 61 tools, including 31 reads and 30 mutations. Discovery (`initialize`, `tools/list`) works without credentials;
-model reads, including `design_system_get_context`, require the selected credential.
+Public model reads, including `design_system_get_context`, work without credentials when a direct URI or complete `projectId`/`designSystemId` pair selects the system. Public access never exposes project or system discovery catalogs. `draft` and mutations require project access. Invalid credentials never fall back to anonymous access.
 
 Versioned reads use an exact `major.minor.patch` or `draft`. An explicit `version` overrides the URI version;
 when neither is present, the active draft is read. `component_get` returns current component metadata and does

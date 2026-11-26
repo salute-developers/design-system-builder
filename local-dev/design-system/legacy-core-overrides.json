@@ -1,0 +1,465 @@
+{
+  "coreRelease": {
+    "libraryId": "uikit-compose",
+    "platform": "compose",
+    "version": "0.57.0-dev.98c5181ab1436859ae2c27045a38c01b396293cc"
+  },
+  "metaSha256": "d7c5aa6b49582294022346815e5a4a149fb4d565268a71d8aee392c6b25dfea4",
+  "renames": [
+    {
+      "file": "meta.json",
+      "appearance": "modal-bottom-sheet",
+      "from": "bottom-sheet",
+      "to": "modal-bottom-sheet"
+    },
+    {
+      "file": "segment_item_config.json",
+      "path": "/props",
+      "from": "disableAlpha",
+      "to": "disabledAlpha"
+    },
+    {
+      "file": "switch_config.json",
+      "path": "/props",
+      "from": "toggleThumbPadding",
+      "to": "togglePadding"
+    },
+    {
+      "file": "text_field_config.json",
+      "path": "/props",
+      "from": "disableAlpha",
+      "to": "disabledAlpha"
+    },
+    {
+      "file": "text_field_clear_config.json",
+      "path": "/props",
+      "from": "disableAlpha",
+      "to": "disabledAlpha"
+    },
+    {
+      "file": "text_area_config.json",
+      "path": "/props",
+      "from": "disableAlpha",
+      "to": "disabledAlpha"
+    },
+    {
+      "file": "text_area_clear_config.json",
+      "path": "/props",
+      "from": "disableAlpha",
+      "to": "disabledAlpha"
+    },
+    {
+      "file": "tab_item_default_config.json",
+      "path": "/variations/0/props",
+      "from": "startContentPadding",
+      "to": "iconPadding"
+    }
+  ],
+  "unsupportedOverrides": [
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/0/props/extraOffsetX",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetX is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/0/props/extraOffsetY",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetY is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/1/props/extraOffsetX",
+      "value": {
+        "type": "dimension",
+        "value": 2
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetX is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/1/props/extraOffsetY",
+      "value": {
+        "type": "dimension",
+        "value": 2
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetY is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/2/props/extraOffsetX",
+      "value": {
+        "type": "dimension",
+        "value": 2
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetX is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/2/props/extraOffsetY",
+      "value": {
+        "type": "dimension",
+        "value": 2
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetY is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/3/props/extraOffsetX",
+      "value": {
+        "type": "dimension",
+        "value": 1
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetX is retained unchanged."
+    },
+    {
+      "file": "avatar_config.json",
+      "path": "/variations/3/props/extraOffsetY",
+      "value": {
+        "type": "dimension",
+        "value": 1
+      },
+      "reason": "Removed extra-slot offset; it is NOT a statusOffset alias. Existing statusOffsetY is retained unchanged."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/0/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/0/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/1/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/1/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/2/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 4
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/2/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 4
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/3/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 1.5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/3/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 2.5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/4/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "counter_config.json",
+      "path": "/variations/4/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/0/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/0/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/1/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/1/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/2/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 4
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/2/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 4
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/3/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 1.5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/3/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 2.5
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/4/props/paddingTop",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "segment_item_counter_config.json",
+      "path": "/variations/4/props/paddingBottom",
+      "value": {
+        "type": "dimension",
+        "value": 0
+      },
+      "reason": "Core Counter supports horizontal padding and minHeight; vertical content is centered. Existing minHeight is retained."
+    },
+    {
+      "file": "overlay_config.json",
+      "path": "/props/blurRadius",
+      "value": {
+        "type": "dimension",
+        "value": 16.0
+      },
+      "reason": "Core Overlay has only backgroundColor. A blur override cannot be represented; no substitution with another component is made."
+    },
+    {
+      "file": "progress_bar_config.json",
+      "path": "/props/disableAlpha",
+      "value": {
+        "type": "float",
+        "value": 0.4
+      },
+      "reason": "Core ProgressBar exposes no disabled-alpha style parameter."
+    },
+    {
+      "file": "text_field_config.json",
+      "path": "/props/prefixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_field_config.json",
+      "path": "/props/suffixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_field_clear_config.json",
+      "path": "/props/prefixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_field_clear_config.json",
+      "path": "/props/suffixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_area_config.json",
+      "path": "/props/prefixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_area_config.json",
+      "path": "/props/suffixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_area_clear_config.json",
+      "path": "/props/prefixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "text_area_clear_config.json",
+      "path": "/props/suffixPadding",
+      "value": {
+        "type": "dimension",
+        "value": 6.0
+      },
+      "reason": "PrefixSuffixWrapper uses a fixed4dp gap; this legacy6dp override has no public Core parameter."
+    },
+    {
+      "file": "list_item_normal_config.json",
+      "path": "/props/disableAlpha",
+      "value": {
+        "type": "float",
+        "value": 0.4
+      },
+      "reason": "Core ListItem exposes no disabled-alpha style parameter."
+    },
+    {
+      "file": "list_item_tight_config.json",
+      "path": "/props/disableAlpha",
+      "value": {
+        "type": "float",
+        "value": 0.4
+      },
+      "reason": "Core ListItem exposes no disabled-alpha style parameter."
+    },
+    {
+      "file": "dropdown_menu_list_normal_config.json",
+      "path": "/props/scrollBarStyle",
+      "value": {
+        "type": "component_style",
+        "value": "scroll-bar.s"
+      },
+      "reason": "List has no scrollbar parameter. Both parent DropdownMenu configurations already carry the identical scroll-bar.s reference."
+    },
+    {
+      "file": "dropdown_menu_item_normal_config.json",
+      "path": "/props/disableAlpha",
+      "value": {
+        "type": "float",
+        "value": 0.4
+      },
+      "reason": "Core ListItem exposes no disabled-alpha style parameter."
+    },
+    {
+      "file": "dropdown_menu_list_tight_config.json",
+      "path": "/props/scrollBarStyle",
+      "value": {
+        "type": "component_style",
+        "value": "scroll-bar.s"
+      },
+      "reason": "List has no scrollbar parameter. Both parent DropdownMenu configurations already carry the identical scroll-bar.s reference."
+    },
+    {
+      "file": "dropdown_menu_item_tight_config.json",
+      "path": "/props/disableAlpha",
+      "value": {
+        "type": "float",
+        "value": 0.4
+      },
+      "reason": "Core ListItem exposes no disabled-alpha style parameter."
+    },
+    {
+      "file": "form_item_config.json",
+      "path": "/props/captionSpacing",
+      "value": {
+        "type": "dimension",
+        "value": 4.0
+      },
+      "reason": "No captionSpacing parameter in Core. It coexists with captionPadding in this package, so they must not be merged; existing captionPadding is retained."
+    }
+  ]
+}

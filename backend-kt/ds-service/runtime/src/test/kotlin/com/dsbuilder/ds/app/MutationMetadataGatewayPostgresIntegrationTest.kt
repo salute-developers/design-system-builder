@@ -13,6 +13,7 @@ import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import org.testcontainers.Testcontainers
 import org.testcontainers.containers.GenericContainer
+import org.testcontainers.containers.wait.strategy.Wait
 import org.testcontainers.images.builder.Transferable
 import java.net.URI
 import java.net.http.HttpClient
@@ -40,6 +41,7 @@ class MutationMetadataGatewayPostgresIntegrationTest {
                 GenericContainer<Nothing>("nginx:1.27-alpine").apply {
                     withExposedPorts(80)
                     withCopyToContainer(Transferable.of(proxyConfiguration(port)), "/etc/nginx/conf.d/default.conf")
+                    waitingFor(Wait.forHttp("/health").forStatusCode(200))
                     start()
                 }.use { proxy ->
                     withContext(Dispatchers.IO) {

@@ -230,10 +230,6 @@
                     "type": "dimension",
                     "value": 24
                 },
-                "startContentPadding": {
-                    "type": "dimension",
-                    "value": 8
-                },
                 "valuePadding": {
                     "type": "dimension",
                     "value": 8
@@ -253,6 +249,10 @@
                 "actionIcon": {
                     "type": "icon",
                     "value": "close.24"
+                },
+                "iconPadding": {
+                    "type": "dimension",
+                    "value": 8
                 }
             }
         },

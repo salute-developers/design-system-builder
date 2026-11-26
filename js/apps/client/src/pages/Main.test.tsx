@@ -1,16 +1,17 @@
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { Suspense, useState } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { MemoryRouter, Route, Routes, useOutletContext } from 'react-router-dom';
+import { MemoryRouter, Route, Routes, useOutletContext, useNavigate } from 'react-router-dom';
 
 const SectionProbe = () => {
     const { sectionPending } = useOutletContext<{ sectionPending: boolean }>();
     return <div data-testid="colors-section" data-pending={String(sectionPending)} />;
 };
 
-const { hookState, reload, loadComponent, mainUtils, retryAutosave } = vi.hoisted(() => ({
+const { hookState, reload, loadComponent, mainUtils, retryAutosave, themeLoadContext } = vi.hoisted(() => ({
     hookState: {
         loading: false,
+        readOnly: false,
         components: [] as unknown[],
         hasComponents: false,
         autosaveStatus: 'saved' as 'saved' | 'saving' | 'error',
@@ -18,6 +19,7 @@ const { hookState, reload, loadComponent, mainUtils, retryAutosave } = vi.hoiste
         componentLoading: false,
         compatibilityCount: 0,
     },
+    themeLoadContext: vi.fn(),
     reload: vi.fn(),
     loadComponent: vi.fn(),
     retryAutosave: vi.fn(),
@@ -29,35 +31,38 @@ vi.mock('./Main.utils', async (importOriginal) => ({
 }));
 vi.mock('../hooks', () => ({
     useForceRerender: () => [null, vi.fn()],
-    useDesignSystem: () => ({
-        designSystem: hookState.loading
-            ? null
-            : {
-                  getName: () => 'System',
-                  getVersion: () => '0.1.0',
-                  getComponentsData: () => [],
-                  getParameters: () => ({
-                      projectName: 'Platform',
-                      packagesName: 'System',
-                      accentColor: 'blue',
-                      darkFillSaturation: 500,
-                      readOnly: false,
-                  }),
-              },
-        theme: hookState.loading ? null : { getName: () => 'Brand' },
-        components: hookState.loading ? null : hookState.components,
-        composeComponents: [],
-        hasConfiguredComponents: hookState.hasComponents,
-        incompleteTokenIds: [],
-        loadError: null,
-        autosaveStatus: hookState.autosaveStatus,
-        retryAutosave,
-        lastSavedAt: 1_000,
-        reload,
-        loadComponent,
-        sectionLoading: hookState.sectionLoading,
-        componentLoading: hookState.componentLoading,
-    }),
+    useDesignSystem: (context: unknown) => {
+        themeLoadContext(context);
+        return {
+            designSystem: hookState.loading
+                ? null
+                : {
+                      getName: () => 'System',
+                      getVersion: () => '0.1.0',
+                      getComponentsData: () => [],
+                      getParameters: () => ({
+                          projectName: 'Platform',
+                          packagesName: 'System',
+                          accentColor: 'blue',
+                          darkFillSaturation: 500,
+                          readOnly: hookState.readOnly,
+                      }),
+                  },
+            theme: hookState.loading ? null : { getName: () => 'Brand' },
+            components: hookState.loading ? null : hookState.components,
+            composeComponents: [],
+            hasConfiguredComponents: hookState.hasComponents,
+            incompleteTokenIds: [],
+            loadError: null,
+            autosaveStatus: hookState.autosaveStatus,
+            retryAutosave,
+            lastSavedAt: 1_000,
+            reload,
+            loadComponent,
+            sectionLoading: hookState.sectionLoading,
+            componentLoading: hookState.componentLoading,
+        };
+    },
 }));
 
 vi.mock('../hooks/useCoreCompatibility', () => ({
@@ -76,7 +81,11 @@ vi.mock('../components/EditorVersionSelect', () => ({
 }));
 
 import { Main } from './Main';
+import { authService } from '../api/authService';
+import { themesApi } from '../modules/themes/data/themesApi';
+import { resetQueryCache } from '../shared/data/useLoad';
 import { setActiveDraftContext } from '../utils';
+import { clearDsReadBoundaries, rememberDsReadBoundary } from '../api/dsReadBoundary';
 
 // Ключ черновика выбранного tenant: так его строит редактор темы при активном контексте.
 const DRAFT_KEY = 'ds_draft:project-1:ds-1:theme-1';
@@ -93,6 +102,8 @@ const editor = () => (
 const renderEditor = () => render(editor());
 
 beforeEach(() => {
+    vi.spyOn(authService, 'isAuthenticated').mockReturnValue(true);
+    clearDsReadBoundaries();
     hookState.compatibilityCount = 0;
     setActiveDraftContext({ projectId: 'project-1', designSystemId: 'ds-1', tenantId: 'theme-1' });
 });
@@ -100,6 +111,8 @@ beforeEach(() => {
 afterEach(() => {
     setActiveDraftContext(null);
     hookState.loading = false;
+    hookState.readOnly = false;
+    clearDsReadBoundaries();
     hookState.components = [];
     hookState.hasComponents = false;
     hookState.autosaveStatus = 'saved';
@@ -109,9 +122,79 @@ afterEach(() => {
     vi.clearAllMocks();
     cleanup();
     vi.unstubAllEnvs();
+    vi.restoreAllMocks();
 });
 
 describe('Theme editor shell', () => {
+    it('shows a login icon instead of account actions and theme settings for guests', () => {
+        vi.mocked(authService.isAuthenticated).mockReturnValue(false);
+        hookState.readOnly = true;
+        renderEditor();
+        expect(screen.getByRole('button', { name: 'Войти' })).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Профиль' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Настройки темы' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('menuitem', { name: 'Выйти' })).not.toBeInTheDocument();
+    });
+
+    it('starts a new theme load for semver changes and return to draft', async () => {
+        const path = '/projects/project-1/design-systems/ds-1/themes/theme-1/colors';
+        const Navigation = () => {
+            const navigate = useNavigate();
+            return (
+                <>
+                    <button onClick={() => navigate(`${path}?version=2.0.0`)}>Publication B</button>
+                    <button onClick={() => navigate(path)}>Draft</button>
+                </>
+            );
+        };
+        render(
+            <MemoryRouter initialEntries={[`${path}?version=1.0.0`]}>
+                <Navigation />
+                <Routes>
+                    <Route
+                        path="/projects/:projectId/design-systems/:designSystemId/themes/:tenantId"
+                        element={<Main />}
+                    >
+                        <Route path="colors" element={<div />} />
+                    </Route>
+                </Routes>
+            </MemoryRouter>,
+        );
+        const publicationA = themeLoadContext.mock.calls.at(-1)?.[0];
+        fireEvent.click(screen.getByRole('button', { name: 'Publication B' }));
+        const publicationB = themeLoadContext.mock.calls.at(-1)?.[0];
+        expect(publicationB).not.toBe(publicationA);
+        fireEvent.click(screen.getByRole('button', { name: 'Draft', exact: true }));
+        const draft = themeLoadContext.mock.calls.at(-1)?.[0];
+        expect(draft).not.toBe(publicationB);
+        expect(draft).not.toBe(publicationA);
+        expect(draft).toEqual({
+            projectId: 'project-1',
+            designSystemId: 'ds-1',
+            tenantId: 'theme-1',
+            versionId: undefined,
+        });
+    });
+
+    it('hides journals and protected actions during public reading', () => {
+        hookState.readOnly = true;
+        rememberDsReadBoundary('/api/projects/project-1/design-systems/ds-1', {
+            designSystemId: 'ds-1',
+            accessMode: 'public',
+            version: '0.1.0',
+            versionId: 'published-1',
+        });
+        renderEditor();
+        expect(screen.getAllByText('Только просмотр')).toHaveLength(1);
+        expect(screen.getByText('Только просмотр')).toHaveClass('editor-readonly-badge');
+        expect(screen.getByTestId('editor-nav-versions')).toBeEnabled();
+        expect(screen.queryByTestId('editor-nav-changes')).not.toBeInTheDocument();
+        expect(screen.queryByTestId('editor-nav-validation')).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: /^Изменения/ })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Настройки дизайн-системы' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Тема Brand. Переключить тему' })).toBeEnabled();
+    });
+
     it('does not retain the previous section while the next route is pending', async () => {
         let ready = false;
         let finish: () => void = () => undefined;
@@ -465,4 +548,27 @@ it('shows and clears the compatibility rail badge when blocking problems change'
     hookState.compatibilityCount = 0;
     view.rerender(editor());
     expect(screen.queryByLabelText('Валидация, есть проблемы совместимости')).not.toBeInTheDocument();
+});
+
+it('loads the theme switcher only after the root resolves its publication boundary', async () => {
+    resetQueryCache();
+    const list = vi.spyOn(themesApi, 'list').mockResolvedValue([]);
+    hookState.loading = true;
+    hookState.readOnly = true;
+    const view = renderEditor();
+    await act(async () => {
+        await Promise.resolve();
+    });
+    expect(list).not.toHaveBeenCalled();
+    rememberDsReadBoundary('/api/projects/project-1/design-systems/ds-1', {
+        designSystemId: 'ds-1',
+        accessMode: 'public',
+        versionId: 'publication-from-root',
+        version: '0.1.0',
+    });
+    hookState.loading = false;
+    view.rerender(editor());
+    await waitFor(() =>
+        expect(list).toHaveBeenCalledWith('project-1', 'ds-1', expect.anything(), 'publication-from-root'),
+    );
 });

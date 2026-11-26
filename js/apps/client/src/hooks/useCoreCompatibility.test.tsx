@@ -2,6 +2,7 @@ import { StrictMode, type ReactNode } from 'react';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { useCoreCompatibility } from './useCoreCompatibility';
+import { clearDsReadBoundaries, rememberDsReadBoundary } from '../api/dsReadBoundary';
 import type { CoreCompatibilityReport } from '../api/coreCompatibilityRepository';
 
 const mocks = vi.hoisted(() => ({ read: vi.fn(), invalidate: vi.fn() }));
@@ -32,7 +33,10 @@ const report = (releaseId: string, system = 'ds-a'): CoreCompatibilityReport => 
     nextCursor: null,
 });
 beforeEach(() => vi.resetAllMocks());
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    clearDsReadBoundaries();
+});
 
 it('reloads the model when Core changes without changing the draft revision', async () => {
     mocks.read.mockResolvedValueOnce(report('A')).mockResolvedValueOnce(report('B'));
@@ -162,4 +166,17 @@ it('shares the watch after StrictMode repeats the first subscription', async () 
     expect(mocks.read).not.toHaveBeenCalled();
     act(() => window.dispatchEvent(new Event('focus')));
     await waitFor(() => expect(mocks.read).toHaveBeenCalledOnce());
+});
+
+it('does not request protected diagnostics for public components, including focus and reload', async () => {
+    rememberDsReadBoundary('/api/projects/project/design-systems/ds-a', {
+        designSystemId: 'ds-a',
+        accessMode: 'public',
+        versionId: 'published',
+    });
+    const { result } = renderHook(() => useCoreCompatibility({ ...context, versionId: 'published' }));
+    act(() => window.dispatchEvent(new Event('focus')));
+    act(() => result.current.reload());
+    expect(mocks.read).not.toHaveBeenCalled();
+    expect(result.current.report).toBeUndefined();
 });

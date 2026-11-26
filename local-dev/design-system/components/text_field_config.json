@@ -237,18 +237,6 @@
         }
     },
     "props": {
-        "disableAlpha": {
-            "type": "float",
-            "value": 0.4
-        },
-        "prefixPadding": {
-            "type": "dimension",
-            "value": 6.0
-        },
-        "suffixPadding": {
-            "type": "dimension",
-            "value": 6.0
-        },
         "captionPlacement": {
             "type": "value",
             "value": "outer"
@@ -380,6 +368,10 @@
         "singleLine": {
             "type": "boolean",
             "value": true
+        },
+        "disabledAlpha": {
+            "type": "float",
+            "value": 0.4
         }
     },
     "bindings": [

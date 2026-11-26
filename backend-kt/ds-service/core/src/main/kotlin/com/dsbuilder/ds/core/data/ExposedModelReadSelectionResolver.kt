@@ -17,7 +17,14 @@ import java.util.UUID
 
 /** Разрешает ресурс и границу внутри текущей JDBC-транзакции. */
 class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
+    private val coreResolver = ExposedCoreContextResolver()
+
+    @Suppress("ReturnCount") // Порядок ранних отказов не раскрывает приватную ДС и предшествует разрешению Core.
     override suspend fun resolve(context: DsRequestContext, target: ModelReadTarget): DsResult<ResolvedModelRead> {
+        context.publicRead?.let {
+            if (!publiclyAccessible(context)) return DsResult.Failure(DsFailure.NotFound)
+            if (context.version == "draft") return DsResult.Failure(DsFailure.Forbidden)
+        }
         val selection = ModelReadSelection.parse(
             listOfNotNull(context.version),
             listOfNotNull(context.versionId?.toString()),
@@ -26,6 +33,17 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
         return if (context.designSystemId != null && context.designSystemId != owner) {
             DsResult.Failure(DsFailure.NotFound)
         } else if (target.kind == ModelReadTarget.Kind.VERSION_HISTORY) {
+            val published = context.publicRead?.let {
+                TransactionManager.current().exec(
+                    "SELECT EXISTS(SELECT 1 FROM design_system_versions WHERE design_system_id = ? " +
+                        "AND status = 'published' AND snapshot IS NULL)",
+                    listOf(UUIDColumnType() to owner),
+                ) { rows ->
+                    check(rows.next())
+                    rows.getBoolean(1)
+                } ?: false
+            } ?: true
+            if (!published) return DsResult.Failure(DsFailure.NotFound)
             DsResult.Success(
                 ResolvedModelRead(
                     context.copy(
@@ -33,7 +51,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
                         versionId = null,
                         readQuery = context.readQuery.copy(scope = "${context.projectId.value}/$owner/history"),
                     ),
-                    ModelReadContext(owner),
+                    ModelReadContext(owner, accessMode = context.accessMode),
                 ),
             )
         } else {
@@ -48,7 +66,11 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
     ): DsResult<ResolvedModelRead> {
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to owner)
         val predicate = when (selection) {
-            ModelReadSelection.Draft -> "status = 'draft'"
+            ModelReadSelection.Draft -> if (context.publicRead == null) {
+                "status = 'draft'"
+            } else {
+                "status = 'published' AND snapshot IS NULL ORDER BY sequence_number DESC LIMIT 1"
+            }
             is ModelReadSelection.Published -> {
                 args += TextColumnType() to selection.version
                 "status = 'published' AND snapshot IS NULL AND version = ?"
@@ -58,12 +80,11 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
                 "status = 'published' AND snapshot IS NULL AND id = ?"
             }
         }
-        val boundary = TransactionManager.current().exec(
-            "SELECT id, version FROM design_system_versions WHERE design_system_id = ? AND $predicate", args,
-        ) { rows ->
+        val query = "SELECT id, version FROM design_system_versions WHERE design_system_id = ? AND $predicate"
+        val boundary = TransactionManager.current().exec(query, args) { rows ->
             if (rows.next()) rows.getObject("id", UUID::class.java) to rows.getString("version") else null
         } ?: return DsResult.Failure(DsFailure.NotFound)
-        val metadata = if (selection == ModelReadSelection.Draft) {
+        val metadata = if (selection == ModelReadSelection.Draft && context.publicRead == null) {
             ModelReadContext(
                 owner,
                 "draft",
@@ -79,9 +100,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
         ) {
             return DsResult.Failure(DsFailure.Conflict("CORE_CONTEXT_STALE"))
         }
-        val coreReleases = withCoreReadScope(owner, metadata.versionId) {
-            ExposedCoreContextResolver().resolve(metadata.versionId)
-        }
+        val coreReleases = withCoreReadScope(owner, metadata.versionId) { coreResolver.resolve(metadata.versionId) }
         val coreScope = coreReleases.joinToString(",") { it.releaseId.toString() }
         return DsResult.Success(
             ResolvedModelRead(
@@ -95,10 +114,31 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
                             "${metadata.versionId ?: metadata.draftId}/$coreScope",
                     ),
                 ),
-                metadata.copy(coreReleases = coreReleases),
+                metadata.copy(
+                    coreReleases = coreReleases,
+                    accessMode = context.accessMode,
+                ),
             ),
         )
     }
+
+    private fun publiclyAccessible(context: DsRequestContext): Boolean = TransactionManager.current().exec(
+        """
+            SELECT EXISTS (
+                SELECT 1 FROM design_systems system
+                JOIN LATERAL (
+                    SELECT deleted FROM design_system_revisions revision
+                    WHERE revision.design_system_id = system.id
+                    ORDER BY revision.version_sequence_number DESC LIMIT 1
+                ) revision ON NOT revision.deleted
+                WHERE system.id = ? AND system.project_id = ? AND system.visibility = 'public'
+            )
+        """.trimIndent(),
+        listOf(UUIDColumnType() to context.designSystemId, TextColumnType() to context.projectId.value),
+    ) { rows ->
+        check(rows.next())
+        rows.getBoolean(1)
+    } ?: false
 
     private fun owner(context: DsRequestContext, target: ModelReadTarget): UUID? {
         val resource = when (target.kind) {
@@ -109,7 +149,7 @@ class ExposedModelReadSelectionResolver : ModelReadSelectionResolver {
             ModelReadTarget.Kind.APPEARANCE -> "SELECT design_system_id FROM appearances WHERE id = ?"
         }
         val args = mutableListOf<Pair<IColumnType<*>, Any?>>(UUIDColumnType() to target.id)
-        val accessible = if (context.principal.globalAdmin) {
+        val accessible = if (context.globalAdmin) {
             "TRUE"
         } else {
             args += TextColumnType() to context.projectId.value

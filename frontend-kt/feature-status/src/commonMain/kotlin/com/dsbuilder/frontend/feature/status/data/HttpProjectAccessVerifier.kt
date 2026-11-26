@@ -3,12 +3,15 @@ package com.dsbuilder.frontend.feature.status.data
 import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.ReadBoundary
 import com.dsbuilder.frontend.feature.status.application.CheckProjectStatusErrorCode
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessCheck
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessResult
 import com.dsbuilder.frontend.feature.status.application.ProjectAccessVerifier
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
 
 /**
  * Adapter проверки project access через backend API.
@@ -22,56 +25,47 @@ internal class HttpProjectAccessVerifier(
 
     override suspend fun verify(check: ProjectAccessCheck): ProjectAccessResult {
         val client = httpClientFactory.create(check.apiUrl.value, check.credential)
-        val project = getDecoded(
-            result = client.get("/api/projects/${check.projectId.value}"),
-            decode = ::decodeProject,
-            parseFailureMessage = "Status: failed. Cannot parse project response.",
-            credential = check.credential,
+        val version = check.version?.let { "?version=$it" }.orEmpty()
+        val response = client.get(
+            "/api/projects/${check.projectId.value}/design-systems/${check.designSystemId.value}$version",
         )
-        return when (project) {
-            is DecodedResult.Failure -> ProjectAccessResult.Failed(project.message, project.code)
-            is DecodedResult.Success -> {
-                val designSystem = getDecoded(
-                    result = client.get(
-                        "/api/projects/${check.projectId.value}/design-systems/${check.designSystemId.value}",
-                    ),
-                    decode = ::decodeDesignSystem,
-                    parseFailureMessage = "Status: failed. Cannot parse design system response.",
-                    credential = check.credential,
-                )
-
-                when (designSystem) {
-                    is DecodedResult.Failure -> ProjectAccessResult.Failed(designSystem.message, designSystem.code)
-                    is DecodedResult.Success -> ProjectAccessResult.Authorized(
-                        projectName = project.value.name,
-                        designSystemName = designSystem.value.name,
-                    )
+        return when (response) {
+            is AuthenticatedHttpResult.Failure -> ProjectAccessResult.Failed(
+                if (response.statusCode == 404 && check.credential == BackendCredential.Anonymous) {
+                    "Check the link. If access requires authentication, run dsbuilder auth login."
+                } else {
+                    response.message
+                },
+                response.statusCode.toStatusErrorCode(check.credential),
+            )
+            is AuthenticatedHttpResult.Success -> {
+                val system = decodeDesignSystem(response.body)
+                    ?: return ProjectAccessResult.Failed("Status: failed. Cannot parse design system response.")
+                val metadata = response.headers["x-ds-read-context"]?.let {
+                    runCatching { json.parseToJsonElement(it) as? JsonObject }.getOrNull()
                 }
+                fun field(name: String) = (metadata?.get(name) as? JsonPrimitive)?.content
+                val anonymous = check.credential == BackendCredential.Anonymous
+                val boundaryValid = ReadBoundary.validates(
+                    response.headers["x-ds-read-context"],
+                    check.designSystemId.value,
+                    check.version,
+                    required = anonymous,
+                    headersValid = response.readHeadersValid,
+                )
+                val modeValid = !anonymous || field("accessMode") == "public"
+                if (!boundaryValid || !modeValid) {
+                    return ProjectAccessResult.Failed("Status: failed. Invalid model read context.")
+                }
+                ProjectAccessResult.Authorized(
+                    projectName = system.projectName,
+                    designSystemName = system.name,
+                    accessMode = field("accessMode") ?: "project",
+                    version = field("version"),
+                )
             }
         }
     }
-
-    private suspend fun <T> getDecoded(
-        result: AuthenticatedHttpResult,
-        decode: (String) -> T?,
-        parseFailureMessage: String,
-        credential: BackendCredential,
-    ): DecodedResult<T> =
-        when (result) {
-            is AuthenticatedHttpResult.Success -> decode(result.body)?.let(DecodedResult<T>::Success)
-                ?: DecodedResult.Failure(parseFailureMessage)
-            is AuthenticatedHttpResult.Failure -> DecodedResult.Failure(
-                message = result.message,
-                code = result.statusCode.toStatusErrorCode(credential),
-            )
-        }
-
-    private fun decodeProject(body: String): ProjectResponse? =
-        try {
-            json.decodeFromString(ProjectResponse.serializer(), body)
-        } catch (exception: IllegalArgumentException) {
-            null
-        }
 
     private fun decodeDesignSystem(body: String): DesignSystemResponse? =
         try {
@@ -82,25 +76,10 @@ internal class HttpProjectAccessVerifier(
 }
 
 @Serializable
-private data class ProjectResponse(
-    val name: String,
-)
-
-@Serializable
 private data class DesignSystemResponse(
     val name: String,
+    val projectName: String = "",
 )
-
-private sealed interface DecodedResult<out T> {
-    data class Success<T>(
-        val value: T,
-    ) : DecodedResult<T>
-
-    data class Failure(
-        val message: String,
-        val code: CheckProjectStatusErrorCode = CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE,
-    ) : DecodedResult<Nothing>
-}
 
 private fun Int?.toStatusErrorCode(credential: BackendCredential): CheckProjectStatusErrorCode =
     when {
@@ -108,5 +87,6 @@ private fun Int?.toStatusErrorCode(credential: BackendCredential): CheckProjectS
             CheckProjectStatusErrorCode.PAT_INVALID
         this == 401 -> CheckProjectStatusErrorCode.AUTH_REQUIRED
         this == 403 -> CheckProjectStatusErrorCode.FORBIDDEN
+        this == 404 -> CheckProjectStatusErrorCode.NOT_FOUND
         else -> CheckProjectStatusErrorCode.BACKEND_UNAVAILABLE
     }

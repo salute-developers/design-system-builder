@@ -19,4 +19,6 @@ data class ModelReadContext(
     val coreReleases: List<ResolvedCoreRelease> = emptyList(),
     /** Ревизия выбора платформ, независимая от предметных настроек. */
     val coreSelectionRevision: Long? = null,
+    /** Фактический режим доступа без раскрытия личности. */
+    val accessMode: String = "project",
 )

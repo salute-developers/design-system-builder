@@ -28,7 +28,7 @@ class ExportComponentConfigUseCase(
                 query.designSystemId,
             ),
         ) { resolved ->
-            when (val attempt = repository.export(resolved.projectId, resolved.principal.globalAdmin, query)) {
+            when (val attempt = repository.export(resolved.projectId, resolved.globalAdmin, query)) {
                 is ComponentConfigRepository.ExportAttempt.Conflict ->
                     DsResult.Failure(attempt.report.conflict(context.projectId))
                 is ComponentConfigRepository.ExportAttempt.Success -> DsResult.Success(attempt.value)

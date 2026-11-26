@@ -17,8 +17,8 @@ class ListTenantPaletteLinksUseCase(private val palette: GetTenantPaletteUseCase
         step: Int?,
     ): DsResult<List<PaletteLink>> = when (val result = palette.links(context, tenantId)) {
         is DsResult.Failure -> result
-        is DsResult.Success -> DsResult.Success(
-            result.value.filter { link ->
+        is DsResult.Success -> result.copy(
+            value = result.value.filter { link ->
                 link.slot == slot && (groupId == null || link.groupId == groupId) && (step == null || link.step == step)
             },
         )

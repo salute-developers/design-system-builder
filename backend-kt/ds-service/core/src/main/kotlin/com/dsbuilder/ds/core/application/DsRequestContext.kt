@@ -5,13 +5,13 @@ import com.dsbuilder.ds.core.domain.ProjectId
 import java.util.UUID
 
 /**
- * Trusted actor and request metadata shared by application use cases.
+ * Доверенный режим доступа и метаданные предметного запроса.
  *
- * @property principal principal created by authorization-core from trusted headers
- * @property correlationId request correlation identifier
+ * @property access Проектные полномочия либо адресный публичный кандидат без principal.
+ * @property correlationId Идентификатор запроса для диагностики.
  */
 data class DsRequestContext(
-    val principal: ProjectPrincipal,
+    val access: DsAccessContext,
     val correlationId: String,
     /** Техническая редакция, на которой пользователь начал изменение. */
     val baseRevision: Long? = null,
@@ -34,8 +34,60 @@ data class DsRequestContext(
     /** Ожидаемая ревизия выбора Core при согласованной записи. */
     val expectedCoreSelectionRevision: Long? = null,
 ) {
-    /** Project boundary derived exclusively from [principal]. */
-    val projectId: ProjectId = ProjectId(principal.projectId)
+    /** Совместимый вход только для настоящих проектных полномочий. */
+    constructor(
+        principal: ProjectPrincipal,
+        correlationId: String,
+        baseRevision: Long? = null,
+        versionId: UUID? = null,
+        clientId: String? = null,
+        idempotentResponseEncoder: ((Any) -> String)? = null,
+        mutationRequest: IdempotentMutationRequest? = null,
+        version: String? = null,
+        readQuery: ModelReadQuery = ModelReadQuery(),
+        designSystemId: UUID? = null,
+        expectedDraftId: UUID? = null,
+        expectedCoreSelectionRevision: Long? = null,
+    ) : this(
+        ProjectAccess(principal),
+        correlationId,
+        baseRevision,
+        versionId,
+        clientId,
+        idempotentResponseEncoder,
+        mutationRequest,
+        version,
+        readQuery,
+        designSystemId,
+        expectedDraftId,
+        expectedCoreSelectionRevision,
+    )
+
+    /** Настоящий principal доступен только проектным сценариям, не создаётся для гостя. */
+    val principal: ProjectPrincipal get() = requireNotNull((access as? ProjectAccess)?.principal)
+
+    /** Проверенный адрес публичной попытки, без проектных полномочий. */
+    val publicRead: PublicReadCandidate? get() = access as? PublicReadCandidate
+
+    /** Представление режима для метаданных после успешной транзакционной проверки. */
+    val accessMode: String get() = if (publicRead == null) "project" else "public"
+
+    /** Проект выбранного режима доступа. */
+    val projectId: ProjectId get() = access.projectId
+
+    /** Публичный кандидат не получает административных прав. */
+    val globalAdmin: Boolean get() = (access as? ProjectAccess)?.principal?.globalAdmin == true
+
+    /** Актор доступен только проектной команде. */
+    val actorId: String get() = principal.actorId
+
+    /** Публиковать preview может только проектный актор. */
+    val composePreviewPublisher: Boolean get() =
+        (access as? ProjectAccess)?.principal?.composePreviewPublisher == true
+
+    init {
+        require(publicRead == null || designSystemId == publicRead?.designSystemId)
+    }
 }
 
 /** Adds a presentation-owned response encoder without coupling application code to HTTP DTOs. */

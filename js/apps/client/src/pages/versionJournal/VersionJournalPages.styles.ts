@@ -98,12 +98,13 @@ export const CountBadge = styled.span`
         sans-serif;
 `;
 
-export const Page = styled.section`
+export const Page = styled.section<{ $withoutInspector?: boolean }>`
     display: grid;
     width: 100%;
     min-width: 0;
     min-height: 0;
-    grid-template-columns: 280px minmax(0, 1fr) 320px;
+    grid-template-columns: ${({ $withoutInspector }) =>
+        $withoutInspector ? '280px minmax(0, 1fr)' : '280px minmax(0, 1fr) 320px'};
     overflow: hidden;
     color: ${text};
     font:
@@ -112,7 +113,8 @@ export const Page = styled.section`
         sans-serif;
 
     @media (max-width: 1100px) {
-        grid-template-columns: 240px minmax(0, 1fr) 280px;
+        grid-template-columns: ${({ $withoutInspector }) =>
+            $withoutInspector ? '240px minmax(0, 1fr)' : '240px minmax(0, 1fr) 280px'};
     }
 
     @media (max-width: 820px) {

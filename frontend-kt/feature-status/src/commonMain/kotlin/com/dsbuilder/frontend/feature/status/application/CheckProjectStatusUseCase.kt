@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.status.application
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectApiUrlProvider
 import com.dsbuilder.frontend.core.application.ProjectContextFailure
@@ -51,6 +52,7 @@ public class CheckProjectStatusUseCase internal constructor(
                     context.credentialEnvName,
                     context.credentialPolicy,
                     found.projectEnvironment,
+                    requirement = CredentialRequirement.READ_OPTIONAL,
                 ),
             )
         ) {
@@ -76,6 +78,7 @@ public class CheckProjectStatusUseCase internal constructor(
                     designSystemId = context.designSystemId,
                     apiUrl = apiUrl,
                     credential = credential,
+                    version = context.selectedVersion,
                 ),
             )
         ) {
@@ -84,6 +87,8 @@ public class CheckProjectStatusUseCase internal constructor(
                 designSystemName = result.designSystemName,
                 configPath = context.configPath,
                 apiUrl = apiUrl.value,
+                accessMode = result.accessMode,
+                version = result.version,
             )
             is ProjectAccessResult.Failed -> CheckProjectStatusResult.Failed(result.message, result.code)
         }
@@ -123,6 +128,8 @@ public enum class CheckProjectStatusErrorCode {
     /** The backend denied access to the project. */
     FORBIDDEN,
 
+    NOT_FOUND,
+
     /** The backend could not be reached or returned an unexpected response. */
     BACKEND_UNAVAILABLE,
 }
@@ -144,6 +151,10 @@ public sealed interface CheckProjectStatusResult {
         public val designSystemName: String,
         public val configPath: String,
         public val apiUrl: String,
+        /** Фактический режим доступа к выбранной ДС. */
+        public val accessMode: String = "project",
+        /** Фактическая опубликованная версия публичного ответа. */
+        public val version: String? = null,
     ) : CheckProjectStatusResult
 
     /**

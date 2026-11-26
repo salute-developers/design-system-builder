@@ -1,9 +1,11 @@
 package com.dsbuilder.frontend.feature.components.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.domain.CoreReleaseRef
 import com.dsbuilder.frontend.core.domain.CoreReleaseSnapshot
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.ReadBoundary
 import com.dsbuilder.frontend.feature.components.application.ComponentConfigRemoteSource
 import com.dsbuilder.frontend.feature.components.application.ExportComponentsCommand
 import com.dsbuilder.frontend.feature.components.application.ExportComponentsResult
@@ -63,12 +65,19 @@ internal class HttpComponentConfigRemoteSource(
         )
 
         val path = "/api/projects/${command.projectId.value}/design-systems/" +
-            "${command.designSystemId.value}/component-config/export" + exportVersionQuery(command.version)
+            "${command.designSystemId.value}/component-config/export" +
+            exportVersionQuery(command.version, command.readContext)
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
 
         return when (val response = client.post(path, body)) {
-            is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(response.message)
-            is AuthenticatedHttpResult.Success -> if (!response.readHeadersValid) {
+            is AuthenticatedHttpResult.Failure -> ExportComponentsResult.Failed(
+                if (response.statusCode == 404 && command.credential == BackendCredential.Anonymous) {
+                    "Check the link. If access requires authentication, run dsbuilder auth login."
+                } else {
+                    response.message
+                },
+            )
+            is AuthenticatedHttpResult.Success -> if (!validBoundary(command, response)) {
                 ExportComponentsResult.Failed("Error: ambiguous component read context.")
             } else {
                 when (val parsed = parsePackage(response.body)) {
@@ -80,6 +89,16 @@ internal class HttpComponentConfigRemoteSource(
             }
         }
     }
+
+    private fun validBoundary(command: ExportComponentsCommand, response: AuthenticatedHttpResult.Success): Boolean =
+        ReadBoundary.validates(
+            response.headers["x-ds-read-context"],
+            command.designSystemId.value,
+            command.version,
+            command.readContext,
+            required = command.credential == BackendCredential.Anonymous,
+            headersValid = response.readHeadersValid,
+        )
 
     /**
      * Разбирает выгруженный пакет и отказывает целиком, если тело успешного ответа нечитаемо.
@@ -289,5 +308,6 @@ private data class ExportCoreRelease(
 )
 
 /** Версия из явного DS-link применяется одинаково к конфигурациям и их web-адаптеру. */
-internal fun exportVersionQuery(version: String?): String =
-    if (version == null || version == "draft") "" else "?version=${encodePart(version)}"
+internal fun exportVersionQuery(version: String?, readContext: String? = null): String =
+    ReadBoundary.parse(readContext)?.query()
+        ?: version?.let { "?version=${encodePart(it)}" }.orEmpty()

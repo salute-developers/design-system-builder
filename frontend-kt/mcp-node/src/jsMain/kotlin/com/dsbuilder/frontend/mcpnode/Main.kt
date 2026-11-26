@@ -59,7 +59,7 @@ private fun serve(args: List<String>) {
     val runtime = defaultNodeRuntime()
     val koin = nodeKoin(runtime)
     val core = DsBuilderMcpServerCore(
-        config = McpServerConfig(workspace = workspace),
+        config = McpServerConfig(workspace = workspace, authLoginCommand = "dsbuilder-mcp auth login"),
         projectStatusReader = CheckProjectStatusMcpReader(koin.get<CheckProjectStatusUseCase>()),
         docsReadUseCases = koin.get<DocsReadUseCases>(),
         modelReadUseCase = koin.get<ReadDesignSystemModelUseCase>(),

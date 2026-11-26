@@ -44,10 +44,6 @@
         }
     },
     "props": {
-        "disableAlpha": {
-            "type": "float",
-            "value": 0.4
-        },
         "disclosureIconColor": {
             "type": "color",
             "default": "text.default.secondary"
@@ -112,7 +108,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -165,7 +161,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -217,7 +213,7 @@
                     "type": "dimension",
                     "value": 8.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 8.0
                 },
@@ -270,7 +266,7 @@
                     "type": "dimension",
                     "value": 6.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 6.0
                 },
@@ -322,7 +318,7 @@
                     "type": "dimension",
                     "value": 6.0
                 },
-                 "contentPaddingStart": {
+                "contentPaddingStart": {
                     "type": "dimension",
                     "value": 6.0
                 },

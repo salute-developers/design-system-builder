@@ -1,7 +1,8 @@
 # token-groups-api Specification
 
 ## Purpose
-TBD - created by archiving change add-color-token-groups. Update Purpose after archive.
+Определяет хранение групп и подгрупп токенов дизайн-системы, миграцию существующих данных и атомарные операции над группами.
+
 ## Requirements
 ### Requirement: Группы и подгруппы токенов хранятся у дизайн-системы
 

@@ -29,6 +29,7 @@ internal class AuthorizeProjectRequestUseCase(
         if (bearerToken?.startsWith("dsb_pat_") == true) return authorizePersonalToken(bearerToken, input.projectId)
         return if (bearerToken != null) {
             when (val verified = jwtVerifier.verify(bearerToken)) {
+                JwtVerificationResult.Unavailable -> GatewayAuthDecision.Unavailable("Identity check unavailable")
                 is JwtVerificationResult.Invalid -> verified.reason.toDecision()
                 is JwtVerificationResult.Valid -> authorizeActor(verified.actor, input.projectId)
             }
@@ -90,7 +91,7 @@ internal class AuthorizeProjectRequestUseCase(
             when (val resolution = projectContextResolver.resolve(actor, projectId)) {
                 is ProjectContextResolution.Allowed -> resolution.context
                 ProjectContextResolution.Denied -> return GatewayAuthDecision.Forbidden("Project access denied")
-                ProjectContextResolution.Unavailable -> return GatewayAuthDecision.Forbidden(
+                ProjectContextResolution.Unavailable -> return GatewayAuthDecision.Unavailable(
                     "Project access unavailable",
                 )
             }

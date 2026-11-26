@@ -24,7 +24,7 @@ export const Workspace = (props: WorkspaceProps) => {
     return (
         <>
             <Menu ref={setReadOnly} data-testid="editor-workspace-menu" background={menuBackground} width={menuWidth}>
-                {readOnly && <ReadOnlyStatus role="status">Только просмотр</ReadOnlyStatus>}
+                {readOnly && section !== 'components' && <ReadOnlyStatus role="status">Только просмотр</ReadOnlyStatus>}
                 {menu}
             </Menu>
             <Content ref={setReadOnly} data-testid="editor-workspace-content" data-editor-section={section}>

@@ -637,15 +637,6 @@
     color: var(--tw-negative);
 }
 
-/* Баннер режима просмотра — как в «Цветах» и «Типографике». */
-.size-tokens-screen .viewer-banner {
-    margin: 0;
-    padding: var(--tw-space-m) 14px;
-    background: #3c3219;
-    color: var(--tw-text-primary);
-    font-size: 12px;
-    line-height: 16px;
-}
 
 .size-tokens-screen .st-banner {
     display: flex;
