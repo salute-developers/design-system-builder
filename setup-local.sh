@@ -41,6 +41,8 @@ Options:
            Version published after the component seed. Requires --components-package. Default: 0.1.0.
   --skip-design-system
            Do not create the design system and do not load the components.
+  --skip-documentation
+           Do not publish missing Compose documentation for an existing sdds_serv_local.
   --help   Show this help.
 
 Setup imports Web and Compose Core from the selected preview archives. A separate DSBUILDER_WEB_API_META requires
@@ -93,6 +95,7 @@ COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
 PUBLISH_VERSION_ARGS=()
 SKIP_DESIGN_SYSTEM=0
+SKIP_DOCUMENTATION=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
 BUNDLED_WEB_PLUGIN_ZIP="$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip"
@@ -150,6 +153,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --skip-design-system)
       SKIP_DESIGN_SYSTEM=1
+      shift
+      ;;
+    --skip-documentation)
+      SKIP_DOCUMENTATION=1
       shift
       ;;
     --help)
@@ -306,6 +313,11 @@ if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; 
     echo "[local-setup] The requested component package path is empty" >&2
     exit 2
   fi
+fi
+
+if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$SKIP_DOCUMENTATION" == "0" ]]; then
+  log "Ensuring Compose documentation for the existing demo design system"
+  "$ROOT_DIR/publish-local-documentation.sh" --if-missing
 fi
 
 log "Local setup is ready"

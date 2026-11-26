@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.plugin.androidstudio.preview.failAssembly
 import com.dsbuilder.frontend.plugin.androidstudio.preview.jsonObject
 import com.dsbuilder.frontend.plugin.androidstudio.preview.obj
 import com.dsbuilder.frontend.plugin.androidstudio.preview.objects
+import com.dsbuilder.frontend.plugin.androidstudio.preview.previewSurfaceBackground
 import com.dsbuilder.frontend.plugin.androidstudio.preview.string
 import com.dsbuilder.frontend.plugin.androidstudio.preview.text
 import com.dsbuilder.frontend.plugin.androidstudio.preview.textOrNull
@@ -97,7 +98,7 @@ internal class ComponentDraftLoader(
                 "surface" to jsonObject(
                     "width" to JsonPrimitive(500),
                     "height" to JsonPrimitive(350),
-                    "background" to string("#FFFFFFFF"),
+                    "background" to string(previewSurfaceBackground(mode)),
                 ),
             ),
         )

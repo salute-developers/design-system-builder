@@ -1,10 +1,12 @@
 package com.dsbuilder.frontend.plugin.androidstudio.preview
 
 import com.dsbuilder.frontend.plugin.androidstudio.api.ApiJson
+import com.intellij.ui.jcef.CefOsrBrowserFactory
 import com.intellij.ui.jcef.JBCefApp
 import com.intellij.ui.jcef.JBCefBrowser
 import com.intellij.ui.jcef.JBCefBrowserBase
 import com.intellij.ui.jcef.JBCefJSQuery
+import com.intellij.ui.jcef.JBCefOSRHandlerFactory
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +18,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.JsonObject
 import org.cef.CefApp
+import org.cef.CefBrowserSettings
 import org.cef.browser.CefBrowser
 import org.cef.browser.CefFrame
 import org.cef.browser.CefRequestContext
@@ -30,9 +33,25 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
     private val wrapperUrl = "${manifest.entrypoint.scheme}://dsbuilder-preview.invalid/${UUID.randomUUID()}/index.html"
     private val client = JBCefApp.getInstance().createClient()
     private val context = CefRequestContext.createContext(null)
-    private val nativeBrowser = client.cefClient.createBrowser(wrapperUrl, false, false, context)
-    val browser = JBCefBrowser(nativeBrowser, client)
+    private val nativeBrowser = CefOsrBrowserFactory.getInstance().createOsrBrowser(
+        JBCefOSRHandlerFactory.getInstance(),
+        client.cefClient,
+        wrapperUrl,
+        context,
+        null,
+        null,
+        true,
+        CefBrowserSettings().apply { windowless_frame_rate = 30 },
+    )
+    val browser = JBCefBrowser.createBuilder().setClient(client).setCefBrowser(nativeBrowser)
+        .setOffScreenRendering(true).build()
+
+    // Адреса assets видит iframe; их идентификатор не должен раскрывать секрет моста.
+    private val fonts = PreviewFontAssets(manifest.entrypoint.resolve("./.ide-fonts/${UUID.randomUUID()}/"))
     private val query = JBCefJSQuery.create(browser as JBCefBrowserBase)
+
+    @Volatile
+    private var presentation = presentation("Загружаем превью…", "light")
     val session = PreviewSession(
         send = { message ->
             val value = scriptJson(message.toString())
@@ -51,9 +70,10 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
             null
         }
         client.addRequestHandler(
-            PreviewBrowserPolicy(origin, wrapperUrl).handler {
-                wrapper(manifest.entrypoint.toString())
-            },
+            PreviewBrowserPolicy(origin, wrapperUrl).handler(
+                { wrapper(manifest.entrypoint.toString()) },
+                fonts::resource,
+            ),
             nativeBrowser,
         )
         client.addLifeSpanHandler(
@@ -69,39 +89,16 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
         )
     }
 
-    private fun wrapper(entrypoint: String): String {
-        val bridge = query.inject("JSON.stringify({key:'$key',message:event.data})")
-        return """
-            <!doctype html><html><head><meta charset="utf-8"><meta name="referrer" content="no-referrer">
-            <meta http-equiv="Content-Security-Policy"
-              content="default-src 'none'; script-src 'nonce-$key'; frame-src $origin; style-src 'unsafe-inline'">
-            <style>html,body,iframe{margin:0;width:100%;height:100%;border:0}</style></head><body>
-            <iframe id="preview" referrerpolicy="no-referrer" sandbox="allow-scripts allow-same-origin"></iframe>
-            <script nonce="$key">
-            const frame=document.getElementById('preview');
-            const origin=${scriptJson(string(origin).toString())};
-            window.clearPreview=()=>{frame.style.opacity='0';};
-            window.showPreview=()=>{frame.style.opacity='1';};
-            window.sendPreview=message=>{
-              if(message.type==='sdds.preview.payload'){
-                frame.style.opacity='0';
-              }
-              frame.contentWindow.postMessage(message,origin);
-            };
-            window.addEventListener('message',event=>{
-              if(event.source!==frame.contentWindow||event.origin!==origin)return;
-              if(!event.data||typeof event.data!=='object')return;
-              const accepted=['sdds.preview.ready','sdds.preview.result','sdds.preview.description'];
-              if(!accepted.includes(event.data.type))return;
-              $bridge;
-            });
-            frame.src=${scriptJson(string(entrypoint).toString())};
-            </script></body></html>
-        """.trimIndent()
-    }
+    private fun wrapper(entrypoint: String): String = previewPage(
+        entrypoint,
+        origin,
+        key,
+        query.inject("JSON.stringify({key:'$key',message:event.data})"),
+        presentation,
+    )
 
     suspend fun render(payload: JsonObject) {
-        session.render(payload)
+        session.render(fonts.prepare(payload))
         browser.cefBrowser.executeJavaScript("window.showPreview()", wrapperUrl, 0)
     }
 
@@ -109,9 +106,19 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
         browser.cefBrowser.executeJavaScript("window.clearPreview()", wrapperUrl, 0)
     }
 
+    fun showStatus(message: String, mode: String) {
+        presentation = presentation(message, mode)
+        browser.cefBrowser.executeJavaScript(
+            "window.updatePreviewPresentation(${scriptJson(presentation.toString())})",
+            wrapperUrl,
+            0,
+        )
+    }
+
     override fun close() {
         session.dispose()
         scope.cancel()
+        fonts.close()
         query.dispose()
         browser.dispose()
         client.dispose()
@@ -138,13 +145,8 @@ internal class PreviewBrowser private constructor(val manifest: PreviewManifest)
     }
 }
 
-private fun scriptJson(value: String): String = value.replace(
-    "<",
-    "\\u003c",
-).replace(
-    "\u2028",
-    "\\u2028",
-).replace(
-    "\u2029",
-    "\\u2029",
+private fun presentation(message: String, mode: String): JsonObject = jsonObject(
+    "message" to string(message),
+    "background" to string(previewSurfaceBackground(mode)),
+    "foreground" to string(if (mode == "dark") "#F9F9F9" else "#080808"),
 )

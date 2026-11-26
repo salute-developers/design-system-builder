@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -20,6 +21,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.awt.SwingPanel
 import androidx.compose.ui.unit.dp
@@ -40,6 +42,7 @@ import com.dsbuilder.frontend.plugin.androidstudio.preview.PreviewBrowser
 import com.dsbuilder.frontend.plugin.androidstudio.preview.loadPreviewManifest
 import com.dsbuilder.frontend.plugin.androidstudio.preview.previewExampleProps
 import com.dsbuilder.frontend.plugin.androidstudio.preview.text
+import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenMode
 import com.intellij.ui.jcef.JBCefApp
 import com.sdds.compose.uikit.Button
 import com.sdds.compose.uikit.ListItem
@@ -250,41 +253,34 @@ private fun ComponentControls(
     state: ComponentsState,
 ) {
     if (configurations.size > 1) {
-        Text("Конфигурация")
-        FilterSegment(
-            configurations,
-            configurations.indexOf(configuration),
-            { it.styleName },
-            { index ->
-                state.configurationName = configurations[index].styleName
-                state.selections = configurations[index].defaultSelections()
+        ComponentSelect(
+            "Конфигурация",
+            configurations.map { it.styleName },
+            configuration.styleName,
+            { name ->
+                state.configurationName = name
+                state.selections = configurations.single { it.styleName == name }.defaultSelections()
             },
-            scrollable = true,
         )
     }
     configuration.axes().forEach { axis ->
         val name = axis.text("name").orEmpty()
         val values = axisValues(axis).map { it.text("name").orEmpty() }
         if (values.size > 1) {
-            Text(name)
-            FilterSegment(
-                values,
-                values.indexOf(state.selections[name]),
-                { it },
-                { state.selections = state.selections + (name to values[it]) },
-                scrollable = true,
-            )
+            ComponentSelect(name, values, state.selections[name].orEmpty()) {
+                state.selections = state.selections + (name to it)
+            }
         }
     }
-    FilterSegment(
-        listOf(
-            "light",
-            "dark",
-        ),
-        if (state.mode == "light") 0 else 1,
-        { if (it == "light") "Светлая" else "Тёмная" },
-        { state.mode = if (it == 0) "light" else "dark" },
-    )
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Тема превью")
+        Spacer(Modifier.weight(1f))
+        ModeToggle(
+            if (state.mode == "dark") TokenMode.DARK else TokenMode.LIGHT,
+            { state.mode = if (it == TokenMode.DARK) "dark" else "light" },
+            enabled = true,
+        )
+    }
 }
 
 @Composable
@@ -370,7 +366,9 @@ private fun ComponentPreview(
         return
     }
     when (val current = holder.state) {
-        LoadState.Loading -> Text("Загружаем превью…")
+        LoadState.Loading -> Box(Modifier.fillMaxWidth().height(350.dp), contentAlignment = Alignment.Center) {
+            Text("Загружаем превью…")
+        }
         is LoadState.Failed -> ComponentError(current.message, current.isSessionExpired, onSessionExpired, retry)
         is LoadState.Loaded -> {
             if (bundle.component.name !in current.value.manifest.components) {
@@ -394,7 +392,10 @@ private fun BrowserPreview(
     retry: () -> Unit,
 ) {
     var status by remember { mutableStateOf("Загружаем превью…") }
+    var loading by remember { mutableStateOf(true) }
+    LaunchedEffect(preview, status, state.mode) { preview.showStatus(status, state.mode) }
     LaunchedEffect(preview, bundle, configuration, state.selections, state.mode) {
+        loading = true
         status = "Обновляем превью…"
         preview.clearFrame()
         try {
@@ -423,17 +424,17 @@ private fun BrowserPreview(
         } catch (exception: Exception) {
             status = exception.message ?: "Не удалось показать превью"
         }
+        loading = false
     }
-    if (status.isNotEmpty()) {
-        Text(status)
+    Box(Modifier.fillMaxWidth().height(350.dp)) {
+        SwingPanel(factory = { preview.browser.component }, modifier = Modifier.fillMaxSize())
+    }
+    if (!loading && status.isNotEmpty()) {
         Button(
             label = "Повторить превью",
             onClick = retry,
             style = BasicButtonStyles.BasicButtonSSecondary.style(),
         )
-    }
-    Box(Modifier.fillMaxWidth().height(350.dp)) {
-        SwingPanel(factory = { preview.browser.component }, modifier = Modifier.fillMaxSize())
     }
 }
 

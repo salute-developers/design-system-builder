@@ -9,7 +9,8 @@ param(
     [switch]$SkipIcons,
     [string]$ComponentsPackage,
     [string]$ThemePackage,
-    [switch]$SkipDesignSystem
+    [switch]$SkipDesignSystem,
+    [switch]$SkipDocumentation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -333,6 +334,11 @@ if (-not $SkipDesignSystem -and $componentsWereExplicit) {
     } else {
         throw "Component package not found: $ComponentsPackage"
     }
+}
+
+if (-not $SkipDesignSystem -and -not $SkipDocumentation) {
+    Write-SetupLog 'Ensuring Compose documentation for the existing demo design system'
+    Invoke-SetupTool 'publish-local-documentation.sh' @('--if-missing') @()
 }
 
 Write-SetupLog 'Local setup is ready'

@@ -3,7 +3,6 @@ package com.dsbuilder.frontend.plugin.androidstudio.ui
 import androidx.compose.foundation.hoverable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsHoveredAsState
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
@@ -14,8 +13,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.rememberVectorPainter
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.window.PopupProperties
 import com.dsbuilder.frontend.feature.projects.application.Project
 import com.dsbuilder.frontend.feature.theme.application.DesignSystemTenant
 import com.dsbuilder.frontend.feature.theme.application.TokenCodeReferenceResult
@@ -25,20 +22,12 @@ import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenMode
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenPlatform
 import com.dsbuilder.frontend.plugin.androidstudio.tokens.TokenWithValue
 import com.sdds.compose.uikit.IconButton
-import com.sdds.compose.uikit.PopoverAlignment
-import com.sdds.compose.uikit.PopoverPlacement
-import com.sdds.compose.uikit.PopoverPlacementMode
-import com.sdds.compose.uikit.Tooltip
-import com.sdds.compose.uikit.TriggerInfo
-import com.sdds.compose.uikit.popoverTrigger
 import com.sdds.icons.compose.SddsIcons
 import com.sdds.icons.compose.SleepOutline24
 import com.sdds.icons.compose.SunOutline24
 import com.sdds.serv.styles.basicbutton.style
 import com.sdds.serv.styles.iconbutton.IconButtonStyles
 import com.sdds.serv.styles.iconbutton.style
-import com.sdds.serv.styles.tooltip.TooltipStyles
-import com.sdds.serv.styles.tooltip.style
 
 /**
  * Плагин работает только с Android: платформа не выбирается. Значения и code-ссылки токенов
@@ -104,7 +93,7 @@ private fun TokenMode.label(): String = when (this) {
  * кнопке объясняет, почему она недоступна.
  */
 @Composable
-private fun ModeToggle(mode: TokenMode, onModeChange: (TokenMode) -> Unit, enabled: Boolean) {
+internal fun ModeToggle(mode: TokenMode, onModeChange: (TokenMode) -> Unit, enabled: Boolean) {
     val icon = when (mode) {
         TokenMode.LIGHT -> SddsIcons.SunOutline24
         TokenMode.DARK -> SddsIcons.SleepOutline24
@@ -113,34 +102,22 @@ private fun ModeToggle(mode: TokenMode, onModeChange: (TokenMode) -> Unit, enabl
     // hoverable на обёртке, а не на кнопке: у заблокированной кнопки hover может не доходить.
     val hoverSource = remember { MutableInteractionSource() }
     val isHovered by hoverSource.collectIsHoveredAsState()
-    val triggerInfo = remember { mutableStateOf(TriggerInfo()) }
 
-    Box(Modifier.hoverable(hoverSource).popoverTrigger(triggerInfo)) {
+    InlineTooltip(
+        show = isHovered,
+        text = if (enabled) {
+            "${mode.label()} тема, переключить на ${next.label().lowercase()}"
+        } else {
+            "Режим темы влияет только на цвета и градиенты"
+        },
+        modifier = Modifier.hoverable(hoverSource),
+    ) {
         IconButton(
             icon = rememberVectorPainter(icon),
             onClick = { onModeChange(next) },
             style = IconButtonStyles.IconButtonSSecondary.style(),
             enabled = enabled,
             iconContentDescription = "Режим темы: ${mode.label()}",
-        )
-        Tooltip(
-            show = isHovered,
-            onDismissRequest = {},
-            triggerInfo = { triggerInfo.value },
-            style = TooltipStyles.TooltipS.style(),
-            text = AnnotatedString(
-                if (enabled) {
-                    "${mode.label()} тема, переключить на ${next.label().lowercase()}"
-                } else {
-                    "Режим темы влияет только на цвета и градиенты"
-                },
-            ),
-            placement = PopoverPlacement.Bottom,
-            placementMode = PopoverPlacementMode.StrictClipped,
-            // Кнопка у правого края панели — выравниваем по её концу, чтобы подсказка росла влево.
-            alignment = PopoverAlignment.End,
-            // Подсказка по наведению не должна забирать фокус у поля поиска.
-            popupProperties = PopupProperties(focusable = false, clippingEnabled = false),
         )
     }
 }

@@ -225,7 +225,10 @@ class ComponentCatalogTest {
                 val expected = pairs.map { pair -> pair as JsonObject }.single { pair ->
                     pair.text("name") == "httpNested"
                 }
-                assertEquals(expected["payload"], payload)
+                val expectedPayload = expected.obj("payload")
+                assertEquals("#F9F9F9FF", payload.obj("surface").text("background"))
+                assertEquals(expectedPayload.obj("surface") - "background", payload.obj("surface") - "background")
+                assertEquals(expectedPayload - "surface", payload - "surface")
             }
             assertEquals(
                 1,
@@ -398,6 +401,10 @@ class ComponentCatalogTest {
             )
             val payload = assertIs<AssemblyResult.Success>(PayloadAssembler.assemble(draft)).payload
             assertEquals("16", payload.obj("theme").obj("size.height").text("value"))
+            assertEquals("#080808FF", payload.obj("surface").text("background"))
+            val light = loader.draft(bundle, bundle.configurations.single(), emptyMap(), "light", "BasicButton")
+            val lightPayload = assertIs<AssemblyResult.Success>(PayloadAssembler.assemble(light)).payload
+            assertEquals("#F9F9F9FF", lightPayload.obj("surface").text("background"))
         }
     }
 

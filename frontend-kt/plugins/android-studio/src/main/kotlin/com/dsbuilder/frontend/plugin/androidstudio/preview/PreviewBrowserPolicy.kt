@@ -24,7 +24,10 @@ internal class PreviewBrowserPolicy(private val origin: String, private val wrap
         return runCatching { previewOrigin(URI(url)) == origin }.getOrDefault(false)
     }
 
-    fun handler(html: () -> String): CefRequestHandlerAdapter = object : CefRequestHandlerAdapter() {
+    fun handler(
+        html: () -> String,
+        font: (String) -> PreviewFontResource? = { null },
+    ): CefRequestHandlerAdapter = object : CefRequestHandlerAdapter() {
         override fun onBeforeBrowse(
             browser: CefBrowser,
             frame: CefFrame,
@@ -62,7 +65,11 @@ internal class PreviewBrowserPolicy(private val origin: String, private val wrap
                 frame: CefFrame,
                 request: CefRequest,
             ): CefResourceHandler? =
-                if (frame.isMain && request.url == wrapperUrl) HtmlResource(html()) else null
+                if (frame.isMain && request.url == wrapperUrl) {
+                    MemoryResource(html().toByteArray(Charsets.UTF_8), "text/html")
+                } else {
+                    font(request.url)?.let { MemoryResource(it.bytes, it.mimeType) }
+                }
 
             override fun onResourceRedirect(
                 browser: CefBrowser,
@@ -99,8 +106,7 @@ internal class PreviewBrowserPolicy(private val origin: String, private val wrap
 }
 
 /** Отдаёт доверенную обёртку из памяти под обычным origin, без локального HTTP-сервера. */
-private class HtmlResource(html: String) : CefResourceHandlerAdapter() {
-    private val bytes = html.toByteArray(Charsets.UTF_8)
+private class MemoryResource(private val bytes: ByteArray, private val mimeType: String) : CefResourceHandlerAdapter() {
     private var offset = 0
 
     override fun processRequest(request: CefRequest, callback: CefCallback): Boolean {
@@ -114,7 +120,7 @@ private class HtmlResource(html: String) : CefResourceHandlerAdapter() {
         redirectUrl: StringRef,
     ) {
         response.status = 200
-        response.mimeType = "text/html"
+        response.mimeType = mimeType
         responseLength.set(bytes.size)
     }
 
