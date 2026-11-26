@@ -3,13 +3,14 @@
 # Дизайн-системы и темы создаёт пользователь; их начальные данные инициализирует backend.
 # Повторный запуск не импортирует пользовательские значения и конфигурации компонентов.
 # К базе напрямую скрипт не обращается.
+# --import-core-request FILE импортирует подготовленную мету Core без создания проекта.
 #
 # Environment:
 #   DSBUILDER_GATEWAY_URL        Gateway, default http://localhost:8080
 #   DSBUILDER_PROJECT_USERNAME   пользователь Keycloak (системный администратор), default admin@example.com
 #   DSBUILDER_PROJECT_PASSWORD   его пароль, default password
 #   DSBUILDER_PROJECT_NAME       имя нового проекта, default Base
-#   DSBUILDER_REALM / DSBUILDER_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
+#   DSBUILDER_REALM / DSBUILDER_PROJECT_CLIENT_ID   realm и client Keycloak, default dsbuilder / dsbuilder-api
 #   DSBUILDER_WEB_CORE_VERSION    точная версия, обязательна с DSBUILDER_WEB_API_META
 #   DSBUILDER_WEB_CORE_CHANNEL    stable/dev (default dev)
 #   DSBUILDER_WEB_API_META       отдельный web-api-meta.json (по умолчанию мета из Web preview ZIP)
@@ -22,7 +23,7 @@ PROJECT_USERNAME="${DSBUILDER_PROJECT_USERNAME:-admin@example.com}"
 PROJECT_PASSWORD="${DSBUILDER_PROJECT_PASSWORD:-password}"
 PROJECT_NAME="${DSBUILDER_PROJECT_NAME:-Base}"
 REALM="${DSBUILDER_REALM:-dsbuilder}"
-CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-api}"
+CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-${DSBUILDER_CLIENT_ID:-dsbuilder-api}}"
 WEB_API_META="${DSBUILDER_WEB_API_META:-}"
 WEB_PLUGIN_ARCHIVE="${WEB_PREVIEW_PLUGIN_ZIP:-$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip}"
 
@@ -143,20 +144,29 @@ prepare_web_import() {
 }
 
 import_global_layer() {
-    local body
+    local request="$1" title="$2" body
     body="$(curl -sS -w '%{stderr}%{http_code}' -X POST \
         "$GATEWAY_URL/api/admin/component-config/import-api-meta" \
         -H "Authorization: Bearer $ACCESS_TOKEN" -H 'Content-Type: application/json' \
-        --data-binary "@$IMPORT_BODY_FILE" 2>"$STATUS_FILE")" \
+        --data-binary "@$request" 2>"$STATUS_FILE")" \
         || fail "API meta import request failed: $(cat "$STATUS_FILE")"
     expect_status 200 "API meta import failed" "$body"
-    log "Web component layer imported"
+    log "$title imported"
 }
+
+if [[ "${1:-}" == "--import-core-request" ]]; then
+    [[ $# == 2 && -s "$2" ]] || fail "Pass a nonempty Core import request file"
+    wait_for_gateway
+    obtain_token
+    import_global_layer "$2" "Core API meta"
+    exit 0
+fi
+[[ $# == 0 ]] || fail "Unknown argument: $1"
 
 prepare_web_import
 wait_for_gateway
 obtain_token
 wait_for_projects_api
 ensure_project
-import_global_layer
+import_global_layer "$IMPORT_BODY_FILE" "Web component layer"
 log "Project and global Web API are ready; create a design system in the editor"

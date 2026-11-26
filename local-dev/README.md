@@ -1,8 +1,8 @@
 # Данные для локального контура
 
 Комплектные архивы Compose и Web содержат координаты `coreRelease` в `preview-plugin.json`.
-Собственные архивы можно передать через `--plugin-zip` и `--web-plugin-zip`. Для нового Core
-выполните шаг [первой публикации](#первый-preview-для-нового-core). Пакеты темы и конфигураций
+Собственные архивы для автоматической регистрации и публикации можно передать через
+`--plugin-zip` и `--web-plugin-zip`. Пакеты темы и конфигураций
 импортируются по явному запросу.
 
 | Каталог | Что внутри | Кто использует |
@@ -50,10 +50,10 @@
 
 ## Как это работает
 
-1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур и пытается опубликовать оба архива
-   плагинов через `dsbuilder preview-plugin publish`. Для публикации служебной учёткой Core архива должен быть
-   зарегистрирован в выбранном канале. Для комплектных архивов используется `dev`. Бэкенд кладёт файлы в бакет локального MinIO своей платформы
-   (`compose-preview`, `web-preview`) и делает билд активным. Клиент получает адреса у бэкенда и загружает плагины из MinIO.
+1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур, регистрирует Core из ZIP
+   под локальным администратором и публикует оба плагина служебной учёткой через `dsbuilder preview-plugin publish`.
+   Для комплектных архивов используется `dev`. Бэкенд кладёт файлы в бакет локального MinIO своей платформы
+   (`compose-preview`, `web-preview`) и активирует билд. Клиент получает адреса у бэкенда и загружает плагины из MinIO.
 2. Затем `setup-local.sh` загружает каталог иконок командой CLI (`dsbuilder icons publish --apply`, как это делает CI):
    бэкенд кладёт SVG в бакет `compose-preview` локального MinIO и заменяет каталог одной транзакцией. По умолчанию
    используется стартовый набор `local-dev/icons/icons-manifest.json`, и только если каталог пуст: повторный запуск не
@@ -102,7 +102,7 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP`, `COMPOSE_COMPONENTS_PACKAGE`) задают собственные файлы.
 `--components-package` включает демонстрационный импорт; `--theme-package` требует явного пакета компонентов.
 `--skip-plugin` и `--skip-design-system` отключают соответствующие шаги.
-После [регистрации Compose Core](#первый-preview-для-нового-core) демо-импорт можно запустить командой
+Для запуска с демо-импортом используйте
 `./setup-local.sh --components-package ./local-dev/design-system/components`.
 Без этой опции ДС и тема создаются пользователем, а начальные данные берутся из ресурсов backend;
 значения Android и конфигурации из этого каталога поверх них не импортируются.
@@ -139,7 +139,7 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 ### Первый preview для нового Core
 
 Соберите совместимый архив, как описано в разделе [«Обновление файлов»](#обновление-файлов).
-На чистом стенде или при смене Core сначала зарегистрируйте мету администратором.
+При ручной публикации через `publish-preview-plugin.sh` сначала зарегистрируйте мету администратором.
 Возьмите `api-meta.json` и координаты `coreRelease` из пересобранного ZIP. Задайте `DSBUILDER_API_URL` для входа и импорта.
 Пример для Compose в канале `stable`. Подставьте координаты из вашего архива.
 
@@ -155,18 +155,14 @@ dsbuilder components import-api --from ./api-meta.json --platform compose \
 С сессией администратора можно вместо двух вызовов выполнить `dsbuilder preview-plugin publish`
 напрямую с `--apply`, указав архив, платформу, канал и API URL.
 
-Для комплектных ZIP локальный setup использует канал `dev`. Канал публикации задаётся через
-`DSBUILDER_COMPOSE_CORE_CHANNEL` и `DSBUILDER_WEB_CORE_CHANNEL`. Setup регистрирует Web Core из того же ZIP.
-Чтобы опубликовать комплектное Compose-превью или загрузить демонстрационный Compose-пакет на чистом стенде,
-после запуска setup войдите через `DSBUILDER_API_URL=http://localhost:8080 dsbuilder auth login` как системный администратор
-и зарегистрируйте Compose Core вместе с плагином:
+Для комплектных ZIP локальный setup использует канал `dev`. Каналы можно задать через
+`DSBUILDER_COMPOSE_CORE_CHANNEL` и `DSBUILDER_WEB_CORE_CHANNEL`. Регистрация и публикация читают одну локальную
+копию ZIP каждой платформы, в том числе при передаче URL. `--skip-plugin` пропускает регистрацию Compose и публикацию
+обоих плагинов. При отдельном запуске демо-импорта Compose Core из его ZIP должен быть уже зарегистрирован.
 
-```bash
-dsbuilder preview-plugin publish --platform compose --channel dev \
-  --from local-dev/compose-preview/preview-compose-plugin.zip --api-url http://localhost:8080 --apply
-```
-
-Для демонстрационной ДС запустите setup повторно с `--components-package` после регистрации Core.
+Bash setup использует один `DSBUILDER_GATEWAY_URL` для bootstrap и публикации. Для входа локального
+администратора используется `DSBUILDER_PROJECT_CLIENT_ID` (по умолчанию `dsbuilder-api`).
+`DSBUILDER_CLIENT_ID` и `DSBUILDER_CLIENT_SECRET` задают учётную запись публикации.
 
 ### Web-плагин
 

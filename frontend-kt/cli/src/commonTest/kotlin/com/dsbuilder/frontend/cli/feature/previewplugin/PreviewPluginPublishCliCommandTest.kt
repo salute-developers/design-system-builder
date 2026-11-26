@@ -81,6 +81,20 @@ class PreviewPluginPublishCliCommandTest {
     }
 
     @Test
+    fun coreImportRequestIsPreparedWithoutAnApiUrlAndCannotBeCombinedWithApply() = runTest {
+        val args = base(apiUrl = null) + "--print-core-import-request"
+
+        val missingArchive = run(args)
+        assertEquals(1, missingArchive.exitCode, missingArchive.output)
+        assertTrue(missingArchive.output.contains("/work/preview-compose-plugin.zip"), missingArchive.output)
+
+        val withApply = run(args + "--apply")
+        assertEquals(1, withApply.exitCode, withApply.output)
+        assertTrue(withApply.output.contains("cannot be used with --apply"), withApply.output)
+        assertTrue(requests.isEmpty())
+    }
+
+    @Test
     fun theClientSecretCannotBeACommandLineArgument() = runTest {
         listOf(
             base() + listOf("--client-secret", "top-secret"),

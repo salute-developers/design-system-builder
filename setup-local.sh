@@ -43,7 +43,7 @@ Options:
            Do not create the design system and do not load the components.
   --help   Show this help.
 
-Setup imports Web Core from the selected Web archive. A separate DSBUILDER_WEB_API_META requires
+Setup imports Web and Compose Core from the selected preview archives. A separate DSBUILDER_WEB_API_META requires
 DSBUILDER_WEB_CORE_VERSION with its exact version. The default preview channels are dev
 (DSBUILDER_COMPOSE_CORE_CHANNEL and DSBUILDER_WEB_CORE_CHANNEL).
 
@@ -54,8 +54,7 @@ and starts the client.
 The preview plugin archives and the component package are bundled in local-dev/ (see local-dev/README.md;
 ./refresh-local-dev-assets.sh updates the Compose ones from a plasma-android checkout, `npm run package` in
 the plasma package packages/sdds-preview-web-plugin builds the Web one).
-The setup uses ./publish-preview-plugin.sh to publish plugins for registered
-Core releases. Register new Core API meta as an administrator first (see local-dev/README.md).
+The setup registers the Core API metadata and publishes both preview plugins into local MinIO.
 The starter icon set local-dev/icons is loaded with
 ./publish-local-icons.sh (./refresh-local-dev-icons.sh rebuilds it from a plasma checkout).
 User design systems and themes are created in the editor with backend defaults.
@@ -201,16 +200,20 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
-# Bootstrap and publication must share the same download even if the URL later serves another build.
-if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" &&
-      -z "${DSBUILDER_WEB_API_META:-}" && "$WEB_PLUGIN_ZIP" =~ ^https?:// ]]; then
-  require curl
+# Bootstrap and publication share one snapshot, including when a local build overwrites the original ZIP.
+web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
+if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" && -z "${DSBUILDER_WEB_API_META:-}" &&
+      ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
   web_preview_download="$(mktemp -d)"
-  trap 'rm -rf "$web_preview_download"' EXIT
-  log "Downloading the Web preview archive"
-  curl --fail --silent --show-error --location --max-time 120 \
-    --output "$web_preview_download/preview-web-plugin.zip" "$WEB_PLUGIN_ZIP"
+  trap 'rm -f "$web_preview_download/preview-web-plugin.zip"; rmdir "$web_preview_download"' EXIT
   WEB_PLUGIN_ZIP="$web_preview_download/preview-web-plugin.zip"
+  if [[ "$web_preview_source" =~ ^https?:// ]]; then
+    require curl
+    log "Downloading the Web preview archive"
+    curl --fail --silent --show-error --location --max-time 120 --output "$WEB_PLUGIN_ZIP" "$web_preview_source"
+  else
+    cp -- "$web_preview_source" "$WEB_PLUGIN_ZIP"
+  fi
 fi
 
 if [[ "$RESET" == "1" ]]; then
@@ -228,6 +231,9 @@ if [[ "$BACKEND_ONLY" == "1" ]]; then
   log "Backend started; JS stack and seed data were left untouched"
   exit 0
 fi
+
+export GATEWAY_URL="${DSBUILDER_GATEWAY_URL:-http://localhost:8080}"
+export DSBUILDER_PROJECT_CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-dsbuilder-api}"
 
 log "Preparing the project and global Web API through the gateway"
 WEB_PREVIEW_PLUGIN_ZIP="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}" "$ROOT_DIR/backend-kt/bootstrap-base.sh"
@@ -247,7 +253,9 @@ publish_plugin() {
     return
   fi
   log "Publishing the $title"
-  if ! "$ROOT_DIR/publish-preview-plugin.sh" --platform "$platform" --channel "$channel" --from "$archive"; then
+  local args=(--platform "$platform" --channel "$channel" --from "$archive")
+  if [[ "$platform" == "compose" ]]; then args+=(--register-core); fi
+  if ! "$ROOT_DIR/publish-preview-plugin.sh" "${args[@]}"; then
     if [[ "$explicit" == "1" ]]; then
       echo "[local-setup] The requested $title could not be published" >&2
       exit 1
@@ -301,5 +309,5 @@ if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; 
 fi
 
 log "Local setup is ready"
-log "API gateway: http://localhost:8080"
+log "API gateway: $GATEWAY_URL"
 log "Client: http://localhost:3002"

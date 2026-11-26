@@ -40,6 +40,7 @@ public class PublishPreviewPluginUseCase internal constructor(
     private val archiveSource: PreviewPluginArchiveSource,
     private val remoteSource: PreviewPluginRemoteSource,
     private val normalizers: Map<TargetPlatform, ApiMetaNormalizer>,
+    private val encodeCoreImportRequest: (TargetPlatform, ApiMetaManifest, CoreReleaseRef, ByteArray, String) -> String,
 ) {
     /**
      * Выполняет отправку.
@@ -50,21 +51,30 @@ public class PublishPreviewPluginUseCase internal constructor(
     public suspend fun execute(
         command: PublishPreviewPluginCommand,
         onTarget: (PublishPreviewPluginTarget) -> Unit = {},
+    ): PublishPreviewPluginResult = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
+        is WriteApiUrlResult.Rejected -> PublishPreviewPluginResult.Failed(resolved.message)
+        is WriteApiUrlResult.Resolved -> publish(command, resolved.url, onTarget)
+    }
+
+    private suspend fun publish(
+        command: PublishPreviewPluginCommand,
+        apiUrl: ResolvedApiUrl,
+        onTarget: (PublishPreviewPluginTarget) -> Unit,
     ): PublishPreviewPluginResult {
         val prepared = when (val result = prepare(command)) {
             is Preparation.Rejected -> return PublishPreviewPluginResult.Failed(result.message)
             is Preparation.Ready -> result
         }
-        val credential = when (val selected = resolveCredential(prepared.apiUrl)) {
-            is CredentialResult.Failed -> return PublishPreviewPluginResult.Failed(selected.withHint(prepared.apiUrl))
+        val credential = when (val selected = resolveCredential(apiUrl)) {
+            is CredentialResult.Failed -> return PublishPreviewPluginResult.Failed(selected.withHint(apiUrl))
             is CredentialResult.Selected -> selected.credential
         }
-        val target = prepared.target(dryRun = !command.apply)
+        val target = prepared.target(apiUrl, dryRun = !command.apply)
         onTarget(target)
         val remote = remoteSource.publish(
             PublishPreviewPluginRemoteCommand(
                 platform = command.platform,
-                apiUrl = ProjectApiUrl(prepared.apiUrl.value),
+                apiUrl = ProjectApiUrl(apiUrl.value),
                 credential = credential,
                 archive = prepared.archive,
                 manifest = prepared.normalized.manifest,
@@ -89,18 +99,32 @@ public class PublishPreviewPluginUseCase internal constructor(
         }
     }
 
-    /** Локальные проверки до обращения к сети: платформа, адрес, архив, manifest и мета. */
+    /** Готовит тело импорта Core из проверенного ZIP без сети и авторизации. */
+    public fun coreImportRequest(command: PublishPreviewPluginCommand): Result<String> =
+        when (val prepared = prepare(command)) {
+            is Preparation.Rejected -> Result.failure(IllegalArgumentException(prepared.message))
+            is Preparation.Ready -> Result.success(
+                encodeCoreImportRequest(
+                    prepared.platform,
+                    prepared.normalized.manifest,
+                    prepared.identity.coreRelease,
+                    prepared.archive.metaBytes,
+                    prepared.identity.channel,
+                ),
+            )
+        }
+
+    /** Локальные проверки ZIP: платформа, канал, manifest и мета. */
     private sealed interface Preparation {
         data class Rejected(val message: String) : Preparation
 
         class Ready(
             val platform: TargetPlatform,
-            val apiUrl: ResolvedApiUrl,
             val archive: PreviewPluginArchive,
             val identity: ManifestCheck.Valid,
             val normalized: ApiMetaNormalizationResult.Normalized,
         ) : Preparation {
-            fun target(dryRun: Boolean) = PublishPreviewPluginTarget(
+            fun target(apiUrl: ResolvedApiUrl, dryRun: Boolean) = PublishPreviewPluginTarget(
                 platform = platform,
                 apiUrl = apiUrl,
                 source = archive.path,
@@ -127,10 +151,6 @@ public class PublishPreviewPluginUseCase internal constructor(
         }
         val channel = command.channel?.takeIf { it in setOf("stable", "dev") }
             ?: return Preparation.Rejected("Error: specify publication channel stable or dev with --channel.")
-        val apiUrl = when (val resolved = apiUrlResolver.resolveForWrite(command.apiUrlOverride)) {
-            is WriteApiUrlResult.Rejected -> return Preparation.Rejected(resolved.message)
-            is WriteApiUrlResult.Resolved -> resolved.url
-        }
         val archive = when (val read = archiveSource.read(command.from)) {
             is PreviewPluginArchiveResult.Failed -> return Preparation.Rejected(read.message)
             is PreviewPluginArchiveResult.Read -> read.archive
@@ -153,7 +173,7 @@ public class PublishPreviewPluginUseCase internal constructor(
                 "Error: conflicting metadata definitions: ${normalized.conflicts.joinToString()}",
             )
         }
-        return Preparation.Ready(command.platform, apiUrl, archive, identity, normalized)
+        return Preparation.Ready(command.platform, archive, identity, normalized)
     }
 
     private fun normalize(

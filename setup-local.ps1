@@ -173,7 +173,7 @@ function Invoke-SetupTool([string]$script, [string[]]$arguments, [string[]]$moun
         '--mount', 'type=volume,source=dsbuilder-local-gradle,target=/root/.gradle',
         '-w', '/workspace', '-e', "DSBUILDER_GATEWAY_URL=$gateway", '-e', "GATEWAY_URL=$gateway")
     foreach ($name in @('DSBUILDER_PROJECT_USERNAME', 'DSBUILDER_PROJECT_PASSWORD', 'DSBUILDER_PROJECT_NAME',
-            'DSBUILDER_REALM', 'DSBUILDER_CLIENT_ID', 'DSBUILDER_CLIENT_SECRET',
+            'DSBUILDER_REALM', 'DSBUILDER_PROJECT_CLIENT_ID', 'DSBUILDER_CLIENT_ID', 'DSBUILDER_CLIENT_SECRET',
             'DSBUILDER_LOCAL_USERNAME', 'DSBUILDER_LOCAL_PASSWORD',
             'DSBUILDER_WEB_CORE_VERSION', 'DSBUILDER_WEB_CORE_CHANNEL', 'DSBUILDER_WEB_CORE_LIBRARY')) {
         $value = [Environment]::GetEnvironmentVariable($name)
@@ -209,10 +209,7 @@ if ($Reset) {
 
 Write-SetupLog 'Building and starting Kotlin backend in Linux containers'
 $env:DS_FLYWAY_ADOPT_EXISTING = 'false'
-Invoke-BackendCompose @('up', '--build', '-d')
-# The gateway mounts nginx.local.conf as a single file: after a checkout replaces the file the running container keeps
-# the old one, and a recreated ds-service gets a new address. A restart picks up both.
-Invoke-BackendCompose @('restart', 'gateway')
+Invoke-BackendCompose @('up', '--build', '--remove-orphans', '-d')
 Initialize-ProjectsLookupClient
 
 Write-SetupLog 'Building local setup tools container'
@@ -227,7 +224,9 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
         $source = Convert-InputPath $archive "/input/$(Split-Path $bundled -Leaf)" ([ref]$mounts)
         try {
             Write-SetupLog "Publishing the $title"
-            Invoke-SetupTool 'publish-preview-plugin.sh' @('--platform', $platform, '--channel', $channel, '--from', $source) $mounts
+            $toolArgs = @('--platform', $platform, '--channel', $channel, '--from', $source)
+            if ($platform -eq 'compose') { $toolArgs += '--register-core' }
+            Invoke-SetupTool 'publish-preview-plugin.sh' $toolArgs $mounts
         } catch {
             if ($explicit) { throw }
             Write-SetupLog "The bundled $title could not be published. See local-dev/README.md for archive requirements. $_"
@@ -240,17 +239,25 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
 
 $webPreviewDownload = $null
 try {
-    # Bootstrap and publication share one download even if the URL later serves another build.
-    if (-not $SkipPlugin -and -not $env:DSBUILDER_WEB_API_META -and $WebPluginZip -match '^https?://') {
+    # Bootstrap and publication share one snapshot, even if the original ZIP changes.
+    $webSource = if ($WebPluginZip) { $WebPluginZip } else { Join-Path $root 'local-dev/web-preview/preview-web-plugin.zip' }
+    $webSourceIsUrl = $webSource -match '^https?://'
+    if (-not $SkipPlugin -and -not $env:DSBUILDER_WEB_API_META -and
+        ($webSourceIsUrl -or (Test-Path -LiteralPath $webSource -PathType Leaf))) {
         $webPreviewDownload = [IO.Path]::GetTempFileName()
-        Write-SetupLog 'Downloading the Web preview archive'
-        Invoke-WebRequest -Uri $WebPluginZip -OutFile $webPreviewDownload -UseBasicParsing -TimeoutSec 120
+        if ($webSourceIsUrl) {
+            Write-SetupLog 'Downloading the Web preview archive'
+            Invoke-WebRequest -Uri $webSource -OutFile $webPreviewDownload -UseBasicParsing -TimeoutSec 120
+        } else {
+            Copy-Item -LiteralPath $webSource -Destination $webPreviewDownload
+        }
         $WebPluginZip = $webPreviewDownload
     }
 
     Write-SetupLog 'Preparing the project and global Web API through the gateway'
     $metaMounts = @()
-    $metaEnvironment = @()
+    $projectClientId = Get-Setting 'DSBUILDER_PROJECT_CLIENT_ID' 'dsbuilder-api'
+    $metaEnvironment = @("DSBUILDER_PROJECT_CLIENT_ID=$projectClientId")
     if ($env:DSBUILDER_WEB_API_META) {
         if (-not (Test-Path -LiteralPath $env:DSBUILDER_WEB_API_META -PathType Leaf)) {
             throw "Web API metadata file not found: $env:DSBUILDER_WEB_API_META"

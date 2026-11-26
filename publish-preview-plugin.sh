@@ -7,6 +7,7 @@ PLUGIN_SOURCE=""
 PLATFORM=""
 CHANNEL=""
 CLI="${DSBUILDER_CLI:-}"
+REGISTER_CORE=0
 
 usage() {
   cat <<'USAGE'
@@ -29,15 +30,16 @@ Options:
   --platform compose|react  Plugin platform: compose (Compose plugin) or react (web plugin).
   --channel stable|dev     Publication channel (required, independent of the archive and server).
   --from FILE|URL           Plugin archive: a local file or an http(s) address.
+  --register-core           Import Core from the same archive with the local setup administrator before publication.
   --gateway-url URL         Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
   --cli PATH                dsbuilder CLI with the `preview-plugin` command. Env: DSBUILDER_CLI. By default the
-                            `dsbuilder` from PATH is used when it can publish the platform, otherwise the JVM CLI of
-                            this repository is built (needs JDK 17).
+                            JVM CLI of this checkout is built (needs JDK 17), so publication uses the current
+                            Core metadata format.
   --help                    Show this help.
 
 The publication signs in as the local service account of the Keycloak dev realm. Override it with
-DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. Register a new Core as a system administrator first
-(see local-dev/README.md). A repeated publication of the same build is harmless.
+DSBUILDER_CLIENT_ID and DSBUILDER_CLIENT_SECRET. With --register-core, the helper registers the Core as
+the local setup administrator first. A repeated publication of the same build is harmless.
 USAGE
 }
 
@@ -57,6 +59,7 @@ while [[ $# -gt 0 ]]; do
       shift 2
       ;;
     --channel) CHANNEL="${2:-}"; shift 2 ;;
+    --register-core) REGISTER_CORE=1; shift ;;
     --from)
       PLUGIN_SOURCE="${2:-}"
       shift 2
@@ -100,25 +103,37 @@ if [[ "$PLUGIN_SOURCE" =~ ^https?:// ]]; then
   curl -fsSL -o "$ARCHIVE" "$PLUGIN_SOURCE" || fail "Could not download $PLUGIN_SOURCE"
 fi
 [[ -f "$ARCHIVE" ]] || fail "Plugin archive not found: $ARCHIVE"
+if [[ "$REGISTER_CORE" == "1" && "$ARCHIVE" == "$PLUGIN_SOURCE" ]]; then
+  cp -- "$ARCHIVE" "$WORK_DIR/$ARCHIVE_NAME"
+  ARCHIVE="$WORK_DIR/$ARCHIVE_NAME"
+fi
 
 resolve_cli() {
   if [[ -n "$CLI" ]]; then
     echo "$CLI"
     return
   fi
-  # The installed CLI must know the command and the platform: an older one publishes only Compose.
-  if command -v dsbuilder >/dev/null 2>&1 && dsbuilder preview-plugin publish --help 2>&1 | grep -q -- "--channel"; then
-    echo "dsbuilder"
-    return
-  fi
+  # A CLI on PATH can support --channel and still omit newer fields from Core metadata.
   local jvm="$ROOT_DIR/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder"
-  log "Building the JVM dsbuilder CLI of this repository (the installed one cannot publish $PLATFORM with an explicit channel)" >&2
+  log "Building the JVM dsbuilder CLI of this checkout" >&2
   (cd "$ROOT_DIR/frontend-kt" && ./gradlew --quiet :cli:installJvmDist >&2) || fail "The CLI build failed (JDK 17 is required)"
   [[ -x "$jvm" ]] || fail "The built CLI is missing: $jvm"
   echo "$jvm"
 }
 
 CLI="$(resolve_cli)"
+
+if [[ "$REGISTER_CORE" == "1" ]]; then
+  log "Registering Core for the $PLATFORM plugin in the $CHANNEL channel"
+  request="$WORK_DIR/core-import.json"
+  if ! DSBUILDER_ANALYTICS_DISABLED=1 "$CLI" preview-plugin publish --platform "$PLATFORM" \
+    --channel "$CHANNEL" --from "$ARCHIVE" --print-core-import-request > "$request"; then
+    cat "$request" >&2
+    fail "Could not prepare Core API meta from $ARCHIVE"
+  fi
+  DSBUILDER_GATEWAY_URL="$GATEWAY_URL" DSBUILDER_PROJECT_CLIENT_ID="${DSBUILDER_PROJECT_CLIENT_ID:-dsbuilder-api}" \
+    "$ROOT_DIR/backend-kt/bootstrap-base.sh" --import-core-request "$request"
+fi
 
 # The Keycloak dev realm (backend-kt/identity-gateway) creates this service account with the publisher role only.
 export DSBUILDER_CLIENT_ID="${DSBUILDER_CLIENT_ID:-dsbuilder-preview-publisher}"

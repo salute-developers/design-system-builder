@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
+import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
@@ -44,19 +45,23 @@ internal class PreviewPluginPublishCliCommand(
     private val apply: Boolean by option("--apply").flag()
         .help("Write the build. Without it the command performs a dry run.")
 
+    private val printCoreImportRequest: Boolean by option("--print-core-import-request").flag()
+        .help("Print the Core metadata import JSON for this ZIP without contacting the backend.")
+
     override suspend fun runOperation() {
-        val result = run {
-            publishUseCase.execute(
-                PublishPreviewPluginCommand(
-                    platform = platform,
-                    from = from,
-                    apply = apply,
-                    apiUrlOverride = apiUrl,
-                    channel = channel,
-                ),
-                onTarget = { target -> echo(target.render()) },
+        val command = PublishPreviewPluginCommand(platform, from, apply, apiUrl, channel)
+        if (printCoreImportRequest) {
+            if (apply) throw UsageError("--print-core-import-request cannot be used with --apply.")
+            publishUseCase.coreImportRequest(command).fold(
+                onSuccess = { echo(it) },
+                onFailure = {
+                    echo(it.message)
+                    throw ProgramResult(statusCode = 1)
+                },
             )
+            return
         }
+        val result = publishUseCase.execute(command, onTarget = { target -> echo(target.render()) })
         when (result) {
             is PublishPreviewPluginResult.Published -> echo(result.render())
             is PublishPreviewPluginResult.Conflict -> {

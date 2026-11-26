@@ -90,12 +90,15 @@ class LocalCoreScriptsTest(unittest.TestCase):
         self.assertNotEqual(mismatch.returncode, 0)
         self.assertIn("differs from the configured value", mismatch.stderr)
 
-    def test_setup_reuses_one_web_download_and_cleans_it_up(self):
+    def test_setup_enables_compose_registration_and_reuses_the_web_archive(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             shutil.copy2(ROOT / "setup-local.sh", root / "setup-local.sh")
             (root / "backend-kt").mkdir()
             (root / "bin").mkdir()
+            compose_archive = root / "local-dev/compose-preview/preview-compose-plugin.zip"
+            compose_archive.parent.mkdir(parents=True)
+            compose_archive.write_text("compose-archive")
             stubs = {
                 "bin/docker": "exit 0",
                 "bin/curl": '''
@@ -106,12 +109,23 @@ printf "web-archive" > "$2"
                 "backend-kt/start-local.sh": "exit 0",
                 "backend-kt/bootstrap-base.sh": '''
 test "$(cat "$WEB_PREVIEW_PLUGIN_ZIP")" = "web-archive"
+test "$DSBUILDER_PROJECT_CLIENT_ID" = dsbuilder-api
+test "$GATEWAY_URL" = "$DSBUILDER_GATEWAY_URL"
 printf "bootstrap|%s\n" "$WEB_PREVIEW_PLUGIN_ZIP" >> "$SETUP_TEST_LOG"
+printf "rebuilt-web-archive" > "$SETUP_TEST_ORIGINAL"
 ''',
                 "publish-preview-plugin.sh": '''
-test "$2" = react
-test "$(cat "$6")" = "web-archive"
-printf "publish|%s\n" "$6" >> "$SETUP_TEST_LOG"
+test "$GATEWAY_URL" = http://localhost:18080
+if [ "$2" = compose ]; then
+    test "$7" = --register-core
+    test "$(cat "$6")" = "compose-archive"
+    printf "compose|%s\n" "$6" >> "$SETUP_TEST_LOG"
+else
+    test "$2" = react
+    test "$#" = 6
+    test "$(cat "$6")" = "web-archive"
+    printf "publish|%s\n" "$6" >> "$SETUP_TEST_LOG"
+fi
 ''',
             }
             for name, script in stubs.items():
@@ -123,18 +137,128 @@ printf "publish|%s\n" "$6" >> "$SETUP_TEST_LOG"
                 key: value for key, value in os.environ.items()
                 if key not in ("DSBUILDER_WEB_API_META", "COMPOSE_PREVIEW_PLUGIN_ZIP", "COMPOSE_COMPONENTS_PACKAGE")
             }
-            env.update(PATH=str(root / "bin") + os.pathsep + env["PATH"], SETUP_TEST_LOG=str(log))
+            env.pop("DSBUILDER_PROJECT_CLIENT_ID", None)
+            env.update(PATH=str(root / "bin") + os.pathsep + env["PATH"], SETUP_TEST_LOG=str(log),
+                       DSBUILDER_GATEWAY_URL="http://localhost:18080", GATEWAY_URL="http://other.test",
+                       DSBUILDER_CLIENT_ID="publisher-client")
+            original = root / "web.zip"
             url = "https://example.test/preview-web-plugin.zip"
-            result = subprocess.run(
-                ["/bin/bash", str(root / "setup-local.sh"), "--web-plugin-zip", url, "--skip-icons"],
-                env=env, text=True, capture_output=True, check=False,
-            )
-            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-            download, bootstrap, publication = log.read_text().splitlines()
-            self.assertEqual(download, "download|" + url)
-            archive = bootstrap.removeprefix("bootstrap|")
-            self.assertEqual(publication, "publish|" + archive)
-            self.assertFalse(Path(archive).exists())
+            env["SETUP_TEST_ORIGINAL"] = str(original)
+            for source in (url, str(original)):
+                with self.subTest(source=source):
+                    original.write_text("web-archive")
+                    log.write_text("")
+                    result = subprocess.run(
+                        ["/bin/bash", str(root / "setup-local.sh"), "--web-plugin-zip", source, "--skip-icons"],
+                        env=env, text=True, capture_output=True, check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    calls = log.read_text().splitlines()
+                    if source == url:
+                        self.assertEqual(calls.pop(0), "download|" + url)
+                    bootstrap, compose, publication = calls
+                    self.assertEqual(compose, "compose|" + str(compose_archive))
+                    archive = bootstrap.removeprefix("bootstrap|")
+                    self.assertEqual(publication, "publish|" + archive)
+                    self.assertFalse(Path(archive).exists())
+                    self.assertEqual(original.read_text(), "rebuilt-web-archive")
+
+    def test_compose_registration_and_publication_share_one_archive(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "backend-kt").mkdir()
+            shutil.copy2(ROOT / "publish-preview-plugin.sh", root / "publish-preview-plugin.sh")
+            stubs = {
+                "curl": """printf "download|%s\n" "$4" >> "$SETUP_TEST_LOG"
+printf "compose-archive" > "$3"
+""",
+                "backend-kt/bootstrap-base.sh": """test "$1" = --import-core-request
+test "$DSBUILDER_GATEWAY_URL" = http://localhost:18080
+test "$DSBUILDER_PROJECT_CLIENT_ID" = dsbuilder-api
+test "$(cat "$2")" = core-json
+printf "register\n" >> "$SETUP_TEST_LOG"
+printf "rebuilt-archive" > "$SETUP_TEST_ORIGINAL"
+exit "$REGISTER_EXIT"
+""",
+                "cli": """test "$4" = compose
+test "$6" = dev
+test "$(cat "$8")" = compose-archive
+if [ "$9" = --print-core-import-request ]; then
+    printf "prepare|%s\n" "$8" >> "$SETUP_TEST_LOG"
+    printf "core-json"
+else
+    test "$9" = --api-url
+    test "${10}" = http://localhost:18080
+    test "${11}" = --apply
+    test "$DSBUILDER_CLIENT_ID" = publisher-client
+    printf "publish|%s\n" "$8" >> "$SETUP_TEST_LOG"
+fi
+""",
+            }
+            for name, script in stubs.items():
+                path = root / name
+                path.write_text("#!/bin/sh\nset -eu\n" + script)
+                path.chmod(0o755)
+            log = root / "calls.log"
+            original = root / "original.zip"
+            env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ["PATH"],
+                       SETUP_TEST_LOG=str(log), SETUP_TEST_ORIGINAL=str(original),
+                       DSBUILDER_CLI=str(root / "cli"), DSBUILDER_CLIENT_ID="publisher-client")
+            env.pop("DSBUILDER_PROJECT_CLIENT_ID", None)
+            url = "https://example.test/preview-compose-plugin.zip"
+            for source, register_exit in ((url, 0), (url, 3), (str(original), 0)):
+                with self.subTest(source=source, register_exit=register_exit):
+                    original.write_text("compose-archive")
+                    log.write_text("")
+                    command = ["/bin/bash", str(root / "publish-preview-plugin.sh"), "--platform", "compose",
+                               "--channel", "dev", "--from", source, "--gateway-url", "http://localhost:18080",
+                               "--register-core"]
+                    result = subprocess.run(command, env=dict(env, REGISTER_EXIT=str(register_exit)),
+                                            capture_output=True, text=True, check=False)
+                    self.assertEqual(result.returncode, register_exit, result.stdout + result.stderr)
+                    calls = log.read_text().splitlines()
+                    if source == url:
+                        self.assertEqual(calls.pop(0), "download|" + url)
+                    preparation, registration, *publication = calls
+                    archive = preparation.removeprefix("prepare|")
+                    self.assertEqual(registration, "register")
+                    self.assertEqual(publication, ["publish|" + archive] if register_exit == 0 else [])
+                    self.assertFalse(Path(archive).exists())
+                    self.assertEqual(original.read_text(), "rebuilt-archive")
+
+    def test_web_publication_uses_the_checkout_cli_unless_explicitly_overridden(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shutil.copy2(ROOT / "publish-preview-plugin.sh", root / "publish-preview-plugin.sh")
+            log = root / "calls.log"
+            archive = root / "web.zip"
+            archive.touch()
+            stubs = {
+                "bin/dsbuilder": """printf 'installed\n' >> "$SETUP_TEST_LOG"
+""",
+                "frontend-kt/gradlew": """test "$*" = '--quiet :cli:installJvmDist'
+printf 'build\n' >> "$SETUP_TEST_LOG"
+""",
+                "frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder": """printf 'jvm\n' >> "$SETUP_TEST_LOG"
+""",
+            }
+            for name, script in stubs.items():
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("#!/bin/sh\nset -eu\n" + script)
+                path.chmod(0o755)
+
+            env = dict(os.environ, PATH=str(root / "bin") + os.pathsep + os.environ["PATH"], SETUP_TEST_LOG=str(log))
+            env.pop("DSBUILDER_CLI", None)
+            args = ["/bin/bash", str(root / "publish-preview-plugin.sh"), "--platform", "react",
+                    "--channel", "dev", "--from", str(archive)]
+            for override, expected in (([], ["build", "jvm"]),
+                                       (["--cli", str(root / "bin/dsbuilder")], ["installed"])):
+                with self.subTest(override=override):
+                    log.write_text("")
+                    result = subprocess.run(args + override, env=env, capture_output=True, text=True, check=False)
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(log.read_text().splitlines(), expected)
 
     def test_powershell_setup_places_the_version_gate_before_docker(self):
         source = (ROOT / "setup-local.ps1").read_text()

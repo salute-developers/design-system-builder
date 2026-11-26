@@ -146,8 +146,8 @@ GitHub Variables/Secrets, tag policy и Coolify resource описана в [back
 .\setup-local.ps1
 ```
 
-По умолчанию setup берёт мету и версию Web Core из ZIP Web-превью и регистрирует их в канале `dev`.
-При отдельном файле `DSBUILDER_WEB_API_META` укажите его точную версию в `DSBUILDER_WEB_CORE_VERSION`.
+По умолчанию setup регистрирует Web и Compose Core в канале `dev` по метаданным комплектных ZIP
+и публикует оба плагина в локальный MinIO. При отдельном файле `DSBUILDER_WEB_API_META` укажите его точную версию в `DSBUILDER_WEB_CORE_VERSION`.
 
 Для запуска Windows-контура нужны Docker Desktop и доступ к образам и зависимостям сборки. JDK, Node.js,
 Bash и WSL на Windows-хосте не требуются: backend собирается в Linux-контейнерах, а существующие
@@ -157,17 +157,16 @@ Linux-контейнере. PowerShell-сценарий управляет Docke
 `-ComponentsPackage`, `-ThemePackage`, `-SkipDesignSystem`. Пути к собственным архивам плагинов или пакету
 компонентов можно также задать через `COMPOSE_PREVIEW_PLUGIN_ZIP`, `WEB_PREVIEW_PLUGIN_ZIP` и `COMPOSE_COMPONENTS_PACKAGE`.
 
-Скрипт запускает Kotlin backend, готовит проект и регистрирует Web Core через Gateway, затем поднимает клиент.
+Скрипт запускает Kotlin backend и клиент, готовит проект и регистрирует Core через Gateway.
 Схему базы `ds_registry` (сервис `ds-db`, порт хоста `5433`, настройка `DS_DB_PORT`) создаёт Flyway.
-Плагины превью публикуются в локальный MinIO для зарегистрированных релизов. Как зарегистрировать Compose Core,
-выбрать канал и обновить архивы, описано в [local-dev/README.md](./local-dev/README.md).
+Выбор канала и обновление архивов описаны в [local-dev/README.md](./local-dev/README.md).
 
 Обычный запуск не создаёт демонстрационные `base`/`sdds_serv_local` и темы, не импортирует значения токенов
 и конфигурации компонентов. Создайте ДС и тему в интерфейсе: начальные токены и компоненты backend заполнит
 из собственных ресурсов. Существующие ДС и журналы сохраняются.
 
-Для импорта готовой Compose-темы сначала [зарегистрируйте Compose Core из выбранного ZIP](./local-dev/README.md#первый-preview-для-нового-core).
-Затем запустите демо-импорт.
+Чтобы импортировать готовую Compose-тему и конфигурации компонентов, явно передайте пакет.
+Setup сначала зарегистрирует Core из выбранного Compose ZIP.
 
 ```bash
 ./setup-local.sh --components-package ./local-dev/design-system/components

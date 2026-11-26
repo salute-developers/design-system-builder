@@ -21,6 +21,7 @@ import com.dsbuilder.frontend.feature.components.application.PublishPreviewPlugi
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginRemoteResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginResult
 import com.dsbuilder.frontend.feature.components.application.PublishPreviewPluginUseCase
+import com.dsbuilder.frontend.feature.components.data.encodePreviewCoreImportRequest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaImportReport
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ComposeApiMetaNormalizer
 import com.dsbuilder.frontend.feature.components.domain.apimeta.WebApiMetaNormalizer
@@ -100,6 +101,7 @@ class PublishPreviewPluginUseCaseTest {
         onTarget: () -> Unit = {},
     ): PublishPreviewPluginResult {
         val useCase = PublishPreviewPluginUseCase(
+            encodeCoreImportRequest = ::encodePreviewCoreImportRequest,
             credentialProvider = object : CredentialProvider {
                 override suspend fun resolve(request: CredentialRequest): CredentialResult {
                     touched.credentialResolved = true
