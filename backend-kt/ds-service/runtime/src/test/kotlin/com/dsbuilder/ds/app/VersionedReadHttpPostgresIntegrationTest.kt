@@ -20,7 +20,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -43,7 +42,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     fun `tenant component style group and journal filters preserve full bodies and server pages`() {
         IsolatedPostgresDatabase.create().use { database ->
             ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "lists").field("id")
                 val base = "/api/design-systems/$ds"
@@ -115,7 +114,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     @Test
     fun `versioned reads preserve PAT scopes and resource ownership`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "access").field("id")
                 val path = "/api/design-systems/$ds/tokens?limit=1"
@@ -136,7 +135,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     @Test
     fun `metadata and data retain the same snapshot across a concurrent committed write`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val system = createSystem(client, "concurrent")
                 val ds = system.field("id")
@@ -179,7 +178,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     fun `appearance axes and defaults come from selected publication rather than current draft`() {
         IsolatedPostgresDatabase.create().use { database ->
             ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val ds = createSystem(client, "axes").field("id")
                 val appearances = api(client, "GET", "/api/design-systems/$ds/appearances").array()
@@ -232,7 +231,7 @@ class VersionedReadHttpPostgresIntegrationTest {
     @Test
     fun `keyset survives deletion and revision change but rejects a new draft and foreign filters`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val system = createSystem(client, "first")
                 val ds = system.field("id")

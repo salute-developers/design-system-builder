@@ -19,7 +19,7 @@ export const InspectorGroup = ({ title, actions, additional, className = '', chi
 
     return (
         <section
-            className={`${kind} component-properties-${title.toLowerCase()} ${collapsed ? 'is-collapsed' : ''} ${className}`}
+            className={`${kind} component-properties-${title.toLowerCase().replace(/\s+/g, '-')} ${collapsed ? 'is-collapsed' : ''} ${className}`}
             aria-label={title}
         >
             <header className="component-variation-type-header">

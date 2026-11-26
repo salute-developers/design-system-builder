@@ -31,7 +31,11 @@ import kotlinx.serialization.json.Json
  * - служебные признаки генератора (`copyOf`, `fromVariation`, `valueEnum`, `markupValue`,
  *   `markupZero`, `rawNumber`, `alwaysEmit`, `stateOnly`, `sizeFromIconId`) описывают, как генератор
  *   добывает значение из конфигурации, и в манифест не идут;
- * - компонент без свойств не попадает в манифест, потому что заводить его нечем.
+ * - компонент без свойств не попадает в манифест, потому что заводить его нечем;
+ * - признак поддержки состояний выводится, только если мета несёт `stateSupport` (одно значение у всех записей):
+ *   тип `Stateful*` (`StatefulFillStyle` читает состояния значения) даёт `interactionStates` меты и состояния
+ *   `stateEnum` компонента с сочетаниями из меты; без такого типа список составляют состояния из поля `state`
+ *   вхождений, без сочетаний: каждое вхождение берёт значение одного состояния.
  *
  * Устаревание мета iOS не отдаёт: свойства, которых нет в конфигурациях оформления, из неё убраны
  * на стороне генератора, поэтому помечать нечего.
@@ -57,6 +61,11 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
         if (source.isEmpty()) {
             return ApiMetaNormalizationResult.Empty
         }
+        val metaSupport = try {
+            source.map(SwiftUiMetaComponent::stateSupport).agreedStateSupport()
+        } catch (exception: IllegalArgumentException) {
+            return ApiMetaNormalizationResult.Invalid(exception.message.orEmpty())
+        }
 
         val collected = collect(source, typeMap)
         val components = collected.byName
@@ -64,7 +73,9 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
             .map { (name, component) ->
                 ApiMetaComponent(
                     name = name,
-                    properties = component.properties.map { (id, property) -> property.toManifest(id) },
+                    properties = component.properties.map { (id, property) ->
+                        property.toManifest(id, metaSupport?.let { property.stateSupport(it, component.states) })
+                    },
                     states = component.states.toList(),
                 )
             }
@@ -79,7 +90,11 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
         val skipped = listOf(ApiMetaSkipped(SKIPPED_UNMAPPED, (collected.unmappedPairs - kept).size))
             .filter { it.count > 0 }
 
-        return ApiMetaNormalizationResult.Normalized(ApiMetaManifest(components), collected.conflicts, skipped)
+        return ApiMetaNormalizationResult.Normalized(
+            ApiMetaManifest(components, metaSupport?.interactionStates),
+            collected.conflicts,
+            skipped,
+        )
     }
 
     /** Проходит по записям: сливает повторы свойств и собирает то, что нужно пропустить. */
@@ -134,14 +149,24 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
         private val methodNames = LinkedHashSet<String>()
         private val groups = LinkedHashSet<String>()
         private val paramTypes = LinkedHashSet<String>()
+        private val paramStates = LinkedHashSet<String>()
 
         fun add(param: SwiftUiMetaParam) {
+            param.state?.takeIf { it.isNotBlank() }?.let(paramStates::add)
             param.methodName?.takeIf { it.isNotBlank() }?.let(methodNames::add)
             param.group?.takeIf { it.isNotBlank() }?.let(groups::add)
             param.paramSimpleType?.takeIf { it.isNotBlank() }?.let(paramTypes::add)
         }
 
-        fun toManifest(id: String): ApiMetaProperty {
+        /** Признак: тип `Stateful*` принимает значения по состояниям, иначе — только состояния поля `state`. */
+        fun stateSupport(meta: MetaStateSupport, componentStates: Collection<String>): ApiMetaStateSupport = when {
+            paramTypes.any { it.startsWith(STATEFUL_PREFIX) } ->
+                ApiMetaStateSupport.of(meta.interactionStates + componentStates, meta.combinations)
+            paramStates.isNotEmpty() -> ApiMetaStateSupport.of(paramStates, combinations = false)
+            else -> ApiMetaStateSupport.NONE
+        }
+
+        fun toManifest(id: String, stateSupport: ApiMetaStateSupport?): ApiMetaProperty {
             val parts = listOfNotNull(
                 groups.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = "group: "),
                 methodNames.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = "method: "),
@@ -152,6 +177,7 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
                 type = type,
                 platformNames = methodNames.toList(),
                 description = parts.takeIf { it.isNotEmpty() }?.joinToString("; "),
+                stateSupport = stateSupport,
             )
         }
     }
@@ -159,6 +185,9 @@ internal class SwiftUiApiMetaNormalizer : ApiMetaNormalizer {
     internal companion object {
         /** Категория пропущенного: свойство дизайн-системы, которого нет в коде платформы. */
         const val SKIPPED_UNMAPPED = "properties without platform code"
+
+        /** Префикс типов параметра, значение которых генератор строит по состояниям. */
+        const val STATEFUL_PREFIX = "Stateful"
     }
 }
 
@@ -167,6 +196,7 @@ private data class SwiftUiMetaComponent(
     val componentName: String = "",
     val params: List<SwiftUiMetaParam> = emptyList(),
     val stateEnum: SwiftUiMetaStateEnum? = null,
+    val stateSupport: MetaStateSupport? = null,
 )
 
 @Serializable
@@ -177,6 +207,7 @@ private data class SwiftUiMetaParam(
     val methodName: String? = null,
     val paramSimpleType: String? = null,
     val unmapped: Boolean? = null,
+    val state: String? = null,
 )
 
 @Serializable

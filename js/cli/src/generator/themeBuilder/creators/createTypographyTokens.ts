@@ -1,3 +1,4 @@
+import { typographyVariableBase } from '../../../web-mapping/index.ts';
 import { TokenType } from '../types/index.ts';
 import { kebabToCamel } from '../utils/index.ts';
 
@@ -8,30 +9,10 @@ const fontMap: Record<string, string> = {
     text: 'var(--plasma-typo-text-font-family)',
 };
 
-const fontWeightMap: Record<string, string> = {
-    bold: 'bold',
-    medium: 'medium',
-    normal: '',
-};
-
 const SYSTEM_GROUPS = ['display', 'body', 'header', 'text'];
 
-/** Начало имени переменной системной группы: `header` опускается (`h1-bold`), своя группа идёт как есть. */
-const groupPrefix: Record<string, string> = {
-    display: 'dspl',
-    text: 'text',
-    body: 'body',
-    header: '',
-};
-
-const formattedTokenName = (nameParts: string[]) => {
-    const tokenName = [...nameParts];
-    // Только собственные ключи: своя группа `constructor` не должна находить свойство `Object.prototype`.
-    tokenName[0] = Object.hasOwn(groupPrefix, tokenName[0]) ? groupPrefix[tokenName[0]] : tokenName[0];
-    tokenName[2] = fontWeightMap[tokenName[2]];
-
-    return tokenName.filter(Boolean).join('-');
-};
+/** Основа имени переменных стиля без экрана: `header.h1.bold` → `h1-bold`, `display.l.normal` → `dspl-l`. */
+const formattedTokenName = (nameParts: string[]) => typographyVariableBase(nameParts.join('.'));
 
 /** Семейство значения: системное — переменная своей группы, своё — переменная группы стиля [group]. */
 const fontFamilyVariable = (familyRef: string, group: string) =>

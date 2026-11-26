@@ -22,15 +22,15 @@ active, so the component editor shows the preview.
 Archives bundled in this repository (setup-local.sh uses them by default):
   compose  local-dev/compose-preview/preview-compose-plugin.zip  (./refresh-local-dev-assets.sh updates it; a fresh
            build comes from plasma-android: ./gradlew :integration-core:preview-compose-plugin:previewPluginArtifact)
-  react    local-dev/web-preview/preview-web-plugin.zip           (cd js/apps/preview-web-plugin && npm run package)
+  react    local-dev/web-preview/preview-web-plugin.zip           (npm run package in plasma packages/sdds-preview-web-plugin)
 
 Options:
   --platform compose|react  Plugin platform: compose (Compose plugin) or react (web plugin).
   --from FILE|URL           Plugin archive: a local file or an http(s) address.
   --gateway-url URL         Gateway URL. Env: GATEWAY_URL. Default: http://localhost:8080.
   --cli PATH                dsbuilder CLI with the `preview-plugin` command. Env: DSBUILDER_CLI. By default the
-                            `dsbuilder` from PATH is used when it can publish the platform, otherwise the JVM CLI of
-                            this repository is built (needs JDK 17).
+                            JVM CLI of this checkout is built (needs JDK 17), so the imported API meta matches
+                            the repository's current capabilities.
   --help                    Show this help.
 
 The publication signs in as the local service account of the Keycloak dev realm. Override it with
@@ -101,13 +101,9 @@ resolve_cli() {
     echo "$CLI"
     return
   fi
-  # The installed CLI must know the command and the platform: an older one publishes only Compose.
-  if command -v dsbuilder >/dev/null 2>&1 && dsbuilder preview-plugin publish --help 2>&1 | grep -q "$PLATFORM"; then
-    echo "dsbuilder"
-    return
-  fi
+  # Command availability cannot detect an older CLI that silently drops newer API meta fields.
   local jvm="$ROOT_DIR/frontend-kt/cli/build/install/cli-jvm/bin/dsbuilder"
-  log "Building the JVM dsbuilder CLI of this repository (the installed one cannot publish $PLATFORM)" >&2
+  log "Building the JVM dsbuilder CLI of this checkout" >&2
   (cd "$ROOT_DIR/frontend-kt" && ./gradlew --quiet :cli:installJvmDist >&2) || fail "The CLI build failed (JDK 17 is required)"
   [[ -x "$jvm" ]] || fail "The built CLI is missing: $jvm"
   echo "$jvm"

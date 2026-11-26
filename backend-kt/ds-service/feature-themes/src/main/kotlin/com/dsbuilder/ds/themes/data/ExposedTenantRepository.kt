@@ -23,6 +23,7 @@ import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonPrimitive
+import org.jetbrains.exposed.v1.core.Column
 import org.jetbrains.exposed.v1.core.ResultRow
 import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.UUIDColumnType
@@ -219,31 +220,36 @@ class ExposedTenantRepository : TenantRepository {
         projectId: ProjectId,
         id: UUID,
         types: Set<ThemeTokenType>,
+    ): List<TenantTokenValue>? = readTokenValues(projectId, id, types)
+
+    override suspend fun tokenValuesForTokens(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<ThemeTokenType>,
+        tokenIds: Set<UUID>,
+    ): List<TenantTokenValue>? = readTokenValues(projectId, id, types, tokenIds)
+
+    private fun readTokenValues(
+        projectId: ProjectId,
+        id: UUID,
+        types: Set<ThemeTokenType>,
+        selectedTokens: Set<UUID>? = null,
     ): List<TenantTokenValue>? {
         val tenant = currentTenantRows(projectId = projectId, tenantId = id).singleOrNull() ?: return null
-        val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], types = types)
+        val definitions = currentThemeTokenRows(tenant[TenantsTable.designSystemId], selectedTokens, types = types)
         if (definitions.isEmpty()) return emptyList()
-        val tokenIds = if (types.isEmpty()) null else definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
-        val rows = currentThemeTokenValueRows(
-            designSystemId = tenant[TenantsTable.designSystemId],
-            tenantIds = setOf(id),
-            tokenIds = tokenIds,
-            knownTokens = definitions,
-        )
-        val revisions = rows.firstOrNull()?.let { row ->
-            entityEditRevisions(
-                row[ThemeVersionBoundariesTable.id],
-                TOKEN_VALUE_ENTITY_TYPE,
-                rows.mapTo(mutableSetOf()) { it[ThemeTokenValuesTable.id] },
-            )
-        }.orEmpty()
-        // Тип на той же выбранной границе версии задаёт форму сплошных значений платформ при чтении.
-        val types = definitions
-            .associate { it[ThemeTokensTable.id] to it[ThemeTokenRevisionsTable.type] }
-        return rows.map { row ->
-            toTokenValue(row, revisions[row[ThemeTokenValuesTable.id]] ?: 0)
-                .copy(tokenType = types[row[ThemeTokenValuesTable.tokenId]])
+        val tokenIds = if (types.isEmpty() && selectedTokens == null) {
+            null
+        } else {
+            definitions.mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
         }
+        return readTenantValueProjection(
+            tenant[TenantsTable.designSystemId],
+            id,
+            definitions,
+            tokenIds,
+            tenant[ThemeVersionBoundariesTable.id],
+        )
     }
 
     @Suppress("ReturnCount")
@@ -263,9 +269,9 @@ class ExposedTenantRepository : TenantRepository {
         if (validTokenCount != tokenIds.size.toLong()) return TenantTokenValuesSaveOutcome.ForeignToken
         val orderedValues = orderedTokenValues(command.values)
         val existingEntities = lockTokenValueEntities(id, orderedValues)
-        // Пакетная запись не передаёт признак своего значения платформы и сохраняет действующий.
-        val overridden = currentThemeTokenValueRows(designSystemId, setOf(id), tokenIds.toSet())
-            .associate { it[ThemeTokenValuesTable.id] to it[ThemeTokenValueRevisionsTable.overridden] }
+        // Пакетная запись не передаёт признаки своего значения платформы и отвязанной подтемы и сохраняет действующие.
+        val current = currentThemeTokenValueRows(designSystemId, setOf(id), tokenIds.toSet())
+            .associateBy { it[ThemeTokenValuesTable.id] }
         orderedValues.forEach { value ->
             val key = Triple(value.tokenId, value.platform, value.mode)
             val entity = existingEntities[key] ?: ThemeTokenValuesTable.insertReturning {
@@ -280,7 +286,8 @@ class ExposedTenantRepository : TenantRepository {
                 designSystemId = tenant[TenantsTable.designSystemId],
                 paletteId = value.paletteId,
                 value = value.value,
-                overridden = overridden[entity[ThemeTokenValuesTable.id]] ?: false,
+                overridden = current[entity[ThemeTokenValuesTable.id]].flag(ThemeTokenValueRevisionsTable.overridden),
+                detached = current[entity[ThemeTokenValuesTable.id]].flag(ThemeTokenValueRevisionsTable.detached),
                 deleted = false,
                 paths = setOf("/palette_id", "/value"),
                 baseRevision = value.baseRevision,
@@ -393,9 +400,10 @@ class ExposedTenantRepository : TenantRepository {
         paletteId = row[ThemeTokenValueRevisionsTable.paletteId],
         platform = row[ThemeTokenValuesTable.platform]?.wireValue,
         mode = row[ThemeTokenValuesTable.mode]?.wireValue,
-        valueJson = row[ThemeTokenValueRevisionsTable.value]?.toString(),
+        value = row[ThemeTokenValueRevisionsTable.value],
         editRevision = editRevision,
         overridden = row[ThemeTokenValueRevisionsTable.overridden],
+        detached = row[ThemeTokenValueRevisionsTable.detached],
         createdAt = row[ThemeTokenValuesTable.createdAt],
         updatedAt = row[ThemeTokenValueRevisionsTable.updatedAt],
     )
@@ -515,12 +523,17 @@ class ExposedTenantRepository : TenantRepository {
         }
     }
 
+    /** Признак действующей редакции значения; у значения без редакции — `false`. */
+    private fun ResultRow?.flag(column: Column<Boolean>): Boolean =
+        this?.get(column) ?: false
+
     private fun writeTokenValueRevision(current: ResultRow, deleted: Boolean) = writeTokenValueRevision(
         entityId = current[ThemeTokenValuesTable.id],
         designSystemId = current[ThemeTokenValuesTable.designSystemId],
         paletteId = current[ThemeTokenValueRevisionsTable.paletteId],
         value = current[ThemeTokenValueRevisionsTable.value],
         overridden = current[ThemeTokenValueRevisionsTable.overridden],
+        detached = current[ThemeTokenValueRevisionsTable.detached],
         deleted = deleted,
         paths = setOf("/deleted"),
         baseRevision = null,
@@ -532,6 +545,7 @@ class ExposedTenantRepository : TenantRepository {
         paletteId: UUID?,
         value: kotlinx.serialization.json.JsonElement?,
         overridden: Boolean,
+        detached: Boolean,
         deleted: Boolean,
         paths: Set<String>,
         baseRevision: Long?,
@@ -550,6 +564,7 @@ class ExposedTenantRepository : TenantRepository {
                 it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
                 it[ThemeTokenValueRevisionsTable.value] = value
                 it[ThemeTokenValueRevisionsTable.overridden] = overridden
+                it[ThemeTokenValueRevisionsTable.detached] = detached
                 it[ThemeTokenValueRevisionsTable.deleted] = deleted
             }
         }

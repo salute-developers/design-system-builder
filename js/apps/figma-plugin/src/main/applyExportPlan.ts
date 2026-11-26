@@ -11,6 +11,7 @@ import type {
     PlanVariable,
     TextBinding,
 } from '../shared/exportPlan';
+import { FIGMA_EDITOR, type ExportEditor } from '../shared/editor';
 
 /** Общие данные плагина: их читают и обновляют все инструменты DS Builder. */
 const NAMESPACE = 'dsbuilder';
@@ -75,7 +76,13 @@ type Lookup = (key: string) => Variable | undefined;
  * Слой стиля; цвет сплошного слоя и стопов привязывается к переменной по ключу плана, поэтому один стиль меняется
  * вместе с режимом `01. Theme`. Ключ без переменной оставляет цвет из плана и попадает в [unbound].
  */
-const figmaPaint = (paint: PlanPaint, lookup: Lookup, figma: ExportFigmaApi, unbound: Set<string>): Paint => {
+const figmaPaint = (
+    paint: PlanPaint,
+    lookup: Lookup,
+    figma: ExportFigmaApi,
+    unbound: Set<string>,
+    editor: ExportEditor,
+): Paint => {
     const variable = (key: string | undefined) => {
         const found = key ? lookup(key) : undefined;
         if (key && !found) unbound.add(key);
@@ -94,7 +101,7 @@ const figmaPaint = (paint: PlanPaint, lookup: Lookup, figma: ExportFigmaApi, unb
         type: 'GRADIENT_LINEAR',
         gradientTransform: gradientTransform(paint.angle),
         gradientStops: paint.stops.map(({ position, color, key }) => {
-            const bound = variable(key);
+            const bound = editor.gradientStopBindings ? variable(key) : undefined;
             const stop: ColorStop = { position, color: rgba(color) };
             return bound ? { ...stop, boundVariables: { color: figma.variables.createVariableAlias(bound) } } : stop;
         }),
@@ -123,7 +130,11 @@ const fontFor = (fonts: Font[], family: string, weight: number): FontName | null
 };
 
 /** Применяет план к документу: находит объекты по общему ключу DS Builder и обновляет их, остальное создаёт. */
-export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): Promise<ExportReport> => {
+export const applyExportPlan = async (
+    plan: ExportPlan,
+    figma: ExportFigmaApi,
+    editor: ExportEditor = FIGMA_EDITOR,
+): Promise<ExportReport> => {
     const report: ExportReport = {
         source: plan.source,
         created: counts(),
@@ -141,16 +152,16 @@ export const applyExportPlan = async (plan: ExportPlan, figma: ExportFigmaApi): 
     const skip = (entry: PlanSkip) => report.skipped.push(entry);
 
     if (!figma.variables) {
-        report.failure = 'Редактор не поддерживает переменные Figma.';
+        report.failure = `Редактор не поддерживает переменные ${editor.name}.`;
         return report;
     }
     try {
-        const variables = await writeVariables(plan, figma, touch, skip, report);
+        const variables = await writeVariables(plan, figma, touch, skip, report, editor);
         await writeEffectStyles(plan, variables, figma, touch, report);
-        await writePaintStyles(plan, variables, figma, touch, report);
-        await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report);
+        await writePaintStyles(plan, variables, figma, touch, report, editor);
+        await writeTextStyles(plan.textStyles, variables, figma, touch, skip, report, editor);
     } catch (error) {
-        report.failure = error instanceof ExportStopped ? error.message : `Figma отказала: ${String(error)}`;
+        report.failure = error instanceof ExportStopped ? error.message : `${editor.name} отказала: ${String(error)}`;
     }
     report.fontFiles = (plan.fontFiles ?? []).filter((family) => report.missingFonts.includes(family.family));
     return report;
@@ -174,6 +185,7 @@ const writeVariables = async (
     touch: Touch,
     skip: (entry: PlanSkip) => void,
     report: ExportReport,
+    editor: ExportEditor,
 ) => {
     const collections = plan.collections;
     const designSystem = plan.source.designSystemId ?? '';
@@ -186,13 +198,14 @@ const writeVariables = async (
     // Сначала коллекции и режимы: отказ тарифа не оставляет в файле переменных без значений.
     for (const planned of collections) {
         let collection = existingCollections.get(planned.key);
-        touch(!collection, 'collections');
+        const created = !collection;
         if (!collection) {
-            collection = figma.variables.createVariableCollection(planned.name);
+            collection = createCollection(figma, planned.name, editor);
             collection.setSharedPluginData(NAMESPACE, KEY, planned.key);
         }
+        touch(created, 'collections');
         collection.name = planned.name;
-        modeIds.set(planned.key, ensureModes(collection, planned));
+        modeIds.set(planned.key, ensureModes(collection, planned, editor));
         targets.set(planned.key, collection);
     }
 
@@ -293,6 +306,8 @@ const writeVariables = async (
     }
 
     const lookup = (key: string) => written.get(key) ?? existingVariables.get(key);
+    const colorOf = plannedColor(collections);
+    let flattened = 0;
     for (const planned of collections) {
         const modes = modeIds.get(planned.key)!;
         for (const variable of planned.variables) {
@@ -302,13 +317,25 @@ const writeVariables = async (
             const current = target.valuesByMode;
             for (const [mode, value] of Object.entries(variable.values)) {
                 const modeId = modes.get(mode);
-                const resolved = modeId ? figmaValue(value, lookup, figma) : null;
+                // Без ссылки с прозрачностью цвет записывается значением: вид тот же, связь с палитрой теряется.
+                const flatten = !editor.composedColors && value.kind === 'alias' && value.opacity !== undefined;
+                const flat = flatten ? colorOf(value, mode) : null;
+                const resolved = !modeId ? null : flat ? rgba(flat) : flatten ? null : figmaValue(value, lookup, figma);
                 if (modeId && resolved !== null) {
+                    if (flat) flattened += 1;
                     if (!same(current[modeId], resolved)) target.setValueForMode(modeId, resolved);
                 } else if (!modeId) skip({ name: variable.name, reason: `в коллекции нет режима ${mode}` });
+                else if (flatten) skip({ name: variable.name, reason: unresolvedOpacity(mode, editor) });
                 else skip({ name: variable.name, reason: `нет переменной для ссылки в режиме ${mode}` });
             }
         }
+    }
+
+    if (flattened) {
+        report.notes.push({
+            name: 'Цвета с прозрачностью',
+            reason: `записаны цветом без ссылки на палитру: ${flattened}. ${editor.name} не поддерживает ссылку с прозрачностью`,
+        });
     }
 
     existingVariables.forEach((_, key) => {
@@ -374,7 +401,7 @@ const restoreNames = (originalNames: Map<Variable, string>) => {
 };
 
 /** Режимы коллекции по ключам плана; соответствие ключей и `modeId` хранится в общих данных коллекции. */
-const ensureModes = (collection: VariableCollection, planned: PlanCollection) => {
+const ensureModes = (collection: VariableCollection, planned: PlanCollection, editor: ExportEditor) => {
     const saved = parseModes(collection.getSharedPluginData(NAMESPACE, MODES));
     const ids = new Map<string, string>();
     const alive = new Set(collection.modes.map((mode) => mode.modeId));
@@ -384,7 +411,7 @@ const ensureModes = (collection: VariableCollection, planned: PlanCollection) =>
     try {
         for (const mode of planned.modes) {
             let id = saved[mode.key];
-            if (!id || !alive.has(id)) id = free.shift() ?? addMode(collection, mode.name);
+            if (!id || !alive.has(id)) id = free.shift() ?? addMode(collection, mode.name, editor);
             // Соответствие раньше переименования: отказ `renameMode` не теряет только что добавленный режим.
             ids.set(mode.key, id);
             collection.renameMode(id, mode.name);
@@ -399,12 +426,24 @@ const ensureModes = (collection: VariableCollection, planned: PlanCollection) =>
     return ids;
 };
 
-const addMode = (collection: VariableCollection, name: string) => {
+/** Отказ создать коллекцию — чаще всего лимит тарифа: созданное до него остаётся, переменных без значений нет. */
+const createCollection = (figma: ExportFigmaApi, name: string, editor: ExportEditor) => {
+    try {
+        return figma.variables.createVariableCollection(name);
+    } catch (error) {
+        throw new ExportStopped(
+            `${editor.name} не разрешила создать коллекцию «${name}»: ${String(error)}. ` +
+                'Число коллекций может быть ограничено тарифом.',
+        );
+    }
+};
+
+const addMode = (collection: VariableCollection, name: string, editor: ExportEditor) => {
     try {
         return collection.addMode(name);
     } catch (error) {
         throw new ExportStopped(
-            `Figma не разрешила добавить режим «${name}» в коллекцию «${collection.name}»: ${String(error)}. ` +
+            `${editor.name} не разрешила добавить режим «${name}» в коллекцию «${collection.name}»: ${String(error)}. ` +
                 'Число режимов ограничено тарифом файла.',
         );
     }
@@ -417,6 +456,36 @@ const parseModes = (raw: string): Record<string, string> => {
     } catch {
         return {};
     }
+};
+
+/**
+ * Цвет ссылки по значениям плана: режим берётся тот же, а у коллекции с одним режимом — единственный. Прозрачность
+ * ссылки в процентах умножается на альфу цвета.
+ */
+/** Ссылку с прозрачностью редактор не принимает, а готовый цвет по плану не вычислился: цель ссылки не цвет или её нет. */
+const unresolvedOpacity = (mode: string, editor: ExportEditor) =>
+    `ссылка с прозрачностью в режиме ${mode} не записана: ${editor.name} не принимает её, ` +
+    'а в плане нет цвета, на который она ведёт';
+
+const plannedColor = (collections: PlanCollection[]) => {
+    const entries = new Map(
+        collections.flatMap((collection) =>
+            collection.variables.map((variable) => [variable.key, { variable, collection }] as const),
+        ),
+    );
+    const resolve = (value: PlanValue, mode: string, depth: number): PlanColor | null => {
+        if (value.kind === 'color') return value;
+        if (value.kind !== 'alias' || depth > entries.size) return null;
+        const entry = entries.get(value.key);
+        if (!entry) return null;
+        const { variable, collection } = entry;
+        const own =
+            variable.values[mode] ??
+            (collection.modes.length === 1 ? variable.values[collection.modes[0].key] : undefined);
+        const color = own ? resolve(own, mode, depth + 1) : null;
+        return color && value.opacity !== undefined ? { ...color, a: (color.a * value.opacity) / 100 } : color;
+    };
+    return (value: PlanValue, mode: string) => resolve(value, mode, 0);
 };
 
 /** Допуск сравнения чисел: Figma хранит каналы цвета во float32, и прочитанное значение чуть отличается. */
@@ -500,6 +569,7 @@ const writePaintStyles = async (
     figma: ExportFigmaApi,
     touch: Touch,
     report: ExportReport,
+    editor: ExportEditor,
 ) => {
     const existing = byKey(await figma.getLocalPaintStylesAsync());
     for (const planned of plan.paintStyles) {
@@ -512,13 +582,23 @@ const writePaintStyles = async (
         style.name = planned.name;
         // В Figma верхний слой — последний, в CSS — первый.
         const unbound = new Set<string>();
-        style.paints = [...planned.paints].reverse().map((paint) => figmaPaint(paint, lookup, figma, unbound));
+        style.paints = [...planned.paints].reverse().map((paint) => figmaPaint(paint, lookup, figma, unbound, editor));
         if (unbound.size) {
             report.notes.push({
                 name: planned.name,
                 reason: 'цвет слоя не привязан к переменной: переменной стопа нет',
             });
         }
+    }
+    const withStops = plan.paintStyles.filter((style) =>
+        style.paints.some((paint) => paint.kind === 'linear' && paint.stops.some((stop) => stop.key)),
+    ).length;
+    // Защита на случай плана с переменными стопов: для такого редактора план строится парами стилей.
+    if (!editor.gradientStopBindings && withStops) {
+        report.notes.push({
+            name: 'Стопы градиентов',
+            reason: `цвета стопов записаны значениями в стилях: ${withStops}. ${editor.name} не привязывает стопы к переменным`,
+        });
     }
     report.stale.paintStyles = staleCount(existing, plan.paintStyles);
 };
@@ -532,11 +612,13 @@ const writeTextStyles = async (
     touch: Touch,
     skip: (entry: PlanSkip) => void,
     report: ExportReport,
+    editor: ExportEditor,
 ) => {
     const existing = byKey(await figma.getLocalTextStylesAsync());
     report.stale.textStyles = staleCount(existing, styles);
     if (!styles.length) return;
     const fonts = await figma.listAvailableFontsAsync();
+    let unboundStyles = 0;
     // Начертание загружается один раз на экспорт, а не на каждый стиль: у темы десятки стилей одного шрифта.
     const loading = new Map<string, Promise<void>>();
     const load = (font: FontName) => {
@@ -552,7 +634,7 @@ const writeTextStyles = async (
         if (!font) {
             skip({
                 name: planned.name,
-                reason: `шрифт ${planned.fontFamily} с насыщенностью ${planned.fontWeight} не найден в Figma`,
+                reason: `шрифт ${planned.fontFamily} с насыщенностью ${planned.fontWeight} не найден в ${editor.name}`,
             });
             continue;
         }
@@ -573,11 +655,22 @@ const writeTextStyles = async (
         style.fontSize = planned.fontSize;
         style.lineHeight = { unit: 'PIXELS', value: planned.lineHeight };
         style.letterSpacing = { unit: 'PIXELS', value: planned.letterSpacing };
+        // У текстового стиля Pixso нет привязки к переменным: значения из плана уже записаны выше.
+        if (typeof style.setBoundVariable !== 'function') {
+            unboundStyles += 1;
+            continue;
+        }
         for (const field of BINDINGS) {
             const key = planned.bindings[field];
             const variable = key ? lookup(key) : undefined;
             style.setBoundVariable(field, variable ?? null);
         }
+    }
+    if (unboundStyles) {
+        report.notes.push({
+            name: 'Текстовые стили',
+            reason: `записаны без привязки к 03. Typography: ${unboundStyles}. ${editor.name} не привязывает текстовый стиль к переменным`,
+        });
     }
 };
 

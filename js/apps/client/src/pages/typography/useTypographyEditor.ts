@@ -2,6 +2,7 @@ import { useEffect, useMemo, useReducer } from 'react';
 
 import type { DesignSystem, Theme } from '../../controllers';
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
+import { saveTokenEnabled } from '../../api/tokenEnabled';
 import { authService } from '../../api/authService';
 import { reloadWhenDraftAutosaveIsIdle, setDraftAutosaveActivity } from '../../api/draftAutosaveActivity';
 import { tokenValueKey } from '../../api/editorHttp';
@@ -25,6 +26,7 @@ import {
     type TypographyOverridePlatform,
     type TypographyScreen,
     type TypographyStyle,
+    type TypographyVariant,
     type TypographyStyleChange,
     type TypographyStyleRepository,
     type TypographyStyles,
@@ -351,6 +353,24 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         notify(session);
     };
 
+    /** Признак `enabled` токена начертания [variant] на экране стиля. */
+    const enabled = (style: TypographyStyle, variant: TypographyVariant) =>
+        theme.getToken(tokenName(style, variant), 'typography')?.getEnabled?.() ?? true;
+
+    /** Начертание включается и отключается как самостоятельный токен: его определения на всех экранах. */
+    const setEnabled = async (style: TypographyStyle, variant: TypographyVariant, value: boolean) => {
+        const tokens = styleTokens(style).filter(({ name }) => name.endsWith(`.${variant}`));
+        await saveTokenEnabled(
+            session.context,
+            tokens.map(({ tokenId }) => tokenId),
+            value,
+            ['typography'],
+        );
+        tokens.forEach(({ name }) => session.live.theme?.getToken(name, 'typography')?.setEnabled?.(value));
+        session.live.rerender();
+        notify(session);
+    };
+
     /** Все стили темы на всех экранах: проверка занятого имени при создании и переименовании. */
     const allStyles = () => (session.saved?.screens ?? []).flatMap((item) => item.styles);
 
@@ -381,6 +401,8 @@ export const useTypographyEditor = ({ context, theme, rerender, readOnly }: Edit
         styles,
         description,
         describe,
+        enabled,
+        setEnabled,
         /** Создаёт стиль группы [group] с именем из ввода [input]; новая группа появляется с ним. Результат — ключ стиля. */
         create: async (group: string, input: string) => {
             const size = sizeOf(group, input);

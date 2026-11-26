@@ -12,9 +12,9 @@ interface TokenColorLibraryProps {
 }
 
 const PREFERENCES_KEY = 'sdds-color-library-preferences';
-const SUBGROUP_ORDER = ['General', 'Accent', 'Status'];
+const SUBGROUP_ORDER = ['Общие', 'Акцентные', 'Статусные'];
 /** Группы в порядке библиотеки прототипа; остальные — после них. */
-const GROUP_ORDER = ['Text', 'Surface', 'Background', 'Outline', 'Overlay', 'Data'];
+const GROUP_ORDER = ['Текст', 'Поверхность', 'Фон', 'Обводка', 'Наложение', 'Данные'];
 
 interface Preferences {
     subthemes: boolean;
@@ -89,7 +89,9 @@ export const TokenColorLibrary = ({ options, value, onPick }: TokenColorLibraryP
     return (
         <div className={`cp-library cp-source-library cp-component-library ${preferences.grid ? 'is-grid' : ''}`}>
             <div className="cp-library-search">
-                <span aria-hidden="true">⌕</span>
+                <span aria-hidden="true">
+                    <TyGlyph name="search" />
+                </span>
                 <input
                     aria-label="Найти токен цвета"
                     placeholder="Найти"

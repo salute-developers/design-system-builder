@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.core.process
 
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -60,7 +61,7 @@ class ProcessRequestTest {
     }
 
     @Test
-    fun runnerIsASingleFunctionPortAndCanBeFakedWithALambda() {
+    fun runnerIsASingleFunctionPortAndCanBeFakedWithALambda() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val runner = ProcessRunner { request ->
             requests += request

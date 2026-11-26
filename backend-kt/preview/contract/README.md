@@ -12,7 +12,7 @@ Layout:
 - `fixtures/v1/valid` — payloads every consumer must accept;
 - `fixtures/v1/invalid` — payloads every consumer must reject;
 - `fixtures/v1/web/valid` — payloads of the `WEB` platform; only the web consumers (the client and
-  `js/apps/preview-web-plugin`) check them.
+  the web preview plugin, plasma `packages/sdds-preview-web-plugin`) check them.
 
 Platform fixtures are kept apart from the shared ones on purpose. `valid` and `invalid` are copied into
 plasma-android and checked there against `CONTRACT.sha256`, so everything placed there becomes part of the
@@ -52,7 +52,7 @@ Icons:
   the component configuration (`disclosure.down.fill.16`). The plugin maps it to an icon of its registry and answers
   with the warning `unknown_icon` when it has none. A property without a value is not sent.
 
-Platform `WEB` (`js/apps/preview-web-plugin`; example — `fixtures/v1/web/valid/web-button.json`):
+Platform `WEB` (web preview plugin in plasma `packages/sdds-preview-web-plugin`; example — `fixtures/v1/web/valid/web-button.json`):
 
 - the payload follows the same rules as `COMPOSE`: properties by canonical property name, sources `literal`,
   `tokenRef`, `styleRef`, states in the ordered `states` array, theme tokens in the schema structures with the values of
@@ -63,7 +63,7 @@ Platform `WEB` (`js/apps/preview-web-plugin`; example — `fixtures/v1/web/valid
   parameters of other platforms is skipped;
 - value overrides of web parameters stored by the design system come as the `tokenRef` source of the property (or of
   its state); web templates of multi-value properties and web adjustments are not sent: they are web library knowledge
-  and live in the web plugin (`web-adapter.json`, API meta);
+  and the web plugin takes them from the generator package (`web-adapter.json`, API meta built from the core);
 - `component.variations` holds the selected style names by variation name (a flag style is named `true`);
 - `styles` carries every style of every variation and the invariants of the selected component, of every component
   from its dependencies and of every parent it is a `compose` child of (`<component>/<variation>/<style>`,

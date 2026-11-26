@@ -166,6 +166,7 @@ import com.dsbuilder.ds.components.presentation.styleRoutes
 import com.dsbuilder.ds.components.presentation.variationPlatformParamAdjustmentRoutes
 import com.dsbuilder.ds.components.presentation.variationPropertyValueRoutes
 import com.dsbuilder.ds.components.presentation.variationRoutes
+import com.dsbuilder.ds.core.application.BaselineSeedScope
 import com.dsbuilder.ds.core.application.Clock
 import com.dsbuilder.ds.core.application.DraftInvalidationStream
 import com.dsbuilder.ds.core.application.DsAccessPolicy
@@ -176,6 +177,7 @@ import com.dsbuilder.ds.core.application.IdempotentRequestRepository
 import com.dsbuilder.ds.core.application.PublicationTransactionRunner
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.core.application.UniqueKeyLockRepository
+import com.dsbuilder.ds.core.data.ExposedBaselineSeedScope
 import com.dsbuilder.ds.core.data.ExposedEntityEditStateRepository
 import com.dsbuilder.ds.core.data.ExposedIdempotentRequestRepository
 import com.dsbuilder.ds.core.data.ExposedPublicationTransactionRunner
@@ -211,6 +213,7 @@ import com.dsbuilder.ds.designsystems.presentation.designSystemVersionRoutes
 import com.dsbuilder.ds.designsystems.presentation.draftInvalidationRoutes
 import com.dsbuilder.ds.themes.application.CreateTenantUseCase
 import com.dsbuilder.ds.themes.application.DeleteTenantUseCase
+import com.dsbuilder.ds.themes.application.DuplicateTenantUseCase
 import com.dsbuilder.ds.themes.application.GetTenantTokenValuesUseCase
 import com.dsbuilder.ds.themes.application.GetTenantUseCase
 import com.dsbuilder.ds.themes.application.ListTenantsUseCase
@@ -305,6 +308,7 @@ fun Application.module(
     installDependencyGraph(configuration, runtime, pluginStorages, iconStorage)
     installDsHttpPlugins(json, runtime.metrics)
     installDsRoutes(runtime, json)
+    launchViewAxisBackfill(runtime)
 }
 
 /** Возвращает модули зависимостей без создания глобального Koin. */
@@ -328,6 +332,7 @@ fun dsDependencyModules(
             ExposedTransactionRunner(
                 runtime.database,
                 PostgresTransactionFailureMapper(),
+                runtime.databasePool::diagnosticState,
             )
         }
         single<PublicationTransactionRunner> {
@@ -338,6 +343,7 @@ fun dsDependencyModules(
         single<EntityEditStateRepository> { ExposedEntityEditStateRepository() }
         single<UniqueKeyLockRepository> { PostgresUniqueKeyLockRepository() }
         single<IdempotentRequestRepository> { ExposedIdempotentRequestRepository() }
+        single<BaselineSeedScope> { ExposedBaselineSeedScope() }
     },
     designSystemsModule,
     themesModule,
@@ -748,6 +754,7 @@ private fun Route.registerThemesFeature(runtime: DsRuntime, json: Json, koin: Ko
         koin.get<ListTenantsUseCase>(),
         koin.get<GetTenantUseCase>(),
         koin.get<CreateTenantUseCase>(),
+        koin.get<DuplicateTenantUseCase>(),
         koin.get<UpdateTenantUseCase>(),
         koin.get<DeleteTenantUseCase>(),
         koin.get<GetTenantTokenValuesUseCase>(),

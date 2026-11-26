@@ -391,6 +391,27 @@ class ColorTokenUseCaseTest {
     }
 
     @Test
+    fun `detached доходит до хранилища на любой платформе и после приведения значения`() = runBlocking {
+        val base = tokens.define("text.on-dark.accent")
+        val layer = Json.parseToJsonElement("""[{"kind":"color","background":"#1A9E32FF"}]""")
+        val values = complete("#1A9E32FF").map { value ->
+            when {
+                value.mode == ThemeTokenMode.DARK -> value
+                value.platform == ThemeTokenPlatform.IOS -> value.copy(value = layer, detached = true)
+                else -> value.copy(detached = true)
+            }
+        }
+
+        success(update.execute(context("editor"), current, base, UpdateColorTokenValues(0, mapOf(base to values))))
+
+        val stored = tokens.values.getValue(current to base)
+        assertTrue(stored.filter { it.mode == ThemeTokenMode.LIGHT }.all { it.detached == true })
+        assertTrue(stored.filter { it.mode == ThemeTokenMode.DARK }.none { it.detached == true })
+        val ios = stored.single { it.platform == ThemeTokenPlatform.IOS && it.mode == ThemeTokenMode.LIGHT }
+        assertEquals(JsonArray(listOf(JsonPrimitive("#1A9E32FF"))), ios.value)
+    }
+
+    @Test
     fun `создание с градиентом в значении даёт градиентное семейство`() = runBlocking {
         val gradient = complete("#FFFFFF").map { value ->
             if (value.platform == ThemeTokenPlatform.WEB && value.mode == ThemeTokenMode.DARK) {

@@ -14,6 +14,12 @@ interface TenantPaletteRepository {
      */
     suspend fun initialize(tenantId: UUID)
 
+    /**
+     * Инициализирует палитру новой темы [targetTenantId] копией палитры [sourceTenantId]: шаблон, группы, растяжки,
+     * ступени и привязки токенов к группам с новыми идентификаторами. Системные группы сопоставляются по ключу.
+     */
+    suspend fun copy(sourceTenantId: UUID, targetTenantId: UUID)
+
     /** Копия шаблона палитры темы; пустая, если темы ещё не инициализировали. Доступ к теме проверяет вызывающий. */
     suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>>
 
@@ -28,6 +34,14 @@ interface TenantPaletteRepository {
         tenantId: UUID,
         includeSubjectRevisions: Boolean = false,
     ): TenantPaletteSnapshot?
+
+    /** Снимок для раскрытия выбранных значений без чтения значений остальных семейств. */
+    suspend fun valueSnapshot(
+        projectId: ProjectId,
+        tenantId: UUID,
+        values: List<com.dsbuilder.ds.themes.domain.TenantTokenValue>,
+    ): TenantValuePaletteSnapshot? =
+        snapshot(projectId, tenantId)?.forValueResolution()
 
     /** Записывает только различия [before] и [state], сохраняя соседние конкурентные изменения. */
     suspend fun save(tenantId: UUID, before: TenantPaletteState, state: TenantPaletteState)

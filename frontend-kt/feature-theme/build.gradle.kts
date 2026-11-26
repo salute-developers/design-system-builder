@@ -31,13 +31,3 @@ kotlin {
         }
     }
 }
-
-tasks.matching {
-    it.name == "jsTest" ||
-        it.name == "jsNodeTest" ||
-        it.name == "compileTestKotlinJs" ||
-        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
-        it.name == "jsTestTestDevelopmentExecutableCompileSync"
-}.configureEach {
-    enabled = false
-}

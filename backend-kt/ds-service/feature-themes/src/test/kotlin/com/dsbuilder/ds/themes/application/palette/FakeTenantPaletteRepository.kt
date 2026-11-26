@@ -25,6 +25,13 @@ internal class FakeTenantPaletteRepository(
         initialized?.let { snapshot = it }
     }
 
+    /** Последняя пара «исходная тема → копия», переданная в [copy]. */
+    var copied: Pair<UUID, UUID>? = null
+
+    override suspend fun copy(sourceTenantId: UUID, targetTenantId: UUID) {
+        copied = sourceTenantId to targetTenantId
+    }
+
     override suspend fun template(tenantId: UUID): Map<PaletteRampRef, Map<Int, String>> =
         snapshot?.state?.template.orEmpty()
 

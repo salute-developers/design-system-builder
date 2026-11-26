@@ -9,6 +9,9 @@ import { useDesignSystem, useForceRerender } from '../hooks';
 import { Debug } from './Debug';
 import { EditorBody, EditorCanvas, MainItems, Root, Separator, StyledIconButton } from './Main.styles';
 import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell/BuilderShell';
+import { ThemeSwitcher } from '../components/BuilderShell/ThemeSwitcher';
+import { can } from '../features/projectPermissions';
+import type { ProjectRole } from '../modules/projects/domain/project';
 import { Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
@@ -41,7 +44,7 @@ const editorSectionLabels: Record<string, string> = {
     icons: 'Иконки',
     changes: 'Журнал изменений',
     versions: 'Версии',
-    settings: 'Настройки темы',
+    settings: 'Настройки дизайн-системы',
 };
 export const Main = () => {
     const navigate = useNavigate();
@@ -110,6 +113,7 @@ export const Main = () => {
         paletteError,
         setPalette,
         autosaveStatus,
+        autosaveErrorMessage,
         lastSavedAt,
         retryAutosave,
         refreshChanges,
@@ -307,9 +311,8 @@ export const Main = () => {
                                         className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
                                         selected={currentPath.includes('settings')}
                                         onClick={() => onClickPanelButton('settings')}
-                                        disabled={Boolean(editorContext?.versionId)}
-                                        aria-label="Настройки темы"
-                                        title="Настройки темы"
+                                        aria-label="Настройки дизайн-системы"
+                                        title="Настройки дизайн-системы"
                                     >
                                         <IconSettingsOutline size="xs" color="inherit" />
                                     </StyledIconButton>
@@ -341,6 +344,21 @@ export const Main = () => {
                                 {
                                     label: theme?.getName() ?? 'Тема',
                                     to: `${themeEditorPath}${themeEditorSearch}`,
+                                    render: editorContext && (
+                                        <ThemeSwitcher
+                                            context={editorContext}
+                                            currentName={theme?.getName() ?? 'Тема'}
+                                            canCreate={
+                                                !editorVersionId &&
+                                                designSystem?.getParameters()?.readOnly === false &&
+                                                can(
+                                                    (designSystem.getParameters()?.effectiveRole ??
+                                                        'viewer') as ProjectRole,
+                                                    'tenants:write',
+                                                )
+                                            }
+                                        />
+                                    ),
                                 },
                             ]}
                             action={
@@ -354,6 +372,7 @@ export const Main = () => {
                                             <>
                                                 <AutosaveIndicator
                                                     status={autosaveStatus}
+                                                    errorMessage={autosaveErrorMessage}
                                                     retry={retryAutosave}
                                                     lastSavedAt={lastSavedAt}
                                                 />

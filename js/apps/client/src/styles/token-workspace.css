@@ -620,6 +620,19 @@
     padding-left: calc(var(--tw-space-xs) + var(--tw-tree-indent));
 }
 
+/*
+ * Ветка дерева токенов — группа с заголовком. Её строки стоят на шаг правее стрелки заголовка, строки подгруппы — ещё
+ * на шаг: иначе строки стояли на одной линии со стрелкой и было непонятно, где кончается группа. Осознанное
+ * отступление от Figma (`update-theme-workflow`). Подложка строки сохраняет отступ 8 от краёв панели.
+ */
+.tw-tree-branch .tw-tree-item {
+    padding-left: calc(var(--tw-space-xs) + var(--tw-tree-indent));
+}
+
+.tw-tree-branch .tw-tree-nested .tw-tree-item {
+    padding-left: calc(var(--tw-space-xs) + 2 * var(--tw-tree-indent));
+}
+
 /* Отметка неопубликованных изменений рядом с именем строки. */
 .tw-changed-indicator {
     width: 6px;
@@ -930,4 +943,85 @@
     color: var(--tw-negative);
     font-size: 12px;
     line-height: 14px;
+}
+
+/* Отключённый токен: приглушённая строка дерева с отметкой «Отключён» и сообщение в инспекторе. */
+.tw-tree-item.is-disabled > :not(.tw-disabled-flag, .is-error) {
+    opacity: 0.5;
+}
+
+.tw-disabled-flag {
+    display: inline-flex;
+    flex: none;
+    margin-left: auto;
+    color: var(--tw-text-secondary);
+}
+
+.tw-disabled-flag > svg {
+    width: var(--tw-icon-size);
+    height: var(--tw-icon-size);
+}
+
+/* Как значение строки, отметка уступает место действиям строки при наведении. */
+.tw-tree-row:is(:hover, :focus-within):has(> .tw-tree-row-actions) .tw-disabled-flag {
+    visibility: hidden;
+}
+
+.tw-disabled-flag + .tw-tree-item-value,
+.ct-row-flag + .tw-disabled-flag {
+    margin-left: var(--tw-space-m);
+}
+
+.tw-notice {
+    display: flex;
+    align-items: center;
+    gap: var(--tw-space-m);
+    padding: var(--tw-space-m) var(--tw-space-l);
+    color: var(--tw-text-secondary);
+    font-size: 12px;
+    line-height: 16px;
+}
+
+.tw-notice.is-error {
+    color: var(--tw-negative);
+}
+
+.tw-notice > span {
+    flex: 1;
+    min-width: 0;
+}
+
+.tw-notice button:disabled {
+    cursor: default;
+    opacity: 0.5;
+}
+
+.tw-notice button:focus-visible {
+    outline: 1px solid var(--tw-accent);
+    outline-offset: 1px;
+}
+
+.tw-notice button {
+    flex: none;
+    padding: var(--tw-space-2xs) var(--tw-space-m);
+    border: 1px solid var(--tw-outline-field);
+    border-radius: var(--tw-radius-s);
+    background: transparent;
+    color: var(--tw-text-primary);
+    font: inherit;
+    cursor: pointer;
+}
+
+/* Переключатель платформы предпросмотра: одна кнопка 24×24 с иконкой 16 px на «Цветах», «Размерах» и «Типографике»,
+   независимо от размера шрифта шапки экрана. */
+.token-platform-menu > .workbench-menu-trigger {
+    width: 24px;
+    height: 24px;
+    padding: 4px;
+}
+
+.token-platform-menu > .workbench-menu-trigger > .ui-glyph {
+    width: 16px;
+    height: 16px;
+    stroke-width: 1.8;
 }

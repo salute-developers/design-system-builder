@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -30,6 +30,38 @@ vi.mock('../../../components/Catalog/Catalog', () => ({
 
 import { IconsPage } from './IconsPage';
 
+interface FakeImage {
+    url: string;
+    onerror: (() => void) | null;
+    onload: (() => void) | null;
+}
+
+/** В jsdom `Image` ничего не загружает: подменяем его и вызываем `onerror`/`onload` вручную, как браузер. */
+const installFakeImage = () => {
+    const created: FakeImage[] = [];
+    const Original = globalThis.Image;
+    globalThis.Image = class {
+        url = '';
+        onerror: (() => void) | null = null;
+        onload: (() => void) | null = null;
+        set src(value: string) {
+            this.url = value;
+            created.push(this);
+        }
+    } as unknown as typeof Image;
+    const fire = (event: 'onerror' | 'onload', match: (url: string) => boolean) =>
+        act(() => created.filter((image) => match(image.url)).forEach((image) => image[event]?.()));
+    return {
+        created,
+        restore: () => {
+            fire('onload', () => true);
+            globalThis.Image = Original;
+        },
+        fail: (match: (url: string) => boolean) => fire('onerror', match),
+        load: (match: (url: string) => boolean) => fire('onload', match),
+    };
+};
+
 const renderPage = (embedded = false) =>
     render(
         <MemoryRouter initialEntries={['/projects/p1/icons']}>
@@ -44,7 +76,9 @@ describe('IconsPage', () => {
         state.data = catalogFixture;
         state.error = undefined;
     });
-    afterEach(cleanup);
+    afterEach(() => {
+        cleanup();
+    });
 
     it('shows the source version, the count and the grid', () => {
         renderPage();
@@ -120,6 +154,39 @@ describe('IconsPage', () => {
         await waitFor(() => expect(screen.getByRole('button', { name: 'Скопировано' })).toBeInTheDocument());
         fireEvent.click(screen.getByRole('button', { name: 'Скопировать значение' }));
         expect(writeText).toHaveBeenLastCalledWith(expect.stringMatching(/\.24$/));
+    });
+
+    it('explains in the details panel that the selected icon file failed to load', () => {
+        const fake = installFakeImage();
+        try {
+            renderPage();
+            fireEvent.click(screen.getByLabelText('AddOutline'));
+            expect(screen.queryByText('Не удалось загрузить файл иконки из хранилища.')).not.toBeInTheDocument();
+
+            fake.fail((url) => url.endsWith('/AddOutline.svg'));
+
+            expect(screen.getByText('Не удалось загрузить файл иконки из хранилища.')).toBeInTheDocument();
+        } finally {
+            fake.restore();
+        }
+    });
+
+    it('shows a placeholder only on the card whose file failed and keeps the other cards intact', () => {
+        const fake = installFakeImage();
+        try {
+            renderPage();
+            const masksBefore = screen.getAllByTestId('icon-mask').length;
+
+            fake.fail((url) => url.endsWith('/AddOutline.svg'));
+
+            expect(screen.getAllByTestId('icon-placeholder')).toHaveLength(1);
+            expect(screen.getAllByTestId('icon-mask')).toHaveLength(masksBefore - 1);
+            expect(screen.getByRole('button', { name: 'AddOutline: не удалось загрузить иконку' })).toBeInTheDocument();
+            expect(screen.getByLabelText('DisclosureDownFill')).toBeInTheDocument();
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+        } finally {
+            fake.restore();
+        }
     });
 
     it('shows the name for manual copying when the clipboard is rejected', async () => {

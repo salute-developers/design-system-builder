@@ -31,9 +31,9 @@ internal class LiteralValueBatchReader(private val jdbc: BatchJdbc) {
               p.token_value_id AS previous_exists,p.deleted AS previous_deleted,p.value AS previous_value,
               p.palette_id AS previous_palette_id,
               CASE WHEN r.deleted THEN NULL ELSE jsonb_build_object('value',r.value,'palette_id',r.palette_id,
-                'overridden',r.overridden) END AS current_payload,
+                'overridden',r.overridden,'detached',r.detached) END AS current_payload,
               CASE WHEN p.deleted THEN NULL ELSE jsonb_build_object('value',p.value,'palette_id',p.palette_id,
-                'overridden',p.overridden) END AS previous_payload,
+                'overridden',p.overridden,'detached',p.detached) END AS previous_payload,
               EXISTS(SELECT 1 FROM token_value_creation_baselines c WHERE c.design_system_version_id=b.id
                 AND c.token_value_id=v.id) AS creation_baseline
             FROM boundary b CROSS JOIN previous_boundary pb LEFT JOIN selected_states e ON true

@@ -26,6 +26,16 @@ describe('Workspace read-only mode', () => {
         expect([...container.children]).toEqual(expect.arrayContaining([menu, content]));
     });
 
+    it('keeps a read-only section that closes editing itself interactive, with the read-only status', () => {
+        render(<Workspace section="components" readOnly inertWhenReadOnly={false} menu={<button>Chip</button>} />);
+
+        expect((screen.getByTestId('editor-workspace-menu') as HTMLDivElement & { inert: boolean }).inert).toBe(false);
+        expect((screen.getByTestId('editor-workspace-content') as HTMLDivElement & { inert: boolean }).inert).toBe(
+            false,
+        );
+        expect(screen.getByText('Только просмотр')).toBeInTheDocument();
+    });
+
     it('keeps an editable workspace interactive', () => {
         render(<Workspace section="colors" content={<input aria-label="Editable value" />} />);
 

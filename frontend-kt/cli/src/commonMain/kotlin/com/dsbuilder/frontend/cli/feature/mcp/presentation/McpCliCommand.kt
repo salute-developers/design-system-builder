@@ -17,11 +17,10 @@ import com.dsbuilder.frontend.mcpserver.CheckProjectStatusMcpReader
 import com.dsbuilder.frontend.mcpserver.DsBuilderMcpServerCore
 import com.dsbuilder.frontend.mcpserver.McpServerConfig
 import com.dsbuilder.frontend.mcpserver.serveStandardIo
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Command group for local MCP server lifecycle.
@@ -35,7 +34,7 @@ internal class McpCliCommand(
 
     override fun help(context: Context): String = "Run DS Builder MCP tools."
 
-    override fun run(): Unit = Unit
+    override suspend fun run(): Unit = Unit
 }
 
 /**
@@ -58,39 +57,33 @@ internal class McpServeCliCommand(
 
     private val workspace: String? by option("--workspace")
 
-    override fun run() {
+    override suspend fun run() {
         currentContext.findObject<CliAnalyticsSession>()?.prepare()
-        runBlocking {
-            try {
-                var operations: Set<String> = emptySet()
-                val core = DsBuilderMcpServerCore(
-                    config = McpServerConfig(apiUrlOverride = null, workspace = workspace),
-                    projectStatusReader = CheckProjectStatusMcpReader(checkProjectStatusUseCase),
-                    docsReadUseCases = docsReadUseCases,
-                    componentReadUseCases = componentReadUseCases,
-                    modelReadUseCase = modelReadUseCase,
-                    listProjectsUseCase = listProjectsUseCase,
-                    listDesignSystemsUseCase = listDesignSystemsUseCase,
-                    discoverVersionsUseCase = discoverVersionsUseCase,
-                    editTokenUseCase = editTokenUseCase,
-                    editThemeUseCase = editThemeUseCase,
-                    readTokenEditDataUseCase = readTokenEditDataUseCase,
-                    editComponentUseCase = editComponentUseCase,
-                    toolObserver = { operation, outcome ->
-                        currentContext.findObject<CliAnalyticsSession>()?.record(
-                            "mcp",
-                            operations,
-                            operation,
-                            outcome,
-                        )
-                    },
+        var operations: Set<String> = emptySet()
+        val core = DsBuilderMcpServerCore(
+            config = McpServerConfig(apiUrlOverride = null, workspace = workspace),
+            projectStatusReader = CheckProjectStatusMcpReader(checkProjectStatusUseCase),
+            docsReadUseCases = docsReadUseCases,
+            componentReadUseCases = componentReadUseCases,
+            modelReadUseCase = modelReadUseCase,
+            listProjectsUseCase = listProjectsUseCase,
+            listDesignSystemsUseCase = listDesignSystemsUseCase,
+            discoverVersionsUseCase = discoverVersionsUseCase,
+            editTokenUseCase = editTokenUseCase,
+            editThemeUseCase = editThemeUseCase,
+            readTokenEditDataUseCase = readTokenEditDataUseCase,
+            editComponentUseCase = editComponentUseCase,
+            toolObserver = { operation, outcome ->
+                currentContext.findObject<CliAnalyticsSession>()?.record(
+                    "mcp",
+                    operations,
+                    operation,
+                    outcome,
                 )
-                operations = core.tools().map { it.name }.toSet()
-                core.serveStandardIo()
-            } finally {
-                runtime.close()
-            }
-        }
+            },
+        )
+        operations = core.tools().map { it.name }.toSet()
+        core.serveStandardIo()
     }
 
     override fun help(context: Context): String = "Serve DS Builder MCP tools over stdio."

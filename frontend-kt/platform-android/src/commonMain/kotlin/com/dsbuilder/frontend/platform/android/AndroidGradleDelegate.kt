@@ -39,7 +39,7 @@ public class AndroidGradleDelegate internal constructor(
     override val capabilities: Set<Capability> =
         setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
-    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+    override suspend fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val gradlew = locator.locate(workspace.workspaceDir, toolOverride)
             ?: return ToolchainStatus.Missing(missingHint(workspace, toolOverride))
 
@@ -61,7 +61,7 @@ public class AndroidGradleDelegate internal constructor(
         }
     }
 
-    override fun run(invocation: DelegateInvocation): DelegateResult {
+    override suspend fun run(invocation: DelegateInvocation): DelegateResult {
         unsupportedResult(invocation)?.let { return it }
 
         val tasks = TASK_NAMES.getValue(invocation.capability to invocation.platform)
@@ -87,7 +87,7 @@ public class AndroidGradleDelegate internal constructor(
         else -> null
     }
 
-    private fun runGradleTasks(
+    private suspend fun runGradleTasks(
         gradlew: String,
         workspace: WorkspacePaths,
         tasks: List<String>,
@@ -109,7 +109,7 @@ public class AndroidGradleDelegate internal constructor(
         DelegateResult.ToolchainMissing("$gradlew cannot be started: ${error.message}")
     }
 
-    private fun helpTaskSucceeds(gradlew: String, workspace: WorkspacePaths, task: String): Boolean {
+    private suspend fun helpTaskSucceeds(gradlew: String, workspace: WorkspacePaths, task: String): Boolean {
         val result = processRunner.run(
             ProcessRequest(
                 executable = gradlew,

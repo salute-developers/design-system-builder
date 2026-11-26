@@ -20,7 +20,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.jsonArray
@@ -419,7 +418,7 @@ class IconCatalogHttpPostgresIntegrationTest {
         body: suspend IconCatalogHttpPostgresIntegrationTest.() -> Unit,
     ) {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database), iconStorage = storage ?: InMemoryIconStorage(false)) }
                 this@IconCatalogHttpPostgresIntegrationTest.postgres = database
                 this@IconCatalogHttpPostgresIntegrationTest.builder = this

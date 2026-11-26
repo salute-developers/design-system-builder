@@ -168,7 +168,7 @@ public class DsBuilderMcpServerCore(
     private val listProjectsUseCase: ListProjectsUseCase? = null,
     private val listDesignSystemsUseCase: ListDesignSystemsUseCase? = null,
     private val discoverVersionsUseCase: DiscoverDesignSystemVersionsUseCase? = null,
-    private val toolObserver: (String, String) -> Unit = { _, _ -> },
+    private val toolObserver: suspend (String, String) -> Unit = { _, _ -> },
     private val editTokenUseCase: EditTokenUseCase? = null,
     private val editThemeUseCase: EditThemeUseCase? = null,
     private val readTokenEditDataUseCase: ReadTokenEditDataUseCase? = null,
@@ -241,8 +241,10 @@ public class DsBuilderMcpServerCore(
     }
 
     @Suppress("TooGenericExceptionCaught", "SwallowedException")
-    private fun notifyToolObserver(name: String, outcome: String) {
-        try { toolObserver(name, outcome) } catch (_: Exception) { /* Наблюдение не меняет MCP-ответ. */ }
+    private suspend fun notifyToolObserver(name: String, outcome: String) {
+        try { toolObserver(name, outcome) } catch (
+            cancelled: CancellationException,
+        ) { throw cancelled } catch (_: Exception) { /* Наблюдение не меняет MCP-ответ. */ }
     }
 
     private suspend fun projectGetStatus(arguments: JsonObject): McpToolResult =

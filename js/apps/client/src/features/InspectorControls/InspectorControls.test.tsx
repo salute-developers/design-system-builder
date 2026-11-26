@@ -103,19 +103,68 @@ describe('TokenField', () => {
 });
 
 describe('NumberControl', () => {
-    it('commits on Enter and reverts a non-numeric value', () => {
+    it('commits on Enter once, leaves the field and reverts a non-numeric value', () => {
         const onCommit = vi.fn();
         render(<NumberControl label="Height" value="40" onCommit={onCommit} />);
         const input = screen.getByRole('textbox', { name: 'Height' });
 
+        input.focus();
         fireEvent.change(input, { target: { value: '44' } });
         fireEvent.keyDown(input, { key: 'Enter' });
+        expect(onCommit).toHaveBeenCalledTimes(1);
         expect(onCommit).toHaveBeenCalledWith('44');
+        expect(input).not.toHaveFocus();
 
         fireEvent.change(input, { target: { value: 'abc' } });
         fireEvent.blur(input);
         expect(onCommit).toHaveBeenCalledTimes(1);
         expect(input).toHaveValue('40');
+    });
+
+    it('keeps and saves a CSS expression as is, without the unit', () => {
+        const onCommit = vi.fn();
+        render(<NumberControl label="Max width" value="calc(100vw - 5rem)" allowExpressions onCommit={onCommit} />);
+        const input = screen.getByRole('textbox', { name: 'Max width' });
+        expect(screen.queryByText('px')).toBeNull();
+
+        input.focus();
+        fireEvent.change(input, { target: { value: 'calc(100vw - 4rem)' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(onCommit).toHaveBeenLastCalledWith('calc(100vw - 4rem)');
+
+        input.focus();
+        fireEvent.change(input, { target: { value: '320' } });
+        expect(screen.getByText('px')).toBeInTheDocument();
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(onCommit).toHaveBeenLastCalledWith('320');
+
+        input.focus();
+        fireEvent.change(input, { target: { value: '  ' } });
+        fireEvent.keyDown(input, { key: 'Enter' });
+        expect(onCommit).toHaveBeenCalledTimes(2);
+    });
+
+    it('saves a number with px or rem as a number of px', () => {
+        const onCommit = vi.fn();
+        render(<NumberControl label="Width" value="auto" allowExpressions onCommit={onCommit} />);
+        const input = screen.getByRole('textbox', { name: 'Width' });
+
+        for (const [raw, saved] of [
+            ['12px', '12'],
+            ['0.75rem', '12'],
+            [' 1,5REM ', '24'],
+        ]) {
+            input.focus();
+            fireEvent.change(input, { target: { value: raw } });
+            fireEvent.keyDown(input, { key: 'Enter' });
+            expect(onCommit).toHaveBeenLastCalledWith(saved);
+        }
+    });
+
+    it('sizes the input by its length where text cannot be measured', () => {
+        render(<NumberControl label="Height" value="148" onCommit={vi.fn()} />);
+
+        expect(screen.getByRole('textbox', { name: 'Height' }).style.width).toBe('calc(3ch + 2px)');
     });
 
     it('focuses the input on a click anywhere in its frame', () => {
@@ -134,13 +183,17 @@ describe('OpacityControl', () => {
         const input = screen.getByRole('textbox', { name: 'Disable alpha' });
         expect(input).toHaveValue('40');
 
+        input.focus();
         fireEvent.change(input, { target: { value: '55' } });
         fireEvent.keyDown(input, { key: 'Enter' });
         expect(onCommit).toHaveBeenCalledWith('0.55');
 
+        input.focus();
         fireEvent.change(input, { target: { value: '140' } });
         fireEvent.keyDown(input, { key: 'Enter' });
         expect(onCommit).toHaveBeenCalledTimes(1);
+        // Ошибочный ввод оставляет фокус в поле с подсказкой.
+        expect(input).toHaveFocus();
         expect(input).toHaveAttribute('aria-invalid', 'true');
         expect(input).toHaveAttribute('title', 'Введите прозрачность от 0 до 100%');
         expect(parseOpacityPercent('40%')).toBe('0.4');
@@ -260,18 +313,47 @@ describe('TokenColorLibrary', () => {
 });
 
 describe('StateBindingMenu', () => {
-    it('adds one state from all checked options in the prototype order', () => {
+    it('adds one state from all checked options in the order of the menu items', () => {
         const onAdd = vi.fn();
-        render(<StateBindingMenu label="Background" onAdd={onAdd} />);
+        render(<StateBindingMenu label="Background" states={['hovered', 'pressed', 'focused']} onAdd={onAdd} />);
 
         fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние: Background' }));
         const menu = screen.getByRole('menu', { name: 'Состояния' });
         expect(within(menu).getByRole('button', { name: 'Добавить' })).toBeDisabled();
-        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /hovered/ }));
+        expect(
+            within(menu)
+                .getAllByRole('menuitemcheckbox')
+                .map((item) => item.textContent),
+        ).toEqual(['hovered', 'pressed', 'focused']);
         fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /pressed/ }));
+        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /hovered/ }));
         fireEvent.click(within(menu).getByRole('button', { name: 'Добавить · 2' }));
 
-        expect(onAdd).toHaveBeenCalledWith(['pressed', 'hovered']);
+        expect(onAdd).toHaveBeenCalledWith(['hovered', 'pressed']);
         expect(screen.queryByRole('menu')).toBeNull();
+    });
+
+    it('offers the states it is given and picks only one when combinations are not allowed', () => {
+        const onAdd = vi.fn();
+        render(
+            <StateBindingMenu label="Background" states={['pressed', 'hovered']} combinations={false} onAdd={onAdd} />,
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Добавить состояние: Background' }));
+        const menu = screen.getByRole('menu', { name: 'Состояния' });
+        expect(
+            within(menu)
+                .getAllByRole('menuitemcheckbox')
+                .map((item) => item.textContent),
+        ).toEqual(['pressed', 'hovered']);
+        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /pressed/ }));
+        fireEvent.click(within(menu).getByRole('menuitemcheckbox', { name: /hovered/ }));
+        expect(within(menu).getByRole('menuitemcheckbox', { name: /pressed/ })).toHaveAttribute(
+            'aria-checked',
+            'false',
+        );
+        fireEvent.click(within(menu).getByRole('button', { name: 'Добавить' }));
+
+        expect(onAdd).toHaveBeenCalledWith(['hovered']);
     });
 });

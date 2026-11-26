@@ -15,7 +15,6 @@ import com.github.ajalt.clikt.core.UsageError
 import com.github.ajalt.clikt.parameters.options.flag
 import com.github.ajalt.clikt.parameters.options.help
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder components push`.
@@ -35,11 +34,11 @@ internal class ComponentsPushCliCommand(
 
     private val dryRun: Boolean by option("--dry-run").flag()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         if (apply && dryRun) {
             throw UsageError("Options --apply and --dry-run cannot be used together.")
         }
-        val result = runBlocking {
+        val result = run {
             pushComponentsUseCase.execute(
                 PushComponentsCommand(
                     source = ComponentSource(directory = from),

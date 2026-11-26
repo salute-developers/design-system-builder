@@ -120,7 +120,3 @@ export const emptyField = (): ColorFieldValue => ({
     missing: null,
     platforms: {},
 });
-
-/** Совпадают ли два значения поля для признака связи подтемы. */
-export const sameValue = (a: ColorFieldValue, b: ColorFieldValue) =>
-    a.value.replace(/\s+/g, '').toLowerCase() === b.value.replace(/\s+/g, '').toLowerCase();

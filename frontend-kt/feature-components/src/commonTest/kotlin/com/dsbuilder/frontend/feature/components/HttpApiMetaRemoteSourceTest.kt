@@ -12,6 +12,7 @@ import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaComponent
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaDeprecation
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaProperty
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaStateSupport
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonNull
@@ -266,6 +267,80 @@ class HttpApiMetaRemoteSourceTest {
         val report = assertIs<ImportApiMetaRemoteResult.Imported>(result).report
         assertEquals(0, report.deprecatedMarked)
         assertEquals(emptyList(), report.absent)
+    }
+
+    @Test
+    fun stateSupportAndInteractionStatesAreSentOnlyWhenKnown() = runTest {
+        var body = ""
+        val manifest = ApiMetaManifest(
+            listOf(
+                ApiMetaComponent(
+                    name = "DropZone",
+                    properties = listOf(
+                        ApiMetaProperty(
+                            "paddingStart",
+                            "dimension",
+                            listOf("paddingStart"),
+                            null,
+                            stateSupport = ApiMetaStateSupport(listOf("pressed", "dragging-over"), true),
+                        ),
+                        ApiMetaProperty("legacy", "color", listOf("legacy"), null),
+                    ),
+                    states = listOf("dragging-over"),
+                ),
+            ),
+            interactionStates = listOf("pressed"),
+        )
+        import(
+            manifest = manifest,
+            onPost = { _, requestBody ->
+                body = requestBody
+                AuthenticatedHttpResult.Success(REPORT)
+            },
+        )
+
+        val request = Json.parseToJsonElement(body).jsonObject
+        assertEquals(
+            listOf("pressed"),
+            request.getValue("interactionStates").jsonArray.map { it.jsonPrimitive.content },
+        )
+        val (padding, legacy) = request.getValue("components").jsonArray[0].jsonObject
+            .getValue("properties").jsonArray.map { it.jsonObject }
+        val support = padding.getValue("stateSupport").jsonObject
+        assertEquals(
+            listOf("pressed", "dragging-over"),
+            support.getValue("states").jsonArray.map { it.jsonPrimitive.content },
+        )
+        assertEquals("true", support.getValue("combinations").jsonPrimitive.content)
+        assertTrue("stateSupport" !in legacy, legacy.toString())
+
+        import(
+            onPost = { _, requestBody ->
+                body = requestBody
+                AuthenticatedHttpResult.Success(REPORT)
+            },
+        )
+        assertTrue("interactionStates" !in Json.parseToJsonElement(body).jsonObject, body)
+    }
+
+    @Test
+    fun parsesTheStateSupportCounterAndUnresolvedStates() = runTest {
+        val result = import(
+            onPost = { _, _ ->
+                AuthenticatedHttpResult.Success(
+                    """{"stateSupportChanged":5,"unresolvedStates":["Box.fill: text-inlined"]}""",
+                )
+            },
+        )
+
+        val report = assertIs<ImportApiMetaRemoteResult.Imported>(result).report
+        assertEquals(5, report.stateSupportChanged)
+        assertEquals(listOf("Box.fill: text-inlined"), report.unresolvedStates)
+        val old = assertIs<ImportApiMetaRemoteResult.Imported>(
+            import(onPost = { _, _ -> AuthenticatedHttpResult.Success(REPORT) }),
+        ).report
+        assertEquals(0, old.stateSupportChanged)
+        assertEquals(emptyList(), old.unresolvedStates)
     }
 
     private suspend fun import(

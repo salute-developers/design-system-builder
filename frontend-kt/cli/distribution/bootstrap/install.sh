@@ -107,12 +107,15 @@ for platform in macos-arm64 macos-x64 windows-x64 jvm; do
     PATTERN="$PATTERN$SEP\"$platform\":\{\"file\":\"dsbuilder-cli-$platform\.zip\",\"sha256\":\"$H\"\}"
     SEP=,
 done
-PATTERN="$PATTERN\}\}$"
+NODE='(,"node":\{"fileName":"dsbuilder-cli-node\.tgz","packageName":"@sddsjs/design-system-builder-cli","minNodeVersion":"[1-9][0-9]*","version":"'"$V"'","sha256":"'"$H"'"\})?'
+PATTERN="$PATTERN\}$NODE\}$"
 printf '%s\n' "$MANIFEST" | LC_ALL=C grep -Eq "$PATTERN" || fail 'Invalid release manifest'
-RESOLVED=$(printf '%s\n' "$MANIFEST" | sed -n 's/.*"version":"\([0-9.]*\)".*/\1/p')
+RESOLVED=$(printf '%s\n' "$MANIFEST" | sed -n 's/^{"schemaVersion":1,"version":"\([0-9.]*\)".*/\1/p')
 [ -z "$VERSION" ] || [ "$VERSION" = "$RESOLVED" ] || fail 'Release version mismatch'
 VERSION=$RESOLVED
 valid_version "$VERSION" || fail 'Invalid release version'
+NODE_VERSION=$(printf '%s\n' "$MANIFEST" | sed -n 's/.*"node":{.*"version":"\([0-9.]*\)".*/\1/p')
+[ -z "$NODE_VERSION" ] || [ "$NODE_VERSION" = "$VERSION" ] || fail 'Node release version mismatch'
 ARCHIVE="dsbuilder-cli-$TARGET.zip"
 MANIFEST_SHA=$(printf '%s\n' "$MANIFEST" | sed -n 's/.*"'"$TARGET"'":{"file":"dsbuilder-cli-'"$TARGET"'\.zip","sha256":"\([0-9a-f]*\)"}.*/\1/p')
 DOWNLOAD="$BASE/releases/download/cli-v$VERSION"

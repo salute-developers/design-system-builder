@@ -48,6 +48,7 @@ import * as path from 'node:path';
 
 import { fileURLToPath } from 'node:url';
 import { type NativeConfig, componentKebab, removeComponentEntries, toNativeConfig, writeComponentEntries } from './component-package.ts';
+import { colorVariableName, typographyVariableBase } from './web-mapping/index.ts';
 
 const cliDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 /** Манифесты генератора; `--templates=<dir>` уводит запись в другую папку (тесты). */
@@ -400,7 +401,7 @@ function colorTokenName(ident: string, aliases: Map<string, string>, base: Map<s
 /** CSS-переменная токена цвета в теме: `text.default.primary` → `var(--text-primary)`, как в ColorProp генератора. */
 function colorCssVar(tokenName: string): string {
     const [category, subcategory, name] = tokenName.split('.');
-    return `var(${[subcategory === 'default' ? '-' : `--${subcategory}`, category, name].join('-')})`;
+    return `var(${colorVariableName(category, subcategory, name)})`;
 }
 
 /**
@@ -416,14 +417,12 @@ function inlineThemeIdents(raw: string, aliases: Map<string, string>, base: Map<
         if (!cssVar) { note('decision', `${where}: ключ ядра ${key} внутри «${raw.slice(0, 40)}» не найден в tokens.ts`); return m; }
         return cssVar;
     });
-    // `${bodyL.fontWeight}` — часть токена типографики: CSS-переменная темы пакета, как её
-    // пишет TypographyProp генератора (`--plasma-typo-body-l-font-weight`, bold → `body-l-bold`).
+    // `${bodyL.fontWeight}` — часть токена типографики: CSS-переменная темы пакета по правилу генератора тем
+    // (`--plasma-typo-body-l-font-weight`, `${h3Bold.fontWeight}` → `h3-bold`, `${dsplL.fontSize}` → `dspl-l`).
     raw = raw.replace(/\$\{(\w+)\.(fontFamily|fontSize|fontStyle|fontWeight|letterSpacing|lineHeight)\}/g, (m, ident, part) => {
         const token = typoValue(ident, base);
         if (!token) { note('decision', `${where}: типографика ${ident} внутри «${raw.slice(0, 40)}» не найдена в базовой ДС`); return m; }
-        const [family, size, weight] = token.split('.');
-        const name = [family, size, weight === 'normal' ? '' : weight].filter(Boolean).join('-');
-        return `var(--plasma-typo-${name}-${part.replace(/[A-Z]/g, (ch: string) => `-${ch.toLowerCase()}`)})`;
+        return `var(--plasma-typo-${typographyVariableBase(token)}-${part.replace(/[A-Z]/g, (ch: string) => `-${ch.toLowerCase()}`)})`;
     });
     return raw.replace(/\$\{(\w+)\}/g, (m, ident) => {
         const token = colorTokenName(ident, aliases, base);
@@ -938,7 +937,7 @@ function emitPackage(
             name: COMP,
             styles: Object.fromEntries(appearances.map(({ name }) => [name, { templates: webTemplates }])),
         };
-        console.log(`  шаблоны web-параметров — перенесите в обе копии web-adapter.json (js/cli/src/data и js/apps/preview-web-plugin/src/data):`);
+        console.log(`  шаблоны web-параметров — перенесите в js/cli/src/data/web-adapter.json:`);
         console.log(JSON.stringify(entry, null, 4).replace(/^/gm, '    '));
     }
     writeComponentManifest(patcher, COMP, {

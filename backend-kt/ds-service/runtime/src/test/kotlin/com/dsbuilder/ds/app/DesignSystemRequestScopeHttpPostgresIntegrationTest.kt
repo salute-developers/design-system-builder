@@ -23,7 +23,6 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.application.ApplicationStopped
 import io.ktor.server.application.install
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.withTimeout
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
@@ -47,7 +46,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
     @Test
     fun `resource ids cannot switch the selected system and deletion replay precedes existence`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         DsServiceConfiguration(
@@ -193,7 +192,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
     @Test
     fun `admin token value creation checks owners before policies and retains deleted system replay`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val a = createdId(api(client, "POST", ROOT, """{"name":"admin-a","projectName":"scope"}"""))
                 val b = createdId(api(client, "POST", ROOT, """{"name":"admin-b","projectName":"scope"}"""))
@@ -265,7 +264,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
     fun `component families batches imports and publication stay in the selected system`() {
         IsolatedPostgresDatabase.create().use { database ->
             ComponentSeedFixture.seed(database.jdbcUrl, database.username, database.password)
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(database)) }
                 val a = createdId(api(client, "POST", ROOT, """{"name":"matrix-a","projectName":"scope"}"""))
                 val b = createdId(api(client, "POST", ROOT, """{"name":"matrix-b","projectName":"scope"}"""))
@@ -493,7 +492,7 @@ class DesignSystemRequestScopeHttpPostgresIntegrationTest {
     @Test
     fun `public entry uses the same catalog and owner boundary without internal or legacy aliases`() {
         IsolatedPostgresDatabase.create().use { database ->
-            testApplication {
+            integrationTestApplication {
                 application {
                     val configuration = configuration(database)
                     val runtime = createDsRuntime(configuration)

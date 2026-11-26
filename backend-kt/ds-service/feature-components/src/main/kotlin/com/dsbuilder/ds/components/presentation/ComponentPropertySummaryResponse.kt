@@ -25,6 +25,8 @@ data class ComponentPropertySummaryResponse(
     val createdAt: String,
     /** Updated at carried by this contract. */
     val updatedAt: String,
+    /** Признак поддержки состояний; `null` — мета его ещё не сообщила. Пишется всегда. */
+    val stateSupport: PropertyStateSupportResponse?,
     /** Платформенные параметры при явном include. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val platformParams: List<PropertyPlatformParamResponse>? = null,
@@ -43,6 +45,7 @@ data class ComponentPropertySummaryResponse(
             value.description,
             value.createdAt.toString(),
             value.updatedAt.toString(),
+            value.stateSupport?.let(PropertyStateSupportResponse::from),
             platformParams,
         )
     }

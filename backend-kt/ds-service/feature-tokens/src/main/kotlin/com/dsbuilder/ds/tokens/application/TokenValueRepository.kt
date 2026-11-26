@@ -6,8 +6,8 @@ import java.util.UUID
 
 /** Project-scoped storage contract for direct token-value operations. */
 interface TokenValueRepository {
-    /** Performs the listAccessible operation. */
-    suspend fun listAccessible(projectId: ProjectId): List<TokenValue>
+    /** Значения проекта; непустой [tokenIds] оставляет только значения этих токенов на стороне базы. */
+    suspend fun listAccessible(projectId: ProjectId, tokenIds: Set<UUID> = emptySet()): List<TokenValue>
 
     /** Performs the findAccessible operation. */
     suspend fun findAccessible(projectId: ProjectId, id: UUID): TokenValue?

@@ -13,7 +13,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonNull
@@ -67,6 +66,33 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     @Test
+    fun `the bundle lists the states the component sees and the state support of its properties`() = withService {
+        val fixture = fixture()
+        val button = fixture.composeButton
+        val badge = fixture.composeBadge
+        query("INSERT INTO states (component_id, name) VALUES ('$button', 'dragging-over') RETURNING id")
+        query("INSERT INTO states (component_id, name) VALUES ('$button', 'disabled') RETURNING id")
+        query("INSERT INTO states (component_id, name) VALUES ('$badge', 'collapsed') RETURNING id")
+        val padding = query("SELECT id FROM properties WHERE component_id = '$button' AND name = 'padding'")
+        val hovered = query("SELECT id FROM states WHERE component_id IS NULL AND name = 'hovered'")
+        query("UPDATE properties SET state_combinations = false WHERE id = '$padding' RETURNING id")
+        query("INSERT INTO property_supported_states VALUES ('$padding', '$hovered') RETURNING state_id")
+
+        val bundle = bundle(fixture.alpha, button, "compose")
+        val states = bundle.list("states")
+        val own = states.filter { it.string("componentId").isNotEmpty() }.map { it.string("name") }
+        assertEquals(listOf("dragging-over"), own)
+        assertEquals(1, states.count { it.string("name") == "disabled" })
+        assertTrue(states.none { it.string("name") == "collapsed" })
+
+        val support = bundle.list("properties").single { it.string("id") == padding }
+            .getValue("stateSupport").jsonObject
+        assertEquals(listOf(hovered), support.getValue("stateIds").jsonArray.map { it.jsonPrimitive.content })
+        assertEquals("false", support.getValue("combinations").jsonPrimitive.content)
+        assertTrue(states.any { it.string("id") == hovered })
+    }
+
+    @Test
     fun `unlinked components foreign platforms invalid platforms and missing scopes are rejected`() = withService {
         val fixture = fixture()
         val path = "/api/design-systems/${fixture.alpha}/components"
@@ -113,6 +139,28 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         assertNotEquals(published.list("variations").size, current.list("variations").size)
         assertNotEquals(published.getValue("export"), current.getValue("export"))
     }
+
+    @Test
+    fun `combination members cost the same number of database calls whatever the number of combinations`() =
+        withService {
+            val ds = designSystem("combinations")
+            val few = component("Few", "compose")
+            val many = component("Many", "compose")
+            property(few, "gap", "value")
+            property(many, "gap", "value")
+            imported(ds, importBody(ds, "compose", "few", "default", crossedConfig(combinations = 1)))
+            imported(ds, importBody(ds, "compose", "many", "default", crossedConfig(combinations = SIZES)))
+            bundle(ds, few, "compose")
+
+            val (fewBundle, fewCalls) = countedBundle(ds, few)
+            val (manyBundle, manyCalls) = countedBundle(ds, many)
+
+            assertEquals(1, crossedValues(fewBundle))
+            assertEquals(SIZES, crossedValues(manyBundle))
+            // Участники сочетаний читаются фиксированным числом запросов на оформление: раньше каждый ключ
+            // сочетания стоил отдельного чтения всех участников дизайн-системы.
+            assertEquals(fewCalls, manyCalls, "1 combination: $fewCalls calls, $SIZES combinations: $manyCalls calls")
+        }
 
     // ── сравнение с существующими маршрутами ───────────────────────────────────────────────────────
 
@@ -266,6 +314,31 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
         return Fixture(alpha, webButton, webIcon, webOther, composeButton, composeBadge)
     }
 
+    /** Вариации size (одинаковые у всех) и view, у значения default которой [combinations] пересечений с size. */
+    private fun crossedConfig(combinations: Int): String {
+        val sizes = (0 until SIZES).joinToString(",") { """{"name":"s$it","properties":{}}""" }
+        val crossed = (0 until combinations).joinToString("") {
+            """,{"name":"default","targets":[{"properties":[{"id":"size","value":"s$it"}]}],""" +
+                """"properties":{"gap":{"type":"value","value":$it}}}"""
+        }
+        return """{"invariants":{},"variations":[{"id":"size","name":"size","values":[$sizes]},""" +
+            """{"id":"view","name":"view","values":[{"name":"default","properties":{}}$crossed]}]}"""
+    }
+
+    private suspend fun countedBundle(ds: String, component: String): Pair<JsonObject, Long> {
+        val before = QueryCounter.snapshot()
+        val bundle = bundle(ds, component, "compose")
+        return bundle to (QueryCounter.snapshot() - before).executions
+    }
+
+    /** Число значений вариаций с пересечениями в выгрузке бандла. */
+    private fun crossedValues(bundle: JsonObject): Int = bundle.getValue("export").jsonObject
+        .getValue("components").jsonArray.sumOf { component ->
+            component.jsonObject.getValue("config").jsonObject.getValue("variations").jsonArray.sumOf { variation ->
+                variation.jsonObject.getValue("values").jsonArray.count { "targets" in it.jsonObject }
+            }
+        }
+
     private suspend fun designSystem(name: String): String = id(
         created("/api/design-systems", """{"name":"$name","projectName":"$name"}""", admin = false),
     )
@@ -367,7 +440,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
 
     private fun withService(body: suspend ComponentEditorBundleHttpPostgresIntegrationTest.() -> Unit) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }
@@ -432,6 +505,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
     }
 
     private companion object {
+        const val SIZES = 8
         val EXPECTED_FIELDS = setOf(
             "component",
             "appearances",
@@ -444,6 +518,7 @@ class ComponentEditorBundleHttpPostgresIntegrationTest {
             "webAdapter",
             "dependencies",
             "dependencyComponents",
+            "states",
         )
     }
 }

@@ -20,7 +20,6 @@ import io.ktor.http.HttpHeaders
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -457,7 +456,7 @@ class PluginBuildPublishHttpPostgresIntegrationTest {
         body: suspend PluginBuildPublishHttpPostgresIntegrationTest.() -> Unit,
     ) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application {
                     module(
                         configuration(postgres, keepBuilds),

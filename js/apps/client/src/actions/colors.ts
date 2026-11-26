@@ -4,7 +4,10 @@ import { sectionToFormulaMap } from '../types';
 import { getStateColor } from '../utils';
 import { restorePaletteColor } from '../palette/activePalette';
 
-/** Значения состояний `-active` и `-hover` для значения токена — `undefined`, если группа их не пересчитывает. */
+/**
+ * Значения состояний `-active`, `-hover` и `-brightness` для значения токена — `undefined`, если группа их не
+ * пересчитывает.
+ */
 export const getAdditionalColorValues = (
     value: string,
     themeMode: string,
@@ -37,6 +40,7 @@ export const getAdditionalColorValues = (
     const getDefaultStateToken = getStateColor(restoredValue, sectionName, mode);
     const activeValue = getDefaultStateToken('active');
     const hoverValue = getDefaultStateToken('hover');
+    const brightnessValue = getDefaultStateToken('brightness');
 
-    return [activeValue, hoverValue] as const;
+    return [activeValue, hoverValue, brightnessValue] as const;
 };

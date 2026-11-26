@@ -1,54 +1,22 @@
 import type { Config } from '../../../../controllers';
 
-import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 import { InspectorGroup } from './InspectorGroup';
-import { InspectorStoryArgs } from './InspectorStoryArgs';
 import { humanizeName, orderedVariations, type Selection } from './inspectorModel';
 
 interface InspectorVariantsProps {
     config: Config;
     selection: Selection;
     onSelectionChange: (variationName: string, styleID: string | undefined) => void;
-    /** Выбор открытой конфигурации; список показывается, когда конфигураций больше одной. */
-    onConfigurationSelect?: (configurationId: string | undefined) => void;
-    /** Аргументы story превью: строками после вариаций. */
-    storyArgs?: StoryArgs;
 }
 
-/** Секция «Variants»: сочетание вариаций, которое рисует превью и редактирует инспектор, и аргументы story. */
-export const InspectorVariants = ({
-    config,
-    selection,
-    onSelectionChange,
-    onConfigurationSelect,
-    storyArgs,
-}: InspectorVariantsProps) => {
-    const configurations = config.getConfigurations();
+/**
+ * Блок «Вариации» (`Variants` в требованиях): выбранные стили задают источник правки инспектора (ничего — инвариант, один стиль — стиль, несколько —
+ * пересечение) и сочетание превью. Аргументы story — в отдельном блоке «Предпросмотр», выбор конфигурации — в блоке «Конфигурация».
+ */
+export const InspectorVariants = ({ config, selection, onSelectionChange }: InspectorVariantsProps) => {
     return (
-        <InspectorGroup title="Variants">
+        <InspectorGroup title="Вариации">
             <div className="component-variation-targets">
-                {configurations.length > 1 && onConfigurationSelect && (
-                    <label className="component-variation-picker component-configuration-picker">
-                        <span>Конфигурация</span>
-                        <span className="component-variation-picker-value">
-                            <select
-                                aria-label="Конфигурация"
-                                value={config.getConfigurationId() ?? ''}
-                                onChange={(event) =>
-                                    onConfigurationSelect(
-                                        event.target.value === configurations[0]?.id ? undefined : event.target.value,
-                                    )
-                                }
-                            >
-                                {configurations.map((item) => (
-                                    <option key={item.id} value={item.id}>
-                                        {item.name}
-                                    </option>
-                                ))}
-                            </select>
-                        </span>
-                    </label>
-                )}
                 {orderedVariations(config).map((variation) => {
                     const name = variation.getName();
                     const label = humanizeName(name);
@@ -88,7 +56,8 @@ export const InspectorVariants = ({
                                     value={styleID ?? ''}
                                     onChange={(event) => onSelectionChange(name, event.target.value || undefined)}
                                 >
-                                    {!styleID && <option value="">—</option>}
+                                    {/* «Все варианты» — вариация не выбрана: она не входит в источник правки. */}
+                                    <option value="">Все варианты</option>
                                     {variation.getStyles()?.map((style) => (
                                         <option key={style.getID()} value={style.getID()}>
                                             {style.getName()}
@@ -99,7 +68,6 @@ export const InspectorVariants = ({
                         </div>
                     );
                 })}
-                <InspectorStoryArgs storyArgs={storyArgs} />
             </div>
         </InspectorGroup>
     );

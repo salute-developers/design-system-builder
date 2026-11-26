@@ -37,7 +37,7 @@ public class IosCliDelegate internal constructor(
     override val capabilities: Set<Capability> =
         setOf(Capability.THEME, Capability.COMPONENTS, Capability.DOCS_AGGREGATE, Capability.DESIGN_SYSTEM)
 
-    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+    override suspend fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val executable = locator.locate(toolOverride) ?: return ToolchainStatus.Missing(missingHint(toolOverride))
 
         return when (val version = readVersion(executable, workspace)) {
@@ -48,7 +48,7 @@ public class IosCliDelegate internal constructor(
         }
     }
 
-    private fun readVersion(executable: String, workspace: WorkspacePaths): VersionRead {
+    private suspend fun readVersion(executable: String, workspace: WorkspacePaths): VersionRead {
         val result = try {
             processRunner.run(
                 ProcessRequest(
@@ -69,7 +69,7 @@ public class IosCliDelegate internal constructor(
         }
     }
 
-    override fun run(invocation: DelegateInvocation): DelegateResult {
+    override suspend fun run(invocation: DelegateInvocation): DelegateResult {
         val commands = commands(invocation)
         val executable = locator.locate(invocation.toolOverride)
             ?: return DelegateResult.ToolchainMissing(missingHint(invocation.toolOverride))

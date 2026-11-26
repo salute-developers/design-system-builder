@@ -325,7 +325,37 @@ describe('ComposePreviewFrame', () => {
         );
 
         expect(await screen.findByRole('alert')).toHaveTextContent('Font is unavailable');
+        expect(screen.queryByText('Не удалось построить превью')).not.toBeInTheDocument();
         expect(container.querySelector('iframe')).toBe(iframe);
+    });
+
+    it('replaces the blank plugin canvas with the failure reason when nothing was rendered yet', async () => {
+        const reason =
+            'Свойство loadingSpinnerStyle ожидает стиль com.sdds.compose.uikit.SpinnerStyle, а стиль popover.m.default построит Popover';
+        const send = vi.fn(() => ({
+            requestId: 'request-1',
+            result: Promise.reject(
+                new ComposePreviewResultError(reason, {
+                    type: 'failure',
+                    requestId: 'request-1',
+                    code: 'preview_preparation_failed',
+                    message: reason,
+                }),
+            ),
+        }));
+        render(
+            <ComposePreviewFrame
+                pluginUrl="https://plugin.example/"
+                payload={BASIC_BUTTON_PREVIEW_FIXTURE}
+                loadManifest={vi.fn().mockResolvedValue(loadedManifest)}
+                createSession={vi.fn().mockReturnValue(createSessionStub({ send }))}
+            />,
+        );
+
+        const alert = await screen.findByRole('alert');
+        expect(alert).toHaveTextContent('Не удалось построить превью');
+        expect(alert).toHaveTextContent(reason);
+        expect(screen.getByTitle('Compose component preview')).toHaveStyle({ opacity: '0' });
     });
 
     describe('when the plugin stops rendering', () => {

@@ -10,6 +10,7 @@ import {
     adoptGroups,
     colorTokenSession,
     createColorTokenEditor,
+    isDetached,
     isOverridden,
     refreshStructure,
     setPlacements,
@@ -44,6 +45,7 @@ const themeTokens = (theme: Theme, session: ColorTokenSession): ThemeTokenSource
                 ios: isOverridden(session, token.getName(), 'ios'),
                 android: isOverridden(session, token.getName(), 'android'),
             },
+            detached: isDetached(session, token.getName()),
         })),
     );
 

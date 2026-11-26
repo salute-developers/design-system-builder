@@ -35,7 +35,6 @@ import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertTrue
-import kotlin.time.Duration.Companion.seconds
 
 /** End-to-end contract gate for HTTP, RBAC, ownership and component-config transactions. */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
@@ -45,7 +44,7 @@ class DsServiceHttpPostgresIntegrationTest {
     @Test
     fun `project resources are isolated and component config import is atomic`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            runTestWithRealTime(timeout = 240.seconds) {
+            runTestWithRealTime(timeout = INTEGRATION_TEST_TIMEOUT) {
                 runTestApplication {
                     application { module(configuration(postgres)) }
 
@@ -53,7 +52,7 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(200, operations.size)
+                    assertEquals(203, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }

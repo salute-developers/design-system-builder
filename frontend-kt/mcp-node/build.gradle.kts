@@ -18,6 +18,7 @@ kotlin {
 
     sourceSets {
         commonMain.dependencies {
+            implementation(projects.runtimeNode)
             implementation(projects.coreApplication)
             implementation(projects.coreAuth)
             implementation(projects.coreNetwork)
@@ -50,7 +51,8 @@ tasks.register<Sync>("packageMcpNodeNpm") {
     group = "distribution"
     description = "Assembles the dsbuilder-mcp npm package."
 
-    dependsOn("jsProductionExecutableCompileSync")
+    dependsOn("jsProductionExecutableCompileSync", "jsPackageJson")
+    inputs.file(rootProject.layout.buildDirectory.file("js/packages/design-system-builder-frontend-mcp-node/package.json"))
 
     into(npmPackageDir)
 
@@ -71,12 +73,17 @@ tasks.register<Sync>("packageMcpNodeNpm") {
             """.trimIndent() + "\n",
         )
         binDir.resolve("dsbuilder-mcp.js").setExecutable(true)
+        val runtimeManifest = groovy.json.JsonSlurper().parse(
+            rootProject.layout.buildDirectory.file("js/packages/design-system-builder-frontend-mcp-node/package.json").get().asFile,
+        ) as Map<*, *>
+        val runtimeDependencies = groovy.json.JsonOutput.toJson(runtimeManifest["dependencies"] ?: emptyMap<String, String>())
         packageDir.resolve("package.json").writeText(
             """
             {
               "name": "@dsbuilder/mcp",
               "version": "0.2.0",
               "private": true,
+              "dependencies": $runtimeDependencies,
               "license": "UNLICENSED",
               "type": "commonjs",
               "bin": {

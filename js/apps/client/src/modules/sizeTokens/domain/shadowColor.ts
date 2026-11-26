@@ -69,10 +69,13 @@ export const layerWithOpacity = (layer: ShadowLayer, percent: number): ShadowLay
 /** Набор слоёв тени: веб или свои слои платформы. */
 export type LayerScope = 'web' | NativePlatform;
 
-/** Слои набора [scope] токена тени; у радиуса и отступа и без своих слоёв платформы — `null`. */
+/**
+ * Слои набора [scope] токена тени: без своих слоёв платформа показывает слои Web, из которых строится. У радиуса и
+ * отступа — `null`.
+ */
 export const scopeLayers = (token: SizeToken, scope: LayerScope): ShadowLayer[] | null => {
     if (token.kind !== 'shadow') return null;
-    return scope === 'web' ? token.layers : (token.platforms[scope]?.layers ?? null);
+    return scope === 'web' ? token.layers : (token.platforms[scope]?.layers ?? token.layers);
 };
 
 /** Значение тени с изменённым слоем [index] набора [scope]. */
@@ -86,6 +89,7 @@ export const withLayer = (
     const update = (layers: ShadowLayer[]) =>
         layers.map((layer, position) => (position === index ? change(layer) : layer));
     if (scope === 'web') return { ...value, layers: update(value.layers) };
-    const own = value.platforms[scope];
-    return own ? { ...value, platforms: { ...value.platforms, [scope]: update(own) } } : value;
+    // Правка слоя платформы без своих слоёв делает своими слои Web с этой правкой.
+    const own = value.platforms[scope] ?? value.layers;
+    return { ...value, platforms: { ...value.platforms, [scope]: update(own) } };
 };

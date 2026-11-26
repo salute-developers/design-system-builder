@@ -55,4 +55,16 @@ export const serviceSources = [
     requiresProjectId: true,
     requiresAuthentication: true,
   },
+  {
+    id: 'ai-assistant',
+    title: 'AI Assistant',
+    specPath: path.join(
+      repositoryRoot,
+      'backend-kt/ai-assistant/runtime/src/main/resources/openapi/documentation.yaml',
+    ),
+    sourcePrefix: '/ai',
+    gatewayPrefix: '/api/projects/{projectId}/ai',
+    requiresProjectId: true,
+    requiresAuthentication: true,
+  },
 ];

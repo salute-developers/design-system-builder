@@ -5,6 +5,7 @@ import com.dsbuilder.ds.components.domain.Component
 import com.dsbuilder.ds.components.domain.ComponentDependencyGraph
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
 import com.dsbuilder.ds.components.domain.ComponentVariationSummary
+import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.Op
 import org.jetbrains.exposed.v1.core.ResultRow
@@ -77,7 +78,9 @@ class ExposedComponentRepository : ComponentRepository {
         id: UUID,
     ): List<ComponentPropertySummary>? {
         if (id !in ComponentOwnership.readableComponentIds(projectId, systemAdmin)) return null
-        return PropertiesTable.selectAll().where { PropertiesTable.componentId eq id }.map(::property)
+        return PropertyStateSupportStore.attach(
+            PropertiesTable.selectAll().where { PropertiesTable.componentId eq id }.map(::property),
+        )
     }
 
     override suspend fun dependencies(
@@ -138,4 +141,5 @@ private fun property(row: ResultRow) = ComponentPropertySummary(
     row[PropertiesTable.description],
     row[PropertiesTable.createdAt],
     row[PropertiesTable.updatedAt],
+    row[PropertiesTable.stateCombinations]?.let { PropertyStateSupport(emptyList(), it) },
 )

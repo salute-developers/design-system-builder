@@ -3,6 +3,8 @@ import { basename, dirname, join, relative, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import ts from 'typescript';
 
+import type { ApiMetaComponent, ApiMetaParam } from './web-mapping/index.ts';
+
 const usage = `Usage:
   generate-api-meta --package <name> [--out <file> | --sdds <dir>]
   generate-api-meta --source <dir> [--out <file> | --sdds <dir>]
@@ -13,7 +15,8 @@ Builds api-meta.json from JSDoc annotations of token dictionaries.
                     Its published types/**/*.tokens.d.ts keep the annotations.
   --source <dir>    Directory with *.tokens.ts or *.tokens.d.ts, e.g. component sources in a monorepo.
   --out <file>      Where to write the metadata. Default: <sdds>/web/web-api-meta.json, next to the web
-                    data that components generation reads.
+                    data that components generation reads; required for "dsbuilder-web-generator api-meta",
+                    where --package defaults to @salutejs/plasma-new-hope.
   --sdds <dir>      Local data directory for the default output (default: js/cli/.sdds).
 
 The dictionary is the \`tokens\` export, or the only other export named *Tokens (e.g. treeTokens).
@@ -64,19 +67,9 @@ interface Annotation {
     deprecated?: Deprecation;
 }
 
-interface Param {
-    paramName: string;
-    type: string;
-    id: string;
-    part?: string;
-    state?: string;
-    deprecated?: Deprecation;
-}
+type Param = ApiMetaParam;
 
-interface ComponentMeta {
-    componentName: string;
-    params: Param[];
-}
+type ComponentMeta = ApiMetaComponent;
 
 type DictionaryMember = ts.PropertyAssignment | ts.PropertySignature;
 
@@ -370,8 +363,12 @@ export async function buildApiMeta(options: { packageName?: string; source?: str
 }
 
 /** Пишет маппинги в файл: `--out` или `<sdds>/web/web-api-meta.json`. */
-async function main() {
-    const options = parseArgs(process.argv.slice(2));
+export async function main(argv: string[]) {
+    if (argv.includes('--help') || argv.includes('-h')) {
+        console.log(usage);
+        return;
+    }
+    const options = parseArgs(argv);
     const { metadata, source, skipped } = await buildApiMeta(options);
     const summary = `${metadata.length} Style API declarations from ${source.name}@${source.version} (${skipped} token files without annotations skipped)`;
 
@@ -384,5 +381,5 @@ async function main() {
 
 // Скрипт запускается напрямую (`npm run generate:api-meta`) и подключается генерацией компонентов как модуль.
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-    await main();
+    await main(process.argv.slice(2));
 }

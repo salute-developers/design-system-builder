@@ -2,6 +2,7 @@ package com.dsbuilder.ds.app
 
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
+import io.ktor.client.request.patch
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.statement.HttpResponse
@@ -10,7 +11,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
 import io.ktor.server.testing.ApplicationTestBuilder
-import io.ktor.server.testing.testApplication
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
@@ -248,6 +248,172 @@ class ApiMetaImportHttpPostgresIntegrationTest {
         assertFalse(importMeta(componentsBody("compose", dryRun = true)).bodyAsText().isEmpty())
     }
 
+    // ── state support (change add-property-state-support) ─────────────────────────────────
+
+    @Test
+    fun `interaction states of the meta are added to the common vocabulary once`() = withService {
+        val commonBefore = count("states WHERE component_id IS NULL")
+        val request = metaWithStates(
+            """"interactionStates":["checked","hovered","text-inlined"],""",
+            """[{"name":"A","properties":[]}]""",
+        )
+        val first = importMeta(request).report()
+        assertEquals(2, first.ints("createdStates").single())
+        assertEquals(commonBefore + 2, count("states WHERE component_id IS NULL"))
+        assertEquals(1, count("states WHERE component_id IS NULL AND name = 'checked'"))
+
+        assertEquals(0, importMeta(request).report().ints("createdStates").single())
+        importMeta(metaWithStates("", """[{"name":"A","properties":[]}]""")).report()
+        assertEquals(commonBefore + 2, count("states WHERE component_id IS NULL"))
+    }
+
+    @Test
+    fun `state support is written, changed only on difference and unresolved names are reported`() = withService {
+        val support = """{"states":["pressed","dragging-over","unknown"],"combinations":true}"""
+        val request = metaWithStates(
+            "",
+            """[{"name":"DropZone","states":["dragging-over","disabled"],"properties":[
+                {"name":"paddingStart","type":"dimension","platformNames":["paddingStart"],"stateSupport":$support},
+                {"name":"orientation","type":"value","platformNames":["orientation"],
+                 "stateSupport":{"states":[],"combinations":false}},
+                {"name":"legacy","type":"color","platformNames":["legacy"]}]}]""",
+        )
+        val first = importMeta(request).report()
+        assertEquals(0, first.ints("stateSupportChanged").single())
+        assertEquals(listOf("DropZone.paddingStart: unknown"), first.strings("unresolvedStates"))
+        assertEquals("t", propertyValue("paddingStart", "state_combinations::text").take(1))
+        assertEquals(
+            "dragging-over:true,pressed:false",
+            query(
+                "SELECT string_agg(s.name || ':' || (s.component_id IS NOT NULL)::text, ',' ORDER BY s.name) " +
+                    "FROM property_supported_states ps JOIN states s ON s.id = ps.state_id " +
+                    "JOIN properties p ON p.id = ps.property_id WHERE p.name = 'paddingStart'",
+            ),
+        )
+        assertEquals("f", propertyValue("orientation", "state_combinations::text").take(1))
+        assertEquals(null, queryNullable("SELECT state_combinations::text FROM properties WHERE name = 'legacy'"))
+
+        assertEquals(0, importMeta(request).report().ints("stateSupportChanged").single())
+
+        val narrowed = request.replace(support, """{"states":["pressed"],"combinations":false}""")
+        val dry = importMeta(narrowed.replace(""""dryRun":false""", """"dryRun":true""")).report()
+        assertEquals(1, dry.ints("stateSupportChanged").single())
+        assertEquals(2, supportedCount("paddingStart"))
+        assertEquals(1, importMeta(narrowed).report().ints("stateSupportChanged").single())
+        assertEquals(1, supportedCount("paddingStart"))
+
+        // A manifest without the field keeps the stored support.
+        importMeta(request.replace(""","stateSupport":$support""", "")).report()
+        assertEquals(1, supportedCount("paddingStart"))
+    }
+
+    @Test
+    fun `a name shared with a common state resolves to the common one whatever the import order`() = withService {
+        val compose = metaWithStates(
+            "",
+            """[{"name":"CheckBox","states":["checked"],"properties":[
+                {"name":"toggleColor","type":"color","platformNames":["toggleColor"],
+                 "stateSupport":{"states":["checked","disabled"],"combinations":true}}]}]""",
+        )
+        importMeta(compose).report()
+        importMeta(
+            metaWithStates(""""interactionStates":["checked"],""", """[{"name":"Other","properties":[]}]""", "xml"),
+        ).report()
+        assertEquals(1, count("states WHERE component_id IS NOT NULL AND name = 'checked'"))
+        assertEquals(1, count("states WHERE component_id IS NULL AND name = 'checked'"))
+        // Новое общее состояние сразу забирает признак у «тени»: бандл «тени» не отдаёт, и список не должен на неё
+        // ссылаться до переимпорта Compose.
+        assertEquals(
+            0,
+            count(
+                "property_supported_states ps JOIN states s ON s.id = ps.state_id WHERE s.component_id IS NOT NULL " +
+                    "AND EXISTS (SELECT 1 FROM states c WHERE c.component_id IS NULL AND c.name = s.name)",
+            ),
+        )
+
+        assertEquals(0, importMeta(compose).report().ints("stateSupportChanged").single())
+        assertEquals(
+            "true,true",
+            query(
+                "SELECT string_agg((s.component_id IS NULL)::text, ',') FROM property_supported_states ps " +
+                    "JOIN states s ON s.id = ps.state_id JOIN properties p ON p.id = ps.property_id " +
+                    "WHERE p.name = 'toggleColor'",
+            ),
+        )
+    }
+
+    @Test
+    fun `a common state created in the catalog takes the state support off its shadows`() = withService {
+        importMeta(
+            metaWithStates(
+                "",
+                """[{"name":"Card","states":["collapsed"],"properties":[
+                    {"name":"fill","type":"color","platformNames":["fill"],
+                     "stateSupport":{"states":["collapsed"],"combinations":false}}]}]""",
+            ),
+        ).report()
+        val created = service.builder.client.post("/api/design-systems/catalog/states") {
+            actor(administrator = true)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"collapsed"}""")
+        }
+        assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+        assertTrue(supportOnCommonOnly("fill"))
+
+        // Переименование общего состояния в имя «тени» тоже переводит список.
+        importMeta(
+            metaWithStates(
+                "",
+                """[{"name":"Card","states":["expanded"],"properties":[
+                    {"name":"stroke","type":"color","platformNames":["stroke"],
+                     "stateSupport":{"states":["expanded"],"combinations":false}}]}]""",
+            ),
+        ).report()
+        val hovered = query("SELECT id FROM states WHERE component_id IS NULL AND name = 'hovered'")
+        val renamed = service.builder.client.patch("/api/design-systems/catalog/states/$hovered") {
+            actor(administrator = true)
+            contentType(ContentType.Application.Json)
+            setBody("""{"name":"expanded"}""")
+        }
+        assertEquals(HttpStatusCode.OK, renamed.status, renamed.bodyAsText())
+        assertTrue(supportOnCommonOnly("stroke"))
+    }
+
+    private fun supportOnCommonOnly(property: String) = "true" == query(
+        "SELECT bool_and(s.component_id IS NULL)::text FROM property_supported_states ps " +
+            "JOIN states s ON s.id = ps.state_id JOIN properties p ON p.id = ps.property_id " +
+            "WHERE p.name = '$property'",
+    )
+
+    @Test
+    fun `a malformed state support is rejected`() = withService {
+        listOf(
+            """{"states":["pressed"]}""",
+            """{"states":[""],"combinations":true}""",
+            """{"states":"pressed","combinations":true}""",
+        ).forEach { support ->
+            val request = component(
+                "compose",
+                """{"name":"x","type":"color","platformNames":["x"],"stateSupport":$support}""",
+            )
+            assertEquals(HttpStatusCode.BadRequest, importMeta(request).status, support)
+        }
+        assertEquals(
+            HttpStatusCode.BadRequest,
+            importMeta(metaWithStates(""""interactionStates":[""],""", """[{"name":"A","properties":[]}]""")).status,
+        )
+    }
+
+    private fun metaWithStates(extra: String, components: String, platform: String = "compose") =
+        """{"platform":"$platform","meta":{"source":"meta.json"},"dryRun":false,$extra"components":$components}"""
+
+    private fun supportedCount(property: String) = count(
+        "property_supported_states ps JOIN properties p ON p.id = ps.property_id WHERE p.name = '$property'",
+    )
+
+    private fun propertyValue(name: String, column: String) =
+        query("SELECT $column FROM properties WHERE name = '$name'")
+
     // ── fixtures ──────────────────────────────────────────────────────────────────────────
 
     private fun componentsBody(platform: String, dryRun: Boolean, source: String = "meta.json") = component(
@@ -317,7 +483,7 @@ class ApiMetaImportHttpPostgresIntegrationTest {
 
     private fun withService(body: suspend ApiMetaImportHttpPostgresIntegrationTest.() -> Unit) {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 service = Service(postgres, this)
                 kotlinx.coroutines.runBlocking { body() }

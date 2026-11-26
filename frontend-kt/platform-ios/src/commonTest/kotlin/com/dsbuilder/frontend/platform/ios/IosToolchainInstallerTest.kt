@@ -6,6 +6,7 @@ import com.dsbuilder.frontend.core.platform.ToolchainInstallResult
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -16,7 +17,7 @@ class IosToolchainInstallerTest {
     private val unpacked = "$root/.staging/unpacked"
 
     @Test
-    fun latestReleaseIsInstalledAndBecomesCurrent() {
+    fun latestReleaseIsInstalledAndBecomesCurrent() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(requests = requests)
 
@@ -40,7 +41,7 @@ class IosToolchainInstallerTest {
      * а не сортировка строк на нашей стороне.
      */
     @Test
-    fun requestedVersionIsAskedFromTheReleaseApi() {
+    fun requestedVersionIsAskedFromTheReleaseApi() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(requests = requests)
 
@@ -57,7 +58,7 @@ class IosToolchainInstallerTest {
      * а он же служит рабочей директорией запускаемых утилит — без него не стартует даже curl.
      */
     @Test
-    fun installRootIsCreatedBeforeAnythingIsRun() {
+    fun installRootIsCreatedBeforeAnythingIsRun() = runTest {
         val fileSystem = FakeFileSystem(setOf("$unpacked/dsbuilder-ios"), mapOf(unpacked to emptyList()))
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(requests = requests, fileSystem = fileSystem)
@@ -72,7 +73,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun releaseWithoutToolAssetIsReportedWithItsTag() {
+    fun releaseWithoutToolAssetIsReportedWithItsTag() = runTest {
         val installer = installer(
             releaseBody = """{"tag_name":"release-01-09-2026","assets":[{"name":"SDDSComponents.xcframework.zip"}]}""",
         )
@@ -84,7 +85,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun localArchiveIsInstalledWithoutContactingTheReleaseHost() {
+    fun localArchiveIsInstalledWithoutContactingTheReleaseHost() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(
             requests = requests,
@@ -100,7 +101,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun missingLocalArchiveIsReportedBeforeAnyProcessRuns() {
+    fun missingLocalArchiveIsReportedBeforeAnyProcessRuns() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(requests = requests, existing = emptySet())
 
@@ -112,7 +113,7 @@ class IosToolchainInstallerTest {
 
     /** Неудачная распаковка не должна оставлять `current`, указывающий на полупустое дерево. */
     @Test
-    fun failedUnpackKeepsCurrentUntouched() {
+    fun failedUnpackKeepsCurrentUntouched() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(
             requests = requests,
@@ -133,7 +134,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun toolInsideANestedDirectoryIsFound() {
+    fun toolInsideANestedDirectoryIsFound() = runTest {
         val installer = installer(
             directories = mapOf(
                 unpacked to listOf("$unpacked/dsbuilder-ios-cli"),
@@ -151,7 +152,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun archiveWithoutTheToolIsReported() {
+    fun archiveWithoutTheToolIsReported() = runTest {
         val installer = installer(directories = emptyMap(), existing = emptySet())
 
         val failed = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest()))
@@ -160,7 +161,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun installationWithoutHomeIsRefused() {
+    fun installationWithoutHomeIsRefused() = runTest {
         val installer = installer(environment = emptyMap())
 
         val failed = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest()))
@@ -169,7 +170,7 @@ class IosToolchainInstallerTest {
     }
 
     @Test
-    fun intelMacIsRejectedBeforeDownloadingOrChangingToolchain() {
+    fun intelMacIsRejectedBeforeDownloadingOrChangingToolchain() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val fileSystem = FakeFileSystem(setOf("$unpacked/dsbuilder-ios"), mapOf(unpacked to emptyList()))
         val installer = installer(

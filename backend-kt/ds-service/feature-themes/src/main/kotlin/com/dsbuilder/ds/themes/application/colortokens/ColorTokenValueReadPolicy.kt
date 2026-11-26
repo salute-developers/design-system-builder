@@ -9,12 +9,11 @@ import com.dsbuilder.ds.themes.application.palette.hasSystemGroups
 import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import com.dsbuilder.ds.themes.domain.ThemeTokenType
 import com.dsbuilder.ds.themes.domain.colortokens.ColorTokenFamily
-import kotlinx.serialization.json.Json
 import java.time.Instant
-import java.util.UUID
 
 /**
- * Форма значений общего маршрута `GET /api/design-systems/{designSystemId}/token-values` та же, что у `GET /api/design-systems/{designSystemId}/tenants/{id}/token-values`:
+ * Форма значений общего маршрута `GET /api/design-systems/{designSystemId}/token-values` та же, что у `GET
+ * /api/design-systems/{designSystemId}/tenants/{id}/token-values`:
  * ссылки на палитру раскрываются по палитре темы значения на границе выбранной версии, сплошные значения iOS и
  * Android градиентного семейства отдаются слоем `color`, исходное значение — в `sourceValue`, а при ссылке на всё
  * значение — в `paletteRef` без `sourceValue`. Значения не цветовых токенов не меняются.
@@ -32,7 +31,7 @@ class ColorTokenValueReadPolicy(
         if (types.isEmpty()) return values
         val published = values.filter { it.tokenId in types }.groupBy { it.tenantId }.flatMap { (tenantId, items) ->
             val snapshot = tenantId?.let { palette.snapshot(projectId, it) }?.takeIf { it.hasSystemGroups() }
-            val publisher = TokenValuePublisher(tenantId ?: NO_TENANT, snapshot)
+            val publisher = TokenValuePublisher(snapshot?.forValueResolution())
             items.zip(publisher.publish(items.map { it.tenantValue(types[it.tokenId]) }))
         }.associate { (read, value) -> read.id to read.published(value) }
         return values.map { published[it.id] ?: it }
@@ -45,7 +44,7 @@ class ColorTokenValueReadPolicy(
         paletteId = paletteId,
         platform = platform,
         mode = null,
-        valueJson = value?.toString(),
+        value = value,
         editRevision = 0,
         createdAt = Instant.EPOCH,
         updatedAt = Instant.EPOCH,
@@ -54,13 +53,8 @@ class ColorTokenValueReadPolicy(
 
     private fun TokenValueRead.published(value: TenantTokenValue) = copy(
         paletteId = value.paletteId,
-        value = value.valueJson?.let(Json::parseToJsonElement),
+        value = value.valueElement(),
         paletteRef = value.paletteRef,
-        sourceValue = value.sourceValueJson?.let(Json::parseToJsonElement),
+        sourceValue = value.sourceValueElement(),
     )
-
-    private companion object {
-        /** Тема для значения без темы: палитры у него нет, применяется только форма по типу. */
-        val NO_TENANT: UUID = UUID(0, 0)
-    }
 }

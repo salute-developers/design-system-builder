@@ -43,7 +43,7 @@ export class DesignSystemApi {
 
     url(suffix = ''): string {
         return new URL(
-            `api/projects/${encodeURIComponent(this.projectId)}/ds/design-systems${suffix}`,
+            `api/projects/${encodeURIComponent(this.projectId)}/design-systems${suffix}`,
             this.gatewayBaseURL,
         ).href;
     }

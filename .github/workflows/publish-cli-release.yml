@@ -44,6 +44,9 @@ jobs:
           java-version: '17'
       - name: Ensure wget for installer HTTPS contract tests
         run: brew list wget >/dev/null 2>&1 || brew install wget
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
       - uses: gradle/actions/setup-gradle@v4
       - name: Download the pinned macOS arm64 iOS CLI
         shell: bash
@@ -69,6 +72,23 @@ jobs:
           printf '%s  %s\n' "${digest#sha256:}" "$archive" | shasum -a 256 -c -
           unzip -p "$archive" dsbuilder-ios-cli/dsbuilder-ios > "$RUNNER_TEMP/dsbuilder-ios"
           test "$(lipo -archs "$RUNNER_TEMP/dsbuilder-ios")" = arm64
+      - name: Build and check web generator package
+        working-directory: js/cli
+        run: |
+          npm ci --no-progress
+          npm run typecheck
+          npm test
+          npm pack --dry-run
+          sh scripts/check-global-install.sh
+          mkdir -p ../../npm-artifacts
+          npm pack --ignore-scripts --pack-destination ../../npm-artifacts
+          mv ../../npm-artifacts/*.tgz ../../npm-artifacts/dsbuilder-web-generator.tgz
+          (cd ../../npm-artifacts && shasum -a 256 dsbuilder-web-generator.tgz > generator.sha256)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cli-npm-generator
+          path: npm-artifacts/
+          if-no-files-found: error
       - name: Build and check distributions
         working-directory: frontend-kt
         env:
@@ -85,12 +105,14 @@ jobs:
             echo 'CLI/MCP analytics requires an isolated positive counter distinct from web' >&2
             exit 1
           fi
-          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli -PbundleIosCli=true
+          ./gradlew :cli:distributionTests :cli:jvmTest :cli:packageJvmCli :cli:packageMacosArm64Cli :cli:packageMacosX64Cli :cli:packageWindowsX64Cli :cli:npmPackCliNodeSmoke -PbundleIosCli=true
           python3 cli/distribution/release.py validate --tag "$CLI_RELEASE_TAG" --directory cli/build/distributions
       - uses: actions/upload-artifact@v4
         with:
           name: cli-distributions
-          path: frontend-kt/cli/build/distributions/dsbuilder-cli-*.zip
+          path: |
+            frontend-kt/cli/build/distributions/dsbuilder-cli-*.zip
+            frontend-kt/cli/build/distributions/dsbuilder-cli-node.tgz
           if-no-files-found: error
       - uses: actions/upload-artifact@v4
         with:
@@ -116,6 +138,11 @@ jobs:
             target: jvm
     runs-on: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+        if: matrix.target == 'windows-x64'
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
       - uses: actions/download-artifact@v4
         with:
           name: cli-distributions
@@ -129,10 +156,26 @@ jobs:
         shell: powershell
         run: ./release-tools/tests/install-windows.Tests.ps1
       - uses: actions/setup-java@v4
-        if: matrix.target == 'jvm'
+        if: matrix.target == 'jvm' || matrix.target == 'windows-x64'
         with:
           distribution: temurin
           java-version: '17'
+      - uses: actions/setup-node@v4
+        if: matrix.target == 'windows-x64'
+        with:
+          node-version: '22.20.0'
+      - uses: gradle/actions/setup-gradle@v4
+        if: matrix.target == 'windows-x64'
+      - name: Test JVM Windows process ownership
+        if: matrix.target == 'windows-x64'
+        shell: bash
+        working-directory: frontend-kt
+        run: DSBUILDER_TEST_NODE="$(node -p 'process.execPath')" ./gradlew :cli:jvmIntegrationTest --tests '*JvmWindowsProcessRunnerTest'
+      - name: Test native and Node Windows processes
+        if: matrix.target == 'windows-x64'
+        shell: bash
+        working-directory: frontend-kt
+        run: ./gradlew :cli:mingwX64Test :runtime-node:jsNodeTest :cli:jsNodeTest
       - name: Install and smoke test on Unix
         if: matrix.target != 'windows-x64'
         shell: bash
@@ -167,14 +210,17 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'CLI help failed' }
           $version = & $binary --version
           if ($LASTEXITCODE -ne 0 -or $version -ne "dsbuilder version $($env:CLI_RELEASE_TAG.Substring(5))") { throw 'CLI version mismatch' }
+          python release-tools/tests/windows_console_smoke.py $binary
+          if ($LASTEXITCODE -ne 0) { throw 'CLI console cancellation failed' }
 
-  publish:
-    needs: [build, smoke]
-    runs-on: ubuntu-22.04
-    permissions:
-      contents: write
-    env:
-      GH_TOKEN: ${{ github.token }}
+  node-smoke:
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, macos-15, windows-2022]
+        node: ['22.20.0', '24']
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/download-artifact@v4
         with:
@@ -184,9 +230,76 @@ jobs:
         with:
           name: cli-release-tools
           path: release-tools
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+      - name: Install and check the exact CLI tarball
+        run: node release-tools/node-package.cjs smoke distributions/dsbuilder-cli-node.tgz
+
+
+  publish:
+    needs: [build, smoke, node-smoke]
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.tag || github.ref_name }}
+          persist-credentials: false
+      - name: Use release tools from the selected tag
+        run: cp -R frontend-kt/cli/distribution release-tools
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-distributions
+          path: distributions
+      - uses: actions/download-artifact@v4
+        with:
+          name: cli-npm-generator
+          path: npm-artifacts
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+          registry-url: 'https://registry.npmjs.org'
+      - name: Validate both npm publication inputs
+        run: |
+          (cd npm-artifacts && sha256sum --check generator.sha256)
+          python3 release-tools/npm_release.py preflight --kind generator --archive npm-artifacts/dsbuilder-web-generator.tgz --tag "$CLI_RELEASE_TAG"
+          python3 release-tools/npm_release.py preflight --kind cli --archive distributions/dsbuilder-cli-node.tgz --tag "$CLI_RELEASE_TAG"
       - name: Prepare and verify GitHub draft or existing release
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           python3 release-tools/release.py prepare --tag "$CLI_RELEASE_TAG" --directory distributions
           python3 release-tools/release.py upload --tag "$CLI_RELEASE_TAG" --directory distributions
+      - name: Publish the web generator to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: python3 release-tools/npm_release.py publish --kind generator --archive npm-artifacts/dsbuilder-web-generator.tgz --tag "$CLI_RELEASE_TAG"
+      - name: Publish the Node CLI to npm
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: python3 release-tools/npm_release.py publish --kind cli --archive distributions/dsbuilder-cli-node.tgz --tag "$CLI_RELEASE_TAG"
+      - name: Verify public installations without registry credentials
+        shell: bash
+        run: |
+          prefix="$RUNNER_TEMP/npm verification"
+          : > "$RUNNER_TEMP/anonymous.npmrc"
+          export NPM_CONFIG_USERCONFIG="$RUNNER_TEMP/anonymous.npmrc"
+          unset NODE_AUTH_TOKEN NPM_TOKEN
+          generator_version=$(python3 release-tools/npm_release.py version --kind generator --archive npm-artifacts/dsbuilder-web-generator.tgz --tag "$CLI_RELEASE_TAG")
+          for attempt in 1 2 3 4 5 6; do
+            if npm install --global --prefix "$prefix" --ignore-scripts --no-audit --no-fund "@sddsjs/design-system-builder-generator@$generator_version" "@sddsjs/design-system-builder-cli@${CLI_RELEASE_TAG#cli-v}"; then
+              break
+            fi
+            if [ "$attempt" = 6 ]; then exit 1; fi
+            sleep "$((2 ** attempt))"
+          done
+          "$prefix/bin/dsbuilder" --version
+          "$prefix/bin/dsbuilder" --help
+          "$prefix/bin/dsbuilder-web-generator" --version
+          node release-tools/node-package.cjs generator-smoke "$prefix/bin/dsbuilder-web-generator"
       - name: Publish the verified release and advance Latest when newer
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: python3 release-tools/release.py promote --tag "$CLI_RELEASE_TAG" --directory distributions

@@ -1,3 +1,4 @@
+import { resolveSelectedProps } from '../controllers';
 import type { Config, ResolvedStyleReference, Theme } from '../controllers';
 import type { PropType, PropUnion } from '../controllers/componentBuilder/type';
 import type { JsonValue, PreviewAsset, PreviewSurface } from './types';
@@ -166,13 +167,15 @@ const projectWithReferences = (
 
     if (!addReferencedStyle(reference, context, trail)) return;
 
-    return { ...projected, value: undefined, styleRef: reference };
+    const states = projected.states.filter(({ value }) => addReferencedStyle(String(value ?? ''), context, trail));
+    return { ...projected, value: undefined, styleRef: reference, states };
 };
 
 /**
  * Свойства конфигурации при выбранных стилях: инварианты, значения выбранных стилей и значения сочетаний
- * стилей. Сочетание действует, когда выбраны все его стили; более полное сочетание перекрывает менее полное,
- * а любое сочетание — значение отдельного стиля.
+ * стилей (`resolveSelectedProps`). Стиль вариации ниже в дереве перекрывает вышестоящие, цветовая схема — последняя;
+ * сочетание действует, когда выбраны все его стили; более полное сочетание перекрывает менее полное, а любое
+ * сочетание — значение отдельного стиля.
  */
 const collectProperties = (
     config: Config,
@@ -182,24 +185,14 @@ const collectProperties = (
 ) => {
     const project = (list: PropUnion[]) => list.flatMap((prop) => projectWithReferences(prop, context, trail) ?? []);
 
-    const byID = new Map<string, PropUnion>();
-    for (const variation of config.getVariations()) {
+    // Стили выбранных вариаций в порядке дерева (цветовая схема последней), затем пересечения: как в инспекторе.
+    const styleIDs = config.getVariations().flatMap((variation) => {
         const styleID = selections[variation.getID()];
-        if (!styleID) continue;
-        variation
-            .getStyle(styleID)
-            ?.getProps()
-            .getList()
-            .forEach((prop) => byID.set(prop.getID(), prop));
-    }
-    const selectedIDs = new Set(Object.values(selections));
-    config
-        .getCombinations()
-        .filter(({ styleIDs }) => styleIDs.length > 0 && styleIDs.every((id) => selectedIDs.has(id)))
-        .sort((a, b) => a.styleIDs.length - b.styleIDs.length)
-        .forEach(({ props }) => props.getList().forEach((prop) => byID.set(prop.getID(), prop)));
+        return styleID && variation.getStyle(styleID) ? [styleID] : [];
+    });
+    const selected = [...resolveSelectedProps(config, styleIDs).values()].map(({ prop }) => prop);
 
-    return { invariants: project(config.getInvariants().getList()), selected: project([...byID.values()]) };
+    return { invariants: project(config.getInvariants().getList()), selected: project(selected) };
 };
 
 const asJsonValue = (value: unknown): JsonValue => JSON.parse(JSON.stringify(value)) as JsonValue;

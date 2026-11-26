@@ -109,7 +109,25 @@ export const keepSelection = (
     return kept;
 };
 
-/** Выбор вариаций редактора: стили по умолчанию при открытии компонента. Аргументы story описывает плагин превью. */
+/**
+ * Сочетание для превью: выбранные стили поверх стилей по умолчанию. Невыбранная вариация рисуется стилем по умолчанию,
+ * а флаг — только выбранным: выключенный флаг — это отсутствие аргумента.
+ */
+export const previewSelection = (config: Config, selection: Record<string, string | boolean>) => {
+    const flags = new Set(
+        config
+            .getVariations()
+            .filter((variation) => variation.isFlag())
+            .map((variation) => variation.getName()),
+    );
+    const defaults = Object.fromEntries(Object.entries(getDefaultProps(config)).filter(([name]) => !flags.has(name)));
+    return { ...defaults, ...selection };
+};
+
+/**
+ * Выбор вариаций редактора: при открытии компонента ничего не выбрано (источник правки — инвариант). При перечитывании
+ * того же компонента выбор сохраняется, удалённый стиль снимается. Аргументы story описывает плагин превью.
+ */
 export const useComponentData = (config?: Config) => {
     const [componentProps, setComponentProps] = useState<Record<string, string | boolean>>({});
     // Компонент, которому принадлежит выбор, и его вариации со стилями: при перечитывании того же компонента выбор
@@ -123,13 +141,12 @@ export const useComponentData = (config?: Config) => {
         }
 
         const key = `${config.getPlatform()}:${config.getName()}`;
-        const defaults = getDefaultProps(config);
         const previous = owner.current?.key === key ? owner.current : undefined;
         const previousNames = previous ? styleNames(previous.config) : undefined;
         owner.current = { key, known: selectableVariations(config), config };
 
         setComponentProps((current) =>
-            previous ? keepSelection(config, current, defaults, previous.known, previousNames) : defaults,
+            previous ? keepSelection(config, current, {}, previous.known, previousNames) : {},
         );
     }, [config]);
 

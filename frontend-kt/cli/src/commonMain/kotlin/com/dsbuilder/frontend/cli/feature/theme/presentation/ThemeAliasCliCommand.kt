@@ -9,13 +9,13 @@ import com.dsbuilder.frontend.feature.theme.application.ThemeAliasListResult
 import com.dsbuilder.frontend.feature.theme.application.ThemeAliasMutationResult
 import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasCommand
 import com.dsbuilder.frontend.feature.theme.application.UnsetThemeAliasUseCase
-import com.github.ajalt.clikt.core.CliktCommand
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.core.subcommands
 import com.github.ajalt.clikt.parameters.arguments.argument
 import com.github.ajalt.clikt.parameters.options.option
 import com.github.ajalt.clikt.parameters.options.required
+import com.github.ajalt.clikt.command.SuspendingCliktCommand as CliktCommand
 
 /**
  * Command group `theme alias`.
@@ -31,7 +31,7 @@ internal class ThemeAliasCliCommand(
 
     override fun help(context: Context): String = "Manage local tenant aliases."
 
-    override fun run(): Unit = Unit
+    override suspend fun run(): Unit = Unit
 }
 
 /**
@@ -40,7 +40,7 @@ internal class ThemeAliasCliCommand(
 internal class ThemeAliasListCliCommand(
     private val useCase: ListThemeAliasesUseCase,
 ) : AnalyticsCliCommand(name = "list", operation = "theme alias list") {
-    override fun runOperation() {
+    override suspend fun runOperation() {
         when (val result = useCase.execute()) {
             is ThemeAliasListResult.Failed -> fail(result.message)
             is ThemeAliasListResult.Listed -> echo(formatTenants(result.tenants))
@@ -69,7 +69,7 @@ internal class ThemeAliasSetCliCommand(
 
     private val alias: String by option("--alias").required()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         when (
             val result = useCase.execute(
                 SetThemeAliasCommand(
@@ -94,7 +94,7 @@ internal class ThemeAliasUnsetCliCommand(
 ) : AnalyticsCliCommand(name = "unset", operation = "theme alias unset") {
     private val alias: String by argument()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         when (val result = useCase.execute(UnsetThemeAliasCommand(alias))) {
             is ThemeAliasMutationResult.Changed -> echo(result.message)
             is ThemeAliasMutationResult.Failed -> fail(result.message)

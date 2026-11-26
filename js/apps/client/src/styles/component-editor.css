@@ -316,6 +316,31 @@
     padding: 8px 0 12px;
     box-shadow: inset 0 -1px #343a43;
 }
+/* «Стилизация»: Variants неподвижна сверху, прокручивается только область под ней — без `sticky`, который
+ * при прокрутке колесом догоняет её с запаздыванием. */
+.component-inspector-body.is-split {
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+.component-inspector-pinned {
+    flex: none;
+    max-height: 50%;
+    padding: 0 12px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    box-shadow: inset 0 -1px #343a43;
+}
+.component-inspector-scroll {
+    min-height: 0;
+    flex: 1;
+    padding: 0 12px;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    /* Ширина списка токенов считается от ширины инспектора, как `100cqw` в прототипе. */
+    container-type: inline-size;
+}
 .component-variation-type-group {
     padding: 8px 0;
     border-bottom: 1px solid #3d3f42;
@@ -370,6 +395,14 @@
     display: flex;
     flex-direction: column;
     row-gap: 0;
+}
+/* Строки режима только чтения: `fieldset disabled` отключает поля, не меняя раскладку списка. */
+.component-inspector-readonly-rows {
+    display: contents;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    min-width: 0;
 }
 .component-variation-empty {
     margin: 0;

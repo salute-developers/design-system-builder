@@ -7,8 +7,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends curl && \
 WORKDIR /app
 COPY --chown=dsbuilder:dsbuilder backend-kt/app/build/libs/*-all.jar /app/backend.jar
 COPY --chown=dsbuilder:dsbuilder authorization /app/authorization
+COPY --chown=dsbuilder:dsbuilder backend-kt/app/certs /app/certs
 ENV AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
 ENV PROJECT_AUTHORIZATION_POLICY_PATH=/app/authorization/policy.json
+# Корень НУЦ Минцифры для API на инфраструктуре GigaChat: добавляется к системным корням любого провайдера.
+ENV AI_CA_PATH=/app/certs/russian_trusted_root_ca.pem
 ENV JAVA_TOOL_OPTIONS="-XX:MaxRAMPercentage=60.0"
 USER dsbuilder
 EXPOSE 8080

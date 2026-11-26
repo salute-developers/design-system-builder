@@ -33,6 +33,14 @@ class PostgresDatabasePool private constructor(
     val totalConnections: Int
         get() = dataSource.hikariPoolMXBean.totalConnections
 
+    /** Ограниченный снимок счётчиков без адресов БД и учётных данных. */
+    fun diagnosticState(): Map<String, Int> = mapOf(
+        "active" to activeConnections,
+        "idle" to idleConnections,
+        "pending" to pendingConnections,
+        "total" to totalConnections,
+    )
+
     @Synchronized
     override fun close() {
         try {
@@ -76,6 +84,10 @@ class PostgresDatabasePool private constructor(
                 this.connectionTimeout = connectionTimeoutMs
                 poolName = "ds-service-postgres"
                 isAutoCommit = false
+                // Пакетные вставки уходят многострочными INSERT вместо команды на каждую строку.
+                // Для переписанных пакетов драйвер возвращает SUCCESS_NO_INFO вместо числа строк:
+                // на счётчики batchInsert не полагаться.
+                addDataSourceProperty("reWriteBatchedInserts", "true")
             }
             val dataSource = HikariDataSource(configuration)
             return PostgresDatabasePool(dataSource, Database.connect(dataSource))

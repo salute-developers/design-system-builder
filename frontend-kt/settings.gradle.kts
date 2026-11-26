@@ -56,3 +56,5 @@ include(":architecture-tests")
 
 include(":core-analytics")
 include(":analytics-metrica")
+
+include(":runtime-node")

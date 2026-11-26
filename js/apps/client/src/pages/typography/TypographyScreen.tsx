@@ -1,4 +1,6 @@
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useRef, useState, type CSSProperties } from 'react';
+import type { EditorContextKey, TenantTokenValueDto } from '../../api/editorContracts';
+import { OtherThemesSection, cssPx, webValue } from '../../components/tokenWorkspace/OtherThemesSection';
 import { useNavigate } from 'react-router-dom';
 
 import '../../styles/typography.css';
@@ -12,6 +14,7 @@ import {
     parseStyleTokenName,
     sampleText,
     screenStyles,
+    TYPOGRAPHY_VARIANTS,
     styleKey,
     styleTitle,
     type TypographyContext,
@@ -24,7 +27,13 @@ import { TypographyBoard, TypographyBoardSkeleton } from './ui/TypographyBoard';
 import { TypographyInspector } from './ui/TypographyInspector';
 import { TypographyTree, type CreatingStyle } from './ui/TypographyTree';
 import { useTokenReset } from '../../features/versionJournal/tokenReset';
-import { usePanelWidths } from '../../components/tokenWorkspace';
+import {
+    TokenPlatformMenu,
+    useHideDisabled,
+    usePanelWidths,
+    useTokenPlatform,
+    type TokenPlatform,
+} from '../../components/tokenWorkspace';
 
 export interface TypographyScreenProps {
     context: TypographyContext;
@@ -54,6 +63,62 @@ const writeStorage = (key: string, value: unknown) => {
     } catch {
         // Хранилище браузера недоступно: настройка просто не запомнится.
     }
+};
+
+const typographyLabel = (size: number | null, lineHeight: number | null, weight: unknown) =>
+    `${size ?? '—'}/${lineHeight ?? '—'} · ${weight ?? '—'}`;
+
+/** Блок «В других темах» стиля: размер, высота строки и вес открытого начертания. */
+const TypographyOtherThemes = ({
+    context,
+    style,
+    variant,
+}: {
+    context: EditorContextKey;
+    style: TypographyStyle;
+    variant: TypographyVariant;
+}) => {
+    const ids = Object.values(style.variants).flatMap((item) => (item ? [item.tokenId] : []));
+    const open = style.variants[variant] ?? Object.values(style.variants).find(Boolean);
+    const describe = useCallback(
+        (values: TenantTokenValueDto[]) => {
+            const raw = webValue(values, open?.tokenId ?? '', null);
+            const value = (Array.isArray(raw) ? raw[0] : raw) as Record<string, unknown> | undefined;
+            const label = typographyLabel(cssPx(value?.fontSize), cssPx(value?.lineHeight), value?.fontWeight);
+            return [label];
+        },
+        [open?.tokenId, ids.join(',')],
+    );
+    if (!open) return null;
+    return (
+        <OtherThemesSection
+            context={context}
+            tokenIds={ids}
+            addressTokenId={open.tokenId}
+            columns={[TYPOGRAPHY_VARIANTS.find(({ id }) => id === variant)?.label ?? variant]}
+            describe={describe}
+        />
+    );
+};
+
+/** Стиль с числами платформы предпросмотра для борда: свои значения iOS и Android поверх значений Web. */
+const styleForPlatform = (style: TypographyStyle, platform: TokenPlatform): TypographyStyle => {
+    // У Web своих значений нет: стиль остаётся значением Web.
+    const own = style.overrides?.[platform as 'ios' | 'android'];
+    if (!own) return style;
+    const variants = { ...style.variants };
+    for (const id of ['normal', 'medium', 'bold'] as const) {
+        const weight = own.weights?.[id];
+        const view = variants[id];
+        if (weight !== undefined && view) variants[id] = { ...view, weight };
+    }
+    return {
+        ...style,
+        sizePx: own.sizePx ?? style.sizePx,
+        lineHeightPx: own.lineHeightPx ?? style.lineHeightPx,
+        letterSpacingEm: own.letterSpacingEm ?? style.letterSpacingEm,
+        variants,
+    };
 };
 
 /** Экран «Типографика» темы: дерево стилей, борд и инспектор по Figma (`06 · Typography · Handoff`). */
@@ -95,16 +160,22 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         appliedAddress.current = addressed.tokenId ?? null;
         setScreen(target.screen);
         setSelectedKey(target.key);
+        setVariant(target.variant);
     }, [addressed.requestedTokenName, addressed.tokenId, styles]);
-    /** Выбор стиля сохраняет адрес в маршруте, если раздел открыт по адресу. */
-    const address = (nextScreen: Screen, key: string) => {
-        if (!addressed.tokenId) return;
+    /** Выбор стиля сохраняет адрес в маршруте: переключатель тем открывает тот же стиль в другой теме. */
+    const address = (nextScreen: Screen, key: string, nextVariant: TypographyVariant = variant) => {
         appliedAddress.current = null;
-        addressed.selectTokenName(`${nextScreen}.${key}.normal`);
+        addressed.selectTokenName(`${nextScreen}.${key}.${nextVariant}`);
     };
     const selectStyle = (key: string) => {
         setSelectedKey(key);
         address(screen, key);
+    };
+    /** Строка начертания в дереве или на борде: каждое начертание стиля — самостоятельный токен. */
+    const selectToken = (key: string, next: TypographyVariant) => {
+        setSelectedKey(key);
+        setVariant(next);
+        address(screen, key, next);
     };
 
     const tokenReset = useTokenReset(context, async () => {
@@ -112,6 +183,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
         await editor.reload();
         rerender();
     });
+    const [hideDisabled, setHideDisabled] = useHideDisabled();
+    const [platform, setPlatform] = useTokenPlatform();
     const current = screenStyles(styles, screen);
     const changedStyles = new Set(
         [...(changedTokenNames ?? [])]
@@ -235,7 +308,7 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     <button type="button" className="panel-resizer panel-resizer-right" {...separator('right')} />
                 )}
                 <TypographyTree
-                    styles={styles ? current : null}
+                    styles={styles ? current.map((style) => styleForPlatform(style, platform)) : null}
                     loading={loading}
                     changedStyles={changedStyles}
                     screen={screen}
@@ -244,7 +317,8 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     searchOpen={searchOpen}
                     collapsed={collapsed}
                     onScreen={changeScreen}
-                    onSelect={selectStyle}
+                    variant={variant}
+                    onSelect={selectToken}
                     onQuery={setQuery}
                     onSearchOpen={setSearchOpen}
                     onToggle={(group) => setCollapsed((value) => ({ ...value, [group]: !value[group] }))}
@@ -260,21 +334,25 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     onCancelCreate={cancelCreate}
                     onRename={rename}
                     onDelete={(style) => requestDelete({ kind: 'style', style })}
+                    isDisabled={(style, item) => !editor.enabled(style, item)}
+                    hideDisabled={hideDisabled}
+                    onHideDisabled={() => setHideDisabled(!hideDisabled)}
                     onCreateGroup={createGroup}
                     onRenameGroup={renameGroup}
                     onDeleteGroup={(group) => requestDelete(groupDeleteTarget(group))}
                 />
                 <header className="typography-editor-header">
                     <strong>Предпросмотр</strong>
+                    <TokenPlatformMenu platform={platform} onSelect={setPlatform} />
                 </header>
                 <main className="typography-canvas">
                     {styles && (
                         <TypographyBoard
-                            styles={current}
+                            styles={current.map((style) => styleForPlatform(style, platform))}
                             families={styles.families}
                             selectedKey={selected ? styleKey(selected) : selectedKey}
                             variant={variant}
-                            onSelect={selectStyle}
+                            onSelect={selectToken}
                         />
                     )}
                     {loading && <TypographyBoardSkeleton />}
@@ -304,14 +382,20 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                         {selected && styles && (
                             <TypographyInspector
                                 style={selected}
+                                platform={platform}
                                 families={styles.families}
                                 themeCount={styles.themeCount}
                                 editable={!readOnly}
                                 banners={banners}
                                 variant={variant}
+                                otherThemes={
+                                    <TypographyOtherThemes context={context} style={selected} variant={variant} />
+                                }
                                 description={editor.description(selected)}
                                 descriptionPlaceholder={sampleText(selected.group)}
                                 onDescribe={(text) => editor.describe(selected, text)}
+                                enabled={editor.enabled(selected, variant)}
+                                onToggleEnabled={(enabled) => editor.setEnabled(selected, variant, enabled)}
                                 onRename={(size) => rename(selected, size)}
                                 onDelete={
                                     canDelete ? () => requestDelete({ kind: 'style', style: selected }) : undefined
@@ -320,7 +404,6 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                                     readOnly ? undefined : () => void tokenReset.reset(editor.styleTokenIds(selected))
                                 }
                                 resetDisabled={tokenReset.busy || !changedStyles.has(styleKey(selected))}
-                                onVariantChange={setVariant}
                                 error={(field, platform) => editor.fieldError(selected, field, platform)}
                                 onChange={(change) => editor.edit(selected, change)}
                                 onOpenComponent={(name) =>

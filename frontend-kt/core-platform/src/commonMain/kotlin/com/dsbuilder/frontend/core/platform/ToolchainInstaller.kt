@@ -15,7 +15,7 @@ public interface ToolchainInstaller {
      *
      * Установка не читает и не меняет `.sdds` проекта и не требует инициализированного проекта.
      */
-    public fun install(request: ToolchainInstallRequest): ToolchainInstallResult
+    public suspend fun install(request: ToolchainInstallRequest): ToolchainInstallResult
 }
 
 /**

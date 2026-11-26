@@ -365,3 +365,28 @@
 .icons-page-frame > .icons-screen {
     height: 100%;
 }
+
+/* Файл иконки не загрузился: сообщение под полем-пикером и в панели сведений каталога. Поле и сообщение лежат в одной
+   обёртке, поэтому строка свойства остаётся двухколонной и без `:has`; при поддержке `:has` подпись и слот «Очистить»
+   прижимаются к полю, а не центрируются по высоте вместе с сообщением. */
+.icon-field-wrap {
+    min-width: 0;
+    flex: 1;
+}
+.icon-field-notice {
+    margin: var(--tw-space-xs) 0 0;
+    color: var(--tw-warning);
+    font-size: 12px;
+    line-height: 16px;
+}
+.component-variation-style-row:has(.icon-field-notice),
+.component-variation-property-value:has(.icon-field-notice) {
+    align-items: flex-start;
+}
+.component-variation-style-row:has(.icon-field-notice) > .sdds-style-role-label {
+    padding-top: 4px;
+}
+.icons-screen .icon-note.icon-load-notice {
+    padding-top: 0;
+    color: var(--tw-warning);
+}

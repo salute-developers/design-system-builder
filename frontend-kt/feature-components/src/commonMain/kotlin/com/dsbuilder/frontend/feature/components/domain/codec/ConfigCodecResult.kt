@@ -35,6 +35,12 @@ internal sealed interface ConfigCodecFailure {
      */
     val message: String
 
+    /** Свойство в состоянии не имеет базы, обязательной для нативного генератора. */
+    data class MissingStateBase(val property: String) : ConfigCodecFailure {
+        override val message: String
+            get() = "Property '$property' has state values but no base value. Set or inherit a base value."
+    }
+
     /**
      * Текст не разбирается как конфигурация ожидаемого формата.
      *

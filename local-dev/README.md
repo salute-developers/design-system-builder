@@ -6,7 +6,7 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 | Каталог | Что внутри | Кто использует |
 |---|---|---|
 | `compose-preview/preview-compose-plugin.zip` | Собранный Compose preview plugin (Kotlin/Wasm) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform compose` |
-| `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (`js/apps/preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react` |
+| `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (plasma `packages/sdds-preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react` |
 | `design-system/components/` | Пакет конфигураций компонентов: `meta.json` и `*_config.json` | `./seed-local-design-system.sh` |
 | `design-system/theme/android/` | Значения токенов темы для Android (`android_color.json` и др.) | `./seed-local-design-system.sh` |
 | `icons/icons-manifest.json` | Стартовый набор иконок `@salutejs/sdds-icons` (185 иконок трёх размеров с SVG, категориями и синонимами) | `./publish-local-icons.sh` |
@@ -16,15 +16,16 @@ Compose- и web-плагины с API-метаданными. Пакеты те�
 Происхождение текущих файлов:
 
 <!-- provenance:start -->
-- Plugin archive: build `cf0b127f6dcf` (commit `cf0b127f6dcf2a96bee03fa0fca2b5e73432d849`), uikit-compose `0.57.0`, protocol 1, sha256 `c132e676dce7cfd0b3f6d40341766b7ef4b2271734f4521342991796c2ddb3a9`.
+- Plugin archive: build `9d38c726e788` (commit `9d38c726e78831b60deaee7810937cc3868aecb7`), uikit-compose `0.57.0`, protocol 1, sha256 `7e28da31284a149c44aa35a0dda6d616b5b287b1e007bc0788f031a2e41ee99f`.
 - Theme (Android values): `sdds_serv` `0.9.0` from theme-converter.
 - Component package: `sdds_serv` `0.18.0`, 144 configurations, from theme-converter.
-- plasma-android commit of the refresh: `cf0b127f6dcf2a96bee03fa0fca2b5e73432d849`.
+- plasma-android commit of the plugin refresh: `9d38c726e78831b60deaee7810937cc3868aecb7`. Theme and component packages retain the versions listed above.
+- Compose API meta: sha256 `1457b62d34448f7ab302cb0721c673e4574511c850a033ff54c70932b63f33e1`; all 79 component records include `stateSupport`.
 <!-- provenance:end -->
 
 <!-- web-provenance:start -->
-- Web plugin archive: build `30fdc9c99790` (commit `30fdc9c99790cdcc48f1766b8b4603ccb1256a70`), plasma-new-hope `0.386.0`, protocol 1, sha256 `880e96434c8b5c0b4da63c8e8c14888c4341a69f6f3421ba24e6f26b8cf7ed01`.
-- Web API meta: sha256 `2c9bc4ac38aea5fc8c8bf511e8dcc17620c6096ffc896e73f1a2c63e68c0e4e4`; built by `npm run package` in `js/apps/preview-web-plugin`.
+- Web plugin archive: build `0873de21a071` (plasma commit `0873de21a0718b1bd4fe0285db739262479925f3`), plasma-new-hope `0.391.0-dev.0`, protocol 1, sha256 `6ac28be3337a045f6a687d636676e5d557588a36e3311469f593e11c50ece0ec`.
+- Web API meta: sha256 `d7aa5a3278e91f25194eb54ada4ba42e61db062312d78cd1006ff35a5e6f5525`; built by `npm run package` in plasma `packages/sdds-preview-web-plugin`.
 <!-- web-provenance:end -->
 
 
@@ -103,6 +104,21 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 
 ## Обновление файлов
 
+При создании окружения `setup-local.sh` (Windows: `setup-local.ps1`) автоматически публикует оба
+плагина и импортирует вложенную API-мету. `publish-preview-plugin.sh` по умолчанию собирает JVM CLI
+из текущего checkout (нужен JDK 17): установленный `dsbuilder` может ещё не переносить новые поля
+меты, например `stateSupport`. Явный выбор CLI через `--cli` или `DSBUILDER_CLI` сохраняется.
+
+Для обновления существующего окружения без сброса данных из корня DS Builder:
+
+```bash
+./publish-preview-plugin.sh --platform compose --from ./local-dev/compose-preview/preview-compose-plugin.zip
+./publish-preview-plugin.sh --platform react --from ./local-dev/web-preview/preview-web-plugin.zip
+```
+
+Команды обновляют архивы в локальном MinIO, импортируют вложенную API-мету и активируют сборки.
+Повторять импорт `sdds_serv_local` не требуется.
+
 Из чекаута plasma-android (нужны JDK 17, Node и доступ к GitHub):
 
 ```bash
@@ -118,16 +134,16 @@ python3 -m unittest discover -s local-dev -p 'test_seed_design_system.py' -v
 
 ### Web-плагин
 
-Архив web-плагина собирается из `js/apps/preview-web-plugin` этого репозитория:
+Web-плагин живёт в репозитории plasma (`packages/sdds-preview-web-plugin`). Архив собирается там:
 
 ```bash
-cd js/apps/preview-web-plugin && npm run package
+cd packages/sdds-preview-web-plugin && npm run package   # в клоне plasma
 ```
 
-Команда собирает плагин, записывает в его `preview-plugin.json` коммит (`commit`, `version` — первые 12 символов) и
-`apiMetaSha256`, пишет `web-preview/preview-web-plugin.zip` и переписывает блок `web-provenance` выше. Она отказывается
-работать, если в каталоге плагина есть незакоммиченные изменения: коммит в архиве должен описывать его содержимое.
-Поэтому сначала закоммитьте изменения плагина, затем пересоберите архив и закоммитьте его отдельно. Обновляйте архив,
-когда меняются story, мета, разрешение payload или версия `plasma-new-hope`. Для работы над самим плагином архив
-пересобирать не нужно: запустите его напрямую (`npm run build && npm run preview` в `js/apps/preview-web-plugin`)
-и задайте клиенту `VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/`.
+Команда собирает плагин, записывает в его `preview-plugin.json` коммит plasma (`commit`, `version` — первые 12
+символов), `plasmaNewHopeVersion` и `apiMetaSha256`, пишет `archive/preview-web-plugin.zip` в каталоге пакета и печатает
+блок происхождения. Она отказывается работать, если в пакете плагина или в пакетах plasma из его бандла есть
+незакоммиченные изменения. Скопируйте архив в `web-preview/preview-web-plugin.zip` и замените напечатанным блоком
+`web-provenance` выше. Обновляйте архив, когда меняются story, мета, разрешение payload или ядро. Для работы над самим
+плагином архив пересобирать не нужно: запустите его в plasma (`npm run build && npm run preview` в пакете) и задайте
+клиенту `VITE_WEB_PREVIEW_PLUGIN_URL=http://localhost:3011/`.

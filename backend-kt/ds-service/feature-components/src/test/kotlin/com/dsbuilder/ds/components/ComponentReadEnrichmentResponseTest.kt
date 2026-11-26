@@ -4,6 +4,7 @@ import com.dsbuilder.ds.components.domain.Component
 import com.dsbuilder.ds.components.domain.ComponentDependency
 import com.dsbuilder.ds.components.domain.ComponentDependencyGraph
 import com.dsbuilder.ds.components.domain.ComponentPropertySummary
+import com.dsbuilder.ds.components.domain.PropertyStateSupport
 import com.dsbuilder.ds.components.presentation.ComponentDependencyGraphResponse
 import com.dsbuilder.ds.components.presentation.ComponentPropertySummaryResponse
 import kotlinx.serialization.encodeToString
@@ -27,6 +28,21 @@ class ComponentReadEnrichmentResponseTest {
 
         assertFalse("platformParams" in plain)
         assertContains(enriched, "\"platformParams\":[]")
+    }
+
+    @Test
+    fun `state support is always written`() {
+        val property = ComponentPropertySummary(UUID.randomUUID(), null, "color", "color", null, null, now, now)
+        val stateId = UUID.randomUUID()
+        val plain = Json.encodeToString(ComponentPropertySummaryResponse.from(property))
+        val supported = Json.encodeToString(
+            ComponentPropertySummaryResponse.from(
+                property.copy(stateSupport = PropertyStateSupport(listOf(stateId), combinations = false)),
+            ),
+        )
+
+        assertContains(plain, "\"stateSupport\":null")
+        assertContains(supported, "\"stateSupport\":{\"stateIds\":[\"$stateId\"],\"combinations\":false}")
     }
 
     @Test

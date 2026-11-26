@@ -3,25 +3,24 @@ import { useRef, useState } from 'react';
 import { useDismiss } from '../../hooks';
 import { TyGlyph } from '../../components/TyGlyph';
 
-/** Состояния меню прототипа в порядке, в котором их имена соединяются через `+`. */
-export const BINDING_STATES = ['focused', 'pressed', 'hovered'] as const;
-
-export type BindingState = (typeof BINDING_STATES)[number];
-
 interface StateBindingMenuProps {
     label: string;
+    /** Состояния меню в порядке пунктов; в этом же порядке их имена соединяются через `+` в подписи строки. */
+    states: readonly string[];
+    /** Можно ли отметить несколько состояний; без сочетаний отметка другого флажка снимает прежнюю. */
+    combinations?: boolean;
     disabled?: boolean;
-    /** Выбранные состояния в порядке `focused`, `pressed`, `hovered`. */
-    onAdd: (states: BindingState[]) => void;
+    /** Выбранные состояния в порядке пунктов меню. */
+    onAdd: (states: string[]) => void;
 }
 
 /**
- * Кнопка «+» цветового свойства и меню состояний (`componentBindingActions` прототипа): флажки `hovered`,
- * `pressed`, `focused` и «Добавить · N». Подтверждение добавляет одно состояние из всех отмеченных.
+ * Кнопка «+» свойства и меню состояний (`componentBindingActions` прототипа): флажки состояний из признака свойства
+ * и «Добавить · N». Подтверждение добавляет одно состояние из всех отмеченных.
  */
-export const StateBindingMenu = ({ label, disabled, onAdd }: StateBindingMenuProps) => {
+export const StateBindingMenu = ({ label, states, combinations = true, disabled, onAdd }: StateBindingMenuProps) => {
     const [open, setOpen] = useState(false);
-    const [selected, setSelected] = useState<BindingState[]>([]);
+    const [selected, setSelected] = useState<string[]>([]);
     const root = useRef<HTMLDivElement>(null);
     const trigger = useRef<HTMLButtonElement>(null);
     const close = () => {
@@ -29,10 +28,11 @@ export const StateBindingMenu = ({ label, disabled, onAdd }: StateBindingMenuPro
         setSelected([]);
     };
     useDismiss(root, open, close, { returnFocus: trigger });
-    const toggle = (state: BindingState) =>
-        setSelected((current) =>
-            BINDING_STATES.filter((item) => (item === state ? !current.includes(item) : current.includes(item))),
-        );
+    const toggle = (state: string) =>
+        setSelected((current) => {
+            if (!combinations) return current.includes(state) ? [] : [state];
+            return states.filter((item) => (item === state ? !current.includes(item) : current.includes(item)));
+        });
 
     return (
         <div ref={root} className="component-binding-actions">
@@ -52,7 +52,7 @@ export const StateBindingMenu = ({ label, disabled, onAdd }: StateBindingMenuPro
             {open && (
                 <div className="component-binding-menu" role="menu" aria-label="Состояния">
                     <div className="component-binding-state-options">
-                        {[...BINDING_STATES].reverse().map((state) => (
+                        {states.map((state) => (
                             <button
                                 key={state}
                                 type="button"

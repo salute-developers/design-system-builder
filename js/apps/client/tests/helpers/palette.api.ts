@@ -45,9 +45,9 @@ export class PaletteApi {
     private readonly themeId: string;
     private readonly session: Session;
 
-    constructor(gatewayBaseURL: string, projectId: string, themeId: string, session: Session) {
+    constructor(gatewayBaseURL: string, projectId: string, designSystemId: string, themeId: string, session: Session) {
         this.url = new URL(
-            `api/projects/${encodeURIComponent(projectId)}/ds/tenants/${encodeURIComponent(themeId)}/palette`,
+            `api/projects/${encodeURIComponent(projectId)}/design-systems/${encodeURIComponent(designSystemId)}/tenants/${encodeURIComponent(themeId)}/palette`,
             gatewayBaseURL,
         ).href;
         this.themeId = themeId;

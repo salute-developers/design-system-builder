@@ -100,6 +100,9 @@ describe('Components: загрузка выбранного компонента
         const reload = renderPage({ componentError: 'сбой' });
 
         expect(screen.getByRole('complementary', { name: 'Компоненты дизайн-системы' })).toBeInTheDocument();
+        const error = screen.getByRole('alert', { name: 'Не удалось загрузить компонент' });
+        expect(error).toHaveTextContent('Не удалось загрузить данные');
+        expect(error).toHaveTextContent('Проверьте подключение и попробуйте ещё раз.');
         fireEvent.click(screen.getByRole('button', { name: 'Повторить' }));
         expect(reload).toHaveBeenCalledTimes(1);
         expect(screen.queryByText('настройка и превью')).not.toBeInTheDocument();

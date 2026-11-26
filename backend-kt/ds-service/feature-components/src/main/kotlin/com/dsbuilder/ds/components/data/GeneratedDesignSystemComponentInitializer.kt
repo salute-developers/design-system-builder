@@ -591,7 +591,8 @@ class GeneratedDesignSystemComponentInitializer : DesignSystemComponentInitializ
         ) {
             "Component seed resource is missing"
         }.bufferedReader().use { it.readText() }
-        Json.decodeFromString<ComponentSeedPackage>(text)
+        val decoded = Json.decodeFromString<ComponentSeedPackage>(text)
+        decoded.copy(components = decoded.components.map(ComponentSeed::withViewAxis))
     }
 
     private data class SeedContext(
@@ -649,6 +650,37 @@ private data class ComponentSeed(
         appearance.values.values.flatMap { byStyle -> byStyle.values.flatten() } +
             appearance.invariants + appearance.combinations
     }.mapNotNull(ValueSeed::token).toSet()
+}
+
+/**
+ * Шаблон, у каждой конфигурации которого есть вариация `view`: конфигурация без неё получает ось `view` последней
+ * со значением `default` по умолчанию. Вариация `view` и её стиль `default` добавляются в шаблон, если их нет.
+ */
+private fun ComponentSeed.withViewAxis(): ComponentSeed {
+    val existing = variations.firstOrNull { it.name.equals(ViewAxis.NAME, ignoreCase = true) }
+    val name = existing?.name ?: ViewAxis.NAME
+    fun declared(appearance: AppearanceSeed) = appearance.variations ?: variations.map(VariationSeed::name)
+    if (appearances.all { appearance -> name in declared(appearance) }) return this
+    val view = (existing ?: VariationSeed(name)).let { view ->
+        if (view.styles.any { it.name == ViewAxis.DEFAULT_VALUE }) {
+            view
+        } else {
+            view.copy(styles = view.styles + StyleSeed(ViewAxis.DEFAULT_VALUE))
+        }
+    }
+    return copy(
+        variations = if (existing == null) variations + view else variations.map { if (it === existing) view else it },
+        appearances = appearances.map { appearance ->
+            if (name in declared(appearance)) {
+                appearance
+            } else {
+                appearance.copy(
+                    variations = declared(appearance) + name,
+                    defaults = appearance.defaults + (name to ViewAxis.DEFAULT_VALUE),
+                )
+            }
+        },
+    )
 }
 
 @Serializable

@@ -155,6 +155,7 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
                 it[paletteId] = row[ThemeTokenValueRevisionsTable.paletteId]
                 it[value] = row[ThemeTokenValueRevisionsTable.value]
                 it[overridden] = row[ThemeTokenValueRevisionsTable.overridden]
+                it[detached] = row[ThemeTokenValueRevisionsTable.detached]
             }
         }
     }
@@ -250,8 +251,10 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
         value: JsonElement?,
         deleted: Boolean,
     ) {
-        // Повторная запись существующего значения сохраняет признак своего значения платформы.
-        val overridden = latestThemeValueOverridden(row[ThemeTokenValuesTable.id])
+        // Повторная запись существующего значения сохраняет признаки своего значения платформы и отвязанной подтемы.
+        val latest = latestThemeValueRevision(row[ThemeTokenValuesTable.id])
+        val overridden = latest?.get(ThemeTokenValueRevisionsTable.overridden) ?: false
+        val detached = latest?.get(ThemeTokenValueRevisionsTable.detached) ?: false
         ThemeTokenValueRevisionsTable.deleteWhere {
             (ThemeTokenValueRevisionsTable.tokenValueId eq row[ThemeTokenValuesTable.id]) and
                 (ThemeTokenValueRevisionsTable.designSystemVersionId eq draft[ThemeVersionBoundariesTable.id])
@@ -264,6 +267,7 @@ internal class GeneratedTenantTokenValueInitializer : TenantTokenValueInitialize
             it[ThemeTokenValueRevisionsTable.paletteId] = paletteId
             it[ThemeTokenValueRevisionsTable.value] = value
             it[ThemeTokenValueRevisionsTable.overridden] = overridden
+            it[ThemeTokenValueRevisionsTable.detached] = detached
             it[ThemeTokenValueRevisionsTable.deleted] = deleted
         }
     }

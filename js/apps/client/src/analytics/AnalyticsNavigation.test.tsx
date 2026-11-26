@@ -2,7 +2,8 @@ import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
 import { createMemoryRouter, Navigate, Outlet, RouterProvider } from 'react-router-dom';
 
-vi.mock('../api', () => ({ authService: { isAuthenticated: () => true } }));
+const auth = vi.hoisted(() => ({ authenticated: true }));
+vi.mock('../api', () => ({ authService: { isAuthenticated: () => auth.authenticated } }));
 const permitted = { allowed: true };
 vi.mock('./consent', () => ({ analyticsConsent: { subscribe: () => () => {}, getSnapshot: () => permitted } }));
 vi.mock('./metrica', () => ({ webAnalytics: { view: vi.fn() } }));
@@ -18,6 +19,7 @@ const settle = async () => {
 };
 afterEach(() => {
     cleanup();
+    auth.authenticated = true;
     vi.clearAllMocks();
 });
 
@@ -117,5 +119,15 @@ it('records the final screen again when a redirect returns to the previously vis
     });
     await settle();
     expect(webAnalytics.view).toHaveBeenCalledTimes(2);
+    router.dispose();
+});
+
+
+it('does not send a login view even if permission was previously confirmed', async () => {
+    auth.authenticated = false;
+    const router = createMemoryRouter([{ path: '*', element: <AnalyticsNavigation /> }], { initialEntries: ['/login'] });
+    render(<RouterProvider router={router} />);
+    await settle();
+    expect(webAnalytics.view).not.toHaveBeenCalled();
     router.dispose();
 });

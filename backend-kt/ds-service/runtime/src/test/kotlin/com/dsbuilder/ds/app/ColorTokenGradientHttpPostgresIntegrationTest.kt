@@ -2,6 +2,14 @@
 
 package com.dsbuilder.ds.app
 
+import com.dsbuilder.ds.core.application.DsFailure
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.data.ExposedTransactionRunner
+import com.dsbuilder.ds.core.data.PostgresTransactionFailureMapper
+import com.dsbuilder.ds.themes.application.colortokens.ColorTokenValue
+import com.dsbuilder.ds.themes.data.ExposedColorTokenRepository
+import com.dsbuilder.ds.themes.domain.ThemeTokenMode
+import com.dsbuilder.ds.themes.domain.ThemeTokenPlatform
 import io.ktor.client.HttpClient
 import io.ktor.client.request.HttpRequestBuilder
 import io.ktor.client.request.header
@@ -13,7 +21,6 @@ import io.ktor.http.ContentType
 import io.ktor.http.HttpMethod
 import io.ktor.http.HttpStatusCode
 import io.ktor.http.contentType
-import io.ktor.server.testing.testApplication
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.serialization.json.Json
@@ -22,11 +29,15 @@ import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
+import kotlinx.serialization.json.int
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.long
+import org.jetbrains.exposed.v1.jdbc.Database
+import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
 import java.sql.DriverManager
+import java.util.UUID
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -40,12 +51,218 @@ import kotlin.test.assertTrue
  */
 @org.junit.experimental.categories.Category(com.dsbuilder.testing.IntegrationTest::class)
 class ColorTokenGradientHttpPostgresIntegrationTest {
+    @Test
+    fun `color batch preserves individual revision warnings and rejects invalid values atomically`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val members = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .associate { it.text("name") to it.text("tokenId") }
+                val base = members.getValue("text.default.highlight")
+                val hover = members.getValue("text.default.highlight-hover")
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$base/values"
+                val original = api.values(system, tenant)
+                val baseBefore = value(original, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                val hoverBefore = value(original, hover, "web", "light").getValue("editRevision").jsonPrimitive.long
+                fun body(baseRevision: Long, hoverRevision: Long?, color: String): String {
+                    fun member(id: String, revision: Long) =
+                        """{"tokenId":"$id","values":[{"platform":"web","mode":"light","value":["$color"],"baseRevision":$revision}]}"""
+                    val entries = listOfNotNull(member(base, baseRevision), hoverRevision?.let { member(hover, it) })
+                    return """{"editRevision":0,"members":[${entries.joinToString(",")}]}"""
+                }
+                assertEquals(HttpStatusCode.OK, api.call("PUT", path, EDITOR, body(baseBefore, null, "#111111")).status)
+                val afterFirst = api.values(system, tenant)
+                val baseCurrent = value(afterFirst, base, "web", "light").getValue("editRevision").jsonPrimitive.long
+                assertTrue(baseCurrent > baseBefore)
+                val warned = api.call("PUT", path, EDITOR, body(baseBefore, hoverBefore, "#222222"))
+                assertEquals(HttpStatusCode.OK, warned.status, warned.bodyAsText())
+                val metadata = json.parseToJsonElement(requireNotNull(warned.headers["X-DS-Mutation-Metadata"]))
+                    .jsonArray.filter { it.text("entityType") == "token-value" }
+                val baseEntity = value(original, base, "web", "light").text("id")
+                val hoverEntity = value(original, hover, "web", "light").text("id")
+                assertTrue(
+                    metadata.single { it.text("entityId") == baseEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isNotEmpty(),
+                )
+                assertTrue(
+                    metadata.single { it.text("entityId") == hoverEntity }.jsonObject.getValue(
+                        "warnings",
+                    ).jsonArray.isEmpty(),
+                )
+                val beforeInvalid = api.values(system, tenant)
+                val invalid = body(baseCurrent, hoverBefore, "#444444").replaceFirst("#444444", "not-a-color")
+                val rejected = api.call("PUT", path, EDITOR, invalid)
+                assertEquals(HttpStatusCode.BadRequest, rejected.status, rejected.bodyAsText())
+                assertEquals(beforeInvalid.toSet(), api.values(system, tenant).toSet(), "ошибка отменяет весь пакет")
+                val saved = api.call("PUT", path, EDITOR, body(baseCurrent, hoverBefore, "#333333"))
+                assertEquals(HttpStatusCode.OK, saved.status, saved.bodyAsText())
+                val result = api.values(system, tenant)
+                for (token in listOf(base, hover)) {
+                    assertEquals(
+                        JsonArray(listOf(JsonPrimitive("#333333"))),
+                        value(
+                            result,
+                            token,
+                            "web",
+                            "light",
+                        ).getValue("value"),
+                    )
+                    assertEquals(value(original, token, "web", "dark"), value(result, token, "web", "dark"))
+                }
+            }
+        }
+    }
+
+    @Test
+    fun `concurrent batches create one missing address and keep both edit revisions`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"missing","projectName":"missing"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("race"),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val token = api.body(created).obj("value").array("members").first().text("tokenId")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute(
+                            "DELETE FROM token_value_revisions WHERE token_value_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM entity_edit_states WHERE entity_type='token-value' AND entity_id IN " +
+                                "(SELECT id FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' " +
+                                "AND platform='web' AND mode='light')",
+                        )
+                        statement.execute(
+                            "DELETE FROM token_values WHERE token_id='$token' AND tenant_id='$tenant' AND platform='web' AND mode='light'",
+                        )
+                        statement.execute(
+                            """
+                            CREATE FUNCTION delay_new_value() RETURNS trigger LANGUAGE plpgsql AS ${'$'}${'$'}
+                            BEGIN PERFORM pg_sleep(0.15); RETURN NEW; END; ${'$'}${'$'};
+                            CREATE TRIGGER delay_new_value BEFORE INSERT ON token_values FOR EACH ROW EXECUTE FUNCTION delay_new_value();
+                            """.trimIndent(),
+                        )
+                    }
+                }
+                val path = "/api/design-systems/$system/tenants/$tenant/color-tokens/$token/values"
+                fun body(color: String) =
+                    """{"editRevision":0,"members":[{"tokenId":"$token","values":[{"platform":"web","mode":"light","paletteId":null,"value":["$color"],"baseRevision":0}]}]}"""
+                val responses = kotlinx.coroutines.withTimeout(30_000) {
+                    coroutineScope {
+                        val first = async { api.call("PUT", path, EDITOR, body("#123456")) }
+                        val second = async { api.call("PUT", path, EDITOR, body("#654321")) }
+                        listOf(first.await(), second.await())
+                    }
+                }
+                for (response in responses) assertEquals(HttpStatusCode.OK, response.status, response.bodyAsText())
+                val selected = api.values(system, tenant).filter {
+                    it.text("tokenId") == token && it.text("platform") == "web" && it.text("mode") == "light"
+                }
+                assertEquals(1, selected.size)
+                assertEquals(2, selected.single().number("editRevision"))
+                val warnings = responses.flatMap { response ->
+                    json.parseToJsonElement(requireNotNull(response.headers["X-DS-Mutation-Metadata"])).jsonArray
+                }.filter {
+                    it.text("entityType") == "token-value" &&
+                        it.text("entityId") == selected.single().text("id")
+                }
+                assertEquals(2, warnings.size)
+                assertTrue(warnings.any { it.jsonObject.getValue("warnings").jsonArray.isNotEmpty() })
+                val invalid = api.call(
+                    "PUT",
+                    path,
+                    EDITOR,
+                    body("#abcdef").replace(
+                        "\"mode\":\"light\"",
+                        "\"mode\":null",
+                    ),
+                )
+                assertEquals(HttpStatusCode.BadRequest, invalid.status)
+                assertEquals(
+                    selected,
+                    api.values(
+                        system,
+                        tenant,
+                    ).filter { it.text("id") == selected.single().text("id") },
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `color batch with an inaccessible draft returns not found and rolls back the transaction`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create(
+                    "/api/design-systems",
+                    OWNER,
+                    """{"name":"missing-draft","projectName":"batch"}""",
+                )
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody("brand"),
+                )
+                val token = api.body(created).obj("value").array("members").single().text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                DriverManager.getConnection(postgres.jdbcUrl, postgres.username, postgres.password).use { connection ->
+                    connection.createStatement().use { statement ->
+                        statement.execute("CREATE TABLE rollback_probe(value integer NOT NULL)")
+                    }
+                }
+                val database = Database.connect(
+                    postgres.jdbcUrl,
+                    user = postgres.username,
+                    password = postgres.password,
+                )
+                val result = ExposedTransactionRunner(database, PostgresTransactionFailureMapper()).required {
+                    TransactionManager.current().exec("INSERT INTO rollback_probe VALUES (1)")
+                    TransactionManager.current().exec("SET LOCAL ds.project_id = 'other-project'")
+                    ExposedColorTokenRepository().replaceValues(
+                        UUID.fromString(tenant),
+                        mapOf(
+                            UUID.fromString(token) to listOf(ColorTokenValue(ThemeTokenPlatform.WEB, ThemeTokenMode.LIGHT, null, JsonArray(listOf(JsonPrimitive("#123456"))))),
+                        ),
+                    )
+                    DsResult.Success(Unit)
+                }
+                assertEquals(DsResult.Failure(DsFailure.NotFound), result)
+                assertEquals("0", text(postgres, "SELECT count(*)::text FROM rollback_probe", raw = true))
+                assertEquals("""["#FFFFFF"]""", text(postgres, storedValueSql(tenant, token, "web", "light")))
+            }
+        }
+    }
+
     private val json = Json { ignoreUnknownKeys = false }
 
     @Test
     fun `addressed revert serializes with writes creation rename delete and publication`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 for (operation in listOf("write", "create", "rename", "delete", "publish")) {
@@ -163,7 +380,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                         "color",
                         text(
                             postgres,
-                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY version_sequence_number DESC LIMIT 1",
+                            "SELECT type FROM token_revisions WHERE token_id='$token' ORDER BY " +
+                                "version_sequence_number DESC LIMIT 1",
                         ),
                     )
                 }
@@ -174,7 +392,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `literal dependency validation rejects a hidden tenant before reference shortcut`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create(
@@ -222,7 +440,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `literal batch preserves stale errors rollback and replay`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val system = api.create("/api/design-systems", OWNER, """{"name":"batch","projectName":"batch"}""")
@@ -552,11 +770,294 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
         }
     }
 
+    /**
+     * Признак отвязанной подтемы `detached`: хранится путём `/detached`, сохраняется правками значения другими
+     * маршрутами, переносится копией темы, сравнивается журналом с основой создания и восстанавливается откатом.
+     */
+    @Test
+    @Suppress("LongMethod")
+    fun `state is added with values of each theme, journaled, reverted and deleted`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"states","projectName":"states"}""")
+                val tenantA = api.createTenant(system, "a")
+                val tenantB = api.createTenant(system, "b")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenantA/color-tokens",
+                    MAINTAINER,
+                    createBody(single = "glow"),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val base = api.body(
+                    created,
+                ).jsonObject.getValue("value").jsonObject.array("members").single().text("tokenId")
+                val path = "/api/design-systems/$system/tenants/$tenantA/color-tokens/$base/states"
+                api.publish(postgres, system, "1.0.0")
+                fun member(color: String, detached: Boolean) =
+                    """{"name":"text.default.glow-hover","values":[""" + PLATFORMS.flatMap { platform ->
+                        MODES.map { mode ->
+                            """{"platform":"$platform","mode":"$mode","value":["$color"],"detached":$detached}"""
+                        }
+                    }.joinToString(",") + "]}"
+                fun body(vararg tenants: Pair<String, String>, state: String = "hover") =
+                    """{"editRevision":0,"state":"$state","tenants":[""" + tenants.joinToString(",") { (tenant, color) ->
+                        """{"tenantId":"$tenant","members":[${member(color, tenant == tenantA)}]}"""
+                    } + "]}"
+
+                // Отказы до записи: нет темы B, неизвестное состояние, Viewer без права.
+                api.reject("POST", path, body(tenantA to "#111111"), "INVALID_TOKEN_FAMILY")
+                api.reject(
+                    "POST",
+                    path,
+                    body(tenantA to "#111111", tenantB to "#222222", state = "focus"),
+                    "INVALID_TOKEN_STATE",
+                )
+                val forbidden = api.call("POST", path, VIEWER, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Forbidden, forbidden.status, forbidden.bodyAsText())
+                assertEquals(
+                    0,
+                    count(
+                        postgres,
+                        tokenIdSql(system, "text.default.glow-hover").replace("SELECT id", "SELECT count(*)"),
+                    ),
+                )
+
+                // Добавление: у каждой темы свой цвет, признак ручного значения только в теме A.
+                val added = api.call("POST", path, EDITOR, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Created, added.status, added.bodyAsText())
+                // Совместимое поле: технические редакции — в `X-DS-Mutation-Metadata`.
+                assertEquals(0, api.body(added).jsonObject.getValue("editRevision").jsonPrimitive.int)
+                val members = api.body(added).jsonObject.getValue("value").jsonObject.array("members")
+                    .associate { it.text("name") to it.text("tokenId") }
+                assertEquals(setOf("text.default.glow", "text.default.glow-hover"), members.keys)
+                val hover = members.getValue("text.default.glow-hover")
+                val lightA = value(api.values(system, tenantA), hover, "web", "light")
+                val lightB = value(api.values(system, tenantB), hover, "web", "light")
+                assertEquals(JsonArray(listOf(JsonPrimitive("#111111"))), lightA.getValue("value"))
+                assertEquals(JsonArray(listOf(JsonPrimitive("#222222"))), lightB.getValue("value"))
+                assertTrue(lightA.getValue("detached").jsonPrimitive.boolean)
+                assertFalse(lightB.getValue("detached").jsonPrimitive.boolean)
+                val conflict = api.call("POST", path, EDITOR, body(tenantA to "#111111", tenantB to "#222222"))
+                assertEquals(HttpStatusCode.Conflict, conflict.status, conflict.bodyAsText())
+                assertEquals("TOKEN_NAME_CONFLICT", api.body(conflict).text("code"))
+
+                // Журнал показывает создание определения состояния и его значений; откат убирает их из черновика.
+                val valueIds = listOf(tenantA, tenantB).flatMap { tenant ->
+                    api.values(system, tenant).filter { it.text("tokenId") == hover }.map { it.text("id") }
+                }.toSet()
+                val journal = api.journal(system)
+                // Откат одной записи определения без значений не каскадируется: значения тем A и B остаются.
+                val definitionOnly = api.revert(system, journal.single { it.text("entityId") == hover })
+                assertEquals(HttpStatusCode.Conflict, definitionOnly.status, definitionOnly.bodyAsText())
+                assertEquals("REVERT_DEPENDENCY_CONFLICT", api.body(definitionOnly).text("code"))
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    val left = api.values(system, tenant).count { it.text("tokenId") == hover }
+                    assertEquals(MODES.size * PLATFORMS.size, left)
+                }
+                // Значения откатываются раньше определения, на которое они ссылаются.
+                val creation = journal.filter { it.text("entityId") == hover || it.text("entityId") in valueIds }
+                    .sortedBy { it.text("entityId") == hover }
+                assertEquals(1 + valueIds.size, creation.size)
+                val targets = creation.joinToString(",") { change ->
+                    """{"entityType":"${change.text("entityType")}","entityId":"${change.text("entityId")}",""" +
+                        """"expectedRevision":${change.getValue("editRevision")}}"""
+                }
+                val reverted = api.call(
+                    "POST",
+                    "/api/design-systems/$system/changes/revert-by-address",
+                    OWNER,
+                    """{"draftId":"${creation.first().text("versionId")}","targets":[$targets]}""",
+                    idempotencyKey = "state-revert",
+                )
+                assertEquals(HttpStatusCode.OK, reverted.status, reverted.bodyAsText())
+                listOf(tenantA, tenantB).forEach { tenant ->
+                    assertTrue(api.values(system, tenant).none { it.text("tokenId") == hover })
+                }
+
+                // Состояние отключённого токена создаётся отключённым.
+                val disabled = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/tokens/$base",
+                    EDITOR,
+                    """{"enabled":false}""",
+                )
+                assertEquals(HttpStatusCode.OK, disabled.status, disabled.bodyAsText())
+
+                // Удаление: Editor не может, Maintainer удаляет состояние, член без состояния остаётся.
+                val again = api.call("POST", path, EDITOR, body(tenantA to "#333333", tenantB to "#444444"))
+                assertEquals(HttpStatusCode.Created, again.status, again.bodyAsText())
+                val revived = api.body(again).jsonObject.getValue("value").jsonObject.array("members")
+                    .single { it.text("name") == "text.default.glow-hover" }.text("tokenId")
+                val revivedDefinition = api.read("/api/design-systems/$system/tokens/$revived")
+                assertFalse(revivedDefinition.getValue("enabled").jsonPrimitive.boolean)
+
+                // Единственный градиент семейства — у Hover темы A: после удаления Hover семейство снова `color`.
+                val gradient = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenantA/color-tokens/$revived/values",
+                    EDITOR,
+                    gradientBody(revived, emptyMap()),
+                )
+                assertEquals("gradient", api.body(gradient).jsonObject.text("type"), gradient.bodyAsText())
+                val deletePath = "$path/hover"
+                val editorDelete = api.call("DELETE", deletePath, EDITOR, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.Forbidden, editorDelete.status, editorDelete.bodyAsText())
+                val deleted = api.call("DELETE", deletePath, MAINTAINER, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.OK, deleted.status, deleted.bodyAsText())
+                assertEquals("color", api.read("/api/design-systems/$system/tokens/$base").text("type"))
+                assertEquals(
+                    listOf("color"),
+                    api.body(deleted).jsonObject.getValue("structure").jsonObject.array("definitions")
+                        .map { it.text("type") }.distinct(),
+                )
+                assertTrue(api.values(system, tenantB).none { it.text("tokenId") == revived })
+                assertTrue(api.values(system, tenantB).any { it.text("tokenId") == base })
+                val missing = api.call("DELETE", "$path/active", MAINTAINER, """{"editRevision":0}""")
+                assertEquals(HttpStatusCode.NotFound, missing.status, missing.bodyAsText())
+            }
+        }
+    }
+
+    @Test
+    fun `detached flag round-trips, survives other routes, is copied and restored by revert`() {
+        IsolatedPostgresDatabase.create().use { postgres ->
+            integrationTestApplication {
+                application { module(configuration(postgres)) }
+                val api = Api(client)
+                val system = api.create("/api/design-systems", OWNER, """{"name":"detach","projectName":"detach"}""")
+                val tenant = api.createTenant(system, "theme")
+                val created = api.call(
+                    "POST",
+                    "/api/design-systems/$system/tenants/$tenant/color-tokens",
+                    MAINTAINER,
+                    createBody(),
+                )
+                assertEquals(HttpStatusCode.Created, created.status, created.bodyAsText())
+                val base = api.body(created).jsonObject.getValue("value").jsonObject.array("members")
+                    .single { it.text("name") == "text.default.highlight" }.text("tokenId")
+                api.publish(postgres, system, "1.0.0")
+                fun detachBody(tokenId: String, color: String, revision: Long, detached: Boolean) =
+                    """{"editRevision":0,"members":[{"tokenId":"$tokenId","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["$color"],"baseRevision":$revision,"detached":$detached}]}]}"""
+                fun colorPath(tenantId: String) =
+                    "/api/design-systems/$system/tenants/$tenantId/color-tokens/$base/values"
+                suspend fun light(tenantId: String) = value(api.values(system, tenantId), base, "web", "light")
+                fun JsonObject.detached() = getValue("detached").jsonPrimitive.boolean
+                fun solid(color: String) = JsonArray(listOf(JsonPrimitive(color)))
+
+                // Отвязка без смены значения: новая редакция только с путём /detached.
+                val detach = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), true),
+                )
+                assertEquals(HttpStatusCode.OK, detach.status, detach.bodyAsText())
+                val confirmed = api.body(detach).jsonObject.getValue("confirmedValues").jsonArray.map { it.jsonObject }
+                assertTrue(value(JsonArray(confirmed), base, "web", "light").detached())
+                val values = api.values(system, tenant)
+                assertTrue(values.all { "detached" in it.jsonObject }, "признак отдаётся у каждого значения")
+                val sourceLight = value(values, base, "web", "light")
+                assertTrue(sourceLight.detached())
+                assertFalse(value(values, base, "web", "dark").detached())
+                assertFalse(value(values, base, "ios", "light").detached())
+                val detachChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(listOf("/detached"), detachChange.array("changedPaths").map { it.jsonPrimitive.content })
+
+                // Старый клиент или MCP шлёт значения цветового токена без поля: признак остаётся прежним.
+                val omittedRevision = api.revisions(system, tenant, base).getValue("web:light")
+                val omitted = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    """{"editRevision":0,"members":[{"tokenId":"$base","values":[{"platform":"web",""" +
+                        """"mode":"light","value":["#FEFEFE"],"baseRevision":$omittedRevision}]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, omitted.status, omitted.bodyAsText())
+                assertTrue(light(tenant).detached(), "PUT color-tokens без detached сохраняет признак")
+
+                // Правка значения общим маршрутом и пакетным сохранением темы признак не снимает.
+                val patched = api.call(
+                    "PATCH",
+                    "/api/design-systems/$system/token-values/${sourceLight.text("id")}",
+                    EDITOR,
+                    """{"value":["#123456"]}""",
+                )
+                assertEquals(HttpStatusCode.OK, patched.status, patched.bodyAsText())
+                assertEquals(solid("#123456"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PATCH token-values сохраняет detached")
+                val batch = api.call(
+                    "PUT",
+                    "/api/design-systems/$system/tenants/$tenant/token-values",
+                    EDITOR,
+                    """{"editRevision":0,"values":[{"tokenId":"$base","platform":"web","mode":"light",""" +
+                        """"value":["#654321"]}]}""",
+                )
+                assertEquals(HttpStatusCode.OK, batch.status, batch.bodyAsText())
+                assertTrue(api.body(batch).array("values").single().jsonObject.detached())
+                assertEquals(solid("#654321"), light(tenant).getValue("value"))
+                assertTrue(light(tenant).detached(), "PUT tenants/{id}/token-values сохраняет detached")
+
+                // Копия темы переносит признак; её значения совпадают с основой создания и не видны в журнале.
+                val copy = api.create(
+                    "/api/design-systems/$system/tenants/$tenant/duplicates",
+                    EDITOR,
+                    """{"name":"copy"}""",
+                )
+                val copyLight = light(copy)
+                assertTrue(copyLight.detached())
+                assertEquals(solid("#654321"), copyLight.getValue("value"))
+                val copyIds = api.values(system, copy).map { it.text("id") }.toSet()
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Связь в копии восстановлена: журнал показывает /detached относительно основы создания, откат
+                // возвращает отвязку из основы.
+                val relinkCopy = api.call(
+                    "PUT",
+                    colorPath(copy),
+                    EDITOR,
+                    detachBody(base, "#654321", api.revisions(system, copy, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relinkCopy.status, relinkCopy.bodyAsText())
+                assertFalse(light(copy).detached())
+                val copyChange = api.journal(system).single { it.text("entityId") == copyLight.text("id") }
+                assertEquals(listOf("/detached"), copyChange.array("changedPaths").map { it.jsonPrimitive.content })
+                assertEquals(HttpStatusCode.OK, api.revert(system, copyChange).status)
+                assertTrue(light(copy).detached(), "откат к основе создания возвращает detached")
+                assertTrue(api.journal(system).none { it.text("entityId") in copyIds })
+
+                // Опубликованная отвязка: связь в новом черновике восстанавливается, откат правки возвращает
+                // значение и признак опубликованной версии.
+                api.publish(postgres, system, "2.0.0")
+                val relink = api.call(
+                    "PUT",
+                    colorPath(tenant),
+                    EDITOR,
+                    detachBody(base, "#FFFFFF", api.revisions(system, tenant, base).getValue("web:light"), false),
+                )
+                assertEquals(HttpStatusCode.OK, relink.status, relink.bodyAsText())
+                assertFalse(light(tenant).detached())
+                val relinkChange = api.journal(system).single { it.text("entityId") == sourceLight.text("id") }
+                assertEquals(
+                    setOf("/detached", "/value"),
+                    relinkChange.array("changedPaths").map { it.jsonPrimitive.content }.toSet(),
+                )
+                assertEquals(HttpStatusCode.OK, api.revert(system, relinkChange).status)
+                val restored = light(tenant)
+                assertTrue(restored.detached(), "откат возвращает detached опубликованной версии")
+                assertEquals(solid("#654321"), restored.getValue("value"))
+            }
+        }
+    }
+
     @Test
     @Suppress("LongMethod")
     fun `gradient in one mode of one theme derives the family type`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"g","projectName":"g"}""")
@@ -700,7 +1201,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 // Опубликованная версия раскрывает ссылку стопа по палитре своей границы, а черновик — по своей.
                 val groupA = api.read("/api/design-systems/$designSystemId/tenants/$tenantA/palette").array("tokens")
                     .single { it.text("tokenId") == base }.text("groupId")
-                val step = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
+                val step =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green/steps/$STEP"
                 val edited = api.call("PATCH", step, EDITOR, """{"value":"#112233","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, edited.status, edited.bodyAsText())
                 val publishedId = api.publish(postgres, designSystemId, "1.0.1")
@@ -730,7 +1232,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertTrue(
                     links.any { it.text("tokenId") == base && it.text("mode") == "dark" && it.number("step") == STEP },
                 )
-                val ramp = "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
+                val ramp =
+                    "/api/design-systems/$designSystemId/tenants/$tenantA/palette/groups/$groupA/ramps/general/green"
                 val removed = api.call("DELETE", ramp, EDITOR, """{"strategy":"detach","editRevision":0}""")
                 assertEquals(HttpStatusCode.OK, removed.status, removed.bodyAsText())
                 val storedWeb = text(postgres, storedValueSql(tenantA, base, "web", "dark"))
@@ -757,7 +1260,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `rename revert keeps the family type derived from values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")
@@ -799,7 +1302,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `batch revert resets every entry of a token atomically in one request`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"b","projectName":"b"}""")
@@ -875,7 +1378,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `definition revert of one member keeps one family type matching values`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"m","projectName":"m"}""")
@@ -921,7 +1424,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `removing the theme with the only gradient resets the family type`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"d","projectName":"d"}""")
@@ -969,7 +1472,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `new theme gets initial values of a non-seed gradient token`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"n","projectName":"n"}""")
@@ -1009,7 +1512,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `general token-values routes apply the value kind rule and the published form`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"v","projectName":"v"}""")
@@ -1022,7 +1525,8 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
                 assertEquals(HttpStatusCode.OK, layered.status, layered.bodyAsText())
                 assertEquals(0, count(postgres, accentTypeCount(designSystemId, "color")), "всё семейство — gradient")
 
-                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки, sourceValue/paletteRef.
+                // Общий GET отдаёт ту же форму, что чтение по теме: слой color, раскрытые ссылки,
+                // sourceValue/paletteRef.
                 val general = JsonArray(
                     api.read("/api/design-systems/$designSystemId/token-values").array("items"),
                 ).associateBy {
@@ -1103,7 +1607,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Suppress("LongMethod")
     fun `general token-values routes initialize the template copy of a theme created outside ds-service`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"t","projectName":"t"}""")
@@ -1174,7 +1678,7 @@ class ColorTokenGradientHttpPostgresIntegrationTest {
     @Test
     fun `repeated token-value create replays the stored response and fingerprints the original body`() {
         IsolatedPostgresDatabase.create().use { postgres ->
-            testApplication {
+            integrationTestApplication {
                 application { module(configuration(postgres)) }
                 val api = Api(client)
                 val designSystemId = api.create("/api/design-systems", OWNER, """{"name":"r","projectName":"r"}""")

@@ -87,6 +87,7 @@ internal class ConfigCodec(
         }
 
         val native = accumulator.build()
+        val missingBase = native.missingStateBase()
 
         // Постусловие вывода родителя: составной идентификатор без найденного родителя означает,
         // что вариация молча уехала бы в корень дерева наследования. Проверяется здесь, а не
@@ -95,13 +96,13 @@ internal class ConfigCodec(
             val id = variation.id?.content.orEmpty()
             id.contains('.') && variation.parent == null
         }
-        if (orphan != null) {
-            return ConfigCodecResult.Failure(
+        return when {
+            orphan != null -> ConfigCodecResult.Failure(
                 ConfigCodecFailure.UnresolvedVariationParent(orphan.id?.content.orEmpty()),
             )
+            missingBase != null -> ConfigCodecResult.Failure(ConfigCodecFailure.MissingStateBase(missingBase))
+            else -> ConfigCodecResult.Success(native)
         }
-
-        return ConfigCodecResult.Success(native)
     }
 
     /**

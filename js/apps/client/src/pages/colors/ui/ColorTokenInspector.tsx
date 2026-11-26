@@ -1,16 +1,15 @@
-import { Fragment, useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import {
     CloseOutline,
+    DisclosureRightOutline,
     LinkBrokenChainOutline,
     LinkOutline,
-    PlusOutline,
     RotateCcwOutline,
     TrashOutline,
 } from '@salutejs/sdds-icons/16';
 
 import {
     COLOR_CONTEXTS,
-    NATIVE_PLATFORMS,
     type ColorContext,
     type ColorFieldValue,
     type ColorTokenView,
@@ -18,18 +17,30 @@ import {
     type PaintPlatform,
     type SaveStatus,
 } from '../../../modules/colorTokens';
-import type { FieldId } from '../colorTokenEditor';
-import { InspectorHeader, SectionHeader } from '../../../components/tokenWorkspace';
+import { parseField, type FieldId } from '../colorTokenEditor';
+import {
+    InspectorHeader,
+    SectionHeader,
+    TokenEnabledButton,
+    TokenEnabledNotice,
+    useTokenEnabled,
+    usePersistedOpen,
+} from '../../../components/tokenWorkspace';
 import { ColorField } from './ColorField';
 import { PublishedWarning } from './ColorTokenTree';
+
+const SUBTHEMES_OPEN_KEY = 'dsb.inspector.subthemes.open';
+
+/** Поле подтемы (`ondark-light`), а не режима (`light`, `dark`). */
+const isContextField = (field: string) => parseField(field as FieldId).context !== null;
 
 const CONTEXT_LABELS: Record<ColorContext, string> = { ondark: 'OnDark', onlight: 'OnLight', inverse: 'Inverse' };
 export const PLATFORM_LABELS: Record<PaintPlatform, string> = { web: 'Web', ios: 'iOS', android: 'Android' };
 
 const LINKED_TIP =
-    'Контексты наследуют значения из Modes. Ручное изменение отключает связь. Нажмите на иконку связи, чтобы восстановить наследование и сбросить значения к дефолтным.';
+    'Связь с Modes включена: подтема наследует значения режимов. Нажмите, чтобы разорвать связь и задать свои значения.';
 const UNLINKED_TIP =
-    'Связь отключена. Используются ручные значения. Нажмите на иконку связи, чтобы вернуть наследование из Modes и сбросить изменения.';
+    'Связь отключена: используются свои значения. Нажмите, чтобы вернуть наследование из Modes и сбросить значения подтемы.';
 
 /** Открытый выбор цвета: поле и платформа строки (web — верхнее поле). */
 export interface PickerTarget {
@@ -49,11 +60,13 @@ interface InspectorProps {
     onOpenPicker: (target: PickerTarget) => void;
     onCommit: (target: PickerTarget, value: string) => void;
     onOpacity: (target: PickerTarget, percent: number) => void;
-    /** «+» у значения: строка своего значения платформы. */
-    onAddPlatform: (field: FieldId, platform: NativePlatform) => void;
     /** «×» у строки платформы: значение снова строится из web. */
     onRemovePlatform: (field: FieldId, platform: NativePlatform) => void;
+    /** Платформа предпросмотра: поля показывают и правят значения этой платформы. */
+    platform: PaintPlatform;
     onRelink: (context: ColorContext) => void;
+    /** Разрыв связи подтемы: значения остаются, но перестают меняться вслед за режимами. */
+    onUnlink: (context: ColorContext) => void;
     onResetContexts: () => void;
     onDelete: () => void;
     onFill: () => void;
@@ -62,84 +75,45 @@ interface InspectorProps {
     onRename: (label: string) => Promise<void>;
     /** Описание токена, общее для семейства: отказ бросает ошибку с текстом для поля описания. */
     onDescribe?: (description: string) => Promise<void>;
+    /** Компоненты, где используется токен; `null` — список неизвестен, подтверждение спрашивается всегда. */
+    components: readonly string[] | null;
+    /** Включает или отключает всё семейство токена. */
+    onToggleEnabled: (enabled: boolean) => Promise<void>;
     /** Сброс изменений токена в черновике; без него кнопки сброса нет. */
     onReset?: () => void;
     resetDisabled?: boolean;
     /** Подпись адреса недопустимого значения `<токен>:<platform>:<mode>`: подтема, платформа и режим. */
     addressLabel: (address: string) => string;
+    /** Переключатель «По формуле» состояния. */
+    onStateFormula?: (formula: boolean) => void;
 }
-
-/** «+» у значения: меню платформ, у которых ещё нет своей строки. */
-const PlatformAdd = ({
-    name,
-    platforms,
-    onAdd,
-}: {
-    name: string;
-    platforms: NativePlatform[];
-    onAdd: (platform: NativePlatform) => void;
-}) => {
-    const [open, setOpen] = useState(false);
-    const ref = useRef<HTMLDivElement>(null);
-    useEffect(() => {
-        if (!open) return;
-        const close = (event: Event) => {
-            if (
-                event instanceof globalThis.KeyboardEvent
-                    ? event.key === 'Escape'
-                    : !ref.current?.contains(event.target as Node)
-            )
-                setOpen(false);
-        };
-        document.addEventListener('mousedown', close);
-        document.addEventListener('keydown', close);
-        return () => {
-            document.removeEventListener('mousedown', close);
-            document.removeEventListener('keydown', close);
-        };
-    }, [open]);
-    return (
-        <div className="ct-platform-add" ref={ref}>
-            <button
-                type="button"
-                className="tw-icon-button ct-platform-button"
-                aria-label={`Своё значение платформы: ${name}`}
-                title="Своё значение для платформы"
-                aria-haspopup="menu"
-                aria-expanded={open}
-                disabled={!platforms.length}
-                onClick={() => setOpen((current) => !current)}
-            >
-                <PlusOutline />
-            </button>
-            {open && (
-                <div className="tw-menu ct-platform-menu" role="menu">
-                    {platforms.map((platform) => (
-                        <button
-                            key={platform}
-                            type="button"
-                            role="menuitem"
-                            className="tw-menu-item"
-                            onClick={() => {
-                                setOpen(false);
-                                onAdd(platform);
-                            }}
-                        >
-                            {PLATFORM_LABELS[platform]}
-                        </button>
-                    ))}
-                </div>
-            )}
-        </div>
-    );
-};
 
 /** Инспектор токена по `tokenInspector` прототипа. */
 export const ColorTokenInspector = (props: InspectorProps) => {
-    const { view, editable, canDelete, openPicker, save } = props;
+    const { view, canDelete, openPicker, save } = props;
+    const state = view.state;
+    // Состояние по формуле правится только через значение токена.
+    const editable = props.editable && !(state && view.formula);
     // Поле имени открыто: у опубликованного токена рядом предупреждение, что новое имя изменит переменную пакета.
     const [naming, setNaming] = useState(false);
     useEffect(() => setNaming(false), [view.id]);
+    const enabledToggle = useTokenEnabled({
+        subject: view.id,
+        enabled: view.enabled,
+        editable,
+        components: props.components,
+        save: props.onToggleEnabled,
+    });
+    // Подтемы меняются по связи с режимами, поэтому секция свёрнута, пока её не раскроют для переопределения. Ошибка
+    // сохранения подтемы раскрывает её, иначе поле ошибки было бы скрыто; дальше секцию можно снова свернуть. Выбор
+    // цвета открывается только из видимого поля.
+    const [subthemesOpen, setSubthemesOpen] = usePersistedOpen(SUBTHEMES_OPEN_KEY);
+    // Раскрытие из-за ошибки не запоминается: свёрнутая по умолчанию секция остаётся такой на других токенах.
+    const [forcedOpen, setForcedOpen] = useState(false);
+    const subthemeIssue = view.issues.some((issue) => isContextField(issue.field));
+    const invalidField = props.invalidField?.field ?? 'light';
+    useEffect(() => setForcedOpen(isContextField(invalidField)), [invalidField, view.id]);
+    const subthemesShown = subthemesOpen || forcedOpen;
     const isNameField = (target: EventTarget) =>
         target instanceof HTMLInputElement && target.getAttribute('aria-label') === 'Имя токена';
 
@@ -151,81 +125,50 @@ export const ColorTokenInspector = (props: InspectorProps) => {
     };
 
     /**
-     * Поле значения Light или Dark и под ним строки своих значений платформ. «+» есть только у полей режимов.
-     * Связанная подтема только показывает унаследованные строки, без «+» и «×»: их убирают у режима.
-     * В отвязанной подтеме значения свои, поэтому строку можно убрать «×».
+     * Поле значения Light или Dark выбранной в предпросмотре платформы. Без своего значения iOS или Android поле
+     * показывает значение Web, из которого платформа строится; правка записывает своё значение платформы, а «×»
+     * снова строит его из Web. У связанной подтемы «×» нет: она наследует значения платформ режима.
      */
-    const field = (
-        id: FieldId,
-        label: string,
-        value: ColorFieldValue,
-        name: string,
-        canAdd = true,
-        canRemove = true,
-    ) => {
-        const own = NATIVE_PLATFORMS.filter((platform) => value.platforms[platform]);
-        const free = NATIVE_PLATFORMS.filter((platform) => !value.platforms[platform]);
-        const web = { field: id, platform: 'web' as const };
+    const field = (id: FieldId, label: string, value: ColorFieldValue, name: string, canRemove = true) => {
+        const platform = props.platform;
+        // Своё значение бывает только у iOS и Android: у Web и платформы без него поле показывает значение Web, а
+        // кнопка «Убрать своё значение» есть только у поля со своим значением.
+        const native = platform as NativePlatform;
+        const own = value.platforms[native];
+        // Построенное из Web поле показывает ошибки значения Web: его правят на Web.
+        const shown = own ? platform : 'web';
+        const target = { field: id, platform };
+        const platformName = platform === 'web' ? name : `${name}, ${PLATFORM_LABELS[platform]}`;
         return (
-            <Fragment key={id}>
-                <ColorField
-                    label={label}
-                    name={name}
-                    value={value}
-                    editable={editable}
-                    pickerOpen={openPicker?.field === id && openPicker.platform === 'web'}
-                    invalid={props.invalidField?.field === id && props.invalidField.platform === 'web'}
-                    message={message(id, 'web')}
-                    pickerAnchor={props.pickerAnchor}
-                    onOpenPicker={() => props.onOpenPicker(web)}
-                    onCommit={(next) => props.onCommit(web, next)}
-                    onOpacity={(percent) => props.onOpacity(web, percent)}
-                    trailing={
-                        editable &&
-                        canAdd && (
-                            <PlatformAdd
-                                name={name}
-                                platforms={free}
-                                onAdd={(platform) => props.onAddPlatform(id, platform)}
-                            />
-                        )
-                    }
-                />
-                {own.map((platform) => {
-                    const target = { field: id, platform };
-                    return (
-                        <ColorField
-                            key={platform}
-                            label={`↳ ${PLATFORM_LABELS[platform]}`}
-                            name={`${name}, ${PLATFORM_LABELS[platform]}`}
-                            platformRow
-                            value={value.platforms[platform]!}
-                            editable={editable}
-                            pickerOpen={openPicker?.field === id && openPicker.platform === platform}
-                            invalid={props.invalidField?.field === id && props.invalidField.platform === platform}
-                            message={message(id, platform)}
-                            pickerAnchor={props.pickerAnchor}
-                            onOpenPicker={() => props.onOpenPicker(target)}
-                            onCommit={(next) => props.onCommit(target, next)}
-                            onOpacity={(percent) => props.onOpacity(target, percent)}
-                            trailing={
-                                editable &&
-                                canRemove && (
-                                    <button
-                                        type="button"
-                                        className="tw-icon-button ct-platform-button"
-                                        aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
-                                        title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
-                                        onClick={() => props.onRemovePlatform(id, platform)}
-                                    >
-                                        <CloseOutline />
-                                    </button>
-                                )
-                            }
-                        />
-                    );
-                })}
-            </Fragment>
+            <ColorField
+                key={id}
+                label={label}
+                name={platformName}
+                value={own ?? value}
+                editable={editable}
+                pickerOpen={openPicker?.field === id && openPicker.platform === platform}
+                invalid={props.invalidField?.field === id && props.invalidField.platform === shown}
+                message={message(id, shown)}
+                pickerAnchor={props.pickerAnchor}
+                onOpenPicker={() => props.onOpenPicker(target)}
+                onCommit={(next) => props.onCommit(target, next)}
+                onOpacity={(percent) => props.onOpacity(target, percent)}
+                trailing={
+                    editable &&
+                    own &&
+                    canRemove && (
+                        <button
+                            type="button"
+                            className="tw-icon-button ct-platform-button"
+                            aria-label={`Убрать своё значение ${PLATFORM_LABELS[platform]}: ${name}`}
+                            title={`Убрать своё значение ${PLATFORM_LABELS[platform]}: снова строится из Web`}
+                            onClick={() => props.onRemovePlatform(id, native)}
+                        >
+                            <CloseOutline />
+                        </button>
+                    )
+                }
+            />
         );
     };
     return (
@@ -239,20 +182,22 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     // Поля имени и описания принадлежат токену: другой токен открывает их заново.
                     key={view.id}
                     title={view.displayName}
-                    description={view.description}
-                    onRename={editable ? props.onRename : undefined}
-                    onDescribe={editable ? props.onDescribe : undefined}
-                    onReset={props.onReset}
-                    resetDisabled={!editable || props.resetDisabled}
+                    // Имя, описание, отключение и сброс принадлежат всему семейству: у состояния их правят в токене.
+                    description={state ? '' : view.description}
+                    onRename={props.editable && !state ? props.onRename : undefined}
+                    onDescribe={props.editable && !state ? props.onDescribe : undefined}
+                    onReset={state ? undefined : props.onReset}
+                    resetDisabled={!props.editable || props.resetDisabled}
                     actions={
                         <>
                             {naming && view.publishedIn && <PublishedWarning version={view.publishedIn} />}
+                            {!state && <TokenEnabledButton toggle={enabledToggle} />}
                             {canDelete && (
                                 <button
                                     type="button"
                                     className="tw-icon-button"
-                                    title="Удалить токен"
-                                    aria-label="Удалить токен"
+                                    title={state ? 'Удалить состояние' : 'Удалить токен'}
+                                    aria-label={state ? 'Удалить состояние' : 'Удалить токен'}
                                     onClick={props.onDelete}
                                 >
                                     <TrashOutline />
@@ -262,6 +207,28 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                     }
                 />
             </div>
+            {!state && <TokenEnabledNotice toggle={enabledToggle} name={view.displayName} />}
+            {state && (
+                <section className="ct-inspector-section tw-section ct-state-formula">
+                    <label className="ct-formula-switch">
+                        <input
+                            type="checkbox"
+                            role="switch"
+                            checked={Boolean(view.formula)}
+                            disabled={!props.editable || !view.formulaAvailable}
+                            onChange={(event) => props.onStateFormula?.(event.target.checked)}
+                        />
+                        <span>По формуле</span>
+                    </label>
+                    <p className="ct-formula-note">
+                        {!view.formulaAvailable
+                            ? 'Для группы нет формулы'
+                            : view.formula
+                              ? 'Значения считаются от значений токена'
+                              : 'Значения заданы вручную'}
+                    </p>
+                </section>
+            )}
             {view.incomplete && (
                 <div className="ct-banner" role="status">
                     <span>Нет значений в этой теме</span>
@@ -279,7 +246,28 @@ export const ColorTokenInspector = (props: InspectorProps) => {
             </section>
             <section className="ct-inspector-section tw-section">
                 <SectionHeader
-                    title="Подтемы"
+                    title={
+                        <button
+                            type="button"
+                            className="ct-section-toggle"
+                            aria-expanded={subthemesShown}
+                            onClick={() => {
+                                setForcedOpen(false);
+                                setSubthemesOpen(!subthemesShown);
+                            }}
+                        >
+                            <DisclosureRightOutline />
+                            <span>Подтемы</span>
+                            {subthemeIssue && (
+                                <i
+                                    className="ct-section-issue"
+                                    role="img"
+                                    aria-label="Есть ошибка в подтемах"
+                                    title="Есть ошибка в подтемах"
+                                />
+                            )}
+                        </button>
+                    }
                     actions={
                         <button
                             type="button"
@@ -293,31 +281,32 @@ export const ColorTokenInspector = (props: InspectorProps) => {
                         </button>
                     }
                 />
-                {COLOR_CONTEXTS.map((context) => {
-                    const { linked, values } = view.contexts[context];
-                    return (
-                        <Fragment key={context}>
-                            <SectionHeader
-                                title={CONTEXT_LABELS[context]}
-                                actions={
-                                    <button
-                                        type="button"
-                                        className={`tw-icon-button context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
-                                        title={linked ? LINKED_TIP : UNLINKED_TIP}
-                                        aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
-                                        aria-pressed={linked}
-                                        disabled={!editable}
-                                        onClick={() => !linked && props.onRelink(context)}
-                                    >
-                                        {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
-                                    </button>
-                                }
-                            />
-                            {field(`${context}-light`, 'Light', values.light, 'Light', false, !linked)}
-                            {field(`${context}-dark`, 'Dark', values.dark, 'Dark', false, !linked)}
-                        </Fragment>
-                    );
-                })}
+                {subthemesShown &&
+                    COLOR_CONTEXTS.map((context) => {
+                        const { linked, values } = view.contexts[context];
+                        return (
+                            <Fragment key={context}>
+                                <SectionHeader
+                                    title={CONTEXT_LABELS[context]}
+                                    actions={
+                                        <button
+                                            type="button"
+                                            className={`tw-icon-button context-link-toggle ${linked ? 'is-linked' : 'is-unlinked'}`}
+                                            title={linked ? LINKED_TIP : UNLINKED_TIP}
+                                            aria-label={linked ? 'Связь с Modes включена' : 'Связь с Modes отключена'}
+                                            aria-pressed={linked}
+                                            disabled={!editable}
+                                            onClick={() => (linked ? props.onUnlink : props.onRelink)(context)}
+                                        >
+                                            {linked ? <LinkOutline /> : <LinkBrokenChainOutline />}
+                                        </button>
+                                    }
+                                />
+                                {field(`${context}-light`, 'Light', values.light, 'Light', !linked)}
+                                {field(`${context}-dark`, 'Dark', values.dark, 'Dark', !linked)}
+                            </Fragment>
+                        );
+                    })}
             </section>
         </>
     );

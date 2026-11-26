@@ -1,18 +1,14 @@
+import { readFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 
 import type { Meta } from './generator/componentBuilder/type.ts';
 import { readComponentsMeta } from './component-source.ts';
 import { buildApiMeta } from './generate-api-meta.ts';
 import { cliDirectory } from './package-output.ts';
+import { webAdapter, type WebAdapter } from './web-mapping/index.ts';
 
 /** Пакет компонентов, из аннотаций токенов которого берутся web-параметры свойств. */
 export const COMPONENTS_PACKAGE = '@salutejs/plasma-new-hope';
-
-/**
- * Встроенный `web-adapter.json`: имена, описания, шаблоны web-параметров и compose-связи компонентов.
- * Копия `js/apps/preview-web-plugin/src/data/web-adapter.json`, файлы должны совпадать побайтно.
- */
-export const BUNDLED_WEB_ADAPTER = join(cliDirectory, 'src', 'data', 'web-adapter.json');
 
 /**
  * Читает компоненты для генерации: выгрузку из `.sdds`, web-маппинги установленного пакета и
@@ -31,7 +27,9 @@ export async function readComponentsForGeneration(options: {
     const componentsMeta = await readComponentsMeta({
         apiMeta,
         componentsDirectory: resolve(options.components ?? join(options.sddsDirectory, 'components')),
-        webAdapterFile: options.web ? join(resolve(options.web), 'web-adapter.json') : BUNDLED_WEB_ADAPTER,
+        webAdapter: options.web
+            ? (JSON.parse(await readFile(join(resolve(options.web), 'web-adapter.json'), 'utf8')) as WebAdapter)
+            : webAdapter,
     });
     if (componentsMeta.length === 0) {
         throw new Error('The components directory has no configurations: run `dsbuilder components fetch` first.');

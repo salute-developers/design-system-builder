@@ -31,6 +31,7 @@ import com.dsbuilder.frontend.core.workspace.ProjectConfigStore
 import com.dsbuilder.frontend.core.workspace.ProjectConfigTenant
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
 import com.github.ajalt.mordant.terminal.Terminal
+import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.builtins.ListSerializer
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonArray
@@ -48,7 +49,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 
 class DsBuilderCliTest {
-    @Test fun analyticsTracksOnlyStartedLeafAndIsolatesFailures() {
+    @Test fun analyticsTracksOnlyStartedLeafAndIsolatesFailures() = runTest {
         val events = mutableListOf<AnalyticsEvent>()
         val recorder = object : Analytics {
             override fun track(event: AnalyticsEvent) { events += event }
@@ -88,7 +89,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchRetainsMoreThanTwoHundredDefinitionsAndFiftyThemesWithoutPageParameters() {
+    fun themeFetchRetainsMoreThanTwoHundredDefinitionsAndFiftyThemesWithoutPageParameters() = runTest {
         val fileSystem = initializedFileSystem()
         val tenants = (1..51).map { configTenant("tenant-$it").copy(name = "Theme $it") }
         val token = Json.parseToJsonElement(singleColorTokenResponse()).jsonArray.single().jsonObject
@@ -145,7 +146,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchRetainsMoreThanTwoHundredConfigurationsAndExistingFileFormat() {
+    fun componentsFetchRetainsMoreThanTwoHundredConfigurationsAndExistingFileFormat() = runTest {
         val fileSystem = initializedFileSystem()
         val components = (1..205).joinToString(",") {
             """{"componentName":"component$it","styleName":"default","config":{"invariants":{}}}"""
@@ -176,7 +177,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusUsesProjectEnvForKeyAndApiUrl() {
+    fun statusUsesProjectEnvForKeyAndApiUrl() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText(
             "/repo/.env",
@@ -199,7 +200,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusProcessEnvWinsOverProjectEnv() {
+    fun statusProcessEnvWinsOverProjectEnv() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText(
             "/repo/.env",
@@ -226,7 +227,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusWithoutProjectContextExplainsLinkAfterLogin() {
+    fun statusWithoutProjectContextExplainsLinkAfterLogin() = runTest {
         val runtime = fakeRuntime(
             credentialStore = testSessionStore(),
             tokenClient = testTokenClient(),
@@ -241,7 +242,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun explicitLinkSelectsHeadlessStatusWithUserSession() {
+    fun explicitLinkSelectsHeadlessStatusWithUserSession() = runTest {
         val selected = mutableListOf<BackendCredential>()
         val runtime = fakeRuntime(
             credentialStore = testSessionStore(),
@@ -266,7 +267,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun explicitLinkCanSelectHeadlessProjectKeyEnvironment() {
+    fun explicitLinkCanSelectHeadlessProjectKeyEnvironment() = runTest {
         val selected = mutableListOf<BackendCredential>()
         val runtime = fakeRuntime(
             environment = mapOf("CI_PROJECT_KEY" to "ci-secret"),
@@ -292,7 +293,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun projectScopedHelpListsExplicitContextOptions() {
+    fun projectScopedHelpListsExplicitContextOptions() = runTest {
         val cli = DsBuilderCli(fakeRuntime())
         listOf(
             listOf("status"),
@@ -309,7 +310,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsPushAndFetchOfferThePlatformOption() {
+    fun componentsPushAndFetchOfferThePlatformOption() = runTest {
         val cli = DsBuilderCli(fakeRuntime())
         listOf(listOf("components", "push"), listOf("components", "fetch")).forEach { command ->
             val result = cli.execute(command + "--help")
@@ -319,7 +320,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchAsksForThePlatformWhenTheConfigDeclaresSeveral() {
+    fun componentsFetchAsksForThePlatformWhenTheConfigDeclaresSeveral() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo/src").apply {
             writeText(
                 "/repo/.sdds/config.json",
@@ -346,7 +347,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun userSessionCanFetchThemeAndPublishDocsWithoutProjectKey() {
+    fun userSessionCanFetchThemeAndPublishDocsWithoutProjectKey() = runTest {
         val fileSystem = initializedFileSystem().apply {
             writeText(
                 "/repo/.sdds/config.json",
@@ -377,7 +378,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun defaultInvocationReturnsHelpText() {
+    fun defaultInvocationReturnsHelpText() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(emptyList())
 
         assertEquals(0, result.exitCode, result.output)
@@ -390,7 +391,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun authHelpDoesNotRequireProjectContextOrBackend() {
+    fun authHelpDoesNotRequireProjectContextOrBackend() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("auth", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -400,7 +401,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun credentialLockTimeoutIsPrintedWithoutUncaughtException() {
+    fun credentialLockTimeoutIsPrintedWithoutUncaughtException() = runTest {
         val store = object : CredentialStore {
             override suspend fun read(apiUrl: String): UserSession? = throw CredentialStoreLockException("session.lock")
             override suspend fun save(session: UserSession) = Unit
@@ -413,7 +414,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun authLoginRejectsPasswordArgumentBeforeParsing() {
+    fun authLoginRejectsPasswordArgumentBeforeParsing() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(
             listOf("auth", "login", "--username", "alice", "--password", "secret"),
         )
@@ -424,7 +425,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun apiUrlOptionIsRejectedByNetworkCommands() {
+    fun apiUrlOptionIsRejectedByNetworkCommands() = runTest {
         listOf(
             listOf("auth", "status"),
             listOf("auth", "logout"),
@@ -442,7 +443,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun mcpServeHelpDoesNotRequireProjectContextOrBackend() {
+    fun mcpServeHelpDoesNotRequireProjectContextOrBackend() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("mcp", "serve", "--help"))
 
         assertEquals(0, result.exitCode, result.output)
@@ -452,7 +453,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun versionInvocationReturnsVersionText() {
+    fun versionInvocationReturnsVersionText() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("--version"))
 
         assertEquals(0, result.exitCode)
@@ -460,7 +461,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishUploadsDefaultBundleAndPrintsAcceptedIdentifiers() {
+    fun docsPublishUploadsDefaultBundleAndPrintsAcceptedIdentifiers() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeBytes("/.sdds/temp/docs-bundle.tar.gz", byteArrayOf(1, 2, 3))
         var uploadedPath = ""
@@ -490,7 +491,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishUsesOverridesAndFormatsStructuredFailure() {
+    fun docsPublishUsesOverridesAndFormatsStructuredFailure() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeBytes("/custom.tar.gz", byteArrayOf(4, 5))
         var createdApiUrl = ""
@@ -528,7 +529,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishRejectsMissingBundleBeforeRequest() {
+    fun docsPublishRejectsMissingBundleBeforeRequest() = runTest {
         val fileSystem = initializedFileSystem()
         var posted = false
         val result = DsBuilderCli(
@@ -545,7 +546,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishRejectsMissingProjectContextAndCredentialBeforeRequest() {
+    fun docsPublishRejectsMissingProjectContextAndCredentialBeforeRequest() = runTest {
         var posted = false
         val missingContext = DsBuilderCli(
             fakeRuntime(onPost = { _, _ -> posted = true }),
@@ -565,7 +566,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun docsPublishUsesSafeFallbackForHttpAndTransportFailures() {
+    fun docsPublishUsesSafeFallbackForHttpAndTransportFailures() = runTest {
         val statuses = listOf(400, 401, 403, 413, 415, 503)
         statuses.forEach { status ->
             val fileSystem = initializedFileSystem().apply {
@@ -601,7 +602,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun initCommandCreatesConfigAndProtectsExistingConfig() {
+    fun initCommandCreatesConfigAndProtectsExistingConfig() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo")
         val cli = DsBuilderCli(fakeRuntime(fileSystem = fileSystem))
 
@@ -640,7 +641,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun initCommandUsesDefaultApiKeyEnvWhenOptionIsOmitted() {
+    fun initCommandUsesDefaultApiKeyEnvWhenOptionIsOmitted() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo")
         val cli = DsBuilderCli(fakeRuntime(fileSystem = fileSystem))
 
@@ -658,7 +659,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusCommandPrintsAuthorizedStatusWithoutSecret() {
+    fun statusCommandPrintsAuthorizedStatusWithoutSecret() = runTest {
         val fileSystem = initializedFileSystem()
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -683,7 +684,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusCommandMapsFailuresWithoutSecret() {
+    fun statusCommandMapsFailuresWithoutSecret() = runTest {
         val runtime = fakeRuntime(
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
@@ -698,7 +699,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun statusCommandUsesConfiguredProjectEndpointOnly() {
+    fun statusCommandUsesConfiguredProjectEndpointOnly() = runTest {
         val calls = mutableListOf<String>()
         val runtime = fakeRuntime(
             fileSystem = initializedFileSystem(),
@@ -727,7 +728,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun commandErrorsAreDeterministicAndDoNotRequireRuntimeContext() {
+    fun commandErrorsAreDeterministicAndDoNotRequireRuntimeContext() = runTest {
         val runtime = fakeRuntime()
 
         val missingOption = DsBuilderCli(runtime).execute(listOf("init"))
@@ -743,7 +744,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun helpAndVersionDoNotRequireConfigOrCredentials() {
+    fun helpAndVersionDoNotRequireConfigOrCredentials() = runTest {
         val runtime = fakeRuntime(
             fileSystem = FakeFileSystem(currentDirectory = "/repo"),
             environment = emptyMap(),
@@ -759,7 +760,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeCommandHelpDoesNotRequireConfigOrCredentials() {
+    fun themeCommandHelpDoesNotRequireConfigOrCredentials() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("theme", "--help"))
 
         assertEquals(0, result.exitCode)
@@ -769,7 +770,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeAliasHelpDoesNotRequireConfigOrCredentials() {
+    fun themeAliasHelpDoesNotRequireConfigOrCredentials() = runTest {
         val result = DsBuilderCli(fakeRuntime()).execute(listOf("theme", "alias", "--help"))
 
         assertEquals(0, result.exitCode)
@@ -780,7 +781,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeAliasListPrintsTenantsAndAliasesWithoutCredentials() {
+    fun themeAliasListPrintsTenantsAndAliasesWithoutCredentials() = runTest {
         val fileSystem = initializedFileSystem()
         ProjectConfigStore(fileSystem).updateTenants(
             configPath = "/repo/.sdds/config.json",
@@ -796,7 +797,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeAliasSetAndUnsetUpdateConfig() {
+    fun themeAliasSetAndUnsetUpdateConfig() = runTest {
         val fileSystem = initializedFileSystem()
         ProjectConfigStore(fileSystem).updateTenants(
             configPath = "/repo/.sdds/config.json",
@@ -819,7 +820,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeAliasValidationFailuresDoNotModifyConfig() {
+    fun themeAliasValidationFailuresDoNotModifyConfig() = runTest {
         val fileSystem = initializedFileSystem()
         ProjectConfigStore(fileSystem).updateTenants(
             configPath = "/repo/.sdds/config.json",
@@ -850,7 +851,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchParsesNullTokenValueAndReportsMissingValueWhenNoReplacementExists() {
+    fun themeFetchParsesNullTokenValueAndReportsMissingValueWhenNoReplacementExists() = runTest {
         val runtime = fakeRuntime(
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
@@ -907,7 +908,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchIgnoresNullTokenValueRowsWhenNonNullValueExists() {
+    fun themeFetchIgnoresNullTokenValueRowsWhenNonNullValueExists() = runTest {
         val fileSystem = initializedFileSystem()
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -931,7 +932,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchWritesColorResolvedByThemePalette() {
+    fun themeFetchWritesColorResolvedByThemePalette() = runTest {
         val fileSystem = initializedFileSystem()
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -974,7 +975,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchUsesExpectedHttpPathsAndMapsParseFailuresWithoutSecret() {
+    fun themeFetchUsesExpectedHttpPathsAndMapsParseFailuresWithoutSecret() = runTest {
         val calls = mutableListOf<String>()
         val parseFailureRuntime = fakeRuntime(
             fileSystem = initializedFileSystem(),
@@ -998,7 +999,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchAcceptsBackendTenantsWithNullDescriptionAndExtraFields() {
+    fun themeFetchAcceptsBackendTenantsWithNullDescriptionAndExtraFields() = runTest {
         val fileSystem = initializedFileSystem()
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -1049,7 +1050,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchDoesNotPrintTokenValuesResponseBodyOnParseFailure() {
+    fun themeFetchDoesNotPrintTokenValuesResponseBodyOnParseFailure() = runTest {
         val runtime = fakeRuntime(
             fileSystem = initializedFileSystem(),
             environment = mapOf("DSBUILDER_PROJECT_A_API_KEY" to "secret-value"),
@@ -1077,7 +1078,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchDoesNotWritePartialFilesOnPaletteParseFailure() {
+    fun themeFetchDoesNotWritePartialFilesOnPaletteParseFailure() = runTest {
         val fileSystem = initializedFileSystem()
         val originalConfig = fileSystem.readText("/repo/.sdds/config.json")
         val runtime = fakeRuntime(
@@ -1104,7 +1105,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchWritesLocalFilesAndConfigTenants() {
+    fun themeFetchWritesLocalFilesAndConfigTenants() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText("/repo/.sdds/sdds_cs/web/web_spacing.json", """{"stale":"value"}""")
         fileSystem.writeText("/repo/.sdds/stale_tenant/meta.json", """[{"stale":"tenant"}]""")
@@ -1161,7 +1162,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchAcceptsNullTokenDisplayNameAndDescription() {
+    fun themeFetchAcceptsNullTokenDisplayNameAndDescription() = runTest {
         val fileSystem = initializedFileSystem()
         val results = successfulThemeHttpResults().toMutableMap()
         val tokenPath = "/api/projects/project-a/design-systems/design-system-a/tokens"
@@ -1188,7 +1189,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchDoesNotRequestLegacyEndpointAndKeepsExistingSnapshot() {
+    fun componentsFetchDoesNotRequestLegacyEndpointAndKeepsExistingSnapshot() = runTest {
         val fileSystem = initializedFileSystem()
         fileSystem.writeText("/repo/.sdds/component-configs.json", "old configs")
         val calls = mutableListOf<String>()
@@ -1210,7 +1211,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchPreservesLocalFilesWhenWebAdapterDownloadFails() {
+    fun componentsFetchPreservesLocalFilesWhenWebAdapterDownloadFails() = runTest {
         val webAdapterEndpoint = "/api/projects/project-a/design-systems/design-system-a/component-config/web-adapter"
         val failures = listOf(
             webAdapterEndpoint to AuthenticatedHttpResult.Failure("Error: unavailable"),
@@ -1238,7 +1239,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchUsesRuntimeOverrides() {
+    fun componentsFetchUsesRuntimeOverrides() = runTest {
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
             fakeRuntime(
@@ -1258,7 +1259,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchReportsComponentFileWriteFailure() {
+    fun componentsFetchReportsComponentFileWriteFailure() = runTest {
         val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         fileSystem.writeFailurePath = "/repo/.sdds/web/web-adapter.json"
@@ -1280,7 +1281,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun componentsFetchWritesComponentsSharingDefaultStyle() {
+    fun componentsFetchWritesComponentsSharingDefaultStyle() = runTest {
         val fileSystem = initializedFileSystem()
         val response = """
             {"meta":{"name":"qwe","version":"0.1.0"},"components":[
@@ -1318,7 +1319,7 @@ class DsBuilderCliTest {
     )
 
     @Test
-    fun headlessComponentsFetchWritesToExplicitDestination() {
+    fun headlessComponentsFetchWritesToExplicitDestination() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo")
         val credentials = mutableListOf<BackendCredential>()
         val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1.0&platform=compose"
@@ -1346,7 +1347,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun dsFetchFetchesThemeThenComponentsWithTheSameContext() {
+    fun dsFetchFetchesThemeThenComponentsWithTheSameContext() = runTest {
         val analytics = RecordingClientAnalytics()
         val fileSystem = initializedFileSystem()
         val calls = mutableListOf<String>()
@@ -1376,7 +1377,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun dsFetchStopsWhenThemeFetchFails() {
+    fun dsFetchStopsWhenThemeFetchFails() = runTest {
         val calls = mutableListOf<String>()
         val result = DsBuilderCli(
             fakeRuntime(
@@ -1405,7 +1406,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchWithLinkWritesToExplicitDestinationWithoutLocalConfig() {
+    fun themeFetchWithLinkWritesToExplicitDestinationWithoutLocalConfig() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo")
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -1431,7 +1432,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchWithLinkRequiresDestinationBeforeBackendCall() {
+    fun themeFetchWithLinkRequiresDestinationBeforeBackendCall() = runTest {
         val calls = mutableListOf<String>()
         val runtime = fakeRuntime(onGet = { calls += it })
         val link = "dsbuilder://projects/project-a/design-systems/design-system-a?version=1.0.0&platform=compose"
@@ -1444,7 +1445,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchDoesNotOverwriteDestinationConfig() {
+    fun themeFetchDoesNotOverwriteDestinationConfig() = runTest {
         val fileSystem = FakeFileSystem(currentDirectory = "/repo")
         val existingConfig = ProjectConfigCodec().encode(projectConfig())
         fileSystem.writeText("/target/.sdds/config.json", existingConfig)
@@ -1467,7 +1468,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchPreservesAliasForExistingTenantAndRemovesMissingTenantAlias() {
+    fun themeFetchPreservesAliasForExistingTenantAndRemovesMissingTenantAlias() = runTest {
         val fileSystem = initializedFileSystem()
         ProjectConfigStore(fileSystem).updateTenants(
             configPath = "/repo/.sdds/config.json",
@@ -1493,7 +1494,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchTreatsBlankTokenValuesResponseAsEmptyListWhenTokensAreEmpty() {
+    fun themeFetchTreatsBlankTokenValuesResponseAsEmptyListWhenTokensAreEmpty() = runTest {
         val fileSystem = initializedFileSystem()
         val runtime = fakeRuntime(
             fileSystem = fileSystem,
@@ -1522,7 +1523,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun themeFetchMapsBackendAndCredentialFailuresWithoutSecret() {
+    fun themeFetchMapsBackendAndCredentialFailuresWithoutSecret() = runTest {
         val backendFailure = DsBuilderCli(
             fakeRuntime(
                 fileSystem = initializedFileSystem(),
@@ -1752,7 +1753,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun interactiveInitSelectsProjectThenItsSystemsUsingUserSessionDespiteProjectKey() {
+    fun interactiveInitSelectsProjectThenItsSystemsUsingUserSessionDespiteProjectKey() = runTest {
         val fs = FakeFileSystem(currentDirectory = "/repo")
         val events = mutableListOf<String>()
         val credentials = mutableListOf<BackendCredential>()
@@ -1806,7 +1807,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun interactiveInitHandlesPartialIdsCancellationEmptyListsAndMembershipWithoutWritingConfig() {
+    fun interactiveInitHandlesPartialIdsCancellationEmptyListsAndMembershipWithoutWritingConfig() = runTest {
         for (scenario in listOf("cancel", "empty", "foreign", "no-session", "closed")) {
             val fs = FakeFileSystem(currentDirectory = "/repo")
             val calls = mutableListOf<String>()
@@ -1855,7 +1856,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun interactiveInitChecksExistingConfigBeforeNetworkAndHonorsExplicitEnv() {
+    fun interactiveInitChecksExistingConfigBeforeNetworkAndHonorsExplicitEnv() = runTest {
         val fs = FakeFileSystem(currentDirectory = "/repo")
         fs.writeText("/repo/.sdds/config.json", ProjectConfigCodec().encode(projectConfig()))
         val runtime = fakeRuntime(fileSystem = fs, onGet = { error("No network before config check") })
@@ -1895,7 +1896,7 @@ class DsBuilderCliTest {
     }
 
     @Test
-    fun interactiveInitAllowsSkippingPlatformsAndCancellingBeforeConfigWrite() {
+    fun interactiveInitAllowsSkippingPlatformsAndCancellingBeforeConfigWrite() = runTest {
         for (selection in listOf<List<String>?>(emptyList(), null)) {
             val fs = FakeFileSystem(currentDirectory = "/repo")
             val menu = object : InitSelectionMenu {

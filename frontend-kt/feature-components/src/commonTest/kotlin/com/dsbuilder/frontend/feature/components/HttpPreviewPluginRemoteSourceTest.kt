@@ -15,8 +15,10 @@ import com.dsbuilder.frontend.feature.components.data.HttpPreviewPluginRemoteSou
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaComponent
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaManifest
 import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaProperty
+import com.dsbuilder.frontend.feature.components.domain.apimeta.ApiMetaStateSupport
 import kotlinx.coroutines.test.runTest
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlin.test.Test
@@ -56,10 +58,19 @@ class HttpPreviewPluginRemoteSourceTest {
             listOf(
                 ApiMetaComponent(
                     "Avatar",
-                    listOf(ApiMetaProperty("shape", "shape", listOf("shape"), null)),
+                    listOf(
+                        ApiMetaProperty(
+                            "shape",
+                            "shape",
+                            listOf("shape"),
+                            null,
+                            stateSupport = ApiMetaStateSupport(listOf("hovered"), combinations = false),
+                        ),
+                    ),
                     listOf("hovered"),
                 ),
             ),
+            interactionStates = listOf("hovered"),
         ),
         source = "api-meta.json",
         dryRun = dryRun,
@@ -82,6 +93,11 @@ class HttpPreviewPluginRemoteSourceTest {
         val meta = Json.parseToJsonElement(files[1].bytes.decodeToString()).jsonObject
         assertEquals("compose", meta.getValue("platform").jsonPrimitive.content)
         assertTrue("designSystemId" !in meta)
+        // Публикация плагина несёт признак так же, как import-api: тело строит общий toImportRequest.
+        assertEquals("hovered", meta.getValue("interactionStates").jsonArray.single().jsonPrimitive.content)
+        val support = meta.getValue("components").jsonArray.single().jsonObject.getValue("properties").jsonArray
+            .single().jsonObject.getValue("stateSupport").jsonObject
+        assertEquals("false", support.getValue("combinations").jsonPrimitive.content)
     }
 
     @Test

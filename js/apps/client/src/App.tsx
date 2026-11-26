@@ -40,13 +40,19 @@ import {
     ProjectPage,
     ProjectSettingsPage,
     ProjectsPage,
-    ThemeSettingsPage,
 } from './pages/workflowPages';
 
 const ProtectedRoute = () => {
     const isAuthenticated = authService.isAuthenticated();
 
-    return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+    return isAuthenticated ? (
+        <AnalyticsConsent>
+            <AnalyticsNavigation />
+            <Outlet />
+        </AnalyticsConsent>
+    ) : (
+        <Navigate to="/login" />
+    );
 };
 
 const PublicRoute = ({ children }: { children: ReactNode }) => {
@@ -91,8 +97,6 @@ const LegacyThemeRedirect = () => {
 function App() {
     return (
         <Router basename={getBaseName()}>
-            <AnalyticsConsent />
-            <AnalyticsNavigation />
             <Routes>
                 <Route
                     path="/login"
@@ -135,7 +139,7 @@ function App() {
                         <Route path="icons" element={<IconsPage embedded />} />
                         <Route path="changes" element={<DesignSystemChangesPage />} />
                         <Route path="versions" element={<DesignSystemVersionsPage />} />
-                        <Route path="settings" element={<ThemeSettingsPage embedded />} />
+                        <Route path="settings" element={<DesignSystemSettingsPage embedded />} />
                     </Route>
                     <Route path="/" element={<Main />}>
                         <Route index element={<Navigate to="/projects" replace />} />

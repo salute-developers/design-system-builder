@@ -44,7 +44,17 @@ export type PropType =
     /** Ссылка на стиль другого компонента: `<конфигурация>.<стиль>.<стиль>`. */
     | 'component_style';
 
-export type PropState = 'hovered' | 'pressed' | 'focused'; //| 'disabled' | 'loading';
+/** Имя состояния в форме конфигураций (`hovered`, `dragging-over`); набор имён приходит из бандла компонента. */
+export type PropState = string;
+
+/**
+ * Признак поддержки состояний свойства: имена допустимых состояний и допустимость сочетаний. `null` или его
+ * отсутствие — мета признак не сообщила, действует прежнее правило редактора.
+ */
+export interface StateSupport {
+    states: PropState[];
+    combinations: boolean;
+}
 
 export type Intersections = Record<string, string[]>;
 
@@ -78,6 +88,7 @@ export interface ComponentAPI {
     description?: string;
     variations: string[] | null;
     platformMappings: PlatformTokens;
+    stateSupport?: StateSupport | null;
 }
 
 export interface ComponentVariation {
@@ -179,4 +190,3 @@ export interface Meta {
         appearanceNames?: string[];
     };
 }
-

@@ -18,7 +18,7 @@ internal class DocsInitCliCommand(
     private val fileSystem: WorkspaceFileSystem,
 ) : AnalyticsCliCommand(name = "init", operation = "docs init") {
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val currentDir = fileSystem.currentWorkingDirectory()
 
         val result = initUseCase.execute(DocsInitCommand(targetDirectory = currentDir))

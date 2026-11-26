@@ -32,7 +32,7 @@ public class WebNpmDelegate internal constructor(
 
     override val capabilities: Set<Capability> = COMMANDS.keys
 
-    override fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
+    override suspend fun doctor(workspace: WorkspacePaths, toolOverride: String?): ToolchainStatus {
         val tool = when (val lookup = locator.locate(toolOverride)) {
             is WebToolLookup.Missing -> return ToolchainStatus.Missing(lookup.hint)
             is WebToolLookup.Found -> lookup.tool
@@ -63,7 +63,7 @@ public class WebNpmDelegate internal constructor(
         }
     }
 
-    override fun run(invocation: DelegateInvocation): DelegateResult {
+    override suspend fun run(invocation: DelegateInvocation): DelegateResult {
         val command = COMMANDS[invocation.capability]
             ?: return DelegateResult.Unsupported(
                 "Toolchain 'web' does not support ${invocation.capability.label} for platform 'react'.",

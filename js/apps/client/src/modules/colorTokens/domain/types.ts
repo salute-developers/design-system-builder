@@ -77,6 +77,14 @@ export interface ColorTokenView {
     modes: Record<ColorMode, ColorFieldValue>;
     contexts: Record<ColorContext, { linked: boolean; values: Record<ColorMode, ColorFieldValue> }>;
     issues: ColorValueIssue[];
+    /** Состояние, если строка — состояние токена (`text.accent-hover`); у самого токена нет. */
+    state?: ColorState;
+    /** Состояния токена в порядке Hover, Active, Brightness; у строки состояния нет. */
+    states?: ColorTokenView[];
+    /** У состояния есть формула редактора. */
+    formulaAvailable?: boolean;
+    /** Значения состояния считаются формулой: формула есть и значения Light и Dark не отмечены `detached`. */
+    formula?: boolean;
 }
 
 /** Группа (`parentId === null`, есть `code`) или подгруппа токенов дизайн-системы. */

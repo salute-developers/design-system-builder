@@ -75,7 +75,7 @@ internal class DocsGenerationSource(
      * Заданный `--docs-dir` означает готовое дерево. Иначе дерево собирает платформенный
      * инструмент, а если его нет — берётся дерево по умолчанию.
      */
-    fun selectDocsTree(
+    suspend fun selectDocsTree(
         command: DocsGenerateCommand,
         target: TargetPlatform?,
     ): DocsTreeSelection {

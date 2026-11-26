@@ -99,6 +99,7 @@ class ExposedDesignSystemAggregateRepository : DesignSystemAggregateRepository {
     ): ModelReadItems<DesignSystemTokenSummary>? {
         if (!isAccessibleAtSelectedVersion(projectId, designSystemId)) return null
         var condition = AggregateTokensTable.designSystemId eq designSystemId.value
+        if (read.tokenIds.isNotEmpty()) condition = condition and (AggregateTokensTable.id inList read.tokenIds)
         type?.let { condition = condition and (AggregateTokensTable.type.castTo<String>(TextColumnType()) eq it) }
         query?.takeIf(String::isNotBlank)?.let { raw ->
             val pattern = "%${raw.trim().lowercase()}%"

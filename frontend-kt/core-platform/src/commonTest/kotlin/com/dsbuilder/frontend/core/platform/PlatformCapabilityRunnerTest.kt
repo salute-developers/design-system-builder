@@ -8,6 +8,8 @@ import com.dsbuilder.frontend.core.domain.ProjectContext
 import com.dsbuilder.frontend.core.domain.ProjectId
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -18,7 +20,7 @@ class PlatformCapabilityRunnerTest {
     private val configPath = "/repo/Themes/PlasmaHomeDSTheme/.sdds/config.json"
 
     @Test
-    fun delegateReceivesWorkspaceDerivedFromConfigLocation() {
+    fun delegateReceivesWorkspaceDerivedFromConfigLocation() = runTest {
         val delegate = iosDelegate()
         val runner = runner(delegate, platforms = listOf(TargetPlatform.SWIFT_UI))
 
@@ -33,7 +35,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun planIsReportedBeforeTheToolRuns() {
+    fun planIsReportedBeforeTheToolRuns() = runTest {
         val order = mutableListOf<String>()
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
@@ -51,7 +53,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun relativeOutputAndToolAreMadeAbsolute() {
+    fun relativeOutputAndToolAreMadeAbsolute() = runTest {
         val delegate = iosDelegate()
         val runner = runner(delegate, platforms = listOf(TargetPlatform.SWIFT_UI))
 
@@ -71,7 +73,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun explicitPlatformSelectsItsDelegate() {
+    fun explicitPlatformSelectsItsDelegate() = runTest {
         val ios = iosDelegate()
         val android = FakePlatformDelegate(
             toolchain = ToolchainId("android"),
@@ -93,7 +95,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun missingIosDelegateReportsUnsupportedOperatingSystem() {
+    fun missingIosDelegateReportsUnsupportedOperatingSystem() = runTest {
         val runner = PlatformCapabilityRunner(
             projectContextReader = contextReader(listOf(TargetPlatform.SWIFT_UI)),
             registry = PlatformDelegateRegistry(emptyList()),
@@ -106,7 +108,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun missingProjectContextStopsBeforeAnyDelegateCall() {
+    fun missingProjectContextStopsBeforeAnyDelegateCall() = runTest {
         val delegate = iosDelegate()
         val runner = PlatformCapabilityRunner(
             projectContextReader = { ProjectContextReadResult.Failed("Error: Project is not initialized.") },
@@ -122,7 +124,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun unregisteredPlatformNamesTheRegisteredToolchains() {
+    fun unregisteredPlatformNamesTheRegisteredToolchains() = runTest {
         val runner = runner(iosDelegate(), platforms = listOf(TargetPlatform.COMPOSE))
 
         val result = runner.execute(PlatformRunCommand(capability = Capability.THEME))
@@ -137,7 +139,7 @@ class PlatformCapabilityRunnerTest {
      * Иначе команда с явным путём отказывала бы из-за отсутствия инструмента в стандартных местах.
      */
     @Test
-    fun explicitToolIsCheckedByDoctorInsteadOfTheStandardOnes() {
+    fun explicitToolIsCheckedByDoctorInsteadOfTheStandardOnes() = runTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
@@ -161,7 +163,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun unsupportedCapabilityIsRejectedBeforeDoctor() {
+    fun unsupportedCapabilityIsRejectedBeforeDoctor() = runTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
@@ -178,7 +180,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun missingToolchainStopsBeforeRunAndKeepsTheHint() {
+    fun missingToolchainStopsBeforeRunAndKeepsTheHint() = runTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
@@ -193,7 +195,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun incompatibleToolchainReportsBothVersions() {
+    fun incompatibleToolchainReportsBothVersions() = runTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
@@ -209,7 +211,7 @@ class PlatformCapabilityRunnerTest {
     }
 
     @Test
-    fun toolFailureKeepsExitCodeAndMessage() {
+    fun toolFailureKeepsExitCodeAndMessage() = runTest {
         val delegate = FakePlatformDelegate(
             toolchain = ToolchainId("ios"),
             platforms = setOf(TargetPlatform.SWIFT_UI),
@@ -222,6 +224,28 @@ class PlatformCapabilityRunnerTest {
         ).message
         assertTrue(message.contains("exit code 2"), message)
         assertTrue(message.contains("invalid arguments"), message)
+    }
+
+    @Test
+    fun cancellationReachesDelegateWithoutRetryOrSuccess() = runTest {
+        var calls = 0
+        val started = kotlinx.coroutines.CompletableDeferred<Unit>()
+        val delegate = FakePlatformDelegate(
+            toolchain = ToolchainId("ios"),
+            platforms = setOf(TargetPlatform.SWIFT_UI),
+            result = {
+                calls++
+                started.complete(Unit)
+                kotlinx.coroutines.awaitCancellation()
+            },
+        )
+        val operation = async {
+            runner(delegate, listOf(TargetPlatform.SWIFT_UI)).execute(PlatformRunCommand(capability = Capability.THEME))
+        }
+        started.await()
+        operation.cancel()
+        kotlin.test.assertFailsWith<kotlinx.coroutines.CancellationException> { operation.await() }
+        assertEquals(1, calls)
     }
 
     private fun iosDelegate() = FakePlatformDelegate(

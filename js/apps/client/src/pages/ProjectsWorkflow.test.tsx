@@ -1,10 +1,11 @@
-import { act, cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { Link, MemoryRouter, Route, Routes } from 'react-router-dom';
 import { ApiError, authService, designSystemsApi, projectsApi, type ProjectDto } from '../api';
 import { getAnchoredPopoverGeometry } from '../components/Overlay/Overlay';
 import { UserSettingsPage } from './userSettings/UserSettingsPage';
 import { userSettingsApi } from '../modules/userSettings/data/userSettingsApi';
+import { themesApi } from '../modules/themes/data/themesApi';
 import { resetQueryCache } from '../shared/data/useLoad';
 import {
     CreateDesignSystemDialog,
@@ -15,7 +16,6 @@ import {
     ProjectPage,
     ProjectSettingsPage,
     ProjectsPage,
-    ThemeSettingsPage,
 } from './workflowPages';
 import workflowCss from '../styles/workflow.css?raw';
 import * as projectPages from './projects/Projects';
@@ -27,7 +27,6 @@ import designSystemPagesSource from './designSystems/DesignSystems.tsx?raw';
 import themePagesSource from './themes/Themes.tsx?raw';
 import projectsCatalogSource from './projects/ProjectsCatalog.tsx?raw';
 import designSystemOverviewSource from './designSystems/DesignSystemOverview.tsx?raw';
-import themeSettingsSource from './themes/ThemeSettingsPage.tsx?raw';
 import errorStateImage from '../assets/catalog/error-state.png';
 
 const project = (role: ProjectDto['effectiveRole'], status: ProjectDto['status'] = 'active'): ProjectDto => ({
@@ -71,6 +70,7 @@ const atCreateDesignSystem = (path = '/projects/project-1/design-systems/new') =
     );
 const at = (path: string, element: React.ReactNode) => {
     const route = path
+        .split('?')[0]
         .replace('/projects/project-1', '/projects/:projectId')
         .replace('/design-systems/ds-1', '/design-systems/:designSystemId')
         .replace('/themes/theme-1', '/themes/:tenantId');
@@ -95,6 +95,8 @@ beforeEach(() => {
     vi.spyOn(projectsApi, 'memberCandidates').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'list').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([]);
+    // Форма создания темы читает темы напрямую из модуля тем.
+    vi.spyOn(themesApi, 'list').mockResolvedValue([]);
     vi.spyOn(designSystemsApi, 'get').mockResolvedValue({
         id: 'ds-1',
         projectId: 'project-1',
@@ -140,14 +142,13 @@ describe('project workflow', () => {
             'DesignSystemPage',
             'DesignSystemSettingsPage',
         ]);
-        expect(Object.keys(themePages).sort()).toEqual(['CreateThemePage', 'ThemeCard', 'ThemeSettingsPage']);
+        expect(Object.keys(themePages).sort()).toEqual(['CreateThemePage', 'ThemeCard']);
         expect(builderShellSource).not.toMatch(/export const \w+(?:Page|Screen)\s*=/);
         expect(projectPagesSource).toContain("export { ProjectsPage } from './ProjectsCatalog'");
         expect(designSystemPagesSource).toContain("export { DesignSystemPage } from './DesignSystemOverview'");
-        expect(themePagesSource).toContain("export { ThemeSettingsPage } from './ThemeSettingsPage'");
+        expect(themePagesSource).toContain("export { ThemeCard } from './ThemeCard'");
         expect(projectsCatalogSource).toMatch(/export const ProjectsPage\s*=/);
         expect(designSystemOverviewSource).toMatch(/export const DesignSystemPage\s*=/);
-        expect(themeSettingsSource).toMatch(/export const ThemeSettingsPage\s*=/);
         for (const pageSource of [projectPagesSource, designSystemPagesSource, themePagesSource]) {
             expect(pageSource).not.toContain('createElement(');
         }
@@ -820,6 +821,7 @@ describe('project workflow', () => {
             createdAt: '',
         });
         at('/settings', <UserSettingsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Personal Access Token', exact: true }));
         expect(await screen.findByText('CI')).toBeInTheDocument();
         expect(screen.getByText('projects:read')).toHaveClass('ps-scope-chip');
         expect(screen.getByText('projects:read').parentElement).toHaveClass('ps-scope-flow');
@@ -889,6 +891,7 @@ describe('project workflow', () => {
             createdAt: '',
         });
         at('/settings', <UserSettingsPage />);
+        fireEvent.click(screen.getByRole('button', { name: 'Personal Access Token', exact: true }));
         expect(await screen.findByText('Maintainer CI')).toBeInTheDocument();
         expect(screen.queryByText('Опасная зона')).not.toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Создать ключ' }));
@@ -938,7 +941,7 @@ describe('design system and Theme workflow', () => {
         expect(screen.getByText(/Custom · Dark · Inter · 10/)).toBeInTheDocument();
     });
 
-    it('renders tenant settings workspace and deletes only after exact-name confirmation', async () => {
+    it('manages themes in the design system settings and deletes a theme only after exact-name confirmation', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([
             {
@@ -956,34 +959,28 @@ describe('design system and Theme workflow', () => {
                 },
             },
         ]);
-        const remove = vi.spyOn(designSystemsApi, 'removeTenant').mockResolvedValue();
-        const view = at('/projects/project-1/design-systems/ds-1/themes/theme-1/settings', <ThemeSettingsPage />);
-        expect(await screen.findByText('Параметры темы')).toBeInTheDocument();
+        const remove = vi.spyOn(themesApi, 'remove').mockResolvedValue();
+        const view = at(
+            '/projects/project-1/design-systems/ds-1/settings?section=themes',
+            <DesignSystemSettingsPage />,
+        );
+        expect(await screen.findByLabelText('Название темы Brand')).toBeInTheDocument();
         const breadcrumbs = view.container.querySelector('.builder-hierarchy-path')!;
-        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Brand/Настройки');
-        expect(breadcrumbs.querySelector('a[href="/projects/project-1"]')).toHaveTextContent('Platform');
-        expect(breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1"]')).toHaveTextContent(
-            'System',
-        );
-        expect(
-            breadcrumbs.querySelector('a[href="/projects/project-1/design-systems/ds-1/themes/theme-1/overview"]'),
-        ).toHaveTextContent('Brand');
+        expect(breadcrumbs).toHaveTextContent('DS Builder/Проекты/Platform/System/Настройки');
         expect(view.container.querySelector('.project-settings > .ps-nav')).toBeInTheDocument();
-        expect(screen.getByText('Название отображается в списке тем и в верхней панели.')).toHaveClass(
-            'theme-name-hint',
-        );
-        fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
-        expect(screen.getByText('Параметры темы')).not.toBeVisible();
-        expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();
-        expect(screen.getByText('Опасная зона')).toHaveClass('ps-danger-title');
-        const confirmation = screen.getByLabelText('Подтверждение удаления Theme');
+        expect(screen.getByRole('button', { name: 'Темы' })).toHaveAttribute('aria-current', 'page');
+        fireEvent.click(screen.getByRole('button', { name: 'Удалить' }));
+        const confirmation = screen.getByLabelText('Подтверждение удаления темы Brand');
         expect(screen.getByRole('button', { name: 'Удалить тему' })).toBeDisabled();
         fireEvent.change(confirmation, { target: { value: 'Brand' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить тему' }));
         await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'theme-1', 'ds-1'));
+        // Удаление дизайн-системы — отдельный раздел, адрес `delete` в нём не используется.
+        fireEvent.click(screen.getByRole('button', { name: 'Опасная зона' }));
+        expect(screen.getByText('Удалить дизайн-систему')).toBeVisible();
     });
 
-    it('does not create a second shell for embedded theme settings, including loading', async () => {
+    it('embeds design system settings into the theme editor and opens theme deletion from a legacy link', async () => {
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([
             {
@@ -1002,18 +999,102 @@ describe('design system and Theme workflow', () => {
             },
         ]);
         const view = at(
-            '/projects/project-1/design-systems/ds-1/themes/theme-1/settings',
-            <ThemeSettingsPage embedded />,
+            '/projects/project-1/design-systems/ds-1/themes/theme-1/settings?section=delete',
+            <DesignSystemSettingsPage embedded />,
         );
         expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
         expect(view.container.querySelector('.builder-hierarchy-bar')).not.toBeInTheDocument();
-        expect(await screen.findByText('Параметры темы')).toBeInTheDocument();
+        expect(await screen.findByLabelText('Подтверждение удаления темы Brand')).toBeInTheDocument();
         expect(view.container.querySelector('.builder-embedded-content > .project-settings')).toBeInTheDocument();
-        expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
-        expect(view.container.querySelector('.builder-hierarchy-bar')).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
-        expect(screen.getByText('Опасная зона')).toBeVisible();
-        expect(view.container.querySelector('.builder-icon-sidebar')).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Темы' })).toHaveAttribute('aria-current', 'page');
+        expect(view.container.querySelector('.ds-theme-row.is-highlighted')).toHaveAttribute('data-theme-id', 'theme-1');
+    });
+
+    it('shows design system settings read-only and themes without delete to an editor', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('editor'));
+        vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([
+            {
+                id: 'theme-1',
+                designSystemId: 'ds-1',
+                name: 'Brand',
+                editRevision: 0,
+                colorConfig: { profile: 'sber' },
+                preview: {
+                    accentLight: '#108E26',
+                    onAccentLight: '#fff',
+                    surfaceLight: '#fff',
+                    accentDark: '#1A9E32',
+                    surfaceDark: '#101010',
+                },
+            },
+        ]);
+        const update = vi.spyOn(themesApi, 'update').mockResolvedValue({ ...{
+                id: 'theme-1',
+                designSystemId: 'ds-1',
+                name: 'Brand',
+                editRevision: 0,
+                colorConfig: { profile: 'sber' },
+                preview: {
+                    accentLight: '#108E26',
+                    onAccentLight: '#fff',
+                    surfaceLight: '#fff',
+                    accentDark: '#1A9E32',
+                    surfaceDark: '#101010',
+                },
+            }, name: 'Brand 2' });
+        at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+        expect(await screen.findByText('Изменять дизайн-систему может Maintainer или Owner.')).toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
+        expect(screen.queryByRole('button', { name: 'Опасная зона' })).not.toBeInTheDocument();
+        fireEvent.click(screen.getByRole('button', { name: 'Темы' }));
+        expect(screen.queryByRole('button', { name: 'Удалить' })).not.toBeInTheDocument();
+        const name = screen.getByLabelText('Название темы Brand');
+        fireEvent.change(name, { target: { value: 'Brand Old' } });
+        fireEvent.keyDown(name, { key: 'Escape' });
+        expect(name).toHaveValue('Brand');
+        fireEvent.change(name, { target: { value: '  Brand   2 ' } });
+        fireEvent.blur(name);
+        await waitFor(() => expect(update).toHaveBeenCalledWith('project-1', 'theme-1', { name: 'Brand 2' }, 'ds-1'));
+    });
+
+    it('keeps the copy in the themes section and reports a taken name on inline rename', async () => {
+        const brand = {
+                id: 'theme-1',
+                designSystemId: 'ds-1',
+                name: 'Brand',
+                editRevision: 0,
+                colorConfig: { profile: 'sber' as const },
+                preview: {
+                    accentLight: '#108E26',
+                    onAccentLight: '#fff',
+                    surfaceLight: '#fff',
+                    accentDark: '#1A9E32',
+                    surfaceDark: '#101010',
+                },
+            };
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
+        vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([brand]);
+        const duplicate = vi
+            .spyOn(themesApi, 'duplicate')
+            .mockResolvedValue({ ...brand, id: 'theme-2', name: 'Brand копия' });
+        vi.spyOn(themesApi, 'update').mockRejectedValue(new ApiError(409, 'TENANT_NAME_CONFLICT'));
+        const view = at(
+            '/projects/project-1/design-systems/ds-1/settings?section=themes',
+            <DesignSystemSettingsPage />,
+        );
+
+        const name = await screen.findByLabelText('Название темы Brand');
+        fireEvent.change(name, { target: { value: 'Taken' } });
+        fireEvent.keyDown(name, { key: 'Enter' });
+        fireEvent.blur(name);
+        expect(await screen.findByText('Theme с таким названием уже существует.')).toBeInTheDocument();
+        expect(name).toHaveValue('Brand');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Дублировать' }));
+        fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Дублировать' }));
+        await waitFor(() => expect(duplicate).toHaveBeenCalledWith('project-1', 'ds-1', 'theme-1', 'Brand копия'));
+        await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+        expect(view.container.querySelector('.project-settings')).toBeInTheDocument();
     });
 
     it('collapses settings composition safely at a phone viewport', async () => {
@@ -1036,8 +1117,8 @@ describe('design system and Theme workflow', () => {
                 },
             },
         ]);
-        const view = at('/projects/project-1/design-systems/ds-1/themes/theme-1/settings', <ThemeSettingsPage />);
-        expect(await screen.findByText('Параметры темы')).toBeInTheDocument();
+        const view = at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+        expect(await screen.findByText('Изменять дизайн-систему может Maintainer или Owner.')).toBeInTheDocument();
         expect(view.container.querySelector('.ps-main > .ps-header + .ps-content')).toBeInTheDocument();
         expect(view.container.querySelector('.project-settings > .ps-nav')).toBeInTheDocument();
         expect(view.container.querySelector('.project-settings > .ps-aside')).toBeInTheDocument();
@@ -1314,17 +1395,17 @@ describe('design system and Theme workflow', () => {
         const fetchSpy = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('unexpected fetch'));
         at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
         expect(await screen.findByRole('navigation', { name: 'Разделы: Настройки дизайн-системы' })).toHaveTextContent(
-            'ОсновноеУдаление',
+            'ОсновноеТемыОпасная зона',
         );
         // Публикации в npm нет: ни блока статуса, ни запросов к npm registry.
         expect(screen.queryByText('Публикация в npm')).not.toBeInTheDocument();
         expect(fetchSpy.mock.calls.some(([url]) => String(url).includes('registry.npmjs.org'))).toBe(false);
         expect(screen.queryByText('Перенос')).not.toBeInTheDocument();
-        fireEvent.click(screen.getByRole('button', { name: 'Удаление' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Опасная зона' }));
         expect(screen.queryByRole('link', { name: 'Готово' })).not.toBeInTheDocument();
-        expect(screen.getByText('Опасная зона')).toHaveClass('ps-danger-title');
+        expect(screen.getByRole('heading', { name: 'Опасная зона', level: 2 })).toHaveClass('ps-danger-title');
         expect(await screen.findByText('1 тема')).toBeInTheDocument();
-        const confirmation = screen.getAllByRole('textbox').at(-1)!;
+        const confirmation = screen.getByLabelText('Подтверждение удаления дизайн-системы');
         fireEvent.change(confirmation, { target: { value: 'DS' } });
         fireEvent.click(screen.getByRole('button', { name: 'Удалить полностью' }));
         await waitFor(() => expect(remove).toHaveBeenCalledWith('project-1', 'ds-1'));
@@ -1422,7 +1503,7 @@ describe('design system and Theme workflow', () => {
         expect(await screen.findByRole('heading', { name: 'Brand Theme' })).toBeInTheDocument();
         expect(screen.getByRole('heading', { name: 'base_default' })).toBeInTheDocument();
         fireEvent.click(screen.getByRole('button', { name: 'Действия: Brand Theme' }));
-        expect(screen.getByRole('menu')).toHaveTextContent('НастройкиПереименоватьУдалить');
+        expect(screen.getByRole('menu')).toHaveTextContent('ПереименоватьДублироватьУдалить');
     });
 
     it('hides a technical design system by stable API identity, regardless of its display name', async () => {

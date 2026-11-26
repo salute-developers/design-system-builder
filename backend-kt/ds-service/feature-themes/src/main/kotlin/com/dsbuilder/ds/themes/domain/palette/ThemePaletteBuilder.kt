@@ -19,7 +19,11 @@ object ThemePaletteBuilder {
     ): ThemePalette {
         val assignments = assign(state, tokens)
         val links = links(state, tokens + layerTokens, values + layerValues, assignments + assign(state, layerTokens))
-        val groups = order(state).map { group -> groupView(state, group, links.filter { it.groupId == group.id }) }
+        val linksByGroup = links.groupBy { it.groupId }
+        val rampsByGroup = state.ramps.groupBy { it.groupId }
+        val groups = order(state).map { group ->
+            groupView(state, group, linksByGroup[group.id].orEmpty(), rampsByGroup[group.id].orEmpty())
+        }
         val offBrand = state.ramps.any { it.steps.isNotEmpty() || it.slot != it.source }
         val template = state.template.keys.sortedWith(PaletteRampOrder).map { ramp ->
             val steps = state.template.getValue(ramp).toSortedMap().map { (step, value) -> step to value }
@@ -41,6 +45,13 @@ object ThemePaletteBuilder {
             )
         }
     }
+
+    /** Формирует связи без представления групп, ступеней и счётчиков палитры. */
+    fun links(
+        state: TenantPaletteState,
+        tokens: List<PaletteTokenRef>,
+        values: List<PaletteTokenValue>,
+    ): List<PaletteLink> = links(state, tokens, values, assign(state, tokens))
 
     private fun links(
         state: TenantPaletteState,
@@ -87,14 +98,16 @@ object ThemePaletteBuilder {
         state: TenantPaletteState,
         group: StoredPaletteGroup,
         links: List<PaletteLink>,
+        ramps: List<StoredPaletteRamp>,
     ): PaletteGroupView {
         val stored = LinkedHashMap<PaletteRampRef, StoredPaletteRamp>()
-        state.ramps.filter { it.groupId == group.id }.forEach { stored[it.slot] = it }
+        ramps.forEach { stored[it.slot] = it }
         links.forEach { link -> stored.getOrPut(link.slot) { defaultRamp(group.id, link.slot) } }
-        val ramps = stored.values
+        val linksBySlot = links.groupBy { it.slot }
+        val views = stored.values
             .sortedWith(compareBy(PaletteRampOrder) { it.slot })
-            .mapNotNull { rampView(state, it, links) }
-        return PaletteGroupView(group.id, group.kind, group.systemKey, group.label, ramps)
+            .mapNotNull { rampView(state, it, linksBySlot[it.slot].orEmpty()) }
+        return PaletteGroupView(group.id, group.kind, group.systemKey, group.label, views)
     }
 
     private fun defaultRamp(groupId: String, slot: PaletteRampRef) =
@@ -107,12 +120,13 @@ object ThemePaletteBuilder {
     ): PaletteRampView? {
         val source = state.template[stored.source] ?: return null
         val slotSteps = state.template[stored.slot] ?: return null
-        val rampLinks = links.filter { it.slot == stored.slot }
+        val rampLinks = links
+        val linksByStep = rampLinks.groupBy { it.step }
         // Ссылка токена указывает на ступень слота: у растяжки только ступени слота, которые есть у источника.
         val steps = source.keys.filter { it in slotSteps }.sorted().map { step ->
             val templateValue = source.getValue(step)
             val override = stored.steps[step]
-            val linked = tokens(rampLinks.filter { it.step == step })
+            val linked = tokens(linksByStep[step].orEmpty())
             PaletteStepView(step, override ?: templateValue, templateValue, override != null, linked)
         }
         return PaletteRampView(

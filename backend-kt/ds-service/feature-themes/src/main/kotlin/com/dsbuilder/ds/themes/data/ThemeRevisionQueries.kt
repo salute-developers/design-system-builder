@@ -108,6 +108,7 @@ internal fun currentThemeTokenValueRows(
     tenantIds: Set<UUID>? = null,
     tokenIds: Set<UUID>? = null,
     knownTokens: List<ResultRow>? = null,
+    knownTenantIds: Set<UUID>? = null,
 ): List<ResultRow> {
     val reader = ResolvedSubjectRows(
         ThemeTokenValuesTable,
@@ -115,6 +116,10 @@ internal fun currentThemeTokenValueRows(
         ThemeVersionBoundariesTable,
         ThemeTokenValueRevisionsTable.tokenValueId,
         designSystemId = designSystemId,
+        columns = ThemeTokenValuesTable.columns + ThemeTokenValueRevisionsTable.columns + listOf(
+            ThemeVersionBoundariesTable.id,
+            ThemeVersionBoundariesTable.sequenceNumber,
+        ),
     )
     val scope = run {
         var predicate: Op<Boolean> = ThemeTokenValueRevisionsTable.deleted eq false
@@ -133,7 +138,7 @@ internal fun currentThemeTokenValueRows(
         ?: reader.read(selectedTokens?.let { scope and (ThemeTokenValuesTable.tokenId inList it) } ?: scope)
     val activeTokenIds = (knownTokens ?: currentThemeTokenRows(designSystemId, tokenIds))
         .mapTo(hashSetOf()) { it[ThemeTokensTable.id] }
-    val activeTenantIds = currentTenantRows(designSystemId = designSystemId)
+    val activeTenantIds = knownTenantIds ?: currentTenantRows(designSystemId = designSystemId)
         .mapTo(hashSetOf()) { it[TenantsTable.id] }
     return rows.filter { row ->
         row[ThemeTokenValuesTable.tokenId] in activeTokenIds &&

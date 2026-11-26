@@ -1,0 +1,97 @@
+headers = spawn.h unistd.h fcntl.h signal.h sys/wait.h errno.h
+compilerOpts = -D_DARWIN_C_SOURCE
+package = com.dsbuilder.frontend.cli.macosprocess
+---
+/* Keep signal handling async-signal-safe; Kotlin polls and cancels the command. */
+static volatile sig_atomic_t dsb_interrupt_pending = 0;
+static struct sigaction dsb_previous_interrupt, dsb_previous_alarm;
+static void dsb_force_interrupt(int signal) { _exit(130); }
+static void dsb_handle_interrupt(int signal) {
+    if (dsb_interrupt_pending) _exit(130);
+    dsb_interrupt_pending = 1;
+    /* A blocking terminal prompt must not prevent bounded shutdown. */
+    alarm(7);
+}
+static inline int dsb_begin_interrupt(void) {
+    struct sigaction action = {0};
+    action.sa_handler = dsb_handle_interrupt;
+    action.sa_flags = SA_RESTART;
+    sigemptyset(&action.sa_mask);
+    dsb_interrupt_pending = 0;
+    struct sigaction deadline = {0};
+    deadline.sa_handler = dsb_force_interrupt;
+    sigemptyset(&deadline.sa_mask);
+    if (sigaction(SIGALRM, &deadline, &dsb_previous_alarm) != 0) return -1;
+    if (sigaction(SIGINT, &action, &dsb_previous_interrupt) == 0) return 0;
+    sigaction(SIGALRM, &dsb_previous_alarm, NULL);
+    return -1;
+}
+static inline int dsb_take_interrupt(void) { return dsb_interrupt_pending; }
+static inline void dsb_end_interrupt(void) {
+    alarm(0);
+    sigaction(SIGINT, &dsb_previous_interrupt, NULL);
+    sigaction(SIGALRM, &dsb_previous_alarm, NULL);
+}
+
+/* Own the process group so cancellation also stops tool subprocesses. */
+static inline int dsb_spawn(const char *executable, char *const argv[], char *const env[],
+                            const char *cwd, int capture, int *pid, int *output) {
+    int descriptors[2] = {-1, -1};
+    if (capture && pipe(descriptors) != 0) return errno;
+    posix_spawn_file_actions_t actions;
+    posix_spawnattr_t attributes;
+    int error = posix_spawn_file_actions_init(&actions);
+    if (error) goto close_descriptors;
+    error = posix_spawnattr_init(&attributes);
+    if (error) goto destroy_actions;
+    error = posix_spawn_file_actions_addchdir_np(&actions, cwd);
+    if (error) goto destroy_attributes;
+    error = posix_spawn_file_actions_addopen(&actions, STDIN_FILENO, "/dev/null", O_RDONLY, 0);
+    if (error) goto destroy_attributes;
+    if (capture) {
+        error = posix_spawn_file_actions_addclose(&actions, descriptors[0]);
+        if (error) goto destroy_attributes;
+        error = posix_spawn_file_actions_adddup2(&actions, descriptors[1], STDOUT_FILENO);
+        if (error) goto destroy_attributes;
+        error = posix_spawn_file_actions_adddup2(&actions, descriptors[1], STDERR_FILENO);
+        if (error) goto destroy_attributes;
+        error = posix_spawn_file_actions_addclose(&actions, descriptors[1]);
+        if (error) goto destroy_attributes;
+    }
+    sigset_t mask, defaults;
+    sigemptyset(&mask);
+    sigemptyset(&defaults);
+    sigaddset(&defaults, SIGINT);
+    sigaddset(&defaults, SIGTERM);
+    sigaddset(&defaults, SIGPIPE);
+    posix_spawnattr_setsigmask(&attributes, &mask);
+    posix_spawnattr_setsigdefault(&attributes, &defaults);
+    posix_spawnattr_setpgroup(&attributes, 0);
+    posix_spawnattr_setflags(&attributes, POSIX_SPAWN_SETPGROUP | POSIX_SPAWN_SETSIGMASK | POSIX_SPAWN_SETSIGDEF);
+    error = posix_spawn(pid, executable, &actions, &attributes, argv, env);
+    if (!error && capture) {
+        close(descriptors[1]);
+        descriptors[1] = -1;
+        fcntl(descriptors[0], F_SETFL, fcntl(descriptors[0], F_GETFL) | O_NONBLOCK);
+        *output = descriptors[0];
+        descriptors[0] = -1;
+    }
+destroy_attributes:
+    posix_spawnattr_destroy(&attributes);
+destroy_actions:
+    posix_spawn_file_actions_destroy(&actions);
+close_descriptors:
+    if (descriptors[0] != -1) close(descriptors[0]);
+    if (descriptors[1] != -1) close(descriptors[1]);
+    return error;
+}
+
+static inline int dsb_poll(int pid, int *code) {
+    int status;
+    int result = waitpid(pid, &status, WNOHANG);
+    if (result == pid) {
+        *code = WIFSIGNALED(status) ? 128 + WTERMSIG(status) : WEXITSTATUS(status);
+        return 1;
+    }
+    return result < 0 && errno == EINTR ? 0 : result;
+}

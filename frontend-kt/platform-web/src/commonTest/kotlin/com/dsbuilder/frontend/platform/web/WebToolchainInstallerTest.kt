@@ -8,6 +8,7 @@ import com.dsbuilder.frontend.core.process.ProcessLaunchException
 import com.dsbuilder.frontend.core.process.ProcessRequest
 import com.dsbuilder.frontend.core.process.ProcessResult
 import com.dsbuilder.frontend.core.process.ProcessRunner
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -19,7 +20,7 @@ class WebToolchainInstallerTest {
     private val generator = "$prefix/bin/$WEB_GENERATOR_EXECUTABLE"
 
     @Test
-    fun installsLatestIntoTheUserPrefixAndReportsTheVersion() {
+    fun installsLatestIntoTheUserPrefixAndReportsTheVersion() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(runner = npmAnswering(requests, version = "0.3.1\n"))
 
@@ -40,7 +41,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun versionAndArchiveSelectWhatNpmInstalls() {
+    fun versionAndArchiveSelectWhatNpmInstalls() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(runner = npmAnswering(requests))
 
@@ -54,7 +55,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun missingNpmFailsWithoutStartingProcesses() {
+    fun missingNpmFailsWithoutStartingProcesses() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(runner = npmAnswering(requests), existing = emptySet())
 
@@ -65,7 +66,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun npmFailureKeepsTheCodeWithoutAdvisingToChangeNpmSettings() {
+    fun npmFailureKeepsTheCodeWithoutAdvisingToChangeNpmSettings() = runTest {
         val installer = installer(runner = { ProcessResult(exitCode = 243, output = "") })
 
         val message = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest())).message
@@ -75,7 +76,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun missingHomeFailsWithoutStartingProcesses() {
+    fun missingHomeFailsWithoutStartingProcesses() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(runner = npmAnswering(requests), home = null)
 
@@ -86,7 +87,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun windowsInstallsIntoUserProfile() {
+    fun windowsInstallsIntoUserProfile() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val windowsPrefix = "C:\\Users\\me\\.dsbuilder\\toolchains\\web"
         val windowsGenerator = "$windowsPrefix\\$WEB_GENERATOR_EXECUTABLE.cmd"
@@ -110,7 +111,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun installedButNotFoundIsReported() {
+    fun installedButNotFoundIsReported() = runTest {
         val installer = installer(runner = npmAnswering(mutableListOf()), existing = setOf(npm))
 
         val message = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest())).message
@@ -119,7 +120,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun launchFailureIsReported() {
+    fun launchFailureIsReported() = runTest {
         val installer = installer(runner = { throw ProcessLaunchException("permission denied") })
 
         val message = assertIs<ToolchainInstallResult.Failed>(installer.install(ToolchainInstallRequest())).message
@@ -128,7 +129,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun directoryIsPackedAndTheArchiveIsInstalledThenDeleted() {
+    fun directoryIsPackedAndTheArchiveIsInstalledThenDeleted() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val source = "/work/generator"
         val archive = "$prefix/sddsjs-design-system-builder-generator-0.1.0.tgz"
@@ -159,7 +160,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun archiveIsDeletedWhenItsInstallationFails() {
+    fun archiveIsDeletedWhenItsInstallationFails() = runTest {
         val source = "/work/generator"
         val archive = "$prefix/generator.tgz"
         val fileSystem = FakeFileSystem(setOf(npm), directories = setOf(source))
@@ -179,7 +180,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun packFailureKeepsTheCodeAndInstallsNothing() {
+    fun packFailureKeepsTheCodeAndInstallsNothing() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val source = "/work/generator"
         val fileSystem = FakeFileSystem(setOf(npm), directories = setOf(source))
@@ -197,7 +198,7 @@ class WebToolchainInstallerTest {
     }
 
     @Test
-    fun archiveFromOptionIsInstalledWithoutPacking() {
+    fun archiveFromOptionIsInstalledWithoutPacking() = runTest {
         val requests = mutableListOf<ProcessRequest>()
         val installer = installer(runner = npmAnswering(requests))
 

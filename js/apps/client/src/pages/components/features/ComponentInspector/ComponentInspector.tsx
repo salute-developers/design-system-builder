@@ -1,6 +1,12 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 
-import type { Config, DesignSystem, Theme } from '../../../../controllers';
+import {
+    resolveStyleReference,
+    toStyleReferenceInput,
+    type Config,
+    type DesignSystem,
+    type Theme,
+} from '../../../../controllers';
 import { usePanelWidth } from '../../../../hooks';
 import { INSPECTOR_PANEL } from '../../panelWidths';
 
@@ -14,11 +20,15 @@ import {
     resolveColorToken,
     type ThemeMode,
 } from './inspectorTokens';
+import { InspectorGroup } from './InspectorGroup';
+import { InspectorStoryArgs } from './InspectorStoryArgs';
+import { InspectorConfiguration } from './InspectorConfiguration';
 import { InspectorVariants } from './InspectorVariants';
+import { StyleReferenceContext } from './StyleReferenceContext';
 import { ComponentStructurePanel, type StructureAccess } from '../ComponentStructure';
+import { structureErrorText } from '../ComponentStructure/structureErrorText';
 import { componentStructureRepository } from '../../../../api/componentStructureRepository';
-import { combinationLabel, type Selection } from './inspectorModel';
-import { TyGlyph } from '../../../../components/TyGlyph';
+import { editSource, type Selection } from './inspectorModel';
 import type { StoryArgs } from '../ComponentEditorPreview/storyArgs';
 
 interface ComponentInspectorProps {
@@ -37,6 +47,10 @@ interface ComponentInspectorProps {
     onConfigurationSelect?: (configurationId: string | undefined) => void;
     /** Структурные операции; без них (только чтение) вкладки «Структура» нет. */
     structure?: StructureAccess;
+    /** Догрузка компонента по маршруту для выбора стиля вложенного компонента. */
+    onLoadComponent?: (route: string) => Promise<void>;
+    /** Только просмотр: поля свойств неактивны, «Variants» и аргументы story работают. */
+    readOnly?: boolean;
 }
 
 type InspectorTab = 'style' | 'tree';
@@ -61,7 +75,11 @@ const readTab = (): InspectorTab => {
 export const ComponentInspector = (props: ComponentInspectorProps) => {
     const { config, designSystem, theme, updated, selection, themeMode, onSelectionChange, onConfigUpdate, storyArgs } =
         props;
-    const { structure, onConfigurationSelect } = props;
+    const { structure, onConfigurationSelect, onLoadComponent } = props;
+    const styleReferenceAccess = useMemo(
+        () => ({ designSystem, loadComponent: onLoadComponent }),
+        [designSystem, onLoadComponent],
+    );
     // Выбранная вкладка запоминается между открытиями редактора; без структурных операций есть только «Стилизация».
     const [storedTab, setStoredTab] = useState<InspectorTab>(readTab);
     const tabs = structure ? TABS : TABS.slice(0, 1);
@@ -84,17 +102,30 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
         }
         document.getElementById(`component-inspector-tab-${next}`)?.focus();
     };
-    // Пересечение, выбранное в «Дереве вариаций»: «Стилизация» правит его, пока все его стили выбраны в превью.
-    const [chosenCombination, setCombination] = useState<string[]>();
+    // Пересечение правится, когда в «Variants» выбрано два стиля и больше: значения сразу уходят в ds-service.
     const configurationId = config.getConfigurationId();
-    useEffect(() => setCombination(undefined), [configurationId]);
-    const selectedStyles = Object.values(selection);
-    const combination =
-        structure && chosenCombination?.every((id) => selectedStyles.includes(id)) ? chosenCombination : undefined;
+    const source = editSource(config, selection);
+    const combination = source.kind === 'combination' ? source.styleIDs : undefined;
     const [combinationError, setCombinationError] = useState<string>();
-    const changeCombination = (propertyId: string, value: string | null) => {
+    const [combinationReset, setCombinationReset] = useState(0);
+    const scope = `${configurationId}:${combination?.join('+')}`;
+    const currentScope = useRef(scope);
+    currentScope.current = scope;
+    useEffect(() => setCombinationError(undefined), [configurationId, combination?.join('+')]);
+    const changeCombination = (propertyId: string, value: string | null, states?: string[], alpha?: number) => {
         if (!structure || !combination || !configurationId) return;
         setCombinationError(undefined);
+        const property = designSystem.getComponentData(config)?.sources.api.find((item) => item.id === propertyId);
+        const isReference =
+            value !== null && config.getPlatform() === 'compose' && property?.type === 'component_style';
+        const resolved = isReference
+            ? resolveStyleReference(designSystem.getComposeComponentsData(), value)
+            : undefined;
+        const reference = resolved ? toStyleReferenceInput(resolved) : undefined;
+        if (isReference && !reference) {
+            setCombinationError('Не удалось найти выбранный вложенный стиль');
+            return;
+        }
         structure
             .run((context) =>
                 value === null
@@ -103,6 +134,7 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                           configurationId,
                           combination,
                           propertyId,
+                          states,
                       )
                     : componentStructureRepository.setCombinationValue(
                           context,
@@ -110,9 +142,22 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                           combination,
                           propertyId,
                           value,
+                          undefined,
+                          states,
+                          alpha,
+                          reference,
                       ),
             )
-            .catch(() => setCombinationError('Не удалось сохранить значение пересечения'));
+            .catch((error: unknown) => {
+                if (currentScope.current !== scope) return;
+                setCombinationError(
+                    structureErrorText(error, {
+                        states_not_supported: 'Это состояние больше не поддерживается свойством',
+                        state_not_in_component: 'Состояние не принадлежит этому компоненту',
+                    }),
+                );
+                setCombinationReset((value) => value + 1);
+            });
     };
     const panel = usePanelWidth(INSPECTOR_PANEL);
     const api = useMemo(() => designSystem.getComponentData(config)?.sources.api ?? [], [config, designSystem]);
@@ -177,57 +222,57 @@ export const ComponentInspector = (props: ComponentInspectorProps) => {
                         selection={selection}
                         onSelectionChange={onSelectionChange}
                         onConfigurationSelect={onConfigurationSelect ?? (() => undefined)}
-                        combination={combination}
-                        onCombinationSelect={setCombination}
                     />
                 </section>
             ) : (
                 <section
-                    className="component-inspector-body"
+                    className="component-inspector-body is-split"
                     role="tabpanel"
                     id="component-inspector-panel-style"
                     aria-labelledby="component-inspector-tab-style"
                 >
-                    <InspectorVariants
-                        config={config}
-                        selection={selection}
-                        onSelectionChange={onSelectionChange}
-                        onConfigurationSelect={onConfigurationSelect}
-                        storyArgs={storyArgs}
-                    />
-                    {combination && (
-                        <div className="component-combination-banner" role="status">
-                            <span>
-                                <small>Пересечение</small>
-                                <b>{combinationLabel(config, combination)}</b>
-                            </span>
-                            <button
-                                type="button"
-                                className="component-tree-icon-button"
-                                aria-label="Выйти из пересечения"
-                                title="Вернуться к значениям стилей"
-                                onClick={() => setCombination(undefined)}
-                            >
-                                <TyGlyph name="close" />
-                            </button>
+                    {/* Конфигурация и вариации не прокручиваются: выбор источника правки всегда на месте, свойства прокручиваются под ним. */}
+                    <div className="component-inspector-pinned">
+                        {onConfigurationSelect && (
+                            <InspectorConfiguration config={config} onConfigurationSelect={onConfigurationSelect} />
+                        )}
+                        <InspectorVariants
+                            config={config}
+                            selection={selection}
+                            onSelectionChange={onSelectionChange}
+                        />
+                    </div>
+                    <div className="component-inspector-scroll">
+                        {/* Параметры story действуют только на превью: отдельно от вариаций, которые задают источник правки. */}
+                        {storyArgs?.properties.length ? (
+                            <InspectorGroup title="Предпросмотр">
+                                <div className="component-variation-targets">
+                                    <InspectorStoryArgs storyArgs={storyArgs} />
+                                </div>
+                            </InspectorGroup>
+                        ) : null}
+                        {combinationError && (
+                            <p className="component-property-error" role="alert">
+                                {combinationError}
+                            </p>
+                        )}
+                        <div className="component-inspector-sections">
+                            <StyleReferenceContext.Provider value={styleReferenceAccess}>
+                                <InspectorSections
+                                    key={combinationReset}
+                                    config={config}
+                                    api={api}
+                                    selection={selection}
+                                    tokens={tokens}
+                                    updated={updated}
+                                    onConfigUpdate={onConfigUpdate}
+                                    onLinkProperty={linkProperty}
+                                    onCombinationChange={changeCombination}
+                                    readOnly={props.readOnly}
+                                />
+                            </StyleReferenceContext.Provider>
                         </div>
-                    )}
-                    {combinationError && (
-                        <p className="component-property-error" role="alert">
-                            {combinationError}
-                        </p>
-                    )}
-                    <InspectorSections
-                        config={config}
-                        api={api}
-                        selection={selection}
-                        tokens={tokens}
-                        updated={updated}
-                        onConfigUpdate={onConfigUpdate}
-                        onLinkProperty={linkProperty}
-                        combination={combination}
-                        onCombinationChange={changeCombination}
-                    />
+                    </div>
                 </section>
             )}
         </aside>

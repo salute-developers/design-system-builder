@@ -7,6 +7,7 @@ import { createComponentPreviewDraft } from './draft';
 import { resolveStyleReference } from '../controllers/componentBuilder';
 import { buttonMeta, groupMeta } from './nestedStyleFixture';
 import { restorePaletteColor } from '../palette/activePalette';
+import { assembleComposePreviewPayload } from './assembler';
 
 const componentMeta = (): Meta => ({
     name: 'Button',
@@ -199,7 +200,6 @@ describe('createComponentPreviewDraft', () => {
             diagnostics: [{ code: 'missing_metadata' }],
         });
     });
-
 
     it('accepts stable runtime IDs supplied by loaded plugin metadata', () => {
         const meta = componentMeta();
@@ -408,6 +408,50 @@ describe('createComponentPreviewDraft: combinations and nested styles', () => {
                 properties: [expect.objectContaining({ id: 'height', value: '24' })],
             },
         ]);
+    });
+
+    it('collects a style used only by an intersection state and preserves its nested states in payload', () => {
+        const group = groupMeta();
+        const button = buttonMeta();
+        button.sources.configs[0].config.variations[0].styles!.push({
+            id: 'size-xl',
+            name: 'xl',
+            intersections: null,
+            props: [{ id: 'height', value: '72' }],
+        });
+        group.sources.configs[0].config.combinations![0].props.push({
+            id: 'buttonStyle',
+            states: [{ state: ['pressed'], value: 'basic-button.xl.default' }],
+        });
+        const result = createComponentPreviewDraft({
+            config: new Config(group),
+            theme: buildMockTheme(),
+            previewMetadata: { componentId: 'ButtonGroup', storyId: 'ButtonGroup' },
+            args: {},
+            variationSelections: { size: 'group-xxs', gap: 'gap-wide' },
+            themeMode: 'light',
+            themeValuePlatform: 'android',
+            surface: { width: 360, height: 160, background: '#FFFFFFFF' },
+            resolveStyleReference: (reference) => resolveStyleReference([group, button], reference),
+        });
+        if (!result.ok) throw new Error('draft failed');
+        expect(result.draft.styles?.map((style) => style.id)).toEqual([
+            'basic-button.xxs.default',
+            'basic-button.xl.default',
+        ]);
+        const assembled = assembleComposePreviewPayload(result.draft);
+        if (!assembled.ok) throw new Error(JSON.stringify(assembled.diagnostics));
+        expect(assembled.payload.component.properties.buttonStyle).toEqual({
+            base: { type: 'styleRef', styleId: 'basic-button.xxs.default' },
+            states: [{ when: ['pressed'], source: { type: 'styleRef', styleId: 'basic-button.xl.default' } }],
+        });
+        expect(assembled.payload.styles!['basic-button.xl.default'].properties.height.base).toEqual({
+            type: 'literal',
+            value: 72,
+        });
+        expect(group.sources.configs[0].config.variations[0].styles![0].props![0].value).toBe(
+            'basic-button.xxs.default',
+        );
     });
 
     it('skips a reference that cannot be resolved instead of sending it as a token', () => {

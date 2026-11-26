@@ -13,7 +13,7 @@ internal fun interface DocsPlatformAggregator {
      * @param platform целевая платформа.
      * @param toolOverride путь инструмента из `--tool`.
      */
-    fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult
+    suspend fun aggregate(platform: TargetPlatform, toolOverride: String?): DocsAggregationResult
 }
 
 /**

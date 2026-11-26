@@ -7,7 +7,6 @@ import com.dsbuilder.frontend.feature.theme.application.FetchThemesUseCase
 import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * Presentation command для `dsbuilder theme fetch`.
@@ -23,8 +22,8 @@ internal class ThemeFetchCliCommand(
         help = "Local directory for a new .sdds when using a design-system link.",
     )
 
-    override fun runOperation() {
-        val result = runBlocking {
+    override suspend fun runOperation() {
+        val result = run {
             fetchThemesUseCase.execute(
                 FetchThemesCommand(
                     apiKeyOverride = apiKey,

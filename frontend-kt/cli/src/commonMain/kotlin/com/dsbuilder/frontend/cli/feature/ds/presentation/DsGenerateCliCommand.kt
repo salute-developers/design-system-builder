@@ -31,7 +31,7 @@ internal class DsGenerateCliCommand(
     private val passthrough: List<String> by argument("[-- <tool args>]")
         .multiple()
 
-    override fun runOperation() {
+    override suspend fun runOperation() {
         val result = generateDesignSystemUseCase.execute(
             GenerateDesignSystemCommand(
                 platform = platform,

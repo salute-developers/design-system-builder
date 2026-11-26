@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { type ProjectDto } from '../../api';
 import { CardMenu } from '../../components/Catalog/Catalog';
@@ -5,6 +6,7 @@ import { Visible } from '../../components/rendering';
 import { can } from '../../features/projectPermissions';
 import type { ThemeProfile, ThemeTenant } from '../../modules/themes/domain/theme';
 import { themeProfileLabels } from '../../modules/themes/domain/themeProfiles';
+import { DuplicateThemeDialog } from './DuplicateThemeDialog';
 
 const fallbackPreview = {
     accentLight: '#24C875',
@@ -24,6 +26,9 @@ export const ThemeCard = ({
     role: ProjectDto['effectiveRole'];
 }) => {
     const preview = theme.preview ?? fallbackPreview;
+    const [duplicating, setDuplicating] = useState(false);
+    // Темами управляет раздел «Темы» настроек дизайн-системы; из карточки он открывается в редакторе этой темы.
+    const settingsTo = `/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/settings`;
 
     return (
         <article className="catalog-card clickable-card">
@@ -80,10 +85,17 @@ export const ThemeCard = ({
             <Visible when={can(role, 'tenants:write')}>
                 <CardMenu
                     label={theme.name}
-                    settingsTo={`/projects/${projectId}/design-systems/${theme.designSystemId}/themes/${theme.id}/settings`}
+                    settingsTo={settingsTo}
+                    showSettings={false}
+                    renameTo={`${settingsTo}?section=themes&theme=${theme.id}&focus=rename`}
+                    deleteTo={`${settingsTo}?section=themes&theme=${theme.id}&confirm=delete`}
                     canDelete={can(role, 'tenants:delete')}
+                    actions={[{ label: 'Дублировать', onSelect: () => setDuplicating(true) }]}
                 />
             </Visible>
+            {duplicating && (
+                <DuplicateThemeDialog projectId={projectId} theme={theme} onClose={() => setDuplicating(false)} />
+            )}
         </article>
     );
 };

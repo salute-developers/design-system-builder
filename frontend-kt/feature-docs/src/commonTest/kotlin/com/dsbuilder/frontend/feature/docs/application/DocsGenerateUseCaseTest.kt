@@ -8,6 +8,7 @@ import com.dsbuilder.frontend.feature.docs.domain.NavigationNode
 import com.dsbuilder.frontend.feature.docs.domain.ResolvedDocs
 import com.dsbuilder.frontend.feature.docs.domain.Structure
 import com.dsbuilder.frontend.feature.docs.domain.ValidationError
+import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContains
 import kotlin.test.assertEquals
@@ -17,7 +18,7 @@ import kotlin.test.assertTrue
 
 class DocsGenerateUseCaseTest {
     @Test
-    fun `validation errors fail generation without creating archive`() {
+    fun `validation errors fail generation without creating archive`() = runTest {
         val fileSystem = RecordingDocsFileSystem()
         val codec = RecordingDocsCodec()
         val useCase = DocsGenerateUseCase(
@@ -49,7 +50,7 @@ class DocsGenerateUseCaseTest {
     }
 
     @Test
-    fun `platform artifact version is written to manifest`() {
+    fun `platform artifact version is written to manifest`() = runTest {
         val fileSystem = RecordingDocsFileSystem()
         val codec = RecordingDocsCodec()
         val useCase = useCase(fileSystem, codec, platformContext(version = "0.12.0"))
@@ -62,7 +63,7 @@ class DocsGenerateUseCaseTest {
     }
 
     @Test
-    fun `missing platform context uses project context version`() {
+    fun `missing platform context uses project context version`() = runTest {
         val fileSystem = RecordingDocsFileSystem()
         val codec = RecordingDocsCodec()
         val useCase = useCase(fileSystem, codec, null, fallbackVersion = "0.0.0")
@@ -75,7 +76,7 @@ class DocsGenerateUseCaseTest {
     }
 
     @Test
-    fun `missing user structure generates core only bundle`() {
+    fun `missing user structure generates core only bundle`() = runTest {
         val fileSystem = RecordingDocsFileSystem()
         val codec = RecordingDocsCodec()
         val coreStructure = Structure(
@@ -113,7 +114,7 @@ class DocsGenerateUseCaseTest {
     }
 
     @Test
-    fun `platform mismatch fails generation without creating archive`() {
+    fun `platform mismatch fails generation without creating archive`() = runTest {
         val fileSystem = RecordingDocsFileSystem()
         val result = useCase(
             fileSystem,

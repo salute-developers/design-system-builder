@@ -17,8 +17,6 @@ interface ColorFieldProps {
     message?: string | null;
     /** Получает кнопку цвета, пока у поля открыт выбор цвета: к ней привязывается окно выбора. */
     pickerAnchor?: (node: HTMLButtonElement | null) => void;
-    /** Строка своего значения платформы под полем. */
-    platformRow?: boolean;
     onOpenPicker: () => void;
     onCommit: (value: string) => void;
     onOpacity: (percent: number) => void;
@@ -51,7 +49,6 @@ export const ColorField = ({
     invalid,
     message = null,
     pickerAnchor,
-    platformRow = false,
     onOpenPicker,
     onCommit,
     onOpacity,
@@ -78,10 +75,8 @@ export const ColorField = ({
     };
 
     return (
-        <div className={`figma-inspector-field tw-field-inline ${platformRow ? 'ct-platform-field' : ''}`}>
-            <span className={`figma-inspector-field-label tw-field-label ${platformRow ? 'ct-platform-label' : ''}`}>
-                {label}
-            </span>
+        <div className="figma-inspector-field tw-field-inline">
+            <span className="figma-inspector-field-label tw-field-label">{label}</span>
             <div className="ct-value-line tw-field-line">
                 <div className={`figma-value-control ${fieldClass(invalid || message ? 'error' : null)}`}>
                     <div className="figma-value-main">

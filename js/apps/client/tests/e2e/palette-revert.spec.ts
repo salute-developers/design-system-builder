@@ -85,7 +85,7 @@ test(
             const changes = await versionsApi.changes();
             expect(changes).toHaveLength(1);
             expect(changes[0]).toMatchObject({ entityType: 'palette-step', changeId: expect.any(String) });
-            const endpoint = new URL(versionsApi.revertURL((changes[0] as { changeId: string }).changeId));
+            const endpoint = new URL(versionsApi.revertByAddressURL());
             const started = performance.now();
             const response = await pendingMutation.run(
                 (response) => {

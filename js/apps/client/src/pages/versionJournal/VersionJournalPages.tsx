@@ -1,3 +1,4 @@
+import type { DraftRefreshOptions } from '../../api/editorContracts';
 import { FormEvent, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useOutletContext, useSearchParams } from 'react-router-dom';
 
@@ -65,7 +66,7 @@ interface VersionJournalOutletContext {
     updated: object;
     reload: () => void | Promise<void>;
     editorJournal?: ReturnType<typeof useJournal>;
-    refreshChanges?: (changes: DraftChangeDto[]) => Promise<void>;
+    refreshChanges?: (changes: DraftChangeDto[], options?: DraftRefreshOptions) => Promise<void>;
 }
 
 const sectionLabels: Record<JournalSection | 'all', string> = {

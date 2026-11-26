@@ -55,7 +55,8 @@ internal class NativeAccumulator(
 
     private val axisValues = config.variations.associate { it.id to linkedSetOf<JsonPrimitive>() }
 
-    fun add(axis: String, value: CommonVariationValue) {
+    fun add(axis: String, source: CommonVariationValue) {
+        val value = config.materializeStateOnly(axis, source)
         val targets = value.targets.orEmpty().flatMap { it.properties }
         targets.forEach { axisValues.getValue(it.id) += it.value }
 

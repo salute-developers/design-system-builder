@@ -36,7 +36,7 @@ public class IosToolchainInstaller internal constructor(
 ) : ToolchainInstaller {
     override val toolchain: ToolchainId = ToolchainId("ios")
 
-    override fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
+    override suspend fun install(request: ToolchainInstallRequest): ToolchainInstallResult {
         val home = environmentReader.get("HOME")?.takeIf { it.isNotBlank() }
             ?: return ToolchainInstallResult.Failed("Cannot install the toolchain: HOME is not set.")
         if (!supportsArm64(home)) {
@@ -56,7 +56,7 @@ public class IosToolchainInstaller internal constructor(
     }
 
     /** The currently published iOS executable is arm64-only, including for manual --from installs. */
-    private fun supportsArm64(home: String): Boolean = try {
+    private suspend fun supportsArm64(home: String): Boolean = try {
         val result = processRunner.run(
             ProcessRequest(
                 executable = SYSCTL,
@@ -71,7 +71,7 @@ public class IosToolchainInstaller internal constructor(
     }
 
     /** `--from` ставит готовый архив и в сеть за релизом не ходит. */
-    private fun resolveSource(request: ToolchainInstallRequest, root: String): SourceRead {
+    private suspend fun resolveSource(request: ToolchainInstallRequest, root: String): SourceRead {
         val archive = request.archive
             ?: return when (val release = releaseSource(root).resolve(request.version)) {
                 is ReleaseRead.Failed -> SourceRead.Failed(release.message)
@@ -87,7 +87,7 @@ public class IosToolchainInstaller internal constructor(
         return SourceRead.Resolved(version, archive, remote = remote)
     }
 
-    private fun download(source: SourceRead.Resolved, root: String): ToolchainInstallResult {
+    private suspend fun download(source: SourceRead.Resolved, root: String): ToolchainInstallResult {
         val staging = fileSystem.resolve(root, ".staging")
         remove(staging, root)
         fileSystem.createDirectories(staging)
@@ -111,7 +111,12 @@ public class IosToolchainInstaller internal constructor(
      * Распаковка идёт в отдельный каталог и только потом становится версией: неудачная установка
      * не должна оставлять полураспакованное дерево там, куда смотрит `current`.
      */
-    private fun unpack(archive: String, staging: String, root: String, version: String): ToolchainInstallResult {
+    private suspend fun unpack(
+        archive: String,
+        staging: String,
+        root: String,
+        version: String,
+    ): ToolchainInstallResult {
         val unpacked = fileSystem.resolve(staging, "unpacked")
         val extracted = run(UNZIP, listOf("-o", "-q", archive, "-d", unpacked), root)
         if (extracted.exitCode != 0) {
@@ -126,7 +131,7 @@ public class IosToolchainInstaller internal constructor(
         return activate(toolDirectory, root, version)
     }
 
-    private fun activate(toolDirectory: String, root: String, version: String): ToolchainInstallResult {
+    private suspend fun activate(toolDirectory: String, root: String, version: String): ToolchainInstallResult {
         val target = fileSystem.resolve(root, version)
         remove(target, root)
         val moved = run(MV, listOf(toolDirectory, target), root)
@@ -161,13 +166,13 @@ public class IosToolchainInstaller internal constructor(
     }
 
     /** Удаляем только внутри каталога установок: сюда приходят собранные нами пути, но `rm -rf` ошибок не прощает. */
-    private fun remove(path: String, root: String) {
+    private suspend fun remove(path: String, root: String) {
         if (path.startsWith("$root/")) {
             run(RM, listOf("-rf", path), root)
         }
     }
 
-    private fun run(executable: String, args: List<String>, workingDirectory: String): RunResult {
+    private suspend fun run(executable: String, args: List<String>, workingDirectory: String): RunResult {
         fileSystem.createDirectories(workingDirectory)
 
         return try {

@@ -141,7 +141,7 @@ private fun Route.typographyUpdateRoute(evaluator: PolicyEvaluator, useCases: Ty
 
 /** Команда изменения или `null`, если начертание, токен или платформа базовой редакции не разобраны. */
 @Suppress("ReturnCount")
-private fun UpdateTypographyStyleRequest.toCommand(): UpdateTypographyStyle? {
+fun UpdateTypographyStyleRequest.toCommand(): UpdateTypographyStyle? {
     val variants = weights.orEmpty().mapKeys { (name, _) -> TypographyVariant.fromWire(name) ?: return null }
     val bases = baseRevisions.orEmpty().map { item ->
         TypographyBaseRevision(

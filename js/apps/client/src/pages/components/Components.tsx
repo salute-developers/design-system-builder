@@ -14,7 +14,14 @@ import type { ComponentRoute, ComposePreviewComponentGroup } from '../../compose
 import { subscribeEditorDataInvalidation } from '../../api/draftInvalidationStream';
 import { usePanelWidth } from '../../hooks';
 import { getComponentGroup, getComponentGroups, isEditableComponent } from '../../utils';
-import { DesignSystem, Theme, Config } from '../../controllers';
+import {
+    DesignSystem,
+    Theme,
+    Config,
+    collectStyleReferenceValues,
+    findUnloadedStyleReferenceTarget,
+    toStyleReferenceInput,
+} from '../../controllers';
 import { Workspace } from '../../layouts';
 import type { EditorContextKey, PendingComponentMutation } from '../../api/editorContracts';
 import {
@@ -33,6 +40,7 @@ import '../../styles/component-structure.css';
 
 import { ComponentEditor } from './features/ComponentEditor';
 import { ComponentEditorSkeleton } from './features/ComponentEditor/ComponentEditorSkeleton';
+import { LoadErrorState } from '../../components/Catalog/Catalog';
 import { ComponentsSectionSkeleton } from './ComponentsSectionSkeleton';
 import { COMPONENTS_PANEL } from './panelWidths';
 import {
@@ -47,7 +55,12 @@ import { ComponentHideDialog } from './ui/ComponentHideDialog';
 import { ComponentRestoreDialog, type HiddenComponent } from './ui/ComponentRestoreDialog';
 import { ComponentTree } from './ui/ComponentTree';
 
-import { isRetryableAutosaveError, isUnknownIconError } from '../../api/autosaveHttp';
+import {
+    autosaveErrorMessage,
+    isRetryableAutosaveError,
+    isStateRejection,
+    isUnknownIconError,
+} from '../../api/autosaveHttp';
 import { registerDraftAutosaveSource, setDraftAutosaveRetry } from '../../api/draftAutosaveActivity';
 import type { StructureOperation } from './features/ComponentStructure/types';
 import { runStructureOperation as runStructureOperationOnServer } from './features/ComponentStructure/runStructureOperation';
@@ -145,6 +158,7 @@ export const Components = () => {
     const [searchOpen, setSearchOpen] = useState(false);
     const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
     const [unknownIconNotice, setUnknownIconNotice] = useState(false);
+    const [stateNotice, setStateNotice] = useState<string>();
     const [catalog, setCatalog] = useState<ComponentCatalogEntry[]>();
     const [templates, setTemplates] = useState<ComponentTemplateEntry[]>([]);
     const [catalogBusy, setCatalogBusy] = useState(false);
@@ -248,6 +262,9 @@ export const Components = () => {
         value: PendingComponentMutation['before'];
     }>();
     const autosaveQueue = useRef<TokenAutosaveQueue<PendingComponentSave, Record<string, number>> | null>(null);
+    // Догрузка цели при повторе правки не должна пересоздавать очередь сама по себе: функция читается из ссылки.
+    const loadComponentRef = useRef(loadComponent);
+    loadComponentRef.current = loadComponent;
 
     // Если компонент не задан в URL или его нет в меню (например, он скрыт) — переходим на первый доступный.
     useEffect(() => {
@@ -448,13 +465,20 @@ export const Components = () => {
         if (!config || !storagePrefix || !editorContext || !designSystem || parameters?.readOnly) return;
         // Ключ правок — компонент и открытая конфигурация: у каждой конфигурации своя очередь и своё «до».
         const editorKey = componentEditorKey(config);
-        confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
+        const requestKey = `${storagePrefix}:${editorKey}:request`;
+        // Очередь пересоздаётся при каждой смене снимка, в том числе из-за догрузки другого компонента. Пока у этой
+        // конфигурации есть несохранённая правка, основа сравнения не сбрасывается: иначе правка, уже лежащая в
+        // `config`, стала бы «уже сохранённой» и на сервер не ушла бы.
+        const hasUnsaved =
+            confirmedConfig.current?.componentName === editorKey && readStoredJson(requestKey, null) !== null;
+        if (!hasUnsaved) {
+            confirmedConfig.current = { componentName: editorKey, value: structuredClone(config.getMeta()) };
+        }
         let mounted = true;
         const componentName = config.getName();
         const activitySource = `component:${toComponentRoute(config.getPlatform(), componentName)}`;
         const setActivity = registerDraftAutosaveSource(editorContext, activitySource);
         let latestActivityStatus: AutosaveStatus = 'saved';
-        const requestKey = `${storagePrefix}:${editorKey}:request`;
         const revisionKey = `${storagePrefix}:${componentName}:revisions`;
         const aliasesKey = `${storagePrefix}:${componentName}:style-aliases`;
         let styleAliases = readStoredJson<Record<string, string>>(aliasesKey, {});
@@ -480,24 +504,36 @@ export const Components = () => {
                 const pending = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
                 if (pending?.generation === operation.generation) persistStoredJson(requestKey, operation);
                 return repository
-                    .saveComponentMutation(editorContext, meta, currentOperation, readRevisions(), (revisions) => {
-                        persistStoredJson(revisionKey, revisions);
-                        styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
-                        persistStoredJson(aliasesKey, styleAliases);
-                        const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
-                        if (!stored) return;
-                        if (stored.generation === operation.generation) {
-                            persistStoredJson(requestKey, currentOperation);
-                        } else if (stored.predecessor?.generation === operation.generation) {
-                            persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
-                        }
-                    })
+                    .saveComponentMutation(
+                        editorContext,
+                        meta,
+                        currentOperation,
+                        readRevisions(),
+                        (revisions) => {
+                            persistStoredJson(revisionKey, revisions);
+                            styleAliases = { ...styleAliases, ...currentOperation.styleAliases };
+                            persistStoredJson(aliasesKey, styleAliases);
+                            const stored = readStoredJson<Partial<PendingComponentSave> | null>(requestKey, null);
+                            if (!stored) return;
+                            if (stored.generation === operation.generation) {
+                                persistStoredJson(requestKey, currentOperation);
+                            } else if (stored.predecessor?.generation === operation.generation) {
+                                persistStoredJson(requestKey, { ...stored, predecessor: currentOperation });
+                            }
+                        },
+                        (value) => {
+                            const resolved = designSystem.resolveComposeStyleReference(value);
+                            return resolved && toStyleReferenceInput(resolved);
+                        },
+                    )
                     .catch((error: unknown) => {
-                        if (!isUnknownIconError(error)) throw error;
-                        // Иконки нет в каталоге: возвращаем прежнее значение и сообщаем об этом.
+                        if (!isUnknownIconError(error) && !isStateRejection(error)) throw error;
+                        // Иконки нет в каталоге или признак свойства не допускает набор состояний: повтор не поможет,
+                        // поэтому правка отбрасывается, прежнее значение возвращается перечитыванием, причина видна.
                         queue.discard(operation.tokenKey, operation.operationKey);
                         removeStoredValue(requestKey);
-                        if (mounted) setUnknownIconNotice(true);
+                        if (mounted && isStateRejection(error)) setStateNotice(error.message);
+                        else if (mounted) setUnknownIconNotice(true);
                         reload();
                         return readRevisions();
                     });
@@ -520,9 +556,9 @@ export const Components = () => {
                 reload();
             },
             retryable: isRetryableAutosaveError,
-            statusChanged: (status) => {
+            statusChanged: (status, error) => {
                 latestActivityStatus = status;
-                setActivity(!mounted && status === 'saved' ? null : status);
+                setActivity(!mounted && status === 'saved' ? null : status, autosaveErrorMessage(error));
             },
         });
         setActivity('saved');
@@ -533,7 +569,8 @@ export const Components = () => {
             requestKey,
             null,
         );
-        if (stored) {
+        const replayStored = () => {
+            if (!stored) return;
             try {
                 const operation: PendingComponentSave = {
                     ...stored,
@@ -561,6 +598,18 @@ export const Components = () => {
             } catch {
                 removeStoredValue(requestKey);
             }
+        };
+        // Отложенная правка может ссылаться на оформление ещё не загруженного компонента (выбор цели и сразу
+        // перезагрузка): без его конфигурации ссылка не разворачивается и запись повторялась бы с ошибкой. Поэтому
+        // цели сначала догружаются. Догрузка меняет снимок и пересоздаёт этот эффект: тогда повтор выполнит новый.
+        const unloadedTargets = stored ? unloadedStyleReferenceTargets(designSystem, stored, config) : [];
+        if (unloadedTargets.length === 0) replayStored();
+        else {
+            void Promise.allSettled(
+                unloadedTargets.map((name) => loadComponentRef.current?.(toComponentRoute('compose', name))),
+            ).then(() => {
+                if (mounted) replayStored();
+            });
         }
         return () => {
             mounted = false;
@@ -709,6 +758,9 @@ export const Components = () => {
                 <Workspace
                     section="components"
                     readOnly={designSystem.getParameters()?.readOnly}
+                    // Правку раздел закрывает сам (каталог, «Структура», поля свойств): переключать компоненты,
+                    // платформы и вариации можно и в режиме просмотра.
+                    inertWhenReadOnly={false}
                     menuBackground={'transparent'}
                     menuWidth="var(--panel-left, 280px)"
                     menu={
@@ -790,17 +842,20 @@ export const Components = () => {
                                     </button>
                                 </div>
                             )}
+                            {stateNotice && (
+                                <div role="alert">
+                                    {stateNotice}, прежнее значение восстановлено.{' '}
+                                    <button type="button" onClick={() => setStateNotice(undefined)}>
+                                        Закрыть
+                                    </button>
+                                </div>
+                            )}
                             {!platform ? (
                                 <div role="status">Нет компонента для предпросмотра.</div>
                             ) : componentLoading ? (
                                 <ComponentEditorSkeleton />
                             ) : componentError ? (
-                                <div role="alert">
-                                    Не удалось загрузить компонент{' '}
-                                    <button type="button" onClick={reload}>
-                                        Повторить
-                                    </button>
-                                </div>
+                                <LoadErrorState text="Не удалось загрузить компонент" retry={reload} kind="workspace" />
                             ) : (
                                 <ComponentEditor
                                     designSystem={designSystem}
@@ -812,6 +867,8 @@ export const Components = () => {
                                     onConfigUpdate={onConfigUpdate}
                                     onConfigurationSelect={onConfigurationSelect}
                                     structure={designSystemReadOnly ? undefined : structure}
+                                    onLoadComponent={loadComponent}
+                                    readOnly={designSystemReadOnly}
                                 />
                             )}
                         </>
@@ -851,6 +908,26 @@ const AUTOSAVE_WAIT_MS = 15_000;
 
 /** Параметр адреса с ID открытой конфигурации компонента; без него открыта конфигурация по умолчанию. */
 const CONFIGURATION_PARAM = 'configuration';
+
+/**
+ * Compose-компоненты, на чьи оформления ссылается отложенная правка и чьи конфигурации ещё не загружены: без них
+ * ссылка не разворачивается в `reference`.
+ */
+const unloadedStyleReferenceTargets = (
+    designSystem: DesignSystem,
+    stored: Pick<PendingComponentSave, 'after' | 'predecessor'>,
+    config: Config,
+): string[] => {
+    const meta = designSystem.getComponentData(config) ?? designSystem.getComponentDataByName(config.getName());
+    const api = meta?.sources?.api ?? [];
+    const values = [stored.after, stored.predecessor?.after].flatMap((item) =>
+        item ? collectStyleReferenceValues(item, api) : [],
+    );
+    if (values.length === 0) return [];
+    const components = designSystem.getComposeComponentsData();
+
+    return [...new Set(values.flatMap((value) => findUnloadedStyleReferenceTarget(components, value) ?? []))];
+};
 
 /**
  * Ключ очереди автосохранения: компонент, а для конфигурации не по умолчанию — ещё и её ID. У конфигурации по

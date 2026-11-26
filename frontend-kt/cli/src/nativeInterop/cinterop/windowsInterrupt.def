@@ -1,0 +1,33 @@
+package = com.dsbuilder.frontend.cli.windowsinterrupt
+headers = windows.h
+---
+/* Console callbacks run on a Windows thread; only atomic C state crosses into Kotlin. */
+static volatile LONG dsb_interrupt_pending = 0;
+static DWORD WINAPI dsb_interrupt_deadline(LPVOID unused) {
+    Sleep(7000);
+    if (InterlockedCompareExchange(&dsb_interrupt_pending, 0, 0)) ExitProcess(130);
+    return 0;
+}
+static BOOL WINAPI dsb_handle_interrupt(DWORD event) {
+    if (event != CTRL_C_EVENT && event != CTRL_BREAK_EVENT) return FALSE;
+    if (InterlockedCompareExchange(&dsb_interrupt_pending, 1, 0) == 0) {
+        HANDLE deadline = CreateThread(NULL, 0, dsb_interrupt_deadline, NULL, 0, NULL);
+        if (deadline) CloseHandle(deadline); else ExitProcess(130);
+    }
+    return TRUE;
+}
+static inline int dsb_begin_interrupt(void) {
+    InterlockedExchange(&dsb_interrupt_pending, 0);
+    /* Detached/service launches have no console events, but still support help and stdio MCP. */
+    if (GetConsoleCP() == 0) return 1;
+    /* A new process group can inherit the ignored Ctrl+C attribute. */
+    if (!SetConsoleCtrlHandler(NULL, FALSE)) return 0;
+    return SetConsoleCtrlHandler(dsb_handle_interrupt, TRUE) != 0;
+}
+static inline int dsb_take_interrupt(void) {
+    return InterlockedCompareExchange(&dsb_interrupt_pending, 0, 0) != 0;
+}
+static inline void dsb_end_interrupt(void) {
+    SetConsoleCtrlHandler(dsb_handle_interrupt, FALSE);
+    InterlockedExchange(&dsb_interrupt_pending, 0);
+}

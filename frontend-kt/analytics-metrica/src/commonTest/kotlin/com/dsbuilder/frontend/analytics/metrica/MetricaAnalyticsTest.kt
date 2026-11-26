@@ -11,10 +11,14 @@ import io.ktor.http.HttpStatusCode
 import io.ktor.http.headersOf
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.test.TestResult
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withContext
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFailsWith
@@ -23,7 +27,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
 class MetricaAnalyticsTest {
-    @Test fun transportExceptionDropsOnlyItsEventAndWorkerContinues() = runBlocking {
+    @Test fun transportExceptionDropsOnlyItsEventAndWorkerContinues() = runMetricaTest {
         val requests = mutableListOf<Map<String, String>>()
         val transport = object : MetricaTransport {
             override suspend fun send(request: MetricaRequest): Boolean {
@@ -64,7 +68,7 @@ class MetricaAnalyticsTest {
         assertEquals(300, catalog.values.toSet().size)
     }
 
-    @Test fun onePageviewPerOperationAcrossOutcomesAndIdleWithSafeFields() = runBlocking {
+    @Test fun onePageviewPerOperationAcrossOutcomesAndIdleWithSafeFields() = runMetricaTest {
         val transport = RecordingTransport()
         var now = 10000L
         val analytics = createMetricaAnalytics(
@@ -105,7 +109,7 @@ class MetricaAnalyticsTest {
         } finally { analytics.close() }
     }
 
-    @Test fun cliViewsNormalizeCommandAndRespectBasePathWithoutCollapsingRapidResults() = runBlocking {
+    @Test fun cliViewsNormalizeCommandAndRespectBasePathWithoutCollapsingRapidResults() = runMetricaTest {
         val transport = RecordingTransport()
         val analytics = createMetricaAnalytics(
             MetricaConfig("123", "fake-cli-token", "https://example.test/dev/client/", setOf("components import-api")),
@@ -131,7 +135,7 @@ class MetricaAnalyticsTest {
         } finally { analytics.close() }
     }
 
-    @Test fun badEventsNeverReachStorageAndFailedViewsAreNotRetried() = runBlocking {
+    @Test fun badEventsNeverReachStorageAndFailedViewsAreNotRetried() = runMetricaTest {
         var identities = 0
         val transport = RecordingTransport(false)
         val analytics = createMetricaAnalytics(
@@ -173,7 +177,7 @@ class MetricaAnalyticsTest {
         } finally { analytics.close() }
     }
 
-    @Test fun unavailableIdentityDisablesRunAndCloseIsIdempotent() = runBlocking {
+    @Test fun unavailableIdentityDisablesRunAndCloseIsIdempotent() = runMetricaTest {
         var attempts = 0
         val transport = RecordingTransport()
         val analytics = createMetricaAnalytics(
@@ -196,7 +200,7 @@ class MetricaAnalyticsTest {
         assertEquals(1, transport.closes)
     }
 
-    @Test fun boundedFlushPreservesCallerCancellationAndQueueDropsNewest() = runBlocking {
+    @Test fun boundedFlushPreservesCallerCancellationAndQueueDropsNewest() = runMetricaTest {
         val entered = CompletableDeferred<Unit>()
         val release = CompletableDeferred<Unit>()
         val requests = mutableListOf<Map<String, String>>()
@@ -231,7 +235,7 @@ class MetricaAnalyticsTest {
         } finally { analytics.close() }
     }
 
-    @Test fun ambiguousTimeoutIsNotRetried() = runBlocking {
+    @Test fun ambiguousTimeoutIsNotRetried() = runMetricaTest {
         var attempts = 0
         val transport = object : MetricaTransport {
             override suspend fun send(request: MetricaRequest): Boolean {
@@ -255,7 +259,7 @@ class MetricaAnalyticsTest {
         } finally { analytics.close() }
     }
 
-    @Test fun httpTransportPostsFormWithoutAuthOrRedirects() = runBlocking {
+    @Test fun httpTransportPostsFormWithoutAuthOrRedirects() = runMetricaTest {
         var requests = 0
         val engine = MockEngine { request ->
             requests++
@@ -276,6 +280,11 @@ class MetricaAnalyticsTest {
             MetricaConfig("1", "fake", "https://example.test", setOf("a-b", "a_b"))
         }
     }
+}
+
+// The analytics worker owns Dispatchers.Default; its flush deadlines must use the same real clock.
+private fun runMetricaTest(block: suspend CoroutineScope.() -> Unit): TestResult = runTest {
+    withContext(Dispatchers.Default, block)
 }
 
 private fun config() = MetricaConfig("123", "fake-mcp-token", "https://example.test", setOf("project_get_status"))

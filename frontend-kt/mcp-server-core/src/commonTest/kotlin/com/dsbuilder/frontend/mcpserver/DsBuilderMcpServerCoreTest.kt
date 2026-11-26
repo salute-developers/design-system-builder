@@ -843,7 +843,7 @@ class DsBuilderMcpServerCoreTest {
         docsReadUseCases: DocsReadUseCases? = null,
         componentReadUseCases: ComponentReadUseCases? = null,
         modelReadUseCase: ReadDesignSystemModelUseCase = modelReader(contextResolver),
-        toolObserver: (String, String) -> Unit = { _, _ -> },
+        toolObserver: suspend (String, String) -> Unit = { _, _ -> },
     ): DsBuilderMcpServerCore = DsBuilderMcpServerCore(
         config = config,
         projectStatusReader = projectStatusReader,

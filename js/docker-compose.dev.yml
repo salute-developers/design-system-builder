@@ -19,7 +19,7 @@ services:
       VITE_COMPONENT_EDITOR_ENABLED: ${VITE_COMPONENT_EDITOR_ENABLED:-true}
       # Empty by default: the client asks the backend for the active web plugin build (published by setup-local.sh
       # from local-dev/web-preview). A direct address overrides it while working on the plugin itself, for example
-      # http://localhost:3011/ of `npm run build && npm run preview` in apps/preview-web-plugin.
+      # http://localhost:3011/ of `npm run build && npm run preview` in plasma packages/sdds-preview-web-plugin.
       VITE_WEB_PREVIEW_PLUGIN_URL: ${VITE_WEB_PREVIEW_PLUGIN_URL:-}
     ports:
       - "3002:5173"

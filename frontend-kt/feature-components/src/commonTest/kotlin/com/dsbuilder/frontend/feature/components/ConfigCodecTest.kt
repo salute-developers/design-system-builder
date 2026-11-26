@@ -13,8 +13,12 @@ import com.dsbuilder.frontend.feature.components.domain.codec.NativeConfig
 import com.dsbuilder.frontend.feature.components.domain.codec.NativeProperty
 import com.dsbuilder.frontend.feature.components.domain.codec.resolveColorSchemeAxis
 import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.doubleOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -24,6 +28,27 @@ import kotlin.test.fail
 
 class ConfigCodecTest {
     private val codec = ConfigCodec()
+
+    @Test
+    fun stateOnlyIntersectionUsesInheritedBaseForNativeGenerator() {
+        val source = """{
+          "colorSchemeVariationId":"view",
+          "variations":[
+            {"id":"size","name":"size","values":[
+              {"name":"m","properties":{"padding":{"type":"dimension","value":16}}}]},
+            {"id":"view","name":"view","values":[{"name":"default","properties":{}},
+              {"name":"default","targets":[{"properties":[{"id":"size","value":"m"}]}],
+               "properties":{"padding":{"type":"dimension",
+                 "states":[{"state":["pressed"],"value":40}]}}}]
+            }
+          ]
+        }"""
+        val result = codec.encodeFromText(source)
+        assertTrue(result is ConfigCodecResult.Success)
+        val native = result.value.variations.single().view.values.single().props.getValue("padding")
+        assertEquals(JsonPrimitive(16), native.value)
+        assertEquals(JsonPrimitive(40), native.states!!.single().value)
+    }
 
     /**
      * Конфигурации, которые codec принимает. Исключена одна запись корпуса с опечаткой в поле
@@ -46,7 +71,22 @@ class ConfigCodecTest {
             val reserialized = json.encodeToString(NativeConfig.serializer(), config)
             val again = json.decodeFromString(NativeConfig.serializer(), reserialized)
 
-            assertEquals(config, again, "${entry.designSystem}/${entry.fileName} не переживает пересериализацию")
+            // JS JSON.stringify normalizes integral numbers (16.0 -> 16); compare numeric values.
+            assertEquals(
+                semanticNumbers(json.encodeToJsonElement(NativeConfig.serializer(), config)),
+                semanticNumbers(json.encodeToJsonElement(NativeConfig.serializer(), again)),
+                "${entry.designSystem}/${entry.fileName} не переживает пересериализацию",
+            )
+        }
+    }
+
+    private fun semanticNumbers(element: JsonElement): JsonElement = when (element) {
+        is JsonObject -> JsonObject(element.mapValues { semanticNumbers(it.value) })
+        is JsonArray -> JsonArray(element.map(::semanticNumbers))
+        is JsonPrimitive -> if (!element.isString && element.doubleOrNull != null) {
+            JsonPrimitive(element.doubleOrNull)
+        } else {
+            element
         }
     }
 

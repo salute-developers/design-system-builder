@@ -5,9 +5,14 @@ import com.dsbuilder.ds.components.application.ImportApiMeta
 import com.dsbuilder.ds.components.domain.AliasDeprecation
 import com.dsbuilder.ds.components.domain.ApiMetaAlias
 import com.dsbuilder.ds.components.domain.ApiMetaImportReport
+import com.dsbuilder.ds.components.domain.PropertyStateSupport
+import com.dsbuilder.ds.components.domain.StateNames
+import org.jetbrains.exposed.v1.core.SortOrder
 import org.jetbrains.exposed.v1.core.and
 import org.jetbrains.exposed.v1.core.eq
 import org.jetbrains.exposed.v1.core.inList
+import org.jetbrains.exposed.v1.core.isNull
+import org.jetbrains.exposed.v1.core.or
 import org.jetbrains.exposed.v1.jdbc.insertIgnore
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.update
@@ -17,8 +22,8 @@ import java.util.UUID
  * Additive API-meta import over the global component layer.
  *
  * A component is identified by `(name, platform)`: components of other platforms are neither read
- * nor changed. Existing rows are never changed or removed; the only thing the import updates is the
- * deprecation status of a platform name (set, message changed, cleared). The type of an existing
+ * nor changed. Existing rows are never changed or removed; the import updates only the deprecation status of a
+ * platform name (set, message changed, cleared) and the state support of a property. The type of an existing
  * property is reported when it differs but is never rewritten, and an unknown type rejects the
  * property, not the request.
  */
@@ -34,9 +39,11 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         val names = components.map(MergedComponent::name)
         val componentIds = ensureComponents(platform, names, counters)
         val ids = componentIds.values.toList()
+        ensureCommonStates(command.interactionStates.orEmpty(), counters)
         ensureStates(components, componentIds, counters)
         val properties = ensureProperties(components, componentIds, ids, counters)
         ensureAliases(platform, properties.aliasRows, counters)
+        applyStateSupport(components, componentIds, properties, counters)
         return counters.toReport(absent(platform, components, componentIds, properties.existing))
     }
 
@@ -62,6 +69,65 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         // A row created concurrently between the read and the insert is ignored by the insert: read it back.
         names.filter { it !in ids }.chunked(CHUNK_SIZE).forEach { ids += load(it) }
         return ids
+    }
+
+    /** Заводит в общем словаре имена из меты, которых там нет; существующие общие состояния не меняются. */
+    private fun ensureCommonStates(names: List<String>, counters: Counters) {
+        val known = ComponentStatesTable.selectAll().where { ComponentStatesTable.componentId.isNull() }
+            .mapTo(hashSetOf()) { StateNames.canonical(it[ComponentStatesTable.name]) }
+        val missing = names.distinctBy(StateNames::canonical).filter { StateNames.canonical(it) !in known }
+        val created = missing.filter { state ->
+            ComponentStatesTable.insertIgnore {
+                it[ComponentStatesTable.componentId] = null
+                it[name] = state
+            }.insertedCount > 0
+        }
+        counters.createdStates += created.size
+        PropertyStateSupportStore.moveSupportOffShadows(created)
+    }
+
+    /**
+     * Записывает признак поддержки состояний свойств манифеста. Имена разрешаются по общему правилу
+     * [StateNames.resolve]; неразрешённые попадают в отчёт и в список не входят. У существующего свойства признак
+     * меняется только при отличии флага или множества состояний.
+     */
+    private fun applyStateSupport(
+        components: List<MergedComponent>,
+        componentIds: Map<String, UUID>,
+        properties: Properties,
+        counters: Counters,
+    ) {
+        val scopeIds = componentIds.values.toList()
+        val states = ComponentStatesTable.selectAll().where {
+            ComponentStatesTable.componentId.isNull() or (ComponentStatesTable.componentId inList scopeIds)
+        }.orderBy(ComponentStatesTable.createdAt to SortOrder.ASC, ComponentStatesTable.id to SortOrder.ASC).map {
+            PropertyStateSupportStore.ScopedState(
+                it[ComponentStatesTable.id],
+                StateNames.Scoped(it[ComponentStatesTable.componentId], it[ComponentStatesTable.name]),
+            )
+        }
+        val index = StateIndex(states)
+        val after = existingProperties(scopeIds)
+        val current = PropertyStateSupportStore.load(after.values.map(StoredProperty::id))
+        val changed = LinkedHashMap<UUID, PropertyStateSupport>()
+        components.forEach { component ->
+            val componentId = componentIds.getValue(component.name)
+            component.properties.forEach property@{ property ->
+                val support = property.stateSupport ?: return@property
+                // Отклонённого свойства (неизвестный тип) в базе нет.
+                val stored = after[componentId to property.name] ?: return@property
+                val resolved = support.states.map { name -> name to index.resolve(name, componentId) }
+                resolved.filter { it.second == null }.forEach { (name, _) ->
+                    counters.unresolvedStates += "${component.name}.${property.name}: $name"
+                }
+                val stateIds = resolved.mapNotNull { it.second }.distinct()
+                val wanted = PropertyStateSupport(stateIds, support.combinations)
+                if (current[stored.id]?.sameAs(wanted) == true) return@property
+                changed[stored.id] = wanted
+                if (properties.existing.containsKey(componentId to property.name)) counters.stateSupportChanged++
+            }
+        }
+        PropertyStateSupportStore.replace(changed)
     }
 
     private fun ensureStates(
@@ -261,12 +327,47 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
                         property.name,
                         "duplicate property with a different type: ${known.type} and ${property.type}",
                     )
-                    else -> merged[property.name] =
-                        known.copy(aliases = ApiMetaAlias.merge(known.aliases + property.aliases))
+                    else -> merged[property.name] = known.copy(
+                        aliases = ApiMetaAlias.merge(known.aliases + property.aliases),
+                        stateSupport = mergeSupport(known.stateSupport, property.stateSupport),
+                    )
                 }
             }
             MergedComponent(name, merged.values.toList(), states.getValue(name).distinct())
         }
+    }
+
+    /** Индекс состояний по каноническому имени: то же правило, что [StateNames.resolve], без прохода по списку. */
+    private class StateIndex(states: List<PropertyStateSupportStore.ScopedState>) {
+        private val common = HashMap<String, UUID>()
+        private val own = HashMap<Pair<UUID, String>, UUID>()
+
+        init {
+            states.forEach { state ->
+                val key = StateNames.canonical(state.scope.name)
+                val owner = state.scope.componentId
+                if (owner == null) common.putIfAbsent(key, state.id) else own.putIfAbsent(owner to key, state.id)
+            }
+        }
+
+        fun resolve(name: String, componentId: UUID): UUID? =
+            StateNames.canonical(name).let { key -> common[key] ?: own[componentId to key] }
+    }
+
+    private fun PropertyStateSupport.sameAs(other: PropertyStateSupport) =
+        combinations == other.combinations && stateIds.toSet() == other.stateIds.toSet()
+
+    /** Сводит признак повторов свойства: списки объединяются, сочетания — только если их допускают все. */
+    private fun mergeSupport(
+        first: ImportApiMeta.StateSupport?,
+        second: ImportApiMeta.StateSupport?,
+    ): ImportApiMeta.StateSupport? = if (first == null || second == null) {
+        first ?: second
+    } else {
+        ImportApiMeta.StateSupport(
+            (first.states + second.states).distinctBy(StateNames::canonical),
+            first.combinations && second.combinations,
+        )
     }
 
     private class MergedComponent(
@@ -302,6 +403,8 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
         var deprecatedMarked = 0
         var deprecatedMessageChanged = 0
         var deprecatedCleared = 0
+        var stateSupportChanged = 0
+        val unresolvedStates = mutableListOf<String>()
         val rejected = mutableListOf<ApiMetaImportReport.Rejection>()
         val typeMismatches = mutableListOf<String>()
 
@@ -314,9 +417,11 @@ internal class ExposedApiMetaRepository : ApiMetaRepository {
             deprecatedMarked,
             deprecatedMessageChanged,
             deprecatedCleared,
+            stateSupportChanged,
             rejected.toList(),
             typeMismatches.toList(),
             absent,
+            unresolvedStates.toList(),
         )
     }
 

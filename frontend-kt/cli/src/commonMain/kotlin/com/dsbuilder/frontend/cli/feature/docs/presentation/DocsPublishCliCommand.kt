@@ -8,7 +8,6 @@ import com.github.ajalt.clikt.core.Context
 import com.github.ajalt.clikt.core.ProgramResult
 import com.github.ajalt.clikt.parameters.options.default
 import com.github.ajalt.clikt.parameters.options.option
-import kotlinx.coroutines.runBlocking
 
 /**
  * CLI command для `dsbuilder docs publish`.
@@ -26,8 +25,8 @@ internal class DocsPublishCliCommand(
 
     private val designSystem: String? by option("--design-system")
 
-    override fun runOperation() {
-        val result = runBlocking {
+    override suspend fun runOperation() {
+        val result = run {
             publishUseCase.execute(
                 DocsPublishCommand(
                     bundlePath = bundle,

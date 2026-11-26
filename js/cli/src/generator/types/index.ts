@@ -1,5 +1,6 @@
 // TODO: забирать из отдельного пакета
 import { Meta } from '../componentBuilder/index.ts';
+import type { CoreExportNames } from '../../web-mapping/index.ts';
 
 export interface BaseFileStructure {
     pathToDir: string;
@@ -23,7 +24,7 @@ export interface ComponentsFiles {
  * генератор и не выводится из данных ДС: имена экспортов ядра, если они не `<x>Tokens` /
  * `<x>Config` (`tabsTokens` у Tabs, `lineSkeletonConfig` у Skeleton), и форма обёртки.
  */
-export interface ComponentManifest {
+export interface ComponentManifest extends CoreExportNames {
     coreTokensExport?: string;
     coreConfigExport?: string;
     /** Имя типа пропсов из ядра: результат `component(...)` приводится к `ForwardRefExoticComponent<Props & RefAttributes<HTMLDivElement>>`. */

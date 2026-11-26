@@ -9,7 +9,6 @@ import type {
     ValueProp,
 } from './props/index.ts';
 
-export const DEFAULT_FONT_SIZE = 16;
 
 // type ConfigTokenFields<T extends ConfigToken> = {
 //     [K in Exclude<keyof T, 'name'>]: T[K];

@@ -14,6 +14,7 @@ import com.dsbuilder.frontend.core.network.AuthenticatedHttpClient
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
+import kotlinx.coroutines.test.runTest
 import okio.BufferedSink
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -26,7 +27,7 @@ import kotlin.test.assertTrue
 class IconsPublishCliCommandTest {
     private val requests = mutableListOf<String>()
 
-    private fun run(args: List<String>, env: Map<String, String> = emptyMap()) = DsBuilderCli(
+    private suspend fun run(args: List<String>, env: Map<String, String> = emptyMap()) = DsBuilderCli(
         ClientRuntime(
             fileSystem = EmptyFileSystem(),
             environmentReader = EnvironmentReader { name -> env[name] },
@@ -51,7 +52,7 @@ class IconsPublishCliCommandTest {
     private val publish = listOf("icons", "publish")
 
     @Test
-    fun theClientSecretCannotBeACommandLineArgument() {
+    fun theClientSecretCannotBeACommandLineArgument() = runTest {
         listOf(
             publish + listOf("--from-dir", "/icons", "--api-url", "http://backend", "--client-secret", "top-secret"),
             publish + listOf("--from-dir", "/icons", "--api-url", "http://backend", "--client-secret=top-secret"),
@@ -65,7 +66,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun exactlyOneSourceIsRequired() {
+    fun exactlyOneSourceIsRequired() = runTest {
         val none = run(publish + listOf("--api-url", "http://backend"))
         val both = run(
             publish + listOf("--from-dir", "/icons", "--from", "/m.json", "--api-url", "http://backend"),
@@ -79,7 +80,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun theApiUrlIsRequired() {
+    fun theApiUrlIsRequired() = runTest {
         val result = run(publish + listOf("--from-dir", "/icons"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -88,7 +89,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun writeManifestNeedsTheDirectorySource() {
+    fun writeManifestNeedsTheDirectorySource() = runTest {
         val result = run(
             publish + listOf("--from", "/m.json", "--write-manifest", "/o.json", "--api-url", "http://backend"),
         )
@@ -99,7 +100,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun aMissingDirectoryNamesThePathAndSendsNothing() {
+    fun aMissingDirectoryNamesThePathAndSendsNothing() = runTest {
         val result = run(publish + listOf("--from-dir", "/icons", "--api-url", "http://backend"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -108,7 +109,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun aMissingManifestNamesThePathAndSendsNothing() {
+    fun aMissingManifestNamesThePathAndSendsNothing() = runTest {
         val result = run(publish + listOf("--from", "/m.json", "--api-url", "http://backend"))
 
         assertEquals(1, result.exitCode, result.output)
@@ -117,7 +118,7 @@ class IconsPublishCliCommandTest {
     }
 
     @Test
-    fun theCommandIsListedAndDocumentsItsOptionsAndBothWaysToSignIn() {
+    fun theCommandIsListedAndDocumentsItsOptionsAndBothWaysToSignIn() = runTest {
         val group = run(listOf("icons", "--help"))
         val help = run(publish + "--help")
 

@@ -4,7 +4,6 @@ import com.dsbuilder.ds.themes.domain.TenantTokenValue
 import kotlinx.serialization.EncodeDefault
 import kotlinx.serialization.ExperimentalSerializationApi
 import kotlinx.serialization.Serializable
-import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
 
 /** External token value returned by the nested tenant lookup. */
@@ -37,6 +36,9 @@ data class TenantTokenValueResponse(
     /** Своё значение iOS или Android, а не построенное клиентом из web. */
     @EncodeDefault(EncodeDefault.Mode.ALWAYS)
     val overridden: Boolean = false,
+    /** Значение подтемы (OnDark, OnLight, Inverse), отвязанное пользователем от значений режимов. */
+    @EncodeDefault(EncodeDefault.Mode.ALWAYS)
+    val detached: Boolean = false,
     /** Хранимое значение, если `value` отдан в другой форме: со ссылками, раскрытыми в HEX, или слоем `color`. */
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     val sourceValue: JsonElement? = null,
@@ -50,13 +52,14 @@ data class TenantTokenValueResponse(
             value.paletteId?.toString(),
             value.platform,
             value.mode,
-            value.valueJson?.let(Json::parseToJsonElement),
+            value.valueElement(),
             value.editRevision,
             value.createdAt.toString(),
             value.updatedAt.toString(),
             value.paletteRef,
             value.overridden,
-            value.sourceValueJson?.let(Json::parseToJsonElement),
+            sourceValue = value.sourceValueElement(),
+            detached = value.detached,
         )
     }
 }

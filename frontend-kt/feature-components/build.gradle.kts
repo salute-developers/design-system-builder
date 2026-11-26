@@ -9,6 +9,7 @@ kotlin {
     mingwX64()
 
     sourceSets {
+        jsMain.dependencies { implementation(npm("fflate", "0.8.2")) }
         commonMain.dependencies {
             // GenerateComponentsCommand.platform публично оперирует TargetPlatform.
             api(projects.coreDomain)
@@ -30,8 +31,6 @@ kotlin {
             implementation(libs.ktor.client.mock)
         }
 
-        // The archive reader of the plugin publication is native-only on macOS and JVM-only on the JVM:
-        // the JS target (mcp-node) never publishes plugins.
         val nativeMain by creating {
             dependsOn(commonMain.get())
         }
@@ -40,14 +39,4 @@ kotlin {
         getByName("macosX64Main").dependsOn(nativeMain)
         getByName("mingwX64Main").dependsOn(nativeMain)
     }
-}
-
-tasks.matching {
-    it.name == "jsTest" ||
-        it.name == "jsNodeTest" ||
-        it.name == "compileTestKotlinJs" ||
-        it.name == "compileTestDevelopmentExecutableKotlinJs" ||
-        it.name == "jsTestTestDevelopmentExecutableCompileSync"
-}.configureEach {
-    enabled = false
 }
