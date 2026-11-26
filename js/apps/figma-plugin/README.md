@@ -108,5 +108,37 @@ npm run build:pixso # то же и каталог dist-pixso
 
 ## Публикация
 
-Приватная публикация выполняется в организации Figma. Figma выдаёт `id` плагина: запишите его в `manifest.json`
-вместо значения для разработки.
+Плагин публикуется архивами в GitHub Release, не в каталоге Figma или Pixso. Дизайнер скачивает архив своего редактора и
+устанавливает плагин из `manifest.json`; инструкция лежит в `README.txt` внутри архива.
+
+| Архив | Редактор | gateway |
+| --- | --- | --- |
+| `ds-builder-tokens-figma-<версия>.zip` | приложение Figma на компьютере | боевой, его разрешает `networkAccess` манифеста |
+| `ds-builder-tokens-pixso-<версия>.zip` | Pixso | шлюз Yandex Cloud: работает и в сетях, где закрыт домен `design-system-builder.ru` |
+
+Выпуск версии:
+
+1. Поднимите версию: `npm version <X.Y.Z> --no-git-tag-version` и закоммитьте `package.json` с `package-lock.json`.
+2. После слияния создайте и отправьте тег `tokens-plugin-v<X.Y.Z>` на этот коммит.
+3. Workflow `Publish tokens plugin release` соберёт и проверит архивы и создаст релиз. Релиз не помечается Latest: ссылку
+   `releases/latest` использует установщик CLI. Не отмечайте «Set as latest release» вручную: публикация CLI ожидает
+   Latest только у тегов `cli-v*`.
+
+Чтобы пересобрать архивы существующего релиза, запустите workflow вручную на том же теге и передайте тег во входе.
+
+Локально архивы собираются в каталог `release/`. Pixso собирается первым: его сборка заменяет окно в `dist/`, а последней
+должна остаться сборка Figma, иначе импортированный в Figma `manifest.json` рабочей копии обращается к шлюзу, который
+`networkAccess` не разрешает.
+
+```bash
+npm run build:pixso:yandex
+node scripts/release-archive.mjs pixso tokens-plugin-v<X.Y.Z>
+npm run build
+node scripts/release-archive.mjs figma tokens-plugin-v<X.Y.Z>
+```
+
+Скрипт проверяет, что тег совпадает с версией `package.json`, манифест указывает на файлы архива, а окно обращается
+только к gateway своего редактора.
+
+`id` в манифестах остаётся значением для разработки: плагин устанавливается импортом манифеста, каталог Figma не
+используется.
