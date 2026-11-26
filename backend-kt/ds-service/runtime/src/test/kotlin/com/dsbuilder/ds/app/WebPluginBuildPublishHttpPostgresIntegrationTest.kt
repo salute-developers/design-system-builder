@@ -157,13 +157,14 @@ class WebPluginBuildPublishHttpPostgresIntegrationTest {
 
     @Test
     fun `only the publisher role or a system administrator publishes the web plugin`() = withService {
-        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, webArchive(), actor = Actor.USER).status)
-        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, webArchive(), actor = Actor.PUBLISHER).status)
-        assertEquals(
-            HttpStatusCode.OK,
-            publish(PluginKind.WEB, webArchive(), dryRun = false, actor = Actor.ADMIN).status,
-        )
-        assertEquals(HttpStatusCode.OK, publish(PluginKind.WEB, webArchive(), actor = Actor.PUBLISHER).status)
+        val archive = webArchive()
+        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, archive, actor = Actor.USER).status)
+        assertEquals(HttpStatusCode.Forbidden, publish(PluginKind.WEB, archive, actor = Actor.PUBLISHER).status)
+
+        val initial = publish(PluginKind.WEB, archive, dryRun = false, actor = Actor.ADMIN).ok()
+        val repeat = publish(PluginKind.WEB, archive, actor = Actor.PUBLISHER).ok()
+        assertEquals("published", initial.string("outcome"))
+        assertEquals("unchanged", repeat.string("outcome"))
         assertEquals(HttpStatusCode.Forbidden, service.builder.client.get(PluginKind.WEB.active).status)
     }
 
