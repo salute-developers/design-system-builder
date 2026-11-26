@@ -41,11 +41,11 @@ class LocalApi:
         payload = self.token.split('.')[1]
         self.user_id = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))['sub']
 
-    def request(self, path, data=None, content_type=None, missing_ok=False):
+    def request(self, path, data=None, content_type=None, missing_ok=False, method=None):
         headers = {'Authorization': 'Bearer ' + self.token} if self.token else {}
         if content_type:
             headers['Content-Type'] = content_type
-        request = urllib.request.Request(self.gateway + path, data=data, headers=headers)
+        request = urllib.request.Request(self.gateway + path, data=data, headers=headers, method=method)
         try:
             with self.opener.open(request, timeout=30) as response:
                 return json.load(response)

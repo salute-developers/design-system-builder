@@ -207,19 +207,29 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
-# Bootstrap and publication share one snapshot, including when a local build overwrites the original ZIP.
-web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
-if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" && -z "${DSBUILDER_WEB_API_META:-}" &&
-      ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
-  web_preview_download="$(mktemp -d)"
-  trap 'rm -f "$web_preview_download/preview-web-plugin.zip"; rmdir "$web_preview_download"' EXIT
-  WEB_PLUGIN_ZIP="$web_preview_download/preview-web-plugin.zip"
-  if [[ "$web_preview_source" =~ ^https?:// ]]; then
+# Publication, Core selection and optional seed must use the same archive bytes.
+preview_download=""
+snapshot_preview() {
+  local source="$1" destination="$2"
+  if [[ "$source" =~ ^https?:// ]]; then
     require curl
-    log "Downloading the Web preview archive"
-    curl --fail --silent --show-error --location --max-time 120 --output "$WEB_PLUGIN_ZIP" "$web_preview_source"
+    curl --fail --silent --show-error --location --max-time 120 --output "$destination" "$source"
   else
-    cp -- "$web_preview_source" "$WEB_PLUGIN_ZIP"
+    cp -- "$source" "$destination"
+  fi
+}
+if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" ]]; then
+  preview_download="$(mktemp -d)"
+  trap 'rm -f "$preview_download/preview-compose-plugin.zip" "$preview_download/preview-web-plugin.zip"; rmdir "$preview_download"' EXIT
+  compose_preview_source="${PLUGIN_ZIP:-$BUNDLED_PLUGIN_ZIP}"
+  if [[ "$compose_preview_source" =~ ^https?:// || -f "$compose_preview_source" ]]; then
+    PLUGIN_ZIP="$preview_download/preview-compose-plugin.zip"
+    snapshot_preview "$compose_preview_source" "$PLUGIN_ZIP"
+  fi
+  web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
+  if [[ -z "${DSBUILDER_WEB_API_META:-}" && ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
+    WEB_PLUGIN_ZIP="$preview_download/preview-web-plugin.zip"
+    snapshot_preview "$web_preview_source" "$WEB_PLUGIN_ZIP"
   fi
 fi
 
@@ -268,6 +278,10 @@ publish_plugin() {
       exit 1
     fi
     log "The $title could not be published; setup continues without its preview. See local-dev/README.md for archive requirements."
+    return
+  fi
+  if [[ "$platform" == "compose" && "$SKIP_DESIGN_SYSTEM" == "0" ]]; then
+    "$ROOT_DIR/ensure-local-preview-core.sh" --archive "$archive"
   fi
 }
 

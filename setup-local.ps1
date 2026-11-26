@@ -223,14 +223,19 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
     if ($archive -match '^https?://' -or (Test-Path -LiteralPath $archive -PathType Leaf)) {
         $mounts = @()
         $source = Convert-InputPath $archive "/input/$(Split-Path $bundled -Leaf)" ([ref]$mounts)
+        $published = $false
         try {
             Write-SetupLog "Publishing the $title"
             $toolArgs = @('--platform', $platform, '--channel', $channel, '--from', $source)
             if ($platform -eq 'compose') { $toolArgs += '--register-core' }
             Invoke-SetupTool 'publish-preview-plugin.sh' $toolArgs $mounts
+            $published = $true
         } catch {
             if ($explicit) { throw }
             Write-SetupLog "The bundled $title could not be published. See local-dev/README.md for archive requirements. $_"
+        }
+        if ($published -and $platform -eq 'compose' -and -not $SkipDesignSystem) {
+            Invoke-SetupTool 'ensure-local-preview-core.sh' @('--archive', $source) $mounts
         }
     } else {
         if ($explicit) { throw "$title archive not found: $archive" }
@@ -239,7 +244,19 @@ function Publish-PreviewPlugin([string]$platform, [string]$title, [string]$archi
 }
 
 $webPreviewDownload = $null
+$composePreviewDownload = $null
 try {
+    $composeSource = if ($PluginZip) { $PluginZip } else { Join-Path $root 'local-dev/compose-preview/preview-compose-plugin.zip' }
+    if (-not $SkipPlugin -and ($composeSource -match '^https?://' -or
+        (Test-Path -LiteralPath $composeSource -PathType Leaf))) {
+        $composePreviewDownload = [IO.Path]::GetTempFileName()
+        if ($composeSource -match '^https?://') {
+            Invoke-WebRequest -Uri $composeSource -OutFile $composePreviewDownload -UseBasicParsing -TimeoutSec 120
+        } else {
+            Copy-Item -LiteralPath $composeSource -Destination $composePreviewDownload
+        }
+        $PluginZip = $composePreviewDownload
+    }
     # Bootstrap and publication share one snapshot, even if the original ZIP changes.
     $webSource = if ($WebPluginZip) { $WebPluginZip } else { Join-Path $root 'local-dev/web-preview/preview-web-plugin.zip' }
     $webSourceIsUrl = $webSource -match '^https?://'
@@ -280,12 +297,6 @@ try {
         Publish-PreviewPlugin 'compose' 'Compose preview plugin' $PluginZip $pluginWasExplicit 'local-dev/compose-preview/preview-compose-plugin.zip' $composeChannel
         Publish-PreviewPlugin 'react' 'web preview plugin' $WebPluginZip $webPluginWasExplicit 'local-dev/web-preview/preview-web-plugin.zip' $webChannel
     }
-} finally {
-    if ($webPreviewDownload) {
-        Remove-Item -LiteralPath $webPreviewDownload -Force -ErrorAction SilentlyContinue
-    }
-}
-
 # The icon catalog is loaded as CI does it: the backend stores the SVG files in the MinIO bucket of the Compose
 # preview plugin and replaces the catalog in one transaction. Without -Icons the bundled starter set is used.
 function Publish-IconCatalog {
@@ -344,3 +355,9 @@ if (-not $SkipDesignSystem -and -not $SkipDocumentation) {
 Write-SetupLog 'Local setup is ready'
 Write-SetupLog 'API gateway: http://localhost:8080'
 Write-SetupLog 'Client: http://localhost:3002'
+
+} finally {
+    foreach ($download in @($webPreviewDownload, $composePreviewDownload)) {
+        if ($download) { Remove-Item -LiteralPath $download -Force -ErrorAction SilentlyContinue }
+    }
+}
