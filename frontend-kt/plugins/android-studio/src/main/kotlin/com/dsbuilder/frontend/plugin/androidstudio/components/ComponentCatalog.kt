@@ -42,6 +42,14 @@ internal data class ComponentBundle(val component: CatalogComponent, val data: J
             it.obj("config"),
         )
     }
+    fun requirePreviewCore(releaseId: String?) {
+        val cores = data.obj("export").obj("meta").objects("coreReleases")
+            .filter { it.text("platform") == "compose" }
+        check(!releaseId.isNullOrBlank() && cores.singleOrNull()?.text("releaseId") == releaseId) {
+            "Core компонента не совпадает с Core превью. Повторите загрузку."
+        }
+    }
+
     fun hasComposeMapping(name: String): Pair<Boolean, Boolean> {
         val id = data.objects("properties").singleOrNull { it.text("name") == name }?.text("id")
         val params = data.objects("platformParams").filter { it.text("propertyId") == id }
@@ -102,11 +110,17 @@ internal class ComponentCatalog(private val api: AuthenticatedApiClient) {
         return definitions.map { it as JsonObject } to values.map { it as JsonObject }
     }
 
-    suspend fun pluginUrl(context: ComponentContext): String = requireNotNull(
-        (
-            ApiJson.parseToJsonElement(
-                api.get("${context.root}/catalog/compose-preview/plugin"),
-            ) as JsonObject
-            ).text("pluginUrl"),
-    ) { "Плагин превью не опубликован" }
+    suspend fun previewLocation(context: ComponentContext): ComponentPreviewLocation {
+        val data = ApiJson.parseToJsonElement(
+            api.get(context.readPath("${context.designSystemRoot}/preview/compose")),
+        ) as JsonObject
+        val core = data.obj("coreRelease")
+        check(core.text("platform") == "compose") { "Плагин превью относится к другой платформе" }
+        return ComponentPreviewLocation(
+            requireNotNull(data.text("pluginUrl")?.takeIf(String::isNotBlank)) { "Плагин превью не опубликован" },
+            requireNotNull(core.text("releaseId")?.takeIf(String::isNotBlank)) { "Не задан Core превью" },
+        )
+    }
 }
+
+internal data class ComponentPreviewLocation(val pluginUrl: String, val coreReleaseId: String)

@@ -65,6 +65,118 @@ class ComponentCatalogTest {
     private val context = ComponentContext("project", "system", "tenant")
 
     @Test
+    fun rejectsDifferentCoreInDirectTransitiveAndDefaultStyles() = runBlocking {
+        for (kind in listOf("direct", "transitive", "default")) {
+            fun reference(style: String) = """{"buttonStyle":{"type":"component_style","value":"$style"}}"""
+            val components =
+                listOf(CatalogComponent("root", "Root"), CatalogComponent("a", "A"), CatalogComponent("b", "B"))
+            HttpClient(
+                MockEngine { request ->
+                    val path = request.url.encodedPath
+                    val body = if (path.endsWith("/appearances")) {
+                        """[{"name":"nested-a","componentId":"a"},{"name":"nested-b","componentId":"b"},
+                            {"name":"basic-button","componentId":"b"}]"""
+                    } else {
+                        val id = path.substringBefore("/editor-bundle").substringAfterLast('/')
+                        val style = when (id) {
+                            "root" -> "root"
+                            "a" -> "nested-a"
+                            else -> if (kind == "default") "basic-button" else "nested-b"
+                        }
+                        val properties = when {
+                            id == "root" && kind == "direct" -> reference("nested-b")
+                            id == "root" && kind == "transitive" -> reference("nested-a")
+                            id == "a" -> reference("nested-b")
+                            else -> "{}"
+                        }
+                        val core = if (id == "b") "b" else "a"
+                        bundle(id, id, style, properties).replace(
+                            "\"export\":{",
+                            """"export":{"meta":{"coreReleases":[{"platform":"compose","releaseId":"$core"}]},""",
+                        )
+                    }
+                    respond(body, headers = headersOf(HttpHeaders.ContentType, "application/json"))
+                },
+            ).use { http ->
+                val loader = ComponentDraftLoader(ComponentCatalog(apiFor(http)), context, this@runBlocking, components)
+                val root = loader.bundle(components.first())
+                val error = assertFailsWith<IllegalStateException> {
+                    loader.draft(
+                        root,
+                        root.configurations.single(),
+                        emptyMap(),
+                        "light",
+                        "Root",
+                        previewCoreReleaseId = "a",
+                    )
+                }
+                assertEquals("Core компонента не совпадает с Core превью. Повторите загрузку.", error.message)
+            }
+        }
+    }
+
+    @Test
+    fun previewUsesSelectedSystemAndVersionInsteadOfGloballyActiveCore() = runBlocking {
+        val reads = mutableListOf<String>()
+        HttpClient(
+            MockEngine { request ->
+                reads.add(request.url.encodedPath)
+                val selected = request.url.encodedPath.endsWith("/system/preview/compose")
+                if (selected) assertEquals("published A", request.url.parameters["versionId"])
+                respond(
+                    if (selected) {
+                        """{
+                            "pluginUrl":"https://preview.example/core-a/",
+                            "coreRelease":{"platform":"compose","releaseId":"a"}
+                        }"""
+                    } else {
+                        """{
+                            "pluginUrl":"https://preview.example/core-b/",
+                            "coreRelease":{"platform":"compose","releaseId":"b"}
+                        }"""
+                    },
+                    headers = headersOf(HttpHeaders.ContentType, "application/json"),
+                )
+            },
+        ).use { http ->
+            val result = ComponentCatalog(apiFor(http)).previewLocation(context.copy(versionId = "published A"))
+            assertEquals(ComponentPreviewLocation("https://preview.example/core-a/", "a"), result)
+            assertEquals(listOf("/api/projects/project/design-systems/system/preview/compose"), reads)
+        }
+    }
+
+    @Test
+    fun previewOfDraftOmitsVersionAndDoesNotFallBackWhenUnavailable() = runBlocking {
+        val reads = mutableListOf<String>()
+        HttpClient(
+            MockEngine { request ->
+                reads.add(request.url.encodedPath)
+                assertNull(request.url.parameters["versionId"])
+                respond("{}", HttpStatusCode.NotFound)
+            },
+        ).use { http ->
+            assertFailsWith<Exception> { ComponentCatalog(apiFor(http)).previewLocation(context) }
+            assertEquals(listOf("/api/projects/project/design-systems/system/preview/compose"), reads)
+        }
+    }
+
+    @Test
+    fun refusesRenderingWhenBundleCoreIsMissingAmbiguousOrDifferent() {
+        fun bundle(cores: String) = ComponentBundle(
+            CatalogComponent("switch", "Switch"),
+            ApiJson.parseToJsonElement("""{"export":{"meta":{"coreReleases":$cores},"components":[]}}""") as JsonObject,
+        )
+        val coreA = """{"platform":"compose","releaseId":"a"}"""
+        val matching = bundle("[$coreA]")
+        matching.requirePreviewCore("a")
+        assertFailsWith<IllegalStateException> { matching.requirePreviewCore("b") }
+        assertFailsWith<IllegalStateException> { matching.requirePreviewCore(null) }
+        assertFailsWith<IllegalStateException> { bundle("[]").requirePreviewCore("a") }
+        assertFailsWith<IllegalStateException> { bundle("[$coreA,$coreA]").requirePreviewCore("a") }
+        bundle("""[$coreA,{"platform":"web","releaseId":"b"}]""").requirePreviewCore("a")
+    }
+
+    @Test
     fun preloadsOnlyDefaultTextFontsAndSharesTheTokenReadCache() = runBlocking {
         val reads = mutableListOf<String>()
         HttpClient(

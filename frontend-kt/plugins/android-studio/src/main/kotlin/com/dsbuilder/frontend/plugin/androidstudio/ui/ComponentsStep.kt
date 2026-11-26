@@ -345,8 +345,9 @@ private fun rememberSectionPreview(
     LaunchedEffect(holder) {
         if (holder.supported) {
             holder.state = runCatchingLoad {
+                val location = PluginServices.componentCatalog.previewLocation(context)
                 val manifest = HttpClient(CIO) { followRedirects = false }.use { http ->
-                    loadPreviewManifest(http, PluginServices.componentCatalog.pluginUrl(context))
+                    loadPreviewManifest(http, location.pluginUrl).copy(coreReleaseId = location.coreReleaseId)
                 }
                 PreviewBrowser.create(manifest)
             }
@@ -403,6 +404,7 @@ private fun BrowserPreview(
         status = "Обновляем превью…"
         preview.clearFrame()
         try {
+            bundle.requirePreviewCore(preview.manifest.coreReleaseId)
             val description = preview.session.describe(bundle.component.name)
             val draft = loader.draft(
                 bundle,
@@ -411,6 +413,7 @@ private fun BrowserPreview(
                 state.mode,
                 requireNotNull(description.text("storyId")),
                 previewExampleProps(description),
+                previewCoreReleaseId = preview.manifest.coreReleaseId,
             )
             when (val assembled = PayloadAssembler.assemble(draft)) {
                 is AssemblyResult.Success -> {

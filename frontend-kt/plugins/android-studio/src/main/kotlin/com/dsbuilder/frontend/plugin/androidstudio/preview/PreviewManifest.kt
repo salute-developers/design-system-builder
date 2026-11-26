@@ -8,7 +8,11 @@ import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import java.net.URI
 
-internal data class PreviewManifest(val entrypoint: URI, val components: Set<String>)
+internal data class PreviewManifest(
+    val entrypoint: URI,
+    val components: Set<String>,
+    val coreReleaseId: String? = null,
+)
 
 internal fun previewOrigin(uri: URI): String {
     require(

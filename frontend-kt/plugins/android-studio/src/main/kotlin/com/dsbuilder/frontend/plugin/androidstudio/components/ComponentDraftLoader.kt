@@ -73,8 +73,14 @@ internal class ComponentDraftLoader(
         mode: String,
         storyId: String,
         exampleProps: JsonObject = JsonObject(emptyMap()),
+        previewCoreReleaseId: String? = null,
     ): ComponentPreviewDraft {
-        val projection = ComponentPropertyDrafts(::target)
+        if (previewCoreReleaseId != null) bundle.requirePreviewCore(previewCoreReleaseId)
+        val projection = ComponentPropertyDrafts { reference ->
+            target(reference).also { (targetBundle, _) ->
+                if (previewCoreReleaseId != null) targetBundle.requirePreviewCore(previewCoreReleaseId)
+            }
+        }
         val selected = projection.properties(
             bundle,
             configuration.selectedProperties(selections),
