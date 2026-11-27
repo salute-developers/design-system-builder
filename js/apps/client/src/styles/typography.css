@@ -495,28 +495,11 @@
 
 /* Баннеры инспектора: ошибка сохранения, источник токена, режим просмотра. */
 .ty-banner,
-.typography-screen .viewer-banner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--tw-space-m);
-    margin: var(--tw-space-m) var(--tw-space-l) 0;
-    padding: var(--tw-space-s) var(--tw-space-m) var(--tw-space-s) var(--tw-space-l);
-    border-radius: var(--tw-radius-s);
-    background: var(--tw-surface-field);
-    color: var(--tw-text-primary);
-    font-size: 12px;
-    line-height: 16px;
-}
 
 .ty-banner[role='alert'] {
     background: rgba(255, 64, 96, 0.12);
 }
 
-.typography-screen .viewer-banner {
-    margin-bottom: var(--tw-space-m);
-    background: rgba(163, 138, 10, 0.16);
-}
 
 .ty-inline-action {
     height: var(--tw-control-height);

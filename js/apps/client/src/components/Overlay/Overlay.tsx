@@ -92,6 +92,7 @@ export const useAnchoredPopover = (
 ) => {
     const popoverRef = useRef<HTMLDivElement>(null);
     const [style, setStyle] = useState<CSSProperties>({
+        position: 'fixed',
         visibility: 'hidden',
         width: preferredWidth === 'content' ? 'max-content' : undefined,
         maxWidth: 'calc(100vw - 16px)',
@@ -126,9 +127,15 @@ export const useAnchoredPopover = (
             });
         };
         update();
+        // При первом открытии список загружается асинхронно: меняются размеры меню
+        // и кнопки-якоря, а вместе с ними — её положение в правой части шапки.
+        const observer = typeof ResizeObserver === 'undefined' ? undefined : new ResizeObserver(update);
+        if (anchorRef.current) observer?.observe(anchorRef.current);
+        if (popoverRef.current) observer?.observe(popoverRef.current);
         window.addEventListener('resize', update);
         window.addEventListener('scroll', update, true);
         return () => {
+            observer?.disconnect();
             window.removeEventListener('resize', update);
             window.removeEventListener('scroll', update, true);
         };

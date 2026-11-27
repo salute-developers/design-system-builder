@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { Config, DesignSystem, type Meta, type StateSupport } from '../../../../controllers';
@@ -6,6 +6,8 @@ import { buttonMeta, groupMeta } from '../../../../composePreview/nestedStyleFix
 
 import { InspectorPropertyRow, type InspectorTokenLists } from './InspectorPropertyRow';
 import { StyleReferenceContext } from './StyleReferenceContext';
+import { chipMeta } from '../__fixtures__/chipMeta';
+import { collectProperties } from './inspectorModel';
 
 const tokens: InspectorTokenLists = {
     colors: [],
@@ -191,5 +193,41 @@ describe('InspectorPropertyRow: ссылка на стиль', () => {
         expect(screen.getByRole('button', { name: 'Button style pressed: size' })).toBeDisabled();
         fireEvent.click(screen.getByRole('button', { name: 'Удалить состояние: Button style pressed' }));
         expect(onCombinationChange).toHaveBeenCalledWith('buttonStyle', null, ['pressed']);
+    });
+});
+
+describe('InspectorPropertyRow: отложенная привязка', () => {
+    afterEach(cleanup);
+
+    it.each([
+        { readOnly: false, expectedValue: '88', updates: 1 },
+        { readOnly: true, expectedValue: undefined, updates: 0 },
+    ])('проверяет актуальный readOnly=$readOnly после ответа сервера', async ({ readOnly, expectedValue, updates }) => {
+        const config = new Config(chipMeta);
+        const row = collectProperties(config, { view: 'v-default' }, chipMeta.sources.api).find(
+            ({ prop }) => prop.getID() === 'height',
+        )!;
+        let complete!: () => void;
+        const onLinkProperty = vi.fn(
+            () =>
+                new Promise<void>((resolve) => {
+                    complete = resolve;
+                }),
+        );
+        const onConfigUpdate = vi.fn();
+        const props = { ...row, config, api: chipMeta.sources.api, tokens, onLinkProperty, onConfigUpdate };
+        const view = render(<InspectorPropertyRow {...props} readOnly={false} />);
+        const input = screen.getByRole('textbox', { name: /height/i });
+        fireEvent.change(input, { target: { value: '88' } });
+        fireEvent.blur(input);
+        expect(onLinkProperty).toHaveBeenCalledWith('height', 'v-view');
+        view.rerender(<InspectorPropertyRow {...props} readOnly={readOnly} />);
+        await act(async () => {
+            complete();
+        });
+        expect(config.getStyleByVariation('v-view', 'v-default')!.getProps().getProp('height')?.getValue()).toBe(
+            expectedValue,
+        );
+        expect(onConfigUpdate).toHaveBeenCalledTimes(updates);
     });
 });

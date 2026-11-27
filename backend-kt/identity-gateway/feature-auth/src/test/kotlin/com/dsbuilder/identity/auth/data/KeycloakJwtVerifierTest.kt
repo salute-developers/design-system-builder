@@ -52,6 +52,27 @@ class KeycloakJwtVerifierTest {
         }
     }
 
+    @Test
+    fun `wrapped JWKS transport failure remains unavailable instead of invalid`() = kotlinx.coroutines.runBlocking {
+        val verifier = KeycloakJwtVerifier(
+            AuthConfiguration(
+                issuer = "http://localhost/realms/dsbuilder",
+                audience = "dsbuilder-api",
+                jwksUrl = "http://localhost/realms/dsbuilder/protocol/openid-connect/certs",
+                projectAccess = ProjectAccessConfiguration.AllowAuthenticated(
+                    role = com.dsbuilder.identity.auth.domain.model.ProjectRole.VIEWER,
+                ),
+            ),
+            tokenVerifier = {
+                throw com.auth0.jwt.exceptions.JWTVerificationException(
+                    "verification failed",
+                    SigningKeyNotFoundException("network", java.io.IOException("offline")),
+                )
+            },
+        )
+        assertEquals(JwtVerificationResult.Unavailable, verifier.verify("opaque-token"))
+    }
+
     private fun verifierFor(token: com.auth0.jwt.interfaces.DecodedJWT) = KeycloakJwtVerifier(
         configuration = AuthConfiguration(
             issuer = "http://localhost/realms/dsbuilder",

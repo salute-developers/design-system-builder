@@ -9,6 +9,9 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.jsonArray
 import kotlinx.serialization.json.jsonObject
 import kotlinx.serialization.json.jsonPrimitive
+import org.yaml.snakeyaml.LoaderOptions
+import org.yaml.snakeyaml.Yaml
+import org.yaml.snakeyaml.constructor.SafeConstructor
 import java.io.File
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -19,6 +22,48 @@ import kotlin.test.assertTrue
 class OpenApiDocumentResourceTest {
     private val document = OpenApiDocumentResource(Json).create()
     private val paths = document.getValue("paths").jsonObject
+
+    @Test
+    fun `OpenAPI YAML has no duplicate mapping keys`() {
+        val options = LoaderOptions().apply { isAllowDuplicateKeys = false }
+        val resource =
+            requireNotNull(javaClass.classLoader.getResourceAsStream("dsbuilder/ds/openapi/documentation.yaml"))
+        val parsed = resource.bufferedReader().use { Yaml(SafeConstructor(options)).load<Any?>(it) }
+        assertTrue(parsed is Map<*, *>)
+    }
+
+    @Test
+    fun `public read catalog covers system reads and keeps diagnostic and general catalogs closed`() {
+        val resource = OpenApiDocumentResource(Json)
+        val catalog = resource.publicReads()
+        val closed = setOf(
+            "/changes/summary", "/changes/token-ids", "/changes", "/events", "/compatibility",
+            "/catalog/components", "/component-templates", "/core-settings", "/core-releases",
+        ).map { "/api/design-systems/{designSystemId}$it" }.toSet()
+        val expected = resource.operations().filter {
+            it.method == "GET" && "{designSystemId}" in it.path && it.path !in closed ||
+                it.method == "POST" && it.path.endsWith("/component-config/export") ||
+                it.method == "POST" && it.path.endsWith("/component-config/web-adapter")
+        }.map { it.method to it.path }.toSet()
+        assertEquals(73, expected.size)
+        assertEquals(expected, catalog.operations.map { it.method to it.path }.toSet())
+        assertEquals(
+            setOf(
+                "/api/design-systems/catalog/icons",
+                "/api/design-systems/catalog/compose-preview/plugin",
+                "/api/design-systems/catalog/web-preview/plugin",
+            ),
+            catalog.sharedGetPaths,
+        )
+        for (operation in catalog.operations) {
+            val path = operation.path.replace("{designSystemId}", "550e8400-e29b-41d4-a716-446655440000")
+                .replace(Regex("\\{[^}]+}"), "resource")
+            assertEquals(operation, catalog.find(operation.method, path))
+            for (method in setOf("PATCH", "PUT", "DELETE")) assertEquals(null, catalog.find(method, path))
+        }
+        for (path in closed) assertEquals(null, catalog.find("GET", path))
+        assertEquals(null, catalog.find("GET", "/api/design-systems/catalog/palette"))
+    }
 
     @Test
     fun `preview upload documents ordinary replacement with no default write`() {
@@ -340,7 +385,7 @@ class OpenApiDocumentResourceTest {
 
         // Включая шаблоны компонентов, пакет редактора, полный и адресный откат, цели инспектора, группы типографии,
         // каталог иконок, дублирование темы и состояния цветового токена.
-        assertEquals(216, operationCount)
+        assertEquals(218, operationCount)
         assertTrue("/api/design-systems/{designSystemId}/tenants/{id}/duplicates" in paths)
         assertTrue("/api/design-systems/{designSystemId}/components/{componentId}/editor-bundle" in paths)
         assertTrue("/api/design-systems/{designSystemId}/changes/summary" in paths)

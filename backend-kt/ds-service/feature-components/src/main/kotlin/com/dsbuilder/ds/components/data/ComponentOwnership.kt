@@ -2,6 +2,8 @@
 
 package com.dsbuilder.ds.components.data
 
+import com.dsbuilder.ds.core.data.hasDesignSystemCoreScope
+import com.dsbuilder.ds.core.data.isPublicReadScope
 import com.dsbuilder.ds.core.data.requestDesignSystemScope
 import com.dsbuilder.ds.core.domain.ProjectId
 import org.jetbrains.exposed.v1.core.Column
@@ -189,7 +191,9 @@ internal object ComponentOwnership {
     ) = scope(admin, c, invariantAdjustments(writableIpvIds(p), writablePlatformParamIds(p)))
 
     fun readableComponentIds(p: ProjectId, admin: Boolean): Set<UUID> =
-        if (admin || com.dsbuilder.ds.core.data.hasDesignSystemCoreScope()) {
+        if (isPublicReadScope()) {
+            readableComponents(p).mapTo(linkedSetOf()) { it[ComponentsTable.id] }
+        } else if (admin || hasDesignSystemCoreScope()) {
             ComponentsTable.selectAll().mapTo(
                 linkedSetOf(),
             ) {
@@ -337,7 +341,12 @@ internal object ComponentOwnership {
         .select(ProjectComponentDesignSystemsTable.id).where { ProjectComponentDesignSystemsTable.projectId eq p.value }
     private fun readableComponents(
         p: ProjectId,
-    ) = if (com.dsbuilder.ds.core.data.hasDesignSystemCoreScope()) {
+    ) = if (isPublicReadScope()) {
+        ComponentsTable.select(ComponentsTable.id).where {
+            (ComponentsTable.id inSubQuery DesignSystemComponentsTable.select(DesignSystemComponentsTable.componentId)) or
+                (ComponentsTable.id inSubQuery ComponentAppearancesTable.select(ComponentAppearancesTable.componentId))
+        }
+    } else if (hasDesignSystemCoreScope()) {
         ComponentsTable.select(ComponentsTable.id)
     } else {
         ProjectDesignSystemComponentsTable.select(ProjectDesignSystemComponentsTable.componentId).where {

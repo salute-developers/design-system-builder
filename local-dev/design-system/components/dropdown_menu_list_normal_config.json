@@ -100,10 +100,6 @@
         "dividerStyle": {
             "type": "component_style",
             "value": "divider"
-        },
-        "scrollBarStyle": {
-            "type": "component_style",
-            "value": "scroll-bar.s"
         }
     }
 }

@@ -58,7 +58,7 @@ internal class ExposedCoreSettingsRepository : CoreSettingsRepository {
         val args = listOf(
             UUIDColumnType() to context.designSystemId,
             TextColumnType() to context.projectId.value,
-            org.jetbrains.exposed.v1.core.BooleanColumnType() to context.principal.globalAdmin,
+            org.jetbrains.exposed.v1.core.BooleanColumnType() to context.globalAdmin,
         )
         val draft = tx.exec(
             "SELECT boundary.id, boundary.core_selection_revision FROM design_system_versions boundary " +

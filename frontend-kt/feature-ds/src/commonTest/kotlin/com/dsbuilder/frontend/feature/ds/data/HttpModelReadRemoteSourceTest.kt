@@ -182,14 +182,17 @@ class HttpModelReadRemoteSourceTest {
     }
 
     @Test
-    fun `appearance ID is used directly and component metadata never inherits a version`() = runTest {
+    fun `appearance ID is used directly and component metadata uses the selected system version`() = runTest {
         val paths = mutableListOf<String>()
         val source = source { path ->
             paths += path
             if (path.contains("appearances/")) {
                 AuthenticatedHttpResult.Success("[]", mapOf("x-ds-read-context" to DRAFT_CONTEXT))
             } else {
-                AuthenticatedHttpResult.Success("{\"id\":\"$ID\"}")
+                AuthenticatedHttpResult.Success(
+                    "{\"id\":\"$ID\"}",
+                    mapOf("x-ds-read-context" to """{"designSystemId":"$ID","version":"1.2.3","versionId":"$ID"}"""),
+                )
             }
         }
         assertIs<ModelReadResult.Success>(
@@ -213,7 +216,7 @@ class HttpModelReadRemoteSourceTest {
             ),
         )
         assertTrue(paths.first().contains("/appearances/$ID/variations?version=draft"))
-        assertTrue(paths.last().endsWith("/components/$ID"))
+        assertTrue(paths.last().endsWith("/components/$ID?version=1.2.3"))
     }
 
     private fun runtime() = ModelReadRuntime(

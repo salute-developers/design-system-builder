@@ -55,7 +55,7 @@ private suspend fun ApplicationCall.selectReadContext(queryContext: DsRequestCon
             null
         }
         is DsResult.Success -> when (val value = selection.value) {
-            ModelReadSelection.Draft -> queryContext
+            ModelReadSelection.Draft -> queryContext.copy(version = request.queryParameters["version"])
             is ModelReadSelection.Published -> queryContext.copy(version = value.version)
             is ModelReadSelection.ById -> queryContext.copy(versionId = value.id)
         }

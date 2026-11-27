@@ -346,6 +346,7 @@ fun dsDependencyModules(
                 runtime.database,
                 PostgresTransactionFailureMapper(),
                 runtime.databasePool::diagnosticState,
+                runtime.publicReads,
             )
         }
         single<PublicationTransactionRunner> {

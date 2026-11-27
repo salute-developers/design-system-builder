@@ -236,15 +236,19 @@ class HttpComponentConfigRemoteSourceTest {
 
     @Test
     fun webAdapterRejectsAChangedOrMissingSnapshotContext() = runTest {
+        val contextA =
+            """{"designSystemId":"ds-a","version":"1.0.0","versionId":"550e8400-e29b-41d4-a716-446655440001"}"""
+        val contextB =
+            """{"designSystemId":"ds-a","version":"1.0.1","versionId":"550e8400-e29b-41d4-a716-446655440002"}"""
         val command = ExportComponentsCommand(
             ProjectApiUrl("http://localhost"),
             BackendCredential.PersonalAccessToken("key"),
             ProjectId("project"),
-            DesignSystemId("system"),
+            DesignSystemId("ds-a"),
             "web",
-            readContext = "snapshot-A",
+            readContext = contextA,
         )
-        for (actual in listOf("snapshot-A", "snapshot-B", null)) {
+        for (actual in listOf(contextA, contextB, null)) {
             val factory = FakeHttpClientFactory(
                 { _, _ -> },
                 {},
@@ -254,16 +258,46 @@ class HttpComponentConfigRemoteSourceTest {
             )
             val result = HttpWebAdapterFileSource(factory).fetch(command)
             assertEquals(
-                actual == "snapshot-A",
+                actual == contextA,
                 result is WebAdapterFileResult.Loaded,
             )
         }
         val exported = export(
             onPost = { _, _ ->
-                AuthenticatedHttpResult.Success(PACKAGE, mapOf("x-ds-read-context" to "snapshot-A"))
+                AuthenticatedHttpResult.Success(PACKAGE, mapOf("x-ds-read-context" to contextA))
             },
         ) as ExportComponentsResult.Exported
-        assertEquals("snapshot-A", exported.value.readContext)
+        assertEquals(contextA, exported.value.readContext)
+    }
+
+    @Test
+    fun webAdapterContinuesWithLiveDraftAfterItsIdentityChanges() = runTest {
+        val before = """{"designSystemId":"ds-a","version":"draft","draftId":"old","draftRevision":1}"""
+        val after = """{"designSystemId":"ds-a","version":"draft","draftId":"new","draftRevision":0}"""
+        val paths = mutableListOf<String>()
+        val factory = FakeHttpClientFactory(
+            { _, _ -> },
+            {},
+            { path, _ ->
+                paths += path
+                AuthenticatedHttpResult.Success("[]", mapOf("x-ds-read-context" to after))
+            },
+        )
+        val result = HttpWebAdapterFileSource(factory).fetch(
+            ExportComponentsCommand(
+                ProjectApiUrl("http://localhost"),
+                BackendCredential.PersonalAccessToken("key"),
+                ProjectId("project"),
+                DesignSystemId("ds-a"),
+                "web",
+                readContext = before,
+            ),
+        )
+        assertTrue(result is WebAdapterFileResult.Loaded)
+        assertEquals(
+            listOf("/api/projects/project/design-systems/ds-a/component-config/web-adapter?version=draft"),
+            paths,
+        )
     }
 
     private suspend fun export(

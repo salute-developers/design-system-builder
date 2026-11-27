@@ -52,11 +52,18 @@ class DsServiceHttpPostgresIntegrationTest {
                     val operations = openApi.getValue("paths").jsonObject.flatMap { (template, pathItem) ->
                         pathItem.jsonObject.keys.map { method -> template to method }
                     }
-                    assertEquals(216, operations.size)
+                    assertEquals(218, operations.size)
                     operations.forEach { (template, method) ->
                         val path = template.replace(Regex("\\{[^}]+}"), MISSING_ID)
                         val response = client.request(path) { this.method = HttpMethod.parse(method.uppercase()) }
-                        assertEquals(HttpStatusCode.Forbidden, response.status, "$method $template must enforce RBAC")
+                        val expected = when (method.uppercase() to template) {
+                            "GET" to "/api/design-systems/catalog/icons" -> HttpStatusCode.OK
+                            "GET" to "/api/design-systems/catalog/compose-preview/plugin",
+                            "GET" to "/api/design-systems/catalog/web-preview/plugin",
+                            -> HttpStatusCode.NotFound
+                            else -> HttpStatusCode.Forbidden
+                        }
+                        assertEquals(expected, response.status, "$method $template must enforce its access contract")
                     }
 
                     val forbidden = client.post("/api/design-systems") {

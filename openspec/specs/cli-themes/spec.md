@@ -7,14 +7,14 @@
 
 ### Requirement: CLI theme fetch command
 
-CLI SHALL предоставлять `theme fetch` для загрузки тем, метаданных и значений токенов в локальную `.sdds`. Авторизация SHALL использовать общий выбор PAT/OAuth независимо от источника контекста.
+CLI SHALL предоставлять `theme fetch` для загрузки тем, метаданных и значений токенов в локальную `.sdds`. Доступ SHALL использовать общий выбор PAT/OAuth либо разрешённое анонимное чтение независимо от источника контекста.
 
 #### Scenario: Theme fetch использует project-scoped context
 
 - **WHEN** пользователь запускает `dsbuilder theme fetch` в настроенном локальном проекте
 - **THEN** CLI MUST разрешить ближайшую `.sdds/config.json`, API URL и учётные данные через общие сценарии
 - **AND** MUST использовать `projectId` и `designSystemId` выбранного контекста
-- **AND** MUST передать `Authorization: Bearer <PAT>` либо Bearer OAuth access token согласно выбранному типу
+- **AND** MUST передать выбранный PAT/OAuth через Bearer либо выполнить разрешённое анонимное чтение без `Authorization`
 - **AND** MUST NOT выводить секреты
 
 #### Scenario: Theme fetch принимает runtime overrides
@@ -35,7 +35,7 @@ CLI SHALL предоставлять `theme fetch` для загрузки те�
 - **THEN** CLI MUST загрузить выбранную дизайн-систему в `<directory>/.sdds`
 - **AND** MUST создать конфигурацию с идентификаторами проекта/дизайн-системы и ссылкой на источник учётных данных без секретов
 - **AND** MUST NOT перезаписывать существующую конфигурацию назначения
-- **AND** выбор авторизации MUST использовать `auto`: `--api-key`, `DSBUILDER_API_KEY` процесса, затем OAuth-сессию без чтения постороннего `.env`
+- **AND** выбор авторизации MUST использовать `auto`: `--api-key`, `DSBUILDER_API_KEY` процесса, затем OAuth-сессию, а при отсутствии источников — разрешённое анонимное чтение без чтения постороннего `.env`
 
 #### Scenario: Theme fetch по ссылке без destination
 
@@ -46,6 +46,10 @@ CLI SHALL предоставлять `theme fetch` для загрузки те�
 
 - **WHEN** запрос с PAT получает `401` или `403`
 - **THEN** CLI MUST вернуть `PAT_INVALID` или `FORBIDDEN` без смены пользователя, обновления OAuth-сессии и повтора с другими учётными данными
+
+#### Scenario: Локальный проект создан без входа
+- **WHEN** гостевой `init` создал конфигурацию с `credential.type=auto`, а PAT и сессия отсутствуют
+- **THEN** `theme fetch` MUST читать публикацию явно выбранной публичной ДС без входа и без запроса каталогов
 
 ### Requirement: Theme fetch backend contract
 
@@ -67,7 +71,7 @@ CLI `theme fetch` SHALL load remote data through the DS Builder project-scoped b
 #### Scenario: Theme fetch загружает palette
 
 - **WHEN** developer runs `dsbuilder theme fetch`
-- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/catalog/palette`
+- **THEN** CLI MUST send `GET /api/projects/{projectId}/design-systems/{designSystemId}/palette`
 - **THEN** CLI MUST parse the response as a JSON array of `PaletteItem` objects with fields `id`, `type`, `shade`, `saturation`, `value`, `createdAt`, and `updatedAt`
 
 #### Scenario: Theme fetch загружает token values для каждого tenant
@@ -322,3 +326,20 @@ CLI `theme fetch` SHALL convert backend `TokenValue.value` arrays into local JSO
 - **WHEN** `TokenValue.value` does not match the expected JSON shape for the token type
 - **THEN** CLI MUST return deterministic failure output
 - **THEN** CLI MUST NOT write partial theme files
+
+### Requirement: Загрузка тем публичной опубликованной версии
+`theme fetch` SHALL допускать анонимное чтение явно выбранной публичной ДС. Первый разрешённый предметный запрос MUST сообщить фактическую публикацию, после чего команда MUST использовать её versionId в зависимых запросах тем, токенов, значений и определений палитры без обязательного чтения карточки.
+
+#### Scenario: Публикация меняется во время загрузки
+- **WHEN** первый разрешённый предметный ответ выбрал публикацию A, а до запроса значений опубликована B
+- **THEN** все загруженные темы и значения MUST остаться в A
+- **THEN** существующие правила локальных файлов и защиты назначения MUST сохраняться
+
+#### Scenario: Глобальная палитра для публичной загрузки
+- **WHEN** публичная загрузка требует определения палитры через маршрут `/{designSystemId}/palette`
+- **THEN** запрос MUST передать ID ДС в пути и закреплённую опубликованную границу без query-контекста общего каталога
+- **THEN** ответ MUST NOT раскрывать определения, не используемые этой границей
+
+#### Scenario: Приватная ДС
+- **WHEN** анонимная загрузка не получает доступную опубликованную ДС
+- **THEN** команда MUST завершиться ошибкой без частичной записи

@@ -23,6 +23,7 @@ internal data class ProjectAccessCheck(
     val designSystemId: DesignSystemId,
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
+    val version: String? = null,
 )
 
 /**
@@ -38,6 +39,8 @@ internal sealed interface ProjectAccessResult {
     data class Authorized(
         val projectName: String,
         val designSystemName: String,
+        val accessMode: String = "project",
+        val version: String? = null,
     ) : ProjectAccessResult
 
     /**

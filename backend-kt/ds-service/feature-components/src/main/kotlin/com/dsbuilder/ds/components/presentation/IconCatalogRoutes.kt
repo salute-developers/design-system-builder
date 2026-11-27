@@ -34,7 +34,7 @@ fun Route.iconCatalogPublishRoutes(evaluator: PolicyEvaluator, publish: PublishI
         post("/catalog") {
             val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
-            if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
+            if (!context.globalAdmin && !context.composePreviewPublisher) {
                 return@post call.respondFailure(DsFailure.Forbidden)
             }
             val query = call.request.queryParameters
@@ -55,13 +55,11 @@ fun Route.iconCatalogPublishRoutes(evaluator: PolicyEvaluator, publish: PublishI
     }
 }
 
-/** Выдача активного каталога участнику проекта с `ETag` по идентификатору загрузки. */
+/** Общедоступная выдача активного каталога с `ETag` по идентификатору загрузки. */
 fun Route.iconCatalogReadRoutes(evaluator: PolicyEvaluator, get: GetIconCatalogUseCase) {
     route(dsRoutePath("/api/design-systems/catalog")) {
         get("/icons") {
-            val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
-                ?: return@get call.respondFailure(DsFailure.Forbidden)
-            when (val result = get.execute(context)) {
+            when (val result = get.execute()) {
                 is DsResult.Success -> {
                     val etag = "\"${result.value.load?.loadId?.value ?: "empty"}\""
                     call.response.header(HttpHeaders.ETag, etag)

@@ -1,5 +1,6 @@
 package com.dsbuilder.ds.designsystems.domain
 
+import com.dsbuilder.ds.core.domain.DesignSystemVisibility
 import com.dsbuilder.ds.core.domain.ProjectId
 import java.time.Instant
 import java.util.UUID
@@ -30,4 +31,6 @@ data class DesignSystem(
     val draftId: UUID? = null,
     /** Техническая редакция активного черновика. */
     val draftRevision: Long? = null,
+    /** Текущая доступность опубликованных версий. */
+    val visibility: DesignSystemVisibility = DesignSystemVisibility.PRIVATE,
 )

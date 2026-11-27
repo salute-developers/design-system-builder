@@ -1,3 +1,4 @@
+import { getDsReadBoundary } from '../api/dsReadBoundary';
 import { useEffect, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 import { isAxiosError } from 'axios';
@@ -10,9 +11,10 @@ import { getComposePreviewPluginOverride, getWebPreviewPluginOverride } from './
 /** Выбирает сборку по DS/version; запоздалый ответ другого контекста не попадает в хост. */
 export const useCorePreview = (platform: 'web' | 'compose', parameters?: Partial<Parameters>, enabled = true) => {
     const location = useLocation();
-    const versionId = new URLSearchParams(location.search).get('versionId') ?? undefined;
     const projectId = parameters?.projectId;
     const designSystemId = parameters?.designSystemId;
+    const boundary = projectId && designSystemId ? getDsReadBoundary(projectId, designSystemId) : undefined;
+    const versionId = new URLSearchParams(location.search).get('versionId') ?? boundary?.versionId;
     const key = JSON.stringify([platform, projectId, designSystemId, versionId, enabled]);
     const override = platform === 'compose' ? getComposePreviewPluginOverride() : getWebPreviewPluginOverride();
     const [state, setState] = useState<{

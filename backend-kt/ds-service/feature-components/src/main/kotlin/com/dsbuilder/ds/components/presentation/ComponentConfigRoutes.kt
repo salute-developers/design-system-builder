@@ -56,7 +56,7 @@ fun Route.componentConfigRoutes(
             val component = query["component"]
             val platform = query["platform"]
             if (
-                designSystem == null || version == null || appearance == null || component == null ||
+                designSystem == null || appearance == null || component == null ||
                 platform == null || platform !in componentPlatforms
             ) {
                 return@get call.respondFailure(DsFailure.InvalidRequest("invalid_query"))
@@ -64,7 +64,7 @@ fun Route.componentConfigRoutes(
             when (
                 val result = getConfig.execute(
                     context,
-                    ComponentConfigQuery(designSystem, version, appearance, component, platform),
+                    ComponentConfigQuery(designSystem, version ?: "draft", appearance, component, platform),
                 )
             ) {
                 is DsResult.Success -> call.respondSuccess(result, ComponentConfigResponse.single(result.value))

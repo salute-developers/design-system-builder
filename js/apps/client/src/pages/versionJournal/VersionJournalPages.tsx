@@ -1,3 +1,4 @@
+import { isPublicDsRead } from '../../api/dsReadBoundary';
 import { CompatibilityHint } from '../../features/coreCompatibility/PropertyWarningIndicator';
 import { compatibilityStatus, validationLabel } from '../../features/coreCompatibility/model';
 import { useCoreCompatibility } from '../../hooks/useCoreCompatibility';
@@ -532,40 +533,47 @@ export const DesignSystemVersionsPage = () => {
         reload: reloadEditor,
     } = useOutletContext<VersionJournalOutletContext>();
     const [searchParams, setSearchParams] = useSearchParams();
-    const selectedVersionId = searchParams.get('historyVersionId') ?? undefined;
-    const historicalContext = useMemo(
-        () => (editorContext ? { ...editorContext, versionId: selectedVersionId } : undefined),
-        [editorContext, selectedVersionId],
-    );
-    const components = designSystem?.getComponentsData() ?? [];
-    const canReuseEditorJournal = Boolean(editorJournal && selectedVersionId === editorContext?.versionId);
-    const ownJournal = useJournal(
-        !canReuseEditorJournal ? historicalContext : undefined,
-        components,
-        designSystem,
-        Boolean(selectedVersionId || designSystem?.getParameters()?.readOnly),
-        Boolean(designSystem),
-    );
-    const journal = canReuseEditorJournal ? editorJournal! : ownJournal;
-    const draftContext = useMemo(
-        () => (editorContext ? { ...editorContext, versionId: undefined } : undefined),
-        [editorContext],
-    );
-    const canReuseEditorDraft = Boolean(editorJournal && !editorContext?.versionId);
-    const backgroundDraftJournal = useJournal(
-        selectedVersionId && !canReuseEditorDraft ? draftContext : undefined,
-        components,
-        designSystem,
-        true,
-    );
-    const draftJournal = !selectedVersionId ? journal : canReuseEditorDraft ? editorJournal! : backgroundDraftJournal;
-    const navigate = useNavigate();
+    const publicRead = Boolean(editorContext && isPublicDsRead(editorContext));
+    // Публичному просмотру журнал и черновик не принадлежат: исключаем их контекст один раз.
+    const projectContext = publicRead ? undefined : editorContext;
+    const projectJournal = publicRead ? undefined : editorJournal;
     const {
         versions,
         loading: versionsLoading,
         error: versionsError,
         reload: reloadVersions,
     } = useVersionList(editorContext);
+    const latestVersion = [...versions].sort((left, right) => right.sequenceNumber - left.sequenceNumber)[0];
+    const selectedVersionId =
+        searchParams.get('historyVersionId') ??
+        (publicRead ? (editorContext?.versionId ?? latestVersion?.id) : undefined);
+    const historicalContext = useMemo(
+        () => (projectContext ? { ...projectContext, versionId: selectedVersionId } : undefined),
+        [projectContext, selectedVersionId],
+    );
+    const components = designSystem?.getComponentsData() ?? [];
+    const reusableHistory = selectedVersionId === projectContext?.versionId ? projectJournal : undefined;
+    const ownJournal = useJournal(
+        reusableHistory ? undefined : historicalContext,
+        components,
+        designSystem,
+        Boolean(selectedVersionId || designSystem?.getParameters()?.readOnly),
+        Boolean(designSystem),
+    );
+    const journal = reusableHistory ?? ownJournal;
+    const draftContext = useMemo(
+        () => (projectContext ? { ...projectContext, versionId: undefined } : undefined),
+        [projectContext],
+    );
+    const reusableDraft = projectContext?.versionId ? undefined : projectJournal;
+    const backgroundDraftJournal = useJournal(
+        selectedVersionId && !reusableDraft ? draftContext : undefined,
+        components,
+        designSystem,
+        true,
+    );
+    const draftJournal = selectedVersionId ? (reusableDraft ?? backgroundDraftJournal) : journal;
+    const navigate = useNavigate();
     const [version, setVersion] = useState('0.1.0');
     const [changelog, setChangelog] = useState('');
     const [publishing, setPublishing] = useState(false);
@@ -607,7 +615,6 @@ export const DesignSystemVersionsPage = () => {
         }
     };
     const selectedVersion = versions.find(({ id }) => id === selectedVersionId);
-    const latestVersion = [...versions].sort((left, right) => right.sequenceNumber - left.sequenceNumber)[0];
     const validVersion = /^\d+\.\d+\.\d+$/.test(version);
     const compatibility = useCoreCompatibility(historicalContext);
     const compatibilitySummary = compatibilityStatus(compatibility.report, compatibility.error);
@@ -679,27 +686,31 @@ export const DesignSystemVersionsPage = () => {
           : `v${version}`;
 
     return (
-        <Page>
+        <Page $withoutInspector={publicRead}>
             <Sidebar aria-label="Версии дизайн-системы">
                 <SidebarHeader>
                     <strong>Версии</strong>
                 </SidebarHeader>
                 <SidebarBody>
-                    <SidebarSection>
-                        <List>
-                            <FilterButton
-                                aria-label="Черновик публикации"
-                                $selected={!selectedVersionId}
-                                aria-pressed={!selectedVersionId}
-                                onClick={() => selectVersion()}
-                            >
-                                <span>Черновик публикации</span>
-                                {!draftJournal.loading && !draftJournal.error && draftJournal.actions.length > 0 && (
-                                    <CountBadge>{draftJournal.actions.length}</CountBadge>
-                                )}
-                            </FilterButton>
-                        </List>
-                    </SidebarSection>
+                    {!publicRead && (
+                        <SidebarSection>
+                            <List>
+                                <FilterButton
+                                    aria-label="Черновик публикации"
+                                    $selected={!selectedVersionId}
+                                    aria-pressed={!selectedVersionId}
+                                    onClick={() => selectVersion()}
+                                >
+                                    <span>Черновик публикации</span>
+                                    {!draftJournal.loading &&
+                                        !draftJournal.error &&
+                                        draftJournal.actions.length > 0 && (
+                                            <CountBadge>{draftJournal.actions.length}</CountBadge>
+                                        )}
+                                </FilterButton>
+                            </List>
+                        </SidebarSection>
+                    )}
                     <SidebarSection>
                         <small>Опубликованные</small>
                         <List>
@@ -750,7 +761,7 @@ export const DesignSystemVersionsPage = () => {
                             <p>Выбранная версия не существует или больше недоступна.</p>
                         </EmptyState>
                     )}
-                    {(!selectedVersionId || selectedVersion) && (
+                    {(selectedVersion || (!publicRead && !selectedVersionId)) && (
                         <Form id="version-publication-form" onSubmit={publish}>
                             <ReleaseSection>
                                 <h2>Версия</h2>
@@ -798,60 +809,63 @@ export const DesignSystemVersionsPage = () => {
                                     </NotesLabel>
                                 )}
                             </ReleaseSection>
-                            <ReleaseSection>
-                                <h2>Включённые изменения</h2>
-                                {journal.loading && <Status role="status">Загрузка состава…</Status>}
-                                {journal.error && (
-                                    <Status role="alert">
-                                        {journal.error}
-                                        <ActionRow>
-                                            <Button type="button" onClick={() => void journal.reload()}>
-                                                Повторить
-                                            </Button>
-                                        </ActionRow>
-                                    </Status>
-                                )}
-                                {!journal.loading && !journal.error && journal.actions.length === 0 && (
-                                    <Status>Публиковать нечего. Откройте редактор и внесите изменения.</Status>
-                                )}
-                                {!journal.loading &&
-                                    actionGroups.map(({ section, actions }) => (
-                                        <ChangeGroup key={section}>
-                                            <h2>
-                                                {sectionLabels[section]} · {actions.length}
-                                            </h2>
-                                            <VirtualJournalRows items={actions}>
-                                                {(action) => (
-                                                    <ItemButton
-                                                        type="button"
-                                                        key={action.key}
-                                                        onClick={() => selectAction(action)}
-                                                    >
-                                                        <span>
-                                                            <strong>{action.title}</strong>
+                            {!publicRead && (
+                                <ReleaseSection>
+                                    <h2>Включённые изменения</h2>
+                                    {journal.loading && <Status role="status">Загрузка состава…</Status>}
+                                    {journal.error && (
+                                        <Status role="alert">
+                                            {journal.error}
+                                            <ActionRow>
+                                                <Button type="button" onClick={() => void journal.reload()}>
+                                                    Повторить
+                                                </Button>
+                                            </ActionRow>
+                                        </Status>
+                                    )}
+                                    {!journal.loading && !journal.error && journal.actions.length === 0 && (
+                                        <Status>Публиковать нечего. Откройте редактор и внесите изменения.</Status>
+                                    )}
+                                    {!journal.loading &&
+                                        actionGroups.map(({ section, actions }) => (
+                                            <ChangeGroup key={section}>
+                                                <h2>
+                                                    {sectionLabels[section]} · {actions.length}
+                                                </h2>
+                                                <VirtualJournalRows items={actions}>
+                                                    {(action) => (
+                                                        <ItemButton
+                                                            type="button"
+                                                            key={action.key}
+                                                            onClick={() => selectAction(action)}
+                                                        >
+                                                            <span>
+                                                                <strong>{action.title}</strong>
+                                                                <small>
+                                                                    {[
+                                                                        action.revertPaths
+                                                                            ? action.changedFields
+                                                                                  .map(({ label }) => label)
+                                                                                  .join(', ')
+                                                                            : sectionDescriptions[section],
+                                                                        action.platformLabel,
+                                                                        action.groupLabel &&
+                                                                            `Группа: ${action.groupLabel}`,
+                                                                    ]
+                                                                        .filter(Boolean)
+                                                                        .join(' · ')}
+                                                                </small>
+                                                            </span>
                                                             <small>
-                                                                {[
-                                                                    action.revertPaths
-                                                                        ? action.changedFields
-                                                                              .map(({ label }) => label)
-                                                                              .join(', ')
-                                                                        : sectionDescriptions[section],
-                                                                    action.platformLabel,
-                                                                    action.groupLabel && `Группа: ${action.groupLabel}`,
-                                                                ]
-                                                                    .filter(Boolean)
-                                                                    .join(' · ')}
+                                                                {action.actorLabel} · {formattedDate(action.changedAt)}
                                                             </small>
-                                                        </span>
-                                                        <small>
-                                                            {action.actorLabel} · {formattedDate(action.changedAt)}
-                                                        </small>
-                                                    </ItemButton>
-                                                )}
-                                            </VirtualJournalRows>
-                                        </ChangeGroup>
-                                    ))}
-                            </ReleaseSection>
+                                                        </ItemButton>
+                                                    )}
+                                                </VirtualJournalRows>
+                                            </ChangeGroup>
+                                        ))}
+                                </ReleaseSection>
+                            )}
                         </Form>
                     )}
                 </CenterBody>
@@ -864,7 +878,7 @@ export const DesignSystemVersionsPage = () => {
                     allowSourceNavigation={false}
                     onClose={() => setSelectedHistoryActionKey(undefined)}
                 />
-            ) : (
+            ) : !publicRead ? (
                 <Inspector aria-label="Публикация дизайн-системы">
                     <InspectorHeader>
                         <strong>
@@ -963,7 +977,7 @@ export const DesignSystemVersionsPage = () => {
                         </InspectorFooter>
                     )}
                 </Inspector>
-            )}
+            ) : null}
         </Page>
     );
 };

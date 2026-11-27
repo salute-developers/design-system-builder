@@ -1,11 +1,20 @@
 # web-preview-plugin-publication Specification
 
 ## Purpose
-TBD - created by archiving change publish-web-preview-plugin. Update Purpose after archive.
+Определяет публикацию web-плагина с API-метой, хранение билдов, выдачу активного билда и поддержку этих операций в CLI и gateway.
+
 ## Requirements
 ### Requirement: Публикация web-плагина принимает архив и мету одним запросом
 
-ds-service SHALL принимать публикацию web-плагина маршрутом `POST /api/admin/web-preview/plugin-builds?dryRun=<bool>` (через gateway — `POST /api/admin/web-preview/plugin-builds`) multipart-запросом с частями `plugin` (zip-архив) и `meta` (нормализованная API-мета `ImportApiMetaRequest`). Поле `platform` меты MUST быть `web`, иначе запрос MUST отклоняться ответом `400` с кодом `invalid_body`. Без `dryRun=false` публикация SHALL выполняться как пробная и ничего не записывать. Маршрут SHALL быть доступен роли публикации плагинов и системному администратору, как маршрут Compose; остальным MUST возвращаться `403` до чтения тела.
+ds-service SHALL принимать публикацию web-плагина маршрутом `POST /api/admin/web-preview/plugin-builds?dryRun=<bool>` (через gateway — `POST /api/admin/web-preview/plugin-builds`) multipart-запросом с частями `plugin` (zip-архив) и `meta` (нормализованная API-мета `ImportApiMetaRequest`).
+
+#### Scenario: Условия выполнения — Публикация web-плагина принимает архив и мету одним запросом
+
+- **WHEN** сервис принимает публикацию web-плагина
+- **THEN** Поле `platform` меты MUST быть `web`, иначе запрос MUST отклоняться ответом `400` с кодом `invalid_body`.
+- **AND** Без `dryRun=false` публикация SHALL выполняться как пробная и ничего не записывать.
+- **AND** Маршрут SHALL быть доступен роли публикации плагинов и системному администратору, как маршрут Compose; остальным MUST возвращаться `403` до чтения тела.
+
 
 #### Scenario: Публикация web-плагина
 
@@ -25,7 +34,14 @@ ds-service SHALL принимать публикацию web-плагина ма
 
 ### Requirement: Manifest web-плагина проверяется по правилам платформы
 
-Архив web-плагина SHALL проходить те же проверки архива, что Compose: лимиты размера и числа файлов, запрет небезопасных путей, обязательные `index.html`, `preview-plugin.json` и `api-meta.json`, `schemaVersion: 1`, целый `protocolVersion ≥ 1`, `commit` (sha коммита), `version`, равная первым 12 символам `commit`, `apiMetaSha256`, равная sha256 файла `api-meta.json`, `entrypoint` из архива. Для платформы `web` manifest MUST содержать `platform: web` и `plasmaNewHopeVersion` в формате семантической версии; `uikitComposeVersion` не требуется. Для `compose` правила MUST NOT меняться.
+Архив web-плагина SHALL проходить те же проверки архива, что Compose: лимиты размера и числа файлов, запрет небезопасных путей, обязательные `index.html`, `preview-plugin.json` и `api-meta.json`, `schemaVersion: 1`, целый `protocolVersion ≥ 1`, `commit` (sha коммита), `version`, равная первым 12 символам `commit`, `apiMetaSha256`, равная sha256 файла `api-meta.json`, `entrypoint` из архива.
+
+#### Scenario: Условия выполнения — Manifest web-плагина проверяется по правилам платформы
+
+- **WHEN** сервис проверяет manifest публикуемого web-плагина
+- **THEN** Для платформы `web` manifest MUST содержать `platform: web` и `plasmaNewHopeVersion` в формате семантической версии; `uikitComposeVersion` не требуется.
+- **AND** Для `compose` правила MUST NOT меняться.
+
 
 #### Scenario: Корректный manifest web
 
@@ -44,7 +60,15 @@ ds-service SHALL принимать публикацию web-плагина ма
 
 ### Requirement: Билд web хранится отдельно от Compose
 
-Файлы web-билдов SHALL записываться в хранилище web: `<префикс web>/builds/<buildId>/<путь>` в бакете из настроек web. Очистка старых web-билдов SHALL оставлять активный и заданное число последних неактивных web-билдов и MUST NOT удалять файлы или записи Compose. Запись билда SHALL хранить платформу, версию библиотеки (`plasmaNewHopeVersion` для web, `uikitComposeVersion` для Compose), sha меты, коммит, версию протокола, sha архива, размер, число файлов, автора и время публикации. Повторная публикация того же архива SHALL быть идемпотентной; тот же `buildId` с другим содержимым MUST отклоняться ответом `409` с кодом `BUILD_CONTENT_CHANGED`, а `buildId` билда другой платформы — `409` с кодом `BUILD_PLATFORM_CONFLICT`.
+Файлы web-билдов SHALL записываться в хранилище web: `<префикс web>/builds/<buildId>/<путь>` в бакете из настроек web.
+
+#### Scenario: Условия выполнения — Билд web хранится отдельно от Compose
+
+- **WHEN** сервис сохраняет web-билд рядом с билдами других платформ
+- **THEN** Очистка старых web-билдов SHALL оставлять активный и заданное число последних неактивных web-билдов и MUST NOT удалять файлы или записи Compose.
+- **AND** Запись билда SHALL хранить платформу, версию библиотеки (`plasmaNewHopeVersion` для web, `uikitComposeVersion` для Compose), sha меты, коммит, версию протокола, sha архива, размер, число файлов, автора и время публикации.
+- **AND** Повторная публикация того же архива SHALL быть идемпотентной; тот же `buildId` с другим содержимым MUST отклоняться ответом `409` с кодом `BUILD_CONTENT_CHANGED`, а `buildId` билда другой платформы — `409` с кодом `BUILD_PLATFORM_CONFLICT`.
+
 
 #### Scenario: Очистка web не трогает Compose
 
@@ -73,7 +97,15 @@ ds-service SHALL принимать публикацию web-плагина ма
 
 ### Requirement: Адрес активного web-билда выдаётся по проектному маршруту
 
-ds-service SHALL отдавать активный web-билд маршрутом `GET /api/design-systems/catalog/web-preview/plugin` (через gateway — `GET /api/projects/{projectId}/design-systems/catalog/web-preview/plugin`) с правом чтения компонентов. Ответ SHALL содержать `buildId`, `platform: web`, `libraryVersion`, `metaSha256`, `protocolVersion`, `pluginUrl` (`<публичный адрес web>/builds/<buildId>/`) и `publishedAt`. Без активного web-билда или без настроенного хранилища web маршрут MUST отвечать `404`. Маршрут Compose MUST отдавать только Compose-билд в прежнем формате.
+ds-service SHALL отдавать активный web-билд маршрутом `GET /api/design-systems/catalog/web-preview/plugin` (через gateway — `GET /api/projects/{projectId}/design-systems/catalog/web-preview/plugin`) с правом чтения компонентов.
+
+#### Scenario: Условия выполнения — Адрес активного web-билда выдаётся по проектному маршруту
+
+- **WHEN** клиент запрашивает активный web-билд по проектному маршруту
+- **THEN** Ответ SHALL содержать `buildId`, `platform: web`, `libraryVersion`, `metaSha256`, `protocolVersion`, `pluginUrl` (`<публичный адрес web>/builds/<buildId>/`) и `publishedAt`.
+- **AND** Без активного web-билда или без настроенного хранилища web маршрут MUST отвечать `404`.
+- **AND** Маршрут Compose MUST отдавать только Compose-билд в прежнем формате.
+
 
 #### Scenario: Активный web-билд есть
 
@@ -96,7 +128,14 @@ ds-service SHALL читать настройки хранилища web из `DS
 
 ### Requirement: CLI публикует web-плагин
 
-Команда `dsbuilder preview-plugin publish --platform react --from <zip> --api-url <url> [--apply]` SHALL публиковать web-плагин: проверять `preview-plugin.json` и `api-meta.json` архива локально (`platform: web`, `version`, `plasmaNewHopeVersion`, совпадение `apiMetaSha256`), нормализовать мету web-нормализатором (тем же, что `components import-api --platform react`) и отправлять архив и мету с `platform: web` в маршрут web. Без `--apply` CLI SHALL выполнять пробную публикацию. `--platform compose` MUST работать как раньше; другие платформы MUST отклоняться до запроса.
+Команда `dsbuilder preview-plugin publish --platform react --from <zip> --api-url <url> [--apply]` SHALL публиковать web-плагин: проверять `preview-plugin.json` и `api-meta.json` архива локально (`platform: web`, `version`, `plasmaNewHopeVersion`, совпадение `apiMetaSha256`), нормализовать мету web-нормализатором (тем же, что `components import-api --platform react`) и отправлять архив и мету с `platform: web` в маршрут web.
+
+#### Scenario: Условия выполнения — CLI публикует web-плагин
+
+- **WHEN** пользователь публикует web-плагин через CLI
+- **THEN** Без `--apply` CLI SHALL выполнять пробную публикацию.
+- **AND** `--platform compose` MUST работать как раньше; другие платформы MUST отклоняться до запроса.
+
 
 #### Scenario: Публикация web из CLI
 
@@ -110,7 +149,13 @@ ds-service SHALL читать настройки хранилища web из `DS
 
 ### Requirement: Gateway пропускает публикацию web как публикацию Compose
 
-Gateway SHALL проксировать `POST /api/admin/web-preview/plugin-builds` в ds-service с теми же правилами, что публикацию Compose: только токен пользователя (ключ проекта получает `401`), роль публикации и признак системного администратора передаются доверенными заголовками, лимит тела 64 МБ. Маршрут описан в `nginx.local.conf` и `nginx.prod.conf.template` и проверяется `test-route-namespaces.sh`; как и публикация Compose, он не входит в публичный OpenAPI и `contracts/route-manifest.json`, где описан только `GET /api/design-systems/catalog/web-preview/plugin`.
+Gateway SHALL проксировать `POST /api/admin/web-preview/plugin-builds` в ds-service с теми же правилами, что публикацию Compose: только токен пользователя (ключ проекта получает `401`), роль публикации и признак системного администратора передаются доверенными заголовками, лимит тела 64 МБ.
+
+#### Scenario: Условия выполнения — Gateway пропускает публикацию web как публикацию Compose
+
+- **WHEN** gateway направляет запрос публикации web-плагина
+- **THEN** Маршрут описан в `nginx.local.conf` и `nginx.prod.conf.template` и проверяется `test-route-namespaces.sh`; как и публикация Compose, он не входит в публичный OpenAPI и `contracts/route-manifest.json`, где описан только `GET /api/design-systems/catalog/web-preview/plugin`.
+
 
 #### Scenario: Ключ проекта
 

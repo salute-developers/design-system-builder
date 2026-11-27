@@ -5,6 +5,7 @@ import com.dsbuilder.ds.core.application.DsAccessPolicy
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsRequestContext
 import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadTarget
 import com.dsbuilder.ds.core.application.TransactionRunner
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyleBuilder
 import com.dsbuilder.ds.themes.domain.typography.TypographyStyles
@@ -25,15 +26,21 @@ class GetTypographyStylesUseCase(
     suspend fun execute(context: DsRequestContext, tenantId: UUID): DsResult<TypographyStyles> =
         when (val allowed = policy.require(context, ProjectScope.TENANTS_READ)) {
             is DsResult.Failure -> allowed
-            is DsResult.Success -> transactions.readOnly(context) {
-                val tenant = repository.tenant(context.projectId, tenantId)
+            is DsResult.Success -> transactions.readOnly(
+                context,
+                ModelReadTarget(
+                    ModelReadTarget.Kind.TENANT,
+                    tenantId,
+                ),
+            ) { selected ->
+                val tenant = repository.tenant(selected.projectId, tenantId)
                     ?: return@readOnly DsResult.Failure(DsFailure.NotFound)
                 val tokens = repository.styles(tenant.designSystemId, tenantId)
                 val references = TypographyUsage.count(usage.references(tenant.designSystemId))
                 DsResult.Success(
                     TypographyStyles(
-                        canEdit = context.versionId == null &&
-                            policy.require(context, ProjectScope.TENANTS_WRITE) is DsResult.Success,
+                        canEdit = selected.versionId == null &&
+                            policy.require(selected, ProjectScope.TENANTS_WRITE) is DsResult.Success,
                         themeCount = repository.themeCount(tenant.designSystemId),
                         families = repository.families(tenant.designSystemId, tenantId),
                         screens = TypographyStyleBuilder.screens(tokens, references),

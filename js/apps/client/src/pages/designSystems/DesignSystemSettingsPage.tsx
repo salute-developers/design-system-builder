@@ -134,14 +134,22 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
         'Версии библиотек',
         ...(canDeleteSystem ? ['Опасная зона' as const] : []),
     ];
+    const savedName = system.data.name;
     const save = async (event: FormEvent<HTMLFormElement>) => {
         event.preventDefault();
         if (!canWriteSystem) return;
         const name = String(new FormData(event.currentTarget).get('name')).trim();
         if (!name) return setMessage('Введите название Design System.');
-        await designSystemsApi.update(projectId, designSystemId, { name });
-        setMessage('Сохранено');
-        system.reload();
+        const visibility = String(new FormData(event.currentTarget).get('visibility')) as 'private' | 'public';
+        try {
+            const changes: { name?: string; visibility: 'private' | 'public' } = { visibility };
+            if (name !== savedName) changes.name = name;
+            await designSystemsApi.update(projectId, designSystemId, changes);
+            setMessage('Сохранено');
+            system.reload();
+        } catch {
+            setMessage('Не удалось сохранить настройки. Повторите попытку.');
+        }
     };
     return (
         <SettingsFrame
@@ -201,7 +209,15 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
             <section className="settings">
                 <form id="settings-general" className="settings-section" onSubmit={save}>
                     {canWriteSystem ? (
-                        <Field label="Название" name="name" required defaultValue={system.data.name} />
+                        <>
+                            <Field label="Название" name="name" required defaultValue={system.data.name} />
+                            <DesignSystemVisibilityField
+                                visibility={system.data.visibility ?? 'private'}
+                                projectId={projectId}
+                                designSystemId={designSystemId}
+                                onMessage={setMessage}
+                            />
+                        </>
                     ) : (
                         <>
                             <p className="entity-field">
@@ -283,5 +299,74 @@ export const DesignSystemSettingsPage = ({ embedded = false }: { embedded?: bool
                 </Visible>
             </section>
         </SettingsFrame>
+    );
+};
+
+interface DesignSystemVisibilityFieldProps {
+    visibility: 'private' | 'public';
+    projectId: string;
+    designSystemId: string;
+    onMessage: (message: string) => void;
+}
+
+/** Доступность относится к ДС целиком; прямые ссылки намеренно не выбирают версию. */
+const DesignSystemVisibilityField = ({
+    visibility,
+    projectId,
+    designSystemId,
+    onMessage,
+}: DesignSystemVisibilityFieldProps) => {
+    const copyLink = async (value: string) => {
+        try {
+            await navigator.clipboard.writeText(value);
+            onMessage('Ссылка скопирована');
+        } catch {
+            onMessage('Не удалось скопировать ссылку. Повторите попытку.');
+        }
+    };
+    return (
+        <section className="ds-visibility-settings" aria-label="Доступность дизайн-системы">
+            <label className="entity-field">
+                Доступность
+                <select
+                    name="visibility"
+                    defaultValue={visibility}
+                    aria-describedby="design-system-visibility-description"
+                >
+                    <option value="private">Приватная</option>
+                    <option value="public">Публичная</option>
+                </select>
+            </label>
+            <p id="design-system-visibility-description">
+                Опубликованные версии доступны без входа по прямой ссылке. Черновик доступен только участникам проекта с
+                соответствующими правами.
+            </p>
+            <p>До первой публикации по публичной ссылке не будет опубликованных данных.</p>
+            {visibility === 'public' && (
+                <div className="actions" aria-label="Прямые ссылки на дизайн-систему">
+                    <button
+                        type="button"
+                        className="ps-button"
+                        onClick={() =>
+                            void copyLink(
+                                new URL(window.location.pathname.replace(/\/settings\/?$/, ''), window.location.origin)
+                                    .href,
+                            )
+                        }
+                    >
+                        Скопировать ссылку
+                    </button>
+                    <button
+                        type="button"
+                        className="ps-button"
+                        onClick={() =>
+                            void copyLink(`dsbuilder://projects/${projectId}/design-systems/${designSystemId}`)
+                        }
+                    >
+                        Скопировать ссылку для CLI/MCP
+                    </button>
+                </div>
+            )}
+        </section>
     );
 };

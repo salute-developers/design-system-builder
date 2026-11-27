@@ -26,7 +26,7 @@ class GetResolvedComponentPropertiesUseCase(
         transactions.readOnly(context, ModelReadTarget(ModelReadTarget.Kind.APPEARANCE, appearanceId)) { selected ->
             val model = repository.model(
                 selected.projectId,
-                selected.principal.globalAdmin,
+                selected.globalAdmin,
                 appearanceId,
                 selected.versionId,
             ) ?: return@readOnly DsResult.Failure(DsFailure.NotFound)

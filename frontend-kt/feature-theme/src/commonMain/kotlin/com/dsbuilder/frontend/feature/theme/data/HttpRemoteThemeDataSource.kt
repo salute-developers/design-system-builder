@@ -1,7 +1,9 @@
 package com.dsbuilder.frontend.feature.theme.data
 
+import com.dsbuilder.frontend.core.auth.BackendCredential
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpClientFactory
 import com.dsbuilder.frontend.core.network.AuthenticatedHttpResult
+import com.dsbuilder.frontend.core.network.ReadBoundary
 import com.dsbuilder.frontend.feature.theme.application.RemoteTenantThemeCommand
 import com.dsbuilder.frontend.feature.theme.application.RemoteThemeCommand
 import com.dsbuilder.frontend.feature.theme.application.RemoteThemeDataSource
@@ -32,10 +34,15 @@ internal class HttpRemoteThemeDataSource(
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/design-systems/" +
-                    "${command.context.designSystemId.value}/tenants",
+                    "${command.context.designSystemId.value}/tenants" +
+                    boundaryQuery(command.context.selectedVersion, command.readContext),
             ),
             decode = ::decodeTenants,
             parseFailureMessage = "Error: Cannot parse tenants response.",
+            expectedSystem = command.context.designSystemId.value,
+            credential = command.credential,
+            expectedReadContext = command.readContext,
+            expectedVersion = command.context.selectedVersion,
         )
     }
 
@@ -44,10 +51,15 @@ internal class HttpRemoteThemeDataSource(
         return getDecoded(
             result = client.get(
                 "/api/projects/${command.context.projectId.value}/design-systems/" +
-                    "${command.context.designSystemId.value}/tokens",
+                    "${command.context.designSystemId.value}/tokens" +
+                    boundaryQuery(command.context.selectedVersion, command.readContext),
             ),
             decode = ::decodeTokens,
             parseFailureMessage = "Error: Cannot parse tokens response.",
+            expectedSystem = command.context.designSystemId.value,
+            credential = command.credential,
+            expectedReadContext = command.readContext,
+            expectedVersion = command.context.selectedVersion,
         )
     }
 
@@ -55,10 +67,16 @@ internal class HttpRemoteThemeDataSource(
         val client = httpClientFactory.create(command.apiUrl.value, command.credential)
         return getDecoded(
             result = client.get(
-                "/api/projects/${command.context.projectId.value}/design-systems/catalog/palette",
+                "/api/projects/${command.context.projectId.value}/design-systems/" +
+                    "${command.context.designSystemId.value}/palette" +
+                    boundaryQuery(command.context.selectedVersion, command.readContext),
             ),
             decode = ::decodePalette,
             parseFailureMessage = "Error: Cannot parse palette response.",
+            expectedSystem = command.context.designSystemId.value,
+            credential = command.credential,
+            expectedReadContext = command.readContext,
+            expectedVersion = command.context.selectedVersion,
         )
     }
 
@@ -68,23 +86,52 @@ internal class HttpRemoteThemeDataSource(
             result = client.get(
                 // Цвета по палитре темы: ds-service заменяет ссылки на HEX с учётом групп палитры темы.
                 "/api/projects/${command.context.projectId.value}/design-systems/" +
-                    "${command.context.designSystemId.value}/tenants/${command.tenantId}/token-values",
+                    "${command.context.designSystemId.value}/tenants/${command.tenantId}/token-values" +
+                    boundaryQuery(command.context.selectedVersion, command.readContext),
             ),
             decode = ::decodeTokenValues,
             parseFailureMessage = "Error: Cannot parse token values response for tenant `${command.tenantId}`.",
+            expectedSystem = command.context.designSystemId.value,
+            credential = command.credential,
+            expectedReadContext = command.readContext,
+            expectedVersion = command.context.selectedVersion,
         )
     }
 
-    private suspend fun <T> getDecoded(
+    private fun <T> getDecoded(
         result: AuthenticatedHttpResult,
         decode: (String) -> T?,
         parseFailureMessage: String,
-    ): RemoteThemeResult<T> =
-        when (result) {
-            is AuthenticatedHttpResult.Success -> decode(result.body)?.let(RemoteThemeResult<T>::Success)
-                ?: RemoteThemeResult.Failed(parseFailureMessage)
-            is AuthenticatedHttpResult.Failure -> RemoteThemeResult.Failed(result.message)
+        expectedSystem: String,
+        credential: BackendCredential,
+        expectedReadContext: String?,
+        expectedVersion: String?,
+    ): RemoteThemeResult<T> = when (result) {
+        is AuthenticatedHttpResult.Success -> {
+            val raw = result.headers["x-ds-read-context"]
+            if (!ReadBoundary.validates(
+                    raw,
+                    expectedSystem,
+                    expectedVersion,
+                    expectedReadContext,
+                    required = credential == BackendCredential.Anonymous,
+                    headersValid = result.readHeadersValid,
+                )
+            ) {
+                RemoteThemeResult.Failed("Error: invalid or changed DS read context.")
+            } else {
+                decode(result.body)?.let { RemoteThemeResult.Success(it, raw) }
+                    ?: RemoteThemeResult.Failed(parseFailureMessage)
+            }
         }
+        is AuthenticatedHttpResult.Failure -> RemoteThemeResult.Failed(
+            if (result.statusCode == 404 && credential == BackendCredential.Anonymous) {
+                "Check the link. If access requires authentication, run dsbuilder auth login."
+            } else {
+                result.message
+            },
+        )
+    }
 
     private fun decodeTenants(body: String): List<Tenant>? =
         decodeList(body, TenantResponse.serializer())?.map { it.toDomain() }
@@ -212,3 +259,7 @@ private data class TokenValueResponse(
         )
     }
 }
+
+private fun boundaryQuery(version: String?, readContext: String?): String =
+    ReadBoundary.parse(readContext)?.query()
+        ?: version?.let { "?version=$it" }.orEmpty()

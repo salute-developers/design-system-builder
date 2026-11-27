@@ -67,7 +67,7 @@ private fun Route.pluginBuildPublishRoute(
             val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
                 ?: return@post call.respondFailure(DsFailure.Forbidden)
             // Роль проверяется до чтения тела: отказанный вызывающий ничего не загружает.
-            if (!context.principal.globalAdmin && !context.principal.composePreviewPublisher) {
+            if (!context.globalAdmin && !context.composePreviewPublisher) {
                 return@post call.respondFailure(DsFailure.Forbidden)
             }
             val dryRun = call.request.queryParameters["dryRun"]?.toBooleanStrictOrNull() ?: true
@@ -130,9 +130,7 @@ fun Route.activePluginBuildRoutes(evaluator: PolicyEvaluator, active: GetActiveP
         route(dsRoutePath("/api/design-systems/catalog/${platform.routeSegment}")) {
             get("/plugin") {
                 // `versionId` намеренно не передаётся: активный билд не зависит от версии дизайн-системы.
-                val context = TrustedDsRequestContextMapper.map(call.dsTrustedHeaders(), evaluator)
-                    ?: return@get call.respondFailure(DsFailure.Forbidden)
-                when (val result = active.execute(platform, context)) {
+                when (val result = active.execute(platform)) {
                     is DsResult.Success -> when (platform) {
                         PreviewPluginPlatform.COMPOSE -> call.respond(ActivePluginBuildResponse.from(result.value))
                         PreviewPluginPlatform.WEB -> call.respond(ActiveWebPluginBuildResponse.from(result.value))

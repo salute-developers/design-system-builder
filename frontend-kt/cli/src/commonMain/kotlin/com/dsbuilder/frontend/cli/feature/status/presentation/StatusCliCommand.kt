@@ -36,7 +36,8 @@ internal class StatusCliCommand(
                     Design system: ${result.designSystemName}
                     Config: ${result.configPath}
                     API: ${result.apiUrl}
-                    Status: authorized
+                    Status: ${if (result.accessMode == "public") "public read" else "authorized"}
+                    Version: ${result.version ?: "unspecified"}
                 """.trimIndent(),
             )
             is CheckProjectStatusResult.Failed -> {

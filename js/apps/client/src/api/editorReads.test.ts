@@ -12,6 +12,7 @@ vi.mock('./authService', () => ({
     },
 }));
 import { readEditor, invalidateEditorReads } from './editorReads';
+import { getDsReadBoundary } from './dsReadBoundary';
 const response = { data: [1] } as AxiosResponse;
 const deferred = () => {
     let resolve!: (value: AxiosResponse) => void;
@@ -250,5 +251,56 @@ describe('чтения редактора', () => {
         await vi.runAllTimersAsync();
         await forbidden;
         expect(mocks.get).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('публичная опубликованная граница', () => {
+    const root = '/api/projects/project/design-systems/system';
+    const versionId = '550e8400-e29b-41d4-a716-446655440001';
+    const boundary = { designSystemId: 'system', version: '1.0.0', versionId, accessMode: 'public' };
+    const published = (selected = boundary) =>
+        ({
+            data: {},
+            headers: { 'cache-control': 'no-store', 'x-ds-read-context': JSON.stringify(selected) },
+        }) as AxiosResponse;
+
+    it('pins dependent reads and rejects a response from another publication', async () => {
+        mocks.get.mockResolvedValue(published());
+        const first = readEditor(root);
+        await vi.runAllTimersAsync();
+        await first;
+        expect(getDsReadBoundary('project', 'system')).toEqual(boundary);
+        mocks.get.mockResolvedValue(published({ ...boundary, version: '2.0.0', versionId: 'other' }));
+        const wrong = readEditor(`${root}/tokens`);
+        const rejected = expect(wrong).rejects.toThrow('DS_READ_CONTEXT_MISMATCH');
+        await vi.runAllTimersAsync();
+        await rejected;
+        expect(mocks.get.mock.calls[1][1].params).toEqual({ versionId });
+    });
+
+    it('does not cache a public response even when a caller requests freshness', async () => {
+        mocks.get.mockResolvedValue(published());
+        for (let index = 0; index < 2; index++) {
+            const read = readEditor(root, {}, undefined, 300_000);
+            await vi.runAllTimersAsync();
+            await read;
+        }
+        expect(mocks.get).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not replace the current boundary with a late response after navigation', async () => {
+        const pending = deferred();
+        mocks.get.mockReturnValue(pending.promise);
+        const previousLocation = window.location.href;
+        try {
+            const read = readEditor(root);
+            await vi.runAllTimersAsync();
+            window.history.replaceState({}, '', '/projects/project/design-systems/system?version=2.0.0');
+            pending.resolve(published());
+            await read;
+            expect(getDsReadBoundary('project', 'system')).toBeUndefined();
+        } finally {
+            window.history.replaceState({}, '', previousLocation);
+        }
     });
 });

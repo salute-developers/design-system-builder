@@ -28,7 +28,7 @@ class ResolveStateSetUseCase(
         stateIds: List<UUID>,
         idempotencyKey: String? = null,
     ): DsResult<ResolvedStateSet> {
-        if (!context.principal.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
+        if (!context.globalAdmin) return DsResult.Failure(DsFailure.Forbidden)
         if (idempotencyKey != null && idempotencyKey.length > MAX_IDEMPOTENCY_KEY_LENGTH) {
             return DsResult.Failure(DsFailure.InvalidRequest("idempotency_key_too_long"))
         }
@@ -50,7 +50,7 @@ class ResolveStateSetUseCase(
                             repeatedRequests.save(
                                 context.projectId,
                                 idempotencyKey,
-                                context.principal.actorId,
+                                context.actorId,
                                 operation,
                                 hash,
                                 IdempotentResponse(

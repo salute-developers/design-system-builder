@@ -26,11 +26,11 @@ public enum class CredentialPolicy {
 public data class DesignSystemSelection(
     public val projectId: ProjectId,
     public val designSystemId: DesignSystemId,
-    public val version: String,
+    public val version: String? = null,
     public val platform: TargetPlatform? = null,
 ) {
     init {
-        require(version.isNotBlank()) { "Version must not be blank." }
+        require(version == null || version.isNotBlank()) { "Version must not be blank." }
     }
 }
 

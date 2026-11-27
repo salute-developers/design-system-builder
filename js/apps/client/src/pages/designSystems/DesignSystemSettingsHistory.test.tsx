@@ -5,7 +5,7 @@ import { DesignSystemSettingsPage } from './DesignSystemSettingsPage';
 import { resetQueryCache } from '../../shared/data/useLoad';
 
 vi.mock('../../api', () => ({
-    authService: { getCurrentUser: () => null },
+    authService: { getCurrentUser: () => null, isAuthenticated: () => true },
     projectsApi: {
         get: vi.fn(async () => ({ id: 'project', name: 'Project', status: 'active', effectiveRole: 'viewer' })),
     },

@@ -19,8 +19,8 @@ class ListDependenciesByComponentUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentDependencyGraph> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
             transactions.readOnly(context) {
-                repository.dependencies(context.projectId, context.principal.globalAdmin, id)
-                    ?.let { DsResult.Success(it) } ?: if (context.principal.globalAdmin) {
+                repository.dependencies(context.projectId, context.globalAdmin, id)
+                    ?.let { DsResult.Success(it) } ?: if (context.globalAdmin) {
                     DsResult.Success(ComponentDependencyGraph(emptyList(), emptyList()))
                 } else {
                     DsResult.Failure(DsFailure.NotFound)

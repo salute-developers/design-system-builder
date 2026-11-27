@@ -50,7 +50,7 @@ class GetTenantTokenValuesUseCase(
             } else {
                 repository.tokenValuesForTokens(context.projectId, id, types, tokenIds)
             }
-            if (stored == null && !context.principal.globalAdmin) {
+            if (stored == null && !context.globalAdmin) {
                 DsResult.Failure(DsFailure.NotFound)
             } else {
                 val values = stored.orEmpty()

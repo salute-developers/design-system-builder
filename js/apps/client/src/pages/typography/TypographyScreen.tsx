@@ -286,11 +286,6 @@ export const TypographyScreen = (props: TypographyScreenProps) => {
                     {tokenReset.error}
                 </div>
             )}
-            {readOnly && (
-                <div className="viewer-banner">
-                    <span>Только просмотр</span>
-                </div>
-            )}
         </>
     );
 

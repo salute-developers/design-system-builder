@@ -10,6 +10,7 @@ import com.dsbuilder.ds.core.application.withIdempotentResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.dsRoutePath
 import com.dsbuilder.ds.core.presentation.dsTrustedHeaders
+import com.dsbuilder.ds.core.presentation.modelReadContext
 import com.dsbuilder.ds.core.presentation.respondFailure
 import com.dsbuilder.ds.core.presentation.respondSuccess
 import io.ktor.http.HttpStatusCode
@@ -29,6 +30,13 @@ fun Route.stateSetRoutes(
     resolve: ResolveStateSetUseCase,
     json: Json,
 ) {
+    get(dsRoutePath("/api/design-systems/{designSystemId}/state-sets")) {
+        val context = call.modelReadContext(evaluator) ?: return@get
+        when (val result = list.execute(context)) {
+            is DsResult.Success -> call.respondSuccess(result, result.value.map(ComponentStateSetResponse::from))
+            is DsResult.Failure -> call.respondFailure(result.error)
+        }
+    }
     route(dsRoutePath("/api/design-systems/catalog/state-sets")) {
         get {
             val context = TrustedDsRequestContextMapper.map(

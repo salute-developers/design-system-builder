@@ -26,6 +26,7 @@ internal class LocalProjectConfigWriter(
                 config = ProjectConfig(
                     projectId = command.config.projectId.value,
                     designSystemId = command.config.designSystemId.value,
+                    version = command.config.version,
                     credential = CredentialReference(
                         type = when (command.config.credentialSelection) {
                             is InitCredentialSelection.Environment -> CredentialReferenceType.AUTO

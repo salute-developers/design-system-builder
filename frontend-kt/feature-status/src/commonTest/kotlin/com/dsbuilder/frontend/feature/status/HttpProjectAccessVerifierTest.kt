@@ -40,13 +40,13 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsAuthorizedWhenBothRequestsSucceed() = runTest {
+    fun statusReadsOnlyTheSelectedDesignSystem() = runTest {
         val requestedPaths = mutableListOf<String>()
         val verifier = HttpProjectAccessVerifier(
             factory { request ->
                 requestedPaths += request.url.encodedPath
                 if (request.url.encodedPath.endsWith("/design-systems/ds-a")) {
-                    HttpStatusCode.OK to """{"name":"DS A"}"""
+                    HttpStatusCode.OK to """{"name":"DS A","projectName":"Project A"}"""
                 } else {
                     HttpStatusCode.OK to """{"name":"Project A"}"""
                 }
@@ -59,7 +59,7 @@ class HttpProjectAccessVerifierTest {
         assertEquals("Project A", result.projectName)
         assertEquals("DS A", result.designSystemName)
         assertEquals(
-            listOf("/api/projects/project-a", "/api/projects/project-a/design-systems/ds-a"),
+            listOf("/api/projects/project-a/design-systems/ds-a"),
             requestedPaths,
         )
     }
@@ -95,7 +95,7 @@ class HttpProjectAccessVerifierTest {
     }
 
     @Test
-    fun returnsFailedWhenProjectResponseCannotBeParsed() = runTest {
+    fun returnsFailedWhenDesignSystemResponseCannotBeParsed() = runTest {
         val verifier = HttpProjectAccessVerifier(
             factory { HttpStatusCode.OK to "not-json" },
         )
@@ -103,6 +103,6 @@ class HttpProjectAccessVerifierTest {
         val result = verifier.verify(check)
 
         assertIs<ProjectAccessResult.Failed>(result)
-        assertEquals("Status: failed. Cannot parse project response.", result.message)
+        assertEquals("Status: failed. Cannot parse design system response.", result.message)
     }
 }

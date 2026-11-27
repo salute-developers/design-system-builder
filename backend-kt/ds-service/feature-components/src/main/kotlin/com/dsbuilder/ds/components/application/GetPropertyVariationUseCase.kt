@@ -16,6 +16,6 @@ class GetPropertyVariationUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<PropertyVariation> =
         modelFind(policy, transactions, context) {
-            repository.findPropertyVariation(context.projectId, context.principal.globalAdmin, id)
+            repository.findPropertyVariation(context.projectId, context.globalAdmin, id)
         }
 }

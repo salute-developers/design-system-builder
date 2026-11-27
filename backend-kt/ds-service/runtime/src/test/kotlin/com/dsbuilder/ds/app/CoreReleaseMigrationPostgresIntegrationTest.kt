@@ -64,7 +64,7 @@ class CoreReleaseMigrationPostgresIntegrationTest {
                         "INSERT INTO design_system_versions(id, design_system_id, version, snapshot, status, sequence_number, revision) VALUES ('$archived', '$ds', '0.9.0', '{\"legacy\":true}', NULL, NULL, NULL)",
                     )
                 }
-                assertEquals(7, config.target("latest").load().migrate().migrationsExecuted)
+                assertEquals(8, config.target("latest").load().migrate().migrationsExecuted)
                 val release =
                     scalar(
                         connection,

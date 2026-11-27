@@ -49,7 +49,7 @@ fun Route.designSystemVersionRoutes(
         }
         get("/{id}") {
             val context = context(evaluator) ?: return@get call.respondFailure(DsFailure.Forbidden)
-            val id = call.parameters["id"]?.uuid()
+            val id = call.pathParameters["id"]?.uuid()
                 ?: return@get call.respondFailure(DsFailure.InvalidRequest("invalid_id"))
             when (val result = get.execute(context, DesignSystemVersionId(id))) {
                 is DsResult.Success -> call.respondSuccess(result, DesignSystemVersionResponse.from(result.value))

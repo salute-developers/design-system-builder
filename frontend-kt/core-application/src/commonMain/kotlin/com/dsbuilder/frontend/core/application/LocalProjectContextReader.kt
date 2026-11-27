@@ -32,6 +32,7 @@ internal fun WorkspaceProjectContext.toProjectContext(): ProjectContext =
         designSystemId = DesignSystemId(config.designSystemId),
         credentialEnvName = CredentialEnvName(config.credential.name),
         configPath = configPath,
+        selectedVersion = config.version,
         credentialPolicy = when (config.credential.type) {
             CredentialReferenceType.ENV, CredentialReferenceType.AUTO -> CredentialPolicy.AUTO
             CredentialReferenceType.USER_SESSION -> CredentialPolicy.USER_SESSION

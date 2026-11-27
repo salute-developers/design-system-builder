@@ -1,3 +1,5 @@
+import { getDsReadBoundary } from '../api/dsReadBoundary';
+import { authService } from '../api/authService';
 import { useCoreCompatibility } from '../hooks/useCoreCompatibility';
 import { TyGlyph } from '../components/TyGlyph';
 import '../styles/core-compatibility.css';
@@ -15,7 +17,7 @@ import { BuilderHierarchyBar, BuilderIconRail } from '../components/BuilderShell
 import { ThemeSwitcher } from '../components/BuilderShell/ThemeSwitcher';
 import { can } from '../features/projectPermissions';
 import type { ProjectRole } from '../modules/projects/domain/project';
-import { Visible } from '../components/rendering';
+import { all, any, choose, Visible } from '../components/rendering';
 import { IconColorSwatchOutline } from '../icons';
 import { StyledSpinner as EditorLoadingSpinner } from '../components/EditorLoading/EditorLoading.styles';
 import { ComponentsSectionSkeleton } from './components/ComponentsSectionSkeleton';
@@ -35,8 +37,8 @@ import railTypographyIcon from '../assets/catalog/icons/rail-typography.svg';
 import railVersionsIcon from '../assets/catalog/icons/rail-versions.svg';
 const loadErrorMessages = {
     forbidden: 'Нет доступа',
-    'not-found': 'Theme не найдена',
-    failed: 'Не удалось загрузить Theme',
+    'not-found': 'Тема недоступна',
+    failed: 'Не удалось загрузить тему',
 } as const;
 const editorSectionLabels: Record<string, string> = {
     palette: 'Палитра',
@@ -54,9 +56,10 @@ export const Main = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const editorVersionId = searchParams.get('versionId') ?? undefined;
+    const editorVersion = searchParams.get('version') ?? undefined;
     const location = useLocation();
     const [requestedPath, setRequestedPath] = useState<string>();
-    const isSectionSwitching = Boolean(requestedPath && requestedPath !== location.pathname);
+    const isSectionSwitching = all(requestedPath, requestedPath !== location.pathname);
     const currentPath = (isSectionSwitching ? requestedPath! : location.pathname).split('/').filter(Boolean);
     useLayoutEffect(() => {
         if (requestedPath === location.pathname) setRequestedPath(undefined);
@@ -75,9 +78,10 @@ export const Main = () => {
                       versionId: editorVersionId,
                   }
                 : undefined,
-        [projectId, designSystemId, tenantId, editorVersionId],
+        // Корневое чтение разрешает semver из URL; его смена тоже начинает новую загрузку темы.
+        [projectId, designSystemId, tenantId, editorVersionId, editorVersion],
     );
-    const compatibility = useCoreCompatibility(editorContext);
+
     const editorSection = currentPath[editorContext ? 6 : 3];
     const editorSectionLabel = editorSectionLabels[editorSection] ?? 'Редактор';
     /** Экраны токенов и палитра сами показывают загрузку скелетонами и ошибку загрузки с «Повторить». */
@@ -93,11 +97,6 @@ export const Main = () => {
         [editorSection, currentPath[7]],
     );
     const themeEditorPath = `/projects/${projectId}/design-systems/${designSystemId}/themes/${tenantId}/colors`;
-    const themeEditorSearch = editorVersionId
-        ? `?${new URLSearchParams({
-              versionId: editorVersionId,
-          })}`
-        : '';
     const {
         designSystem,
         theme,
@@ -124,47 +123,60 @@ export const Main = () => {
         refreshChanges,
         refreshRevision,
     } = useDesignSystem(editorContext, true, sectionSelection);
+    const editorParameters = designSystem?.getParameters();
+    const boundary = editorContext
+        ? getDsReadBoundary(editorContext.projectId, editorContext.designSystemId)
+        : undefined;
+    const navigationVersionId = editorVersionId ?? boundary?.versionId;
+    const themeEditorSearch = navigationVersionId ? `?${new URLSearchParams({ versionId: navigationVersionId })}` : '';
 
     // Режим редактирования — когда в URL выбрана конкретная тема дизайн-системы
     const isEditingDesignSystem = Boolean(editorContext);
-    const isReadOnly = designSystem?.getParameters()?.readOnly === true;
+    const isReadOnly = editorParameters?.readOnly === true;
+    const isPublicView = boundary?.accessMode === 'public';
+    const projectReadContext = choose(all(designSystem, !loadError, !isPublicView), undefined, editorContext);
+    const compatibility = useCoreCompatibility(projectReadContext);
     // Раздел «Компоненты» показываем, если к ДС привязан хотя бы один компонент. Пока тема грузится, кнопка видна
     // вместе с остальными: иначе она появляется с задержкой и сдвигает нижние кнопки.
-    const hasComponents = isComponentEditorEnabled() && (hasConfiguredComponents || !designSystem);
+    const hasComponents = all(isComponentEditorEnabled(), any(hasConfiguredComponents, !designSystem));
     // Режим просмотра проектов — есть только projectId, дизайн-система не выбрана
     const isHome = !isEditingDesignSystem;
-    const isEditorLoading = Boolean(editorContext && !designSystem && !loadError);
+    const isEditorLoading = all(editorContext, !designSystem, !loadError);
+    const sectionPending = !loadError && any(isSectionSwitching, isEditorLoading, sectionLoading);
     const journalComponents = useMemo(() => designSystem?.getComponentsData() ?? [], [designSystem]);
-    const journalOpen = editorSection === 'changes' || editorSection === 'versions';
+    const journalOpen = ['changes', 'versions'].includes(editorSection);
     const editorJournal = useJournal(
-        editorContext,
+        projectReadContext,
         journalComponents,
-        `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}`,
-        designSystem?.getParameters()?.readOnly !== false,
-        Boolean(designSystem) && journalOpen,
+        `${editorParameters?.draftId}:${editorParameters?.draftRevision}`,
+        editorParameters?.readOnly !== false,
+        journalOpen,
     );
     useReloadAfterAutosave(autosaveStatus, editorJournal.reload);
-    const summaryCursor = `${designSystem?.getParameters()?.draftId}:${designSystem?.getParameters()?.draftRevision}:${lastSavedAt}:${refreshRevision}`;
+    const summaryCursor = `${editorParameters?.draftId}:${editorParameters?.draftRevision}:${lastSavedAt}:${refreshRevision}`;
     const changedTokenNames = useChangedTokenNames(
-        editorContext,
+        projectReadContext,
         tokenDefinitions,
         summaryCursor,
-        Boolean(designSystem) && ['colors', 'shapes', 'typography'].includes(editorSection),
+        ['colors', 'shapes', 'typography'].includes(editorSection),
     );
-    const journalHasTotal = journalOpen && !editorJournal.error && editorJournal.total !== undefined;
-    const summaryNeeded =
-        Boolean(designSystem) &&
-        (!journalOpen || Boolean(editorJournal.error) || (!editorJournal.loading && !journalHasTotal));
+    const journalHasTotal = all(journalOpen, !editorJournal.error, editorJournal.total !== undefined);
+    const summaryNeeded = all(
+        designSystem,
+        any(!journalOpen, editorJournal.error, all(!editorJournal.loading, !journalHasTotal)),
+    );
     const journalSummary = useJournalSummary(
-        editorContext,
-        `${summaryCursor}:${summaryNeeded && journalOpen ? (editorJournal.readAt ?? '') : ''}`,
+        projectReadContext,
+        `${summaryCursor}:${choose(all(summaryNeeded, journalOpen), '', editorJournal.readAt ?? '')}`,
         summaryNeeded,
     );
-    const journalTotal = journalHasTotal ? editorJournal.total! : journalSummary.total;
-    const journalCountError = journalHasTotal ? false : journalSummary.error;
+    const journalTotal = choose(journalHasTotal, journalSummary.total, editorJournal.total!);
+    const journalCountError = choose(journalHasTotal, journalSummary.error, false);
     const reloadJournalAfterRevert = useCallback(async () => {
         await editorJournal.reloadChecked();
     }, [editorJournal.reloadChecked]);
+    const railButtonClass = (section: string) =>
+        `builder-rail-button ${currentPath.includes(section) ? 'is-active' : ''}`;
     const onClickPanelButton = (path: string) => {
         if (path === '') {
             navigate('/', {
@@ -177,13 +189,8 @@ export const Main = () => {
         // (например выбранный компонент в /components/:componentName) — строим путь от версии,
         // чтобы при переключении раздела они сбрасывались.
         const newPath = `/projects/${editorContext?.projectId}/design-systems/${editorContext?.designSystemId}/themes/${editorContext?.tenantId}/${path}`;
-        const versionQuery = editorContext?.versionId
-            ? `?${new URLSearchParams({
-                  versionId: editorContext.versionId,
-              }).toString()}`
-            : '';
         setRequestedPath(newPath !== location.pathname ? newPath : undefined);
-        navigate(`${newPath}${versionQuery}`, {
+        navigate(`${newPath}${themeEditorSearch}`, {
             replace: true,
         });
     };
@@ -208,10 +215,10 @@ export const Main = () => {
             <div className="builder-shell-gradient" aria-hidden="true" />
             <BuilderIconRail
                 testId="editor-rail"
-                projectName={designSystem?.getParameters()?.projectName}
+                projectName={editorParameters?.projectName}
                 main={
                     <MainItems>
-                        {!editorContext ? (
+                        {!editorContext && !loadError ? (
                             <>
                                 <StyledIconButton
                                     className={`builder-rail-button ${isHome ? 'is-active' : ''}`}
@@ -222,11 +229,11 @@ export const Main = () => {
                                 </StyledIconButton>
                             </>
                         ) : null}
-                        {isEditingDesignSystem ? (
+                        {isEditingDesignSystem && !loadError ? (
                             <>
                                 <Visible when={Boolean(editorContext)}>
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('palette') ? 'is-active' : ''}`}
+                                        className={railButtonClass('palette')}
                                         data-testid="editor-nav-palette"
                                         aria-label="Палитра"
                                         title="Палитра"
@@ -238,7 +245,7 @@ export const Main = () => {
                                 </Visible>
                                 <>
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('colors') ? 'is-active' : ''}`}
+                                        className={railButtonClass('colors')}
                                         data-testid="editor-nav-colors"
                                         aria-label={editorSectionLabels.colors}
                                         title={editorSectionLabels.colors}
@@ -248,7 +255,7 @@ export const Main = () => {
                                         <img className="builder-rail-icon" src={railColorsIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('typography') ? 'is-active' : ''}`}
+                                        className={railButtonClass('typography')}
                                         data-testid="editor-nav-typography"
                                         aria-label={editorSectionLabels.typography}
                                         title={editorSectionLabels.typography}
@@ -258,7 +265,7 @@ export const Main = () => {
                                         <img className="builder-rail-icon" src={railTypographyIcon} alt="" />
                                     </StyledIconButton>
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('shapes') ? 'is-active' : ''}`}
+                                        className={railButtonClass('shapes')}
                                         data-testid="editor-nav-shapes"
                                         aria-label={editorSectionLabels.shapes}
                                         title={editorSectionLabels.shapes}
@@ -270,7 +277,7 @@ export const Main = () => {
                                     {hasComponents ? (
                                         <>
                                             <StyledIconButton
-                                                className={`builder-rail-button ${currentPath.includes('components') ? 'is-active' : ''}`}
+                                                className={railButtonClass('components')}
                                                 data-testid="editor-nav-components"
                                                 aria-label={editorSectionLabels.components}
                                                 title={editorSectionLabels.components}
@@ -282,7 +289,7 @@ export const Main = () => {
                                         </>
                                     ) : null}
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('icons') ? 'is-active' : ''}`}
+                                        className={railButtonClass('icons')}
                                         data-testid="editor-nav-icons"
                                         aria-label={editorSectionLabels.icons}
                                         title={editorSectionLabels.icons}
@@ -291,36 +298,40 @@ export const Main = () => {
                                     >
                                         <SymbolsOutline color="inherit" />
                                     </StyledIconButton>
-                                    <Separator />
+                                    {!isPublicView && (
+                                        <>
+                                            <Separator />
+                                            <StyledIconButton
+                                                className={railButtonClass('changes')}
+                                                data-testid="editor-nav-changes"
+                                                selected={currentPath.includes('changes')}
+                                                onClick={() => onClickPanelButton('changes')}
+                                                aria-label="Изменения дизайн-системы"
+                                                title="Изменения дизайн-системы"
+                                            >
+                                                <img className="builder-rail-icon" src={railChangesIcon} alt="" />
+                                            </StyledIconButton>
+                                            <StyledIconButton
+                                                className={railButtonClass('validation')}
+                                                data-testid="editor-nav-validation"
+                                                selected={currentPath.includes('validation')}
+                                                onClick={() => onClickPanelButton('validation')}
+                                                aria-label={
+                                                    compatibility.report?.blockingCount
+                                                        ? 'Валидация, есть проблемы совместимости'
+                                                        : 'Валидация'
+                                                }
+                                                title="Валидация"
+                                            >
+                                                <TyGlyph name="warning" />
+                                                {Boolean(compatibility.report?.blockingCount) && (
+                                                    <span className="core-rail-danger-dot" aria-hidden="true" />
+                                                )}
+                                            </StyledIconButton>
+                                        </>
+                                    )}
                                     <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('changes') ? 'is-active' : ''}`}
-                                        data-testid="editor-nav-changes"
-                                        selected={currentPath.includes('changes')}
-                                        onClick={() => onClickPanelButton('changes')}
-                                        aria-label="Изменения дизайн-системы"
-                                        title="Изменения дизайн-системы"
-                                    >
-                                        <img className="builder-rail-icon" src={railChangesIcon} alt="" />
-                                    </StyledIconButton>
-                                    <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('validation') ? 'is-active' : ''}`}
-                                        data-testid="editor-nav-validation"
-                                        selected={currentPath.includes('validation')}
-                                        onClick={() => onClickPanelButton('validation')}
-                                        aria-label={
-                                            compatibility.report?.blockingCount
-                                                ? 'Валидация, есть проблемы совместимости'
-                                                : 'Валидация'
-                                        }
-                                        title="Валидация"
-                                    >
-                                        <TyGlyph name="warning" />
-                                        {Boolean(compatibility.report?.blockingCount) && (
-                                            <span className="core-rail-danger-dot" aria-hidden="true" />
-                                        )}
-                                    </StyledIconButton>
-                                    <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('versions') ? 'is-active' : ''}`}
+                                        className={railButtonClass('versions')}
                                         data-testid="editor-nav-versions"
                                         selected={currentPath.includes('versions')}
                                         onClick={() => onClickPanelButton('versions')}
@@ -329,15 +340,18 @@ export const Main = () => {
                                     >
                                         <img className="builder-rail-icon" src={railVersionsIcon} alt="" />
                                     </StyledIconButton>
-                                    <StyledIconButton
-                                        className={`builder-rail-button ${currentPath.includes('settings') ? 'is-active' : ''}`}
-                                        selected={currentPath.includes('settings')}
-                                        onClick={() => onClickPanelButton('settings')}
-                                        aria-label="Настройки дизайн-системы"
-                                        title="Настройки дизайн-системы"
-                                    >
-                                        <IconSettingsOutline size="xs" color="inherit" />
-                                    </StyledIconButton>
+                                    {authService.isAuthenticated() && !isPublicView && (
+                                        <StyledIconButton
+                                            className={railButtonClass('settings')}
+                                            selected={currentPath.includes('settings')}
+                                            onClick={() => onClickPanelButton('settings')}
+                                            disabled={isEditorLoading}
+                                            aria-label="Настройки дизайн-системы"
+                                            title="Настройки дизайн-системы"
+                                        >
+                                            <IconSettingsOutline size="xs" color="inherit" />
+                                        </StyledIconButton>
+                                    )}
                                 </>
                             </>
                         ) : null}
@@ -345,20 +359,24 @@ export const Main = () => {
                 }
             />
             <EditorBody>
-                {Boolean(editorContext) ? (
+                {Boolean(editorContext) && !loadError ? (
                     <>
                         <BuilderHierarchyBar
                             title={editorSectionLabel}
-                            projectName={designSystem?.getParameters()?.projectName ?? 'Проект'}
-                            projectId={projectId}
+                            projectName={editorParameters?.projectName ?? 'Проект'}
+                            projectId={isPublicView ? undefined : projectId}
                             ariaLabel="Навигация темы"
                             rootless
                             loading={isEditorLoading}
                             breadcrumbSegments={[
-                                {
-                                    label: designSystem?.getParameters()?.projectName ?? 'Проект',
-                                    to: `/projects/${projectId}`,
-                                },
+                                ...(!isPublicView
+                                    ? [
+                                          {
+                                              label: editorParameters?.projectName ?? 'Проект',
+                                              to: `/projects/${projectId}`,
+                                          },
+                                      ]
+                                    : []),
                                 {
                                     label: designSystem?.getName() ?? 'Дизайн-система',
                                     to: `/projects/${projectId}/design-systems/${designSystemId}`,
@@ -366,9 +384,9 @@ export const Main = () => {
                                 {
                                     label: theme?.getName() ?? 'Тема',
                                     to: `${themeEditorPath}${themeEditorSearch}`,
-                                    render: editorContext && (
+                                    render: designSystem && editorContext && (
                                         <ThemeSwitcher
-                                            context={editorContext}
+                                            context={{ ...editorContext, versionId: navigationVersionId }}
                                             currentName={theme?.getName() ?? 'Тема'}
                                             canCreate={
                                                 !editorVersionId &&
@@ -389,7 +407,7 @@ export const Main = () => {
                                         {Boolean(
                                             editorContext &&
                                             !editorContext?.versionId &&
-                                            designSystem?.getParameters()?.readOnly === false,
+                                            editorParameters?.readOnly === false,
                                         ) ? (
                                             <>
                                                 <AutosaveIndicator
@@ -400,10 +418,16 @@ export const Main = () => {
                                                 />
                                             </>
                                         ) : null}
+                                        {isReadOnly && editorSection !== 'components' && (
+                                            <span className="editor-readonly-badge" role="status">
+                                                Только просмотр
+                                            </span>
+                                        )}
                                         {editorContext && (
                                             <EditorVersionSelect
-                                                context={editorContext}
-                                                draftId={designSystem?.getParameters()?.draftId}
+                                                context={{ ...editorContext, versionId: navigationVersionId }}
+                                                publishedOnly={isPublicView}
+                                                draftId={editorParameters?.draftId}
                                                 selectedVersion={designSystem?.getVersion()}
                                             />
                                         )}
@@ -413,25 +437,27 @@ export const Main = () => {
                                                 <McpLinkButton
                                                     projectId={editorContext.projectId}
                                                     designSystemId={editorContext.designSystemId}
-                                                    version={editorVersionId ? designSystem.getVersion()! : 'draft'}
+                                                    version={navigationVersionId ? designSystem.getVersion()! : 'draft'}
                                                 />
                                             )}
-                                        <JournalButton
-                                            className="primary editor-changes-button"
-                                            type="button"
-                                            style={{
-                                                gap: 6,
-                                            }}
-                                            onClick={() => onClickPanelButton('changes')}
-                                        >
-                                            Изменения
-                                            {!journalCountError && journalTotal > 0 && (
-                                                <>
-                                                    <span aria-hidden="true">·</span>
-                                                    <span>{journalTotal}</span>
-                                                </>
-                                            )}
-                                        </JournalButton>
+                                        <Visible when={!isPublicView}>
+                                            <JournalButton
+                                                className="primary editor-changes-button"
+                                                type="button"
+                                                style={{
+                                                    gap: 6,
+                                                }}
+                                                onClick={() => onClickPanelButton('changes')}
+                                            >
+                                                Изменения
+                                                {!journalCountError && journalTotal > 0 && (
+                                                    <>
+                                                        <span aria-hidden="true">·</span>
+                                                        <span>{journalTotal}</span>
+                                                    </>
+                                                )}
+                                            </JournalButton>
+                                        </Visible>
                                     </div>
                                 )
                             }
@@ -439,9 +465,33 @@ export const Main = () => {
                     </>
                 ) : null}
                 <EditorCanvas>
-                    {componentsSkeleton && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                    {loadError ? (
+                        <div className="editor-load-error" role="alert">
+                            <h1>{loadErrorMessages[loadError]}</h1>
+                            {loadError === 'not-found' && <p>Проверьте ссылку или войдите, если у вас есть доступ.</p>}
+                            <div className="editor-load-error-actions">
+                                <button className="ps-button" type="button" onClick={reload}>
+                                    Повторить
+                                </button>
+                                {!authService.isAuthenticated() &&
+                                    (loadError === 'not-found' || loadError === 'forbidden') && (
+                                        <button
+                                            className="ps-button"
+                                            type="button"
+                                            onClick={() =>
+                                                navigate(
+                                                    `/login?returnTo=${encodeURIComponent(location.pathname + location.search)}`,
+                                                )
+                                            }
+                                        >
+                                            Войти
+                                        </button>
+                                    )}
+                            </div>
+                        </div>
+                    ) : componentsSkeleton && sectionPending ? (
                         <ComponentsSectionSkeleton />
-                    ) : !ownsSectionStates && (isSectionSwitching || isEditorLoading || sectionLoading) ? (
+                    ) : !ownsSectionStates && sectionPending ? (
                         <div
                             className="editor-section-loading"
                             role="status"
@@ -459,7 +509,7 @@ export const Main = () => {
                     ) : (
                         <Outlet
                             context={{
-                                projectName: designSystem?.getParameters()?.projectName ?? designSystem?.getName(),
+                                projectName: editorParameters?.projectName ?? designSystem?.getName(),
                                 projectId: projectId ?? designSystemProjectId,
                                 designSystem,
                                 theme,
@@ -484,17 +534,12 @@ export const Main = () => {
                                 refreshChanges,
                                 sectionError,
                                 // Тема ещё не загружена целиком: экраны токенов и палитра показывают свои скелетоны.
-                                sectionPending: isSectionSwitching || isEditorLoading || sectionLoading,
+                                sectionPending,
                             }}
                         />
                     )}
                 </EditorCanvas>
-                {Boolean(loadError) ? (
-                    <>
-                        <div role="alert">{loadErrorMessages[loadError!]}</div>
-                    </>
-                ) : null}
-                {incompleteTokenIds.length > 0 ? (
+                {!loadError && incompleteTokenIds.length > 0 ? (
                     <>
                         <div role="alert">
                             В теме отсутствуют значения {incompleteTokenIds.length} токенов. Редактор не смешивает их со
@@ -503,7 +548,7 @@ export const Main = () => {
                     </>
                 ) : null}
             </EditorBody>
-            {Boolean(isEditingDesignSystem && !isReadOnly && isDebugMode()) ? (
+            {Boolean(isEditingDesignSystem && !loadError && !isReadOnly && isDebugMode()) ? (
                 <>
                     <Debug
                         designSystem={designSystem}

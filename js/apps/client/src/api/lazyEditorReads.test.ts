@@ -259,3 +259,20 @@ it.each([
         expect(http.post.mock.calls[0][1].components).toEqual([exportedName]);
     },
 );
+
+it('деталь опубликованной версии использует селектор только в пути, остальные чтения закреплены query', async () => {
+    const reads = http.get.getMockImplementation()!;
+    http.get.mockImplementation(async (url: string, request) =>
+        url.endsWith('/versions/published')
+            ? { data: { id: 'published', designSystemId: 'system', version: '1.0.0' } }
+            : reads(url, request),
+    );
+    const signal = new AbortController().signal;
+    const shell = await loadThemeShell({ ...context, versionId: 'published' }, signal);
+    expect(shell.publicationVersion).toBe('1.0.0');
+    expect(http.get).toHaveBeenCalledWith('/api/projects/project/design-systems/system/versions/published', { signal });
+    expect(http.get).toHaveBeenCalledWith(
+        '/api/projects/project/design-systems/system/tenants/theme',
+        expect.objectContaining({ params: { versionId: 'published' }, signal }),
+    );
+});

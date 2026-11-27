@@ -1,7 +1,8 @@
 # figma-plugin-authentication Specification
 
 ## Purpose
-TBD - created by archiving change add-figma-tokens-plugin. Update Purpose after archive.
+Определяет вход плагина Figma через браузер, хранение и обновление сессии и очистку учётных данных при выходе.
+
 ## Requirements
 ### Requirement: Вход через подтверждение в браузере
 

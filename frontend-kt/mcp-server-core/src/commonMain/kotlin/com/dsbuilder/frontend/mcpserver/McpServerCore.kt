@@ -36,6 +36,8 @@ public data class McpServerConfig(
     public val apiUrlOverride: String? = null,
     /** Optional starting directory for common project context resolution. */
     public val workspace: String? = null,
+    /** Команда входа текущего launcher для нейтральных подсказок. */
+    public val authLoginCommand: String = "dsbuilder auth login",
 )
 
 /**
@@ -153,6 +155,8 @@ private data class StatusBody(
     val designSystemName: String,
     val configPath: String,
     val apiUrl: String,
+    val accessMode: String = "project",
+    val version: String? = null,
 )
 
 /**
@@ -262,6 +266,8 @@ public class DsBuilderMcpServerCore(
                     designSystemName = result.designSystemName,
                     configPath = result.configPath,
                     apiUrl = result.apiUrl,
+                    accessMode = result.accessMode,
+                    version = result.version,
                 ),
             )
             is CheckProjectStatusResult.Failed -> toolError(result.code.toMcpErrorCode(), result.message)
@@ -271,7 +277,12 @@ public class DsBuilderMcpServerCore(
         McpToolResult(isError = false, body = json.encodeToString(StatusBody.serializer(), body))
 
     private fun toolError(code: String, message: String): McpToolResult =
-        McpToolResult(isError = true, body = json.encodeToString(McpToolError(code, message)))
+        McpToolResult(
+            isError = true,
+            body = json.encodeToString(
+                McpToolError(code, message.replace("dsbuilder auth login", config.authLoginCommand)),
+            ),
+        )
 
     private fun protocolError(message: String): McpToolResult =
         McpToolResult(isError = true, body = json.encodeToString(McpToolError("PROTOCOL_ERROR", message)))

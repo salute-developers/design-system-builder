@@ -1260,7 +1260,6 @@ describe('ColorTokensScreen', () => {
         expect(screen.getByTestId('color-token-row-text.accent')).toHaveAttribute('draggable', 'false');
         fireEvent.doubleClick(screen.getByTestId('color-token-row-text.accent'));
         expect(screen.queryByRole('textbox', { name: /Новое имя/ })).toBeNull();
-        expect(screen.getByText('Только просмотр')).toBeInTheDocument();
 
         // Вкладка «Доступность» пока скрыта по решению команды.
         expect(screen.queryByRole('button', { name: 'Доступность' })).toBeNull();

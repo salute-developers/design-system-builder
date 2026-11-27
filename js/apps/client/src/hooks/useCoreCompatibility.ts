@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useSyncExternalStore } from 'react';
 import type { EditorContextKey } from '../api/editorContracts';
 import { invalidateEditorReads } from '../api/editorReads';
 import { compatibilityWatch } from './coreCompatibilityWatch';
+import { isPublicDsRead } from '../api/dsReadBoundary';
 
 /** Разделяет опрос между экранами и сообщает только о смене уже известного Core. */
 export const useCoreCompatibility = (
@@ -10,6 +11,7 @@ export const useCoreCompatibility = (
     onCoreChanged?: () => void,
     knownCoreRevision?: number | null,
 ) => {
+    context = context && !isPublicDsRead(context) ? context : undefined;
     const callback = useRef(onCoreChanged);
     callback.current = onCoreChanged;
     const key = JSON.stringify([context?.projectId, context?.designSystemId, context?.versionId, componentId]);

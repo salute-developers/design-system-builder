@@ -899,7 +899,7 @@ describe('SizeTokensScreen', () => {
             ) as SizeToken[],
         };
         await renderScreen();
-        expect(screen.getByTestId('size-tokens-viewer')).toHaveTextContent('Только просмотр');
+
         expect(within(tree()).queryByRole('button', { name: /Добавить токен/ })).toBeNull();
         expect(valueField()).toBeDisabled();
         expect(within(inspector()).queryByRole('button', { name: 'Удалить токен' })).toBeNull();
@@ -930,7 +930,7 @@ describe('SizeTokensScreen', () => {
             expect.any(AbortSignal),
         );
         expect(context.versionId).toBe('v1');
-        expect(screen.getByTestId('size-tokens-viewer')).toHaveTextContent('Только просмотр');
+
         expect(screen.queryByTestId('size-tokens-save-status')).toBeNull();
         expect(valueField()).toBeDisabled();
         expect(within(tree()).queryByRole('button', { name: /Добавить токен/ })).toBeNull();

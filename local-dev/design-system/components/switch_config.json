@@ -41,7 +41,7 @@
             "type": "shape",
             "value": "round.circle"
         },
-        "toggleThumbPadding": {
+        "togglePadding": {
             "type": "dimension",
             "value": 2
         }

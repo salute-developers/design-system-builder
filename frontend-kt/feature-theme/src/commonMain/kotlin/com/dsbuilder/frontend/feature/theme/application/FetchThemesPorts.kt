@@ -31,18 +31,21 @@ internal data class RemoteThemeCommand(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
+    val readContext: String? = null,
 )
 
 internal data class RemoteTenantThemeCommand(
     val context: ProjectContext,
     val apiUrl: ProjectApiUrl,
     val credential: BackendCredential,
+    val readContext: String? = null,
     val tenantId: String,
 )
 
 internal sealed interface RemoteThemeResult<out T> {
     data class Success<T>(
         val value: T,
+        val readContext: String? = null,
     ) : RemoteThemeResult<T>
 
     data class Failed(

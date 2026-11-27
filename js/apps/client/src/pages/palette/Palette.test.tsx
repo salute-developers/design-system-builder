@@ -443,12 +443,9 @@ describe('раздел «Палитра»', () => {
         expect(await screen.findByRole('button', { name: 'Перейти в Color tokens' })).toBeInTheDocument();
     });
 
-    it('только чтение: баннер в инспекторе, как на экранах токенов, и нет действий изменения', async () => {
+    it('только чтение: нет действий изменения', async () => {
         state.canEdit = false;
         await renderPalette();
-        const inspector = document.querySelector('.palette-inspector') as HTMLElement;
-        expect(within(inspector).getByText('Только просмотр')).toBeInTheDocument();
-        expect(screen.getAllByText('Только просмотр')).toHaveLength(1);
         expect(screen.queryByRole('button', { name: /^Убрать .* из группы/ })).toBeNull();
         expect(screen.queryByRole('button', { name: 'Создать группу' })).toBeNull();
         expect(screen.queryByRole('button', { name: /Добавить палитру в/ })).toBeNull();

@@ -6,6 +6,7 @@ import com.dsbuilder.ds.core.data.lockDesignSystemMutation
 import com.dsbuilder.ds.core.data.lockDraftSubject
 import com.dsbuilder.ds.core.data.resolvedDraftRevision
 import com.dsbuilder.ds.core.data.selectedVersionBoundary
+import com.dsbuilder.ds.core.domain.DesignSystemVisibility
 import com.dsbuilder.ds.core.domain.ProjectId
 import com.dsbuilder.ds.designsystems.application.CreateDesignSystem
 import com.dsbuilder.ds.designsystems.application.DesignSystemRepository
@@ -34,6 +35,7 @@ import org.jetbrains.exposed.v1.jdbc.insert
 import org.jetbrains.exposed.v1.jdbc.insertReturning
 import org.jetbrains.exposed.v1.jdbc.selectAll
 import org.jetbrains.exposed.v1.jdbc.transactions.TransactionManager
+import org.jetbrains.exposed.v1.jdbc.update
 import java.util.UUID
 
 /** Exposed implementation preserving global reads and project-owned mutations. */
@@ -88,6 +90,12 @@ class ExposedDesignSystemRepository : DesignSystemRepository {
         val current = currentRows(projectId = projectId, id = id).singleOrNull()
             ?.takeIf { it[DesignSystemsTable.projectId] == projectId.value }
             ?: return null
+        command.visibility?.let { visibility ->
+            DesignSystemsTable.update({ DesignSystemsTable.id eq id.value }) {
+                it[DesignSystemsTable.visibility] = visibility.value
+            }
+        }
+        if (command.name == null && !command.descriptionPresent) return currentRow(id)?.let(::toDomain)
         val draft = draft(id) ?: return null
         if (!lockDraftSubject(id.value, "design-system", id.value)) return null
         val changedPaths = buildSet {
@@ -194,6 +202,7 @@ class ExposedDesignSystemRepository : DesignSystemRepository {
         return DesignSystem(
             id = id,
             name = row[DesignSystemRevisionTable.name],
+            visibility = DesignSystemVisibility.parse(row[DesignSystemsTable.visibility])!!,
             projectName = row[DesignSystemsTable.projectName],
             projectId = row[DesignSystemsTable.projectId]?.let(::ProjectId),
             description = row[DesignSystemRevisionTable.description],

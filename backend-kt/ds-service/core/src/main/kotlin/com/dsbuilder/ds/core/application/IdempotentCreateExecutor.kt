@@ -36,7 +36,7 @@ class IdempotentCreateExecutor(private val requests: IdempotentRequestRepository
                 requests.save(
                     context.projectId,
                     key,
-                    context.principal.actorId,
+                    context.actorId,
                     scopedOperation,
                     hash,
                     IdempotentResponse(

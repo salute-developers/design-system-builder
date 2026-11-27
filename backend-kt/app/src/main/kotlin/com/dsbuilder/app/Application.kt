@@ -164,7 +164,7 @@ fun Application.monolith(configuration: GatewayConfiguration = GatewayConfigurat
         owned += documentation
         val proxy = KeycloakProxy(configuration)
         owned += proxy
-        installPublicGateway(configuration, koin.get<GatewayAuthorizer>())
+        installPublicGateway(configuration, koin.get<GatewayAuthorizer>(), ds.publicReads)
         installDsHttpPlugins(
             Json {
                 ignoreUnknownKeys = false

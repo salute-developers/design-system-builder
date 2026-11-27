@@ -1,5 +1,7 @@
 package com.dsbuilder.ds.core.presentation
 
+import com.dsbuilder.ds.core.application.DsResult
+import com.dsbuilder.ds.core.application.ModelReadSelection
 import io.ktor.http.Headers
 import io.ktor.server.application.Application
 import io.ktor.server.application.ApplicationCall
@@ -49,8 +51,37 @@ fun ApplicationCall.dsTrustedHeaders(): Headers {
         }
         remove(DESIGN_SYSTEM_CONTEXT_HEADER)
         owner?.let { append(DESIGN_SYSTEM_CONTEXT_HEADER, it) }
+        remove("X-DS-Read-Version")
+        remove("X-DS-Read-Version-Id")
+        if (owner != null) {
+            val parameters = this@dsTrustedHeaders.request.queryParameters
+            val versions = parameters.getAll("version").orEmpty()
+            val ids = parameters.getAll("versionId").orEmpty()
+            val legacy = this@dsTrustedHeaders.request.local.uri.substringBefore('?').endsWith("/component-config") &&
+                this["X-DS-Public-Read"] != "true"
+            val selectorCount = if (legacy) maxOf(versions.size, ids.size) else versions.size + ids.size
+            val version = versions.singleOrNull()?.takeUnless { legacy }
+            val versionPath = Regex(".*/versions/([^/]+)")
+                .matchEntire(this@dsTrustedHeaders.request.local.uri.substringBefore('?'))
+                ?.groupValues?.get(1)
+            val id = versionPath ?: ids.singleOrNull()
+            val parsed = ModelReadSelection.parse(
+                listOfNotNull(version),
+                listOfNotNull(id),
+            )
+            val valid = listOf(
+                selectorCount <= 1,
+                versionPath == null || versions.size + ids.size == 0,
+                parsed !is DsResult.Failure,
+            ).all { it }
+            if (!valid) invalidReadSelection()
+            version?.let { append("X-DS-Read-Version", it) }
+            id?.let { append("X-DS-Read-Version-Id", it) }
+        }
     }
 }
+
+private fun invalidReadSelection(): Nothing = throw BadRequestException("INVALID_QUERY")
 
 /** Отображает канонический путь; административные маршруты имеют самостоятельный корень. */
 fun Route.dsRoutePath(path: String): String = if (path.startsWith("/api/design-systems")) {

@@ -446,6 +446,23 @@ class DsBuilderMcpServerCoreTest {
     }
 
     @Test
+    fun modelToolDescriptionsSupportDirectPublicReadingWithoutDiscovery() {
+        val tools = server().tools().associateBy(McpToolDefinition::name)
+        val versions = tools.getValue("design_system_versions_list").description
+        assertTrue(versions.contains("direct"))
+        assertTrue(versions.contains("without login or catalog discovery"))
+        for (name in listOf("tokens_list", "token_get")) {
+            val tool = tools.getValue(name)
+            assertTrue(tool.description.contains("latest publication"), name)
+            assertTrue(tool.description.contains("project members get the draft"), name)
+            val parameter = tool.inputSchema.getValue("version").description.orEmpty()
+            assertTrue(parameter.contains("latest publication"), name)
+            assertTrue(parameter.contains("anonymous draft reads are forbidden"), name)
+            assertFalse(tool.description.contains("without either, reads the draft"), name)
+        }
+    }
+
+    @Test
     fun codeBindingSearchContractDistinguishesCanonicalSubjectFromCodeName() {
         val tool = server().tools().single { it.name == "code_binding_search" }
 
@@ -544,7 +561,7 @@ class DsBuilderMcpServerCoreTest {
                     override suspend fun configurations(
                         runtime: ComponentReadRuntime,
                         componentId: String,
-                        version: String,
+                        version: String?,
                         limit: Int,
                         cursor: String?,
                     ): ComponentReadResult = error("Unexpected configuration listing")
@@ -553,14 +570,14 @@ class DsBuilderMcpServerCoreTest {
                         runtime: ComponentReadRuntime,
                         appearanceId: String,
                         selectedValueIds: List<String>,
-                        version: String,
+                        version: String?,
                     ): ComponentReadResult = error("Unexpected token reference read")
 
                     override suspend fun resolvedProperties(
                         runtime: ComponentReadRuntime,
                         appearanceId: String,
                         selectedValueIds: List<String>,
-                        version: String,
+                        version: String?,
                     ): ComponentReadResult {
                         captured = appearanceId to selectedValueIds
                         return ComponentReadResult.Success(JsonObject(emptyMap()))

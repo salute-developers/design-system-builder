@@ -37,6 +37,7 @@ internal class AuthorizeUserRequestUseCase(
             }
         }
         return when (val verified = jwtVerifier.verify(token)) {
+            JwtVerificationResult.Unavailable -> GatewayAuthDecision.Unavailable("Identity check unavailable")
             is JwtVerificationResult.Invalid -> verified.reason.toDecision()
             is JwtVerificationResult.Valid -> GatewayAuthDecision.Allowed(
                 TrustedHeaders(

@@ -38,6 +38,9 @@ public data class CredentialRequest(
     public val forceRefresh: Boolean = false,
     /** Отвергнутый bearer для объединения конкурентных повторов после 401. */
     public val rejectedAccessToken: String? = null,
+    /** Только явно допускающая публичность операция может работать без входа. */
+    /** Требование авторизации операции; защищённые операции остаются режимом по умолчанию. */
+    public val requirement: CredentialRequirement = CredentialRequirement.AUTHENTICATED,
 )
 
 /** Explicit choice between local discovery and a portable link. */
@@ -61,6 +64,8 @@ public data class RuntimeRequest(
     public val selection: ContextSelection = ContextSelection.Local(),
     public val apiUrlOverride: String? = null,
     public val projectKeyOverride: String? = null,
+    /** Требование авторизации операции; защищённые операции остаются режимом по умолчанию. */
+    public val requirement: CredentialRequirement = CredentialRequirement.AUTHENTICATED,
 ) {
     /** Context-reader input derived from the typed selection. */
     public val context: ContextRequest

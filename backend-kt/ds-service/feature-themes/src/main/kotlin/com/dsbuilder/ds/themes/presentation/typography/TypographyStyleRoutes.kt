@@ -20,7 +20,6 @@ import com.dsbuilder.ds.themes.presentation.themeRequestBody
 import com.dsbuilder.ds.themes.presentation.themeTenantTarget
 import com.dsbuilder.ds.themes.presentation.themeUuid
 import io.ktor.http.HttpStatusCode
-import io.ktor.server.response.respond
 import io.ktor.server.routing.Route
 import io.ktor.server.routing.delete
 import io.ktor.server.routing.get
@@ -52,7 +51,7 @@ private fun Route.typographyReadRoute(evaluator: PolicyEvaluator, useCases: Typo
     get {
         val (context, tenantId) = call.themeTenantTarget(evaluator) ?: return@get
         when (val result = useCases.get.execute(context, tenantId)) {
-            is DsResult.Success -> call.respond(result.value.toResponse())
+            is DsResult.Success -> call.respondSuccess(result, result.value.toResponse())
             is DsResult.Failure -> call.respondFailure(result.error)
         }
     }

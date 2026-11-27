@@ -2,7 +2,9 @@ package com.dsbuilder.frontend.cli.feature.init.presentation
 
 import com.dsbuilder.frontend.cli.presentation.AnalyticsCliCommand
 import com.dsbuilder.frontend.cli.presentation.targetPlatform
+import com.dsbuilder.frontend.core.application.DesignSystemLink
 import com.dsbuilder.frontend.core.auth.DEFAULT_API_KEY_ENV
+import com.dsbuilder.frontend.core.domain.DesignSystemSelection
 import com.dsbuilder.frontend.core.domain.InitCredentialSelection
 import com.dsbuilder.frontend.core.domain.TargetPlatform
 import com.dsbuilder.frontend.core.workspace.WorkspaceFileSystem
@@ -28,6 +30,7 @@ internal class InitCliCommand(
     private val systems: ListDesignSystemsUseCase,
     private val menu: InitSelectionMenu,
 ) : AnalyticsCliCommand(name = "init", operation = "init") {
+    private val designSystemUri: String? by option("--design-system")
     private val projectId: String? by option("--project-id")
     private val designSystemId: String? by option("--design-system-id")
     private val apiKeyEnv: String? by option("--api-key-env")
@@ -37,16 +40,15 @@ internal class InitCliCommand(
     override suspend fun runOperation() {
         val directory = fileSystem.currentWorkingDirectory()
         initProjectUseCase.checkTarget(directory)?.let { fail(it) }
-        val interactive = projectId == null || designSystemId == null
-        if (interactive && !menu.supported(terminal)) {
-            val missing = listOfNotNull(
-                if (projectId == null) "--project-id" else null,
-                if (designSystemId == null) "--design-system-id" else null,
-            )
-            fail("Error: interactive selection is unavailable; provide ${missing.joinToString(" and ")}.")
+        val linked = readLink()
+        val interactive = linked == null && (projectId == null || designSystemId == null)
+        requireInteractiveMenu(interactive)
+        val (project, system) = when {
+            linked != null -> linked.projectId.value to linked.designSystemId.value
+            interactive -> discover()
+            else -> projectId!! to designSystemId!!
         }
-        val (project, system) = if (interactive) run { discover() } else projectId!! to designSystemId!!
-        val selectedPlatforms = platformsFor(interactive)
+        val selectedPlatforms = platformsForSelection(linked, interactive)
         val credential = InitCredentialSelection.Environment(apiKeyEnv ?: DEFAULT_API_KEY_ENV)
         when (
             val result = initProjectUseCase.execute(
@@ -57,6 +59,7 @@ internal class InitCliCommand(
                     directory,
                     selectedPlatforms,
                     credential,
+                    version = linked?.version,
                 ),
             )
         ) {
@@ -65,9 +68,41 @@ internal class InitCliCommand(
         }
     }
 
+    private fun requireInteractiveMenu(interactive: Boolean) {
+        if (interactive && !menu.supported(terminal)) {
+            val missing = listOfNotNull(
+                if (projectId == null) "--project-id" else null,
+                if (designSystemId == null) "--design-system-id" else null,
+            )
+            fail("Error: interactive selection is unavailable; provide ${missing.joinToString(" and ")}.")
+        }
+    }
+
+    private fun readLink(): DesignSystemSelection? {
+        val uri = designSystemUri ?: return null
+        if (projectId != null || designSystemId != null) fail("Error: do not combine a link with explicit IDs.")
+        val linked = DesignSystemLink.parse(uri) ?: fail("Error: invalid design-system link.")
+        if (linked.platform != null && platforms.isNotEmpty() && platforms != listOf(linked.platform)) {
+            fail("Error: --platform conflicts with the link platform.")
+        }
+        return linked
+    }
+
+    private fun platformsForSelection(linked: DesignSystemSelection?, interactive: Boolean): List<TargetPlatform> =
+        if (platforms.isEmpty() && linked?.platform != null) {
+            listOfNotNull(
+                linked.platform,
+            )
+        } else {
+            platformsFor(interactive)
+        }
+
     private suspend fun discover(): Pair<String, String> {
         val project = projectId ?: when (val result = projects.execute(credentialEnvName = apiKeyEnv)) {
-            is ProjectsReadResult.Failed -> fail(result.message)
+            is ProjectsReadResult.Failed -> fail(
+                result.message + " Provide --design-system <uri> or both --project-id and --design-system-id; " +
+                    "run dsbuilder auth login for interactive selection.",
+            )
             is ProjectsReadResult.Success -> choose(
                 "Выберите проект",
                 result.projects.map {
@@ -143,5 +178,5 @@ internal class InitCliCommand(
     override fun help(context: Context): String =
         "Create local project config. Omit IDs for arrow-key selection after dsbuilder auth login. " +
             "Use Space to mark platforms and Enter to continue; --platform skips that step. " +
-            "Explicit IDs work offline; --api-key-env selects an environment credential."
+            "A --design-system link or explicit IDs work offline; --api-key-env selects an environment credential."
 }

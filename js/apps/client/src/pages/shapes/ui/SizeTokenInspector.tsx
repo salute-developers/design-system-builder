@@ -529,11 +529,6 @@ export const SizeTokenInspector = (props: InspectorProps) => {
             />
             <TokenEnabledNotice toggle={enabledToggle} name={token.name} />
             <div className="st-inspector-body">
-                {!editable && (
-                    <div className="viewer-banner" role="status" data-testid="size-tokens-viewer">
-                        <span>Только просмотр</span>
-                    </div>
-                )}
                 {!props.published && <SaveLine save={save} otherError={props.otherError} onRetry={props.onRetry} />}
                 {unmatched && (
                     <div className="st-warning is-error" role="alert">

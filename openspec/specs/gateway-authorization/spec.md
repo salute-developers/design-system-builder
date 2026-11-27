@@ -2,26 +2,33 @@
 
 ## Purpose
 Защита проектных маршрутов на Gateway, формирование доверенного контекста и изоляция внутренних маршрутов сервисов.
+
 ## Requirements
+
 ### Requirement: Gateway protects project routes
 
-Gateway SHALL направлять project-scoped routes через internal auth flow перед проксированием в downstream-сервисы, включая `ds-service`.
+Gateway SHALL проверять проектные маршруты до предметного выполнения. Для явно разрешённого адресного чтения публичной ДС допускается проверенный контекст кандидата на публичное чтение; явно согласованные общие GET preview/иконок не требуют проекта или ДС, прочие маршруты сохраняют обязательную проектную авторизацию.
 
 #### Scenario: Запрос к project-scoped API
 
-- **WHEN** клиент обращается к `/projects/{projectId}/...`
+- **WHEN** клиент обращается к проектному маршруту вне разрешённого адресного публичного чтения и исключений GET preview/иконок
 - **THEN** Gateway MUST запросить Auth Helper до проксирования запроса
 
 #### Scenario: Запрос без доступа
 
-- **WHEN** Auth Helper возвращает отказ доступа
-- **THEN** Gateway MUST вернуть клиенту `401 Unauthorized` или `403 Forbidden` без вызова downstream-сервиса
+- **WHEN** Auth Helper возвращает отказ доступа для операции вне публичного чтения
+- **THEN** Gateway MUST вернуть клиенту `401 Unauthorized` или `403 Forbidden` без вызова предметного сервиса
 
 #### Scenario: Прямой доступ к ds-service
 
 - **WHEN** внешний клиент пытается обратиться к внутреннему порту `ds-service`, минуя Gateway
 - **THEN** сетевой контур MUST запретить внешний доступ
-- **AND** сам `ds-service` MUST отклонить запрос без корректного trusted context
+- **AND** сам `ds-service` MUST отклонить запрос без корректного доверенного контекста, кроме явно общедоступных GET preview/иконок за той же сетевой границей
+
+#### Scenario: Кандидат на публичное чтение
+- **WHEN** гость вызывает разрешённую операцию чтения с явно выбранной ДС
+- **THEN** шлюз MUST передать внутренний ограниченный контекст без роли участника
+- **THEN** предметный слой MUST проверить публичность, проект, ресурс и опубликованную версию до выдачи данных
 
 ### Requirement: Internal endpoints are not externally available
 
@@ -34,26 +41,26 @@ Gateway SHALL запрещать внешний доступ к internal endpoin
 
 ### Requirement: Gateway направляет предметный API в ds-service
 
-Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/design-systems/**` в `ds-service` после project-scoped авторизации и SHALL переписывать публичный префикс во внутренний `/api/design-systems` без изменения остатка пути и query string.
+Gateway SHALL направлять согласованный набор `/api/projects/{projectId}/design-systems/**` в `ds-service` после проектной авторизации, формирования ограниченного контекста чтения ДС либо проверки явного исключения GET preview/иконок и SHALL переписывать публичный префикс во внутренний `/api/design-systems` без изменения остатка пути и строки запроса.
 
 #### Scenario: Вызов перенесённого маршрута
 
-- **WHEN** авторизованный клиент вызывает маршрут из route manifest `ds-service`
+- **WHEN** авторизованный клиент вызывает маршрут из манифеста маршрутов `ds-service`
 - **THEN** Gateway MUST передать запрос в `ds-service`
-- **AND** MUST сохранить HTTP-метод, query string, тело и допустимые заголовки
-- **AND** MUST установить trusted context из Auth Helper
+- **AND** MUST сохранить HTTP-метод, строку запроса, тело и допустимые заголовки
+- **AND** MUST установить доверенный контекст из Auth Helper
 
 #### Scenario: Исключённый маршрут временно остаётся в db-service
 
 - **WHEN** клиент вызывает исключённый маршрут `/api/projects/{projectId}/ds/legacy/**`
-- **THEN** Gateway MUST ответить `404`: upstream db-service удалён
+- **THEN** Gateway MUST ответить `404`: сервер db-service удалён
 - **AND** общее правило `/api/projects/{projectId}/design-systems/**` MUST направлять разрешённый набор в `ds-service`
 
 #### Scenario: Атомарный откат
 
 - **WHEN** оператор откатывает предметный API
 - **THEN** откат выполняется версией образа `ds-service`
-- **AND** конфигурация Gateway MUST остаться прежней: единственный upstream предметного API — `ds-service`
+- **AND** конфигурация Gateway MUST остаться прежней: единственный сервер предметного API — `ds-service`
 
 ### Requirement: Успешный CORS preflight допускает ограниченное переиспользование
 
@@ -132,25 +139,52 @@ Gateway SHALL распознавать PAT по префиксу `dsb_pat_` в `
 - **THEN** app MUST отказать до выполнения внутреннего сценария
 
 ### Requirement: Проверенный контекст пользователя и PAT
-Gateway SHALL передавать downstream-сервисам нормализованный trusted context только после успешной проверки и SHALL передавать `ds-service` все поля principal, необходимые общей RBAC-политике.
+Gateway SHALL передавать предметным сервисам нормализованный доверенный контекст только после успешной проверки и SHALL передавать `ds-service` все поля субъекта, необходимые общей RBAC-политике. Контекст публичного чтения MUST отдельно обозначать отсутствие проектных полномочий и выбранную систему.
 
 #### Scenario: User actor context
 
-- **WHEN** authenticated user получает доступ к project-scoped route
+- **WHEN** аутентифицированный пользователь получает доступ к проектному маршруту
 - **THEN** Gateway MUST передать `X-Actor-Type`, `X-User-Id`, `X-Project-Id`, `X-Project-Role` и `X-System-Admin`
 
 #### Scenario: Контекст PAT
 
-- **WHEN** валидный PAT получает доступ к project-scoped route
+- **WHEN** валидный PAT получает доступ к проектному маршруту
 - **THEN** Gateway MUST передать `X-Actor-Type: personal_access_token`, `X-User-Id` владельца, `X-Project-Id`, актуальный `X-Project-Role`, `X-Personal-Access-Token-Id`, `X-Project-Scopes` и `X-System-Admin` с актуальным проверенным значением владельца
 
 #### Scenario: Incoming trusted headers are spoofed
 
-- **WHEN** внешний клиент отправляет `X-User-Id`, `X-Project-Role`, `X-Project-Scopes` или другие trusted headers
-- **THEN** Gateway MUST удалить incoming values и установить только значения, полученные от Auth Helper
+- **WHEN** внешний клиент отправляет `X-User-Id`, `X-Project-Role`, `X-Project-Scopes` или другие доверенные заголовки
+- **THEN** Gateway MUST удалить входящие значения и установить только значения, полученные от Auth Helper
 
 #### Scenario: Project id не совпадает
 
 - **WHEN** `projectId` публичного пути не совпадает с проверенным `X-Project-Id`
 - **THEN** Gateway MUST отклонить запрос до переписывания пути и предметной операции
 - **AND** MUST NOT передавать запрос в `ds-service`
+
+#### Scenario: Неверная авторизация не становится гостевой
+- **WHEN** публичное чтение содержит неверный PAT или JWT
+- **THEN** шлюз MUST вернуть `401` без повторного гостевого выполнения
+- **WHEN** проверка личности или членства недоступна
+- **THEN** шлюз MUST вернуть `503` без выдачи публичного разрешения
+
+#### Scenario: Достоверное отсутствие членства пользователя
+- **WHEN** действующая пользовательская сессия подтверждена, но пользователь не состоит в проекте
+- **THEN** шлюз MUST допустить проверку публичного чтения только разрешённой адресной операции
+- **THEN** недостаточные разрешения выбранного PAT MUST NOT заменяться гостевым доступом
+
+#### Scenario: Нет ключа в кеше и JWKS недоступен
+- **WHEN** JWT нельзя проверить без загрузки необходимого ключа, а загрузка JWKS завершилась транспортным отказом
+- **THEN** шлюз MUST вернуть `503` без трактовки отказа как неверной подписи либо отсутствия членства
+- **THEN** запрос MUST NOT выполняться повторно как гостевой
+
+#### Scenario: Ключ доступен либо токен достоверно неверен
+- **WHEN** необходимый проверенный ключ доступен в кеше и токен валиден
+- **THEN** временная недоступность JWKS MUST NOT запрещать проверку через кеш
+- **WHEN** подпись неверна, токен истёк либо успешно полученный JWKS не содержит указанного ключа
+- **THEN** шлюз MUST вернуть `401`, а не `503` и не гостевой результат
+
+#### Scenario: Явные общедоступные GET
+- **WHEN** запрос без Authorization читает catalog/web-preview/plugin, catalog/compose-preview/plugin либо catalog/icons
+- **THEN** шлюз MUST разрешить существующий обработчик без членства, ДС и версии
+- **THEN** исключение MUST NOT распространяться на другие catalog-маршруты, методы публикации/загрузки или кеширование данных ДС

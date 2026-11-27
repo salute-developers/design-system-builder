@@ -1,5 +1,6 @@
 package com.dsbuilder.frontend.feature.ds.application
 
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
 import com.dsbuilder.frontend.core.application.RuntimeResolution
@@ -34,7 +35,17 @@ public class ReadDesignSystemModelUseCase internal constructor(
         if (invalidLimit || conflictingNames) {
             return ModelReadResult.Failed("INVALID_QUERY", "Invalid model read parameters.")
         }
-        return when (val runtime = runtimeResolver.resolve(request)) {
+        return when (
+            val runtime = runtimeResolver.resolve(
+                request.copy(
+                    requirement = if (command.operation == ModelReadOperation.CHANGES) {
+                        CredentialRequirement.AUTHENTICATED
+                    } else {
+                        CredentialRequirement.READ_OPTIONAL
+                    },
+                ),
+            )
+        ) {
             is RuntimeResolution.Failed -> ModelReadResult.Failed(runtime.code.name, runtime.message)
             is RuntimeResolution.Resolved -> readResolved(command, runtime)
         }
@@ -42,8 +53,8 @@ public class ReadDesignSystemModelUseCase internal constructor(
 
     private suspend fun readResolved(command: ModelReadCommand, runtime: RuntimeResolution.Resolved): ModelReadResult {
         val version = when (command.operation) {
-            ModelReadOperation.COMPONENT, ModelReadOperation.VERSIONS -> command.version
-            else -> command.version ?: runtime.context.selectedVersion ?: "draft"
+            ModelReadOperation.VERSIONS -> command.version
+            else -> command.version ?: runtime.context.selectedVersion
         }
         if (version != null && version != "draft" && !EXACT_VERSION.matches(version)) {
             return ModelReadResult.Failed("INVALID_QUERY", "An exact model version or draft is required.")
@@ -76,6 +87,7 @@ public class ReadDesignSystemModelUseCase internal constructor(
                     "apiUrl" to JsonPrimitive(runtime.apiUrl.value),
                     "credentialType" to JsonPrimitive(
                         when (runtime.credential) {
+                            BackendCredential.Anonymous -> "ANONYMOUS"
                             is BackendCredential.PersonalAccessToken -> "PERSONAL_ACCESS_TOKEN"
                             is BackendCredential.Bearer -> "USER_SESSION"
                             is BackendCredential.ServiceToken -> "SERVICE_TOKEN"

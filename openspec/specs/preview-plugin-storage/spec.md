@@ -1,7 +1,8 @@
 # preview-plugin-storage Specification
 
 ## Purpose
-TBD - created by archiving change fix-plugin-storage-s3-compatibility. Update Purpose after archive.
+Определяет запись архивов плагинов превью в S3-совместимое хранилище и диагностику ошибок этой записи.
+
 ## Requirements
 ### Requirement: Запись в S3-совместимое хранилище без обязательных контрольных сумм
 

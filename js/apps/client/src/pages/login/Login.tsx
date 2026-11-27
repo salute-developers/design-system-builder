@@ -31,7 +31,8 @@ const Login = () => {
             return;
         }
 
-        navigate('/projects');
+        const target = searchParams.get('returnTo');
+        navigate(target && /^\/(?!\/)[^\\\u0000-\u001f\u007f]*$/.test(target) ? target : '/projects');
         setLoading(false);
     };
 

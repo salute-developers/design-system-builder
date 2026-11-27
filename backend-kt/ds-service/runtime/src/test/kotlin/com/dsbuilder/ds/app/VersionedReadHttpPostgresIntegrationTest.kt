@@ -290,7 +290,8 @@ class VersionedReadHttpPostgresIntegrationTest {
                     api(client, "GET", "$path?query=read-&cursor=$cursor").status,
                 )
                 val history = api(client, "GET", "/api/design-systems/$ds/versions?limit=1")
-                assertEquals(setOf("designSystemId"), history.context().keys)
+                assertEquals(setOf("designSystemId", "accessMode"), history.context().keys)
+                assertEquals("project", history.context().field("accessMode"))
                 assertEquals("1.0.0", history.array().single().jsonObject.field("version"))
                 val exact = api(client, "GET", "$path?version=1.0.0&name=read-b")
                 assertEquals(HttpStatusCode.OK, exact.status, exact.bodyAsText())

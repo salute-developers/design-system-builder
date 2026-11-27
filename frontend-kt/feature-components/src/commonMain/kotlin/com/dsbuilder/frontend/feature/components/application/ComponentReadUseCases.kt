@@ -2,6 +2,7 @@
 
 package com.dsbuilder.frontend.feature.components.application
 
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.RuntimeFailureCode
 import com.dsbuilder.frontend.core.application.RuntimeRequest
 import com.dsbuilder.frontend.core.application.RuntimeRequestResolver
@@ -33,7 +34,7 @@ public interface ComponentReadRemoteSource {
     public suspend fun configurations(
         runtime: ComponentReadRuntime,
         componentId: String,
-        version: String,
+        version: String?,
         limit: Int,
         cursor: String?,
     ): ComponentReadResult
@@ -42,14 +43,14 @@ public interface ComponentReadRemoteSource {
         runtime: ComponentReadRuntime,
         appearanceId: String,
         selectedValueIds: List<String>,
-        version: String,
+        version: String?,
     ): ComponentReadResult
 
     public suspend fun tokenReferences(
         runtime: ComponentReadRuntime,
         appearanceId: String,
         selectedValueIds: List<String>,
-        version: String,
+        version: String?,
     ): ComponentReadResult
 }
 
@@ -69,7 +70,7 @@ public class ComponentReadUseCases(
         remoteSource.configurations(
             runtime,
             componentId,
-            version ?: runtime.context.selectedVersion ?: "draft",
+            version ?: runtime.context.selectedVersion,
             limit,
             cursor,
         )
@@ -87,7 +88,7 @@ public class ComponentReadUseCases(
             runtime,
             appearanceId,
             selectedValueIds,
-            version ?: runtime.context.selectedVersion ?: "draft",
+            version ?: runtime.context.selectedVersion,
         )
     }
 
@@ -103,14 +104,18 @@ public class ComponentReadUseCases(
             runtime,
             appearanceId,
             selectedValueIds,
-            version ?: runtime.context.selectedVersion ?: "draft",
+            version ?: runtime.context.selectedVersion,
         )
     }
 
     private suspend fun withRuntime(
         request: RuntimeRequest,
         block: suspend (ComponentReadRuntime) -> ComponentReadResult,
-    ): ComponentReadResult = when (val result = runtimeResolver.resolve(request)) {
+    ): ComponentReadResult = when (
+        val result = runtimeResolver.resolve(
+            request.copy(requirement = CredentialRequirement.READ_OPTIONAL),
+        )
+    ) {
         is RuntimeResolution.Failed -> ComponentReadResult.Failed(
             when (result.code) {
                 RuntimeFailureCode.CONTEXT_REQUIRED -> ComponentReadErrorCode.CONTEXT_REQUIRED

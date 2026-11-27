@@ -22,12 +22,7 @@ internal object ModelReadResponseDecoder {
     ): ModelReadResult = runCatching {
         require(response.readHeadersValid)
         val data = Json.parseToJsonElement(response.body)
-        if (command.operation == ModelReadOperation.COMPONENT) {
-            require(data is JsonObject)
-            ModelReadResult.Success(buildJsonObject { put("data", data) })
-        } else {
-            decodeVersioned(response, command, data, page, limit)
-        }
+        decodeVersioned(response, command, data, page, limit)
     }.getOrElse { unreadable() }
 
     private fun decodeVersioned(
@@ -39,7 +34,9 @@ internal object ModelReadResponseDecoder {
     ): ModelReadResult {
         val history = command.operation == ModelReadOperation.VERSIONS || isPublishedVersion(command)
         val context = ModelReadContextDecoder.decode(response.headers["x-ds-read-context"], history)
-        require(history || (context["version"] as? JsonPrimitive)?.content == command.version)
+        require(
+            history || command.version == null || (context["version"] as? JsonPrimitive)?.content == command.version,
+        )
         val cursor = response.headers["x-ds-next-cursor"]
         if (page) validatePage(response, data, limit, cursor)
         return if (isPublishedVersion(command)) {

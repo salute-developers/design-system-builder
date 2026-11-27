@@ -7,6 +7,7 @@ import { UserSettingsPage } from './userSettings/UserSettingsPage';
 import { userSettingsApi } from '../modules/userSettings/data/userSettingsApi';
 import { themesApi } from '../modules/themes/data/themesApi';
 import { resetQueryCache } from '../shared/data/useLoad';
+import { clearDsReadBoundaries, rememberDsReadBoundary } from '../api/dsReadBoundary';
 import {
     CreateDesignSystemDialog,
     CreateProjectDialog,
@@ -90,6 +91,11 @@ const at = (path: string, element: React.ReactNode) => {
 beforeEach(() => {
     vi.restoreAllMocks();
     resetQueryCache();
+    clearDsReadBoundaries();
+    rememberDsReadBoundary('/api/projects/project-1/design-systems/ds-1', {
+        designSystemId: 'ds-1',
+        accessMode: 'project',
+    });
     vi.spyOn(projectsApi, 'list').mockResolvedValue([]);
     vi.spyOn(userSettingsApi, 'tokens').mockResolvedValue([]);
     vi.spyOn(userSettingsApi, 'scopes').mockResolvedValue({
@@ -114,6 +120,77 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe('project workflow', () => {
+    it('saves visibility below the name before the first publication', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        const update = vi.spyOn(designSystemsApi, 'update').mockResolvedValue({
+            id: 'ds-1',
+            projectId: 'project-1',
+            name: 'System',
+            tenantCount: 0,
+            themePreviews: [],
+            visibility: 'public',
+        });
+        at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+        const visibility = await screen.findByRole('combobox', { name: 'Доступность' });
+        expect(visibility).toHaveValue('private');
+        expect(
+            screen.getByText('До первой публикации по публичной ссылке не будет опубликованных данных.'),
+        ).toBeInTheDocument();
+        const name = screen.getByRole('textbox', { name: /Название/ });
+        expect(name.compareDocumentPosition(visibility) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        fireEvent.change(visibility, { target: { value: 'public' } });
+        fireEvent.submit(visibility.closest('form')!);
+        await waitFor(() => expect(update).toHaveBeenCalledWith('project-1', 'ds-1', { visibility: 'public' }));
+        expect(await screen.findByText('Сохранено')).toBeInTheDocument();
+    });
+
+    it('does not expose visibility controls without design-system write permission', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('viewer'));
+        const update = vi.spyOn(designSystemsApi, 'update');
+        at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+        expect(await screen.findByText('Изменять дизайн-систему может Maintainer или Owner.')).toBeInTheDocument();
+        expect(screen.queryByRole('combobox', { name: 'Доступность' })).not.toBeInTheDocument();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('keeps visibility selection after a failed save', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        vi.spyOn(designSystemsApi, 'update').mockRejectedValue(new Error('Unavailable'));
+        at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+        const visibility = await screen.findByRole('combobox', { name: 'Доступность' });
+        fireEvent.change(visibility, { target: { value: 'public' } });
+        fireEvent.submit(visibility.closest('form')!);
+        expect(await screen.findByText('Не удалось сохранить настройки. Повторите попытку.')).toBeInTheDocument();
+        expect(visibility).toHaveValue('public');
+    });
+
+    it('copies versionless direct web and CLI links for a public system', async () => {
+        vi.spyOn(projectsApi, 'get').mockResolvedValue(project('owner'));
+        vi.mocked(designSystemsApi.get).mockResolvedValue({
+            id: 'ds-1',
+            projectId: 'project-1',
+            name: 'System',
+            tenantCount: 0,
+            themePreviews: [],
+            visibility: 'public',
+        });
+        const writeText = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal('navigator', { ...navigator, clipboard: { writeText } });
+        window.history.replaceState({}, '', '/projects/project-1/design-systems/ds-1/settings?section=general');
+        try {
+            at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
+            fireEvent.click(await screen.findByRole('button', { name: 'Скопировать ссылку' }));
+            fireEvent.click(screen.getByRole('button', { name: 'Скопировать ссылку для CLI/MCP' }));
+            expect(writeText.mock.calls).toEqual([
+                [new URL('/projects/project-1/design-systems/ds-1', window.location.origin).href],
+                ['dsbuilder://projects/project-1/design-systems/ds-1'],
+            ]);
+        } finally {
+            vi.unstubAllGlobals();
+            window.history.replaceState({}, '', '/');
+        }
+    });
+
     it('anchors popovers to their trigger and clamps them inside small viewports', () => {
         expect(
             getAnchoredPopoverGeometry({
@@ -482,7 +559,7 @@ describe('project workflow', () => {
         expect(screen.queryByText('Platform')).not.toBeInTheDocument();
     });
 
-    it('retries every request used by a failed Design System catalog', async () => {
+    it('retries the failed system before requesting version-dependent themes', async () => {
         const loadProject = vi.spyOn(projectsApi, 'get').mockRejectedValue(new ApiError(500));
         vi.spyOn(projectsApi, 'list').mockResolvedValue([project('owner')]);
         const loadSystem = vi.spyOn(designSystemsApi, 'get').mockRejectedValue(new ApiError(500));
@@ -492,7 +569,7 @@ describe('project workflow', () => {
         await waitFor(() => {
             expect(loadProject).toHaveBeenCalledTimes(2);
             expect(loadSystem).toHaveBeenCalledTimes(2);
-            expect(loadThemes).toHaveBeenCalledTimes(2);
+            expect(loadThemes).not.toHaveBeenCalled();
         });
     });
 
@@ -1015,7 +1092,10 @@ describe('design system and Theme workflow', () => {
         expect(await screen.findByLabelText('Подтверждение удаления темы Brand')).toBeInTheDocument();
         expect(view.container.querySelector('.builder-embedded-content > .project-settings')).toBeInTheDocument();
         expect(screen.getByRole('button', { name: 'Темы' })).toHaveAttribute('aria-current', 'page');
-        expect(view.container.querySelector('.ds-theme-row.is-highlighted')).toHaveAttribute('data-theme-id', 'theme-1');
+        expect(view.container.querySelector('.ds-theme-row.is-highlighted')).toHaveAttribute(
+            'data-theme-id',
+            'theme-1',
+        );
     });
 
     it('shows design system settings read-only and themes without delete to an editor', async () => {
@@ -1036,7 +1116,8 @@ describe('design system and Theme workflow', () => {
                 },
             },
         ]);
-        const update = vi.spyOn(themesApi, 'update').mockResolvedValue({ ...{
+        const update = vi.spyOn(themesApi, 'update').mockResolvedValue({
+            ...{
                 id: 'theme-1',
                 designSystemId: 'ds-1',
                 name: 'Brand',
@@ -1049,7 +1130,9 @@ describe('design system and Theme workflow', () => {
                     accentDark: '#1A9E32',
                     surfaceDark: '#101010',
                 },
-            }, name: 'Brand 2' });
+            },
+            name: 'Brand 2',
+        });
         at('/projects/project-1/design-systems/ds-1/settings', <DesignSystemSettingsPage />);
         expect(await screen.findByText('Изменять дизайн-систему может Maintainer или Owner.')).toBeInTheDocument();
         expect(screen.queryByRole('button', { name: 'Сохранить' })).not.toBeInTheDocument();
@@ -1067,19 +1150,19 @@ describe('design system and Theme workflow', () => {
 
     it('keeps the copy in the themes section and reports a taken name on inline rename', async () => {
         const brand = {
-                id: 'theme-1',
-                designSystemId: 'ds-1',
-                name: 'Brand',
-                editRevision: 0,
-                colorConfig: { profile: 'sber' as const },
-                preview: {
-                    accentLight: '#108E26',
-                    onAccentLight: '#fff',
-                    surfaceLight: '#fff',
-                    accentDark: '#1A9E32',
-                    surfaceDark: '#101010',
-                },
-            };
+            id: 'theme-1',
+            designSystemId: 'ds-1',
+            name: 'Brand',
+            editRevision: 0,
+            colorConfig: { profile: 'sber' as const },
+            preview: {
+                accentLight: '#108E26',
+                onAccentLight: '#fff',
+                surfaceLight: '#fff',
+                accentDark: '#1A9E32',
+                surfaceDark: '#101010',
+            },
+        };
         vi.spyOn(projectsApi, 'get').mockResolvedValue(project('maintainer'));
         vi.spyOn(designSystemsApi, 'tenants').mockResolvedValue([brand]);
         const duplicate = vi
@@ -1579,6 +1662,7 @@ describe('design system and Theme workflow', () => {
     });
 
     it('shows only the profile action in the rail and closes it with Escape', async () => {
+        vi.spyOn(authService, 'isAuthenticated').mockReturnValue(true);
         vi.spyOn(projectsApi, 'list').mockResolvedValue([]);
         vi.spyOn(authService, 'getCurrentUser').mockReturnValue({
             id: 'user-1',

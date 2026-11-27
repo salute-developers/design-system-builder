@@ -41,6 +41,13 @@ export const switchTheme = async (
     } catch {
         return false;
     }
+    // В публичной ссылке версия может отсутствовать: переносим уже разрешённую публикацию, а не новый latest.
+    if (context.versionId) {
+        const selection = new URLSearchParams(search);
+        selection.delete('version');
+        selection.set('versionId', context.versionId);
+        search = `?${selection}`;
+    }
     navigate({ pathname: themeSwitchPath(pathname, context.tenantId, nextTenantId), search });
     return true;
 };

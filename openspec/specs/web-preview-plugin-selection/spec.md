@@ -1,7 +1,8 @@
 # web-preview-plugin-selection Specification
 
 ## Purpose
-TBD - created by archiving change publish-web-preview-plugin. Update Purpose after archive.
+Определяет выбор web-плагина превью по адресу от backend или по явному адресу и поведение клиента при отсутствии доступного билда.
+
 ## Requirements
 ### Requirement: Клиент получает адрес web-плагина от бэкенда
 

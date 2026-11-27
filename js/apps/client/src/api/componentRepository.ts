@@ -1,3 +1,4 @@
+import { isPublicDsRead } from './dsReadBoundary';
 import {
     componentCoreRelease,
     componentCoreSelectionRevision,
@@ -397,7 +398,12 @@ const readComponentCatalog = async (context: EditorContextKey, signal?: AbortSig
     const root = apiRoot(context.projectId, context.designSystemId);
     const request = readRequest(context, signal);
     const [catalog, appearances, links, dependencies] = await Promise.all([
-        readEditor<ComponentDto[]>(`${catalogRoot}/components`, request, undefined, 300_000),
+        readEditor<ComponentDto[]>(
+            isPublicDsRead(context) ? `${root}/components` : `${catalogRoot}/components`,
+            request,
+            undefined,
+            300_000,
+        ),
         readEditor<AppearanceDto[]>(`${root}/appearances`, request),
         readEditor<DesignSystemComponentDto[]>(`${root}/design-system-components`, request),
         readEditor<ComponentDependencyDto[]>(`${root}/component-deps`, request, undefined, 300_000),
@@ -516,6 +522,7 @@ export const componentRepository = {
     /** Шаблоны web-компонентов `ds-service`, которые можно добавить в дизайн-систему. */
     async loadComponentTemplates(context: EditorContextKey, signal?: AbortSignal): Promise<ComponentTemplateEntry[]> {
         if (!isComponentEditorEnabled()) return [];
+        if (isPublicDsRead(context)) return [];
         const templates = await readEditor<ComponentTemplateEntry[]>(
             `${apiRoot(context.projectId, context.designSystemId)}/component-templates`,
             readRequest(context, signal),

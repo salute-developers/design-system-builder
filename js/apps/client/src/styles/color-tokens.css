@@ -204,10 +204,6 @@
     color: var(--muted);
     font-size: 12px;
 }
-.color-tokens-screen .viewer-banner {
-    padding: var(--tw-space-m) 14px;
-    background: #3c3219;
-}
 .color-tokens-screen .token-browser,
 .color-tokens-screen .properties-panel {
     overflow: auto;
@@ -920,9 +916,6 @@
     color: #d0d5dd;
 }
 
-.color-tokens-screen .playground-workbench .properties-panel .viewer-banner {
-    margin: 0;
-}
 .color-tokens-screen .figma-value-control {
     height: 28px;
     min-width: 0;

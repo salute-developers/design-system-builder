@@ -11,4 +11,6 @@ data class UpdateDesignSystemRequest(
     val projectId: String? = null,
     /** Description carried by this contract. */
     val description: String? = null,
+    /** Доступность: private или public. */
+    val visibility: String? = null,
 )

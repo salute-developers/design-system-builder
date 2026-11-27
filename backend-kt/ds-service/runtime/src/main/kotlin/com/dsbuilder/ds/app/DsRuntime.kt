@@ -31,6 +31,9 @@ data class DsRuntime(
     /** Закрываемый ресурс отдельного PostgreSQL `LISTEN`-соединения. */
     val draftInvalidationResource: AutoCloseable,
 ) : com.dsbuilder.runtime.RuntimeHandle {
+    /** Единый неизменяемый каталог адресных публичных чтений. */
+    val publicReads = OpenApiDocumentResource(kotlinx.serialization.json.Json.Default).publicReads()
+
     private val closed = java.util.concurrent.atomic.AtomicBoolean()
 
     override suspend fun readiness(): com.dsbuilder.runtime.RuntimeReadiness {

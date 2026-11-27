@@ -15,6 +15,6 @@ class ListStateSetsUseCase(
     /** Performs the execute operation. */
     suspend fun execute(context: DsRequestContext): DsResult<List<ComponentStateSet>> =
         modelList(policy, transactions, context) {
-            repository.listSets(context.projectId, context.principal.globalAdmin)
+            repository.listSets(context.projectId, context.globalAdmin)
         }
 }

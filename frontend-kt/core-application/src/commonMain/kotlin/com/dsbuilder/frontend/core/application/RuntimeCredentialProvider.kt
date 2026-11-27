@@ -70,6 +70,12 @@ internal class RuntimeCredentialProvider(
                 "Error: PAT is required from ${credentialEnvName.value}.",
             )
         }
+        val optionalRead = request.policy == CredentialPolicy.AUTO &&
+            request.requirement == CredentialRequirement.READ_OPTIONAL && !request.forceRefresh
+        if (key == null && optionalRead && credentialStore.read(request.apiUrl.value) == null
+        ) {
+            return CredentialResult.Selected(BackendCredential.Anonymous, BackendCredentialType.ANONYMOUS)
+        }
         return key?.let { projectKey ->
             CredentialResult.Selected(
                 credential = BackendCredential.PersonalAccessToken(projectKey.value),

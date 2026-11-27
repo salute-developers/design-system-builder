@@ -701,6 +701,33 @@
           null
         ]
       ]
+    },
+    {
+      "name": "public-boundary-definitions",
+      "origin": "ds-service",
+      "router": "",
+      "included": true,
+      "ownership": "via-design-system",
+      "operations": [
+        [
+          "GET",
+          "/{designSystemId}/palette",
+          null,
+          "PaletteEntry[]",
+          200,
+          "tokens:read",
+          null
+        ],
+        [
+          "GET",
+          "/{designSystemId}/state-sets",
+          null,
+          "StateSet[]",
+          200,
+          "components:variations:read",
+          null
+        ]
+      ]
     }
   ]
 }

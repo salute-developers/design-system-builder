@@ -2,6 +2,7 @@ package com.dsbuilder.frontend.feature.components.application
 
 import com.dsbuilder.frontend.core.application.CredentialProvider
 import com.dsbuilder.frontend.core.application.CredentialRequest
+import com.dsbuilder.frontend.core.application.CredentialRequirement
 import com.dsbuilder.frontend.core.application.CredentialResult
 import com.dsbuilder.frontend.core.application.ProjectContextReadResult
 import com.dsbuilder.frontend.core.application.ProjectContextReader
@@ -73,6 +74,7 @@ public class FetchComponentsUseCase internal constructor(
                     context.credentialEnvName,
                     context.credentialPolicy,
                     found.projectEnvironment,
+                    requirement = CredentialRequirement.READ_OPTIONAL,
                 ),
             )
         ) {
@@ -87,6 +89,7 @@ public class FetchComponentsUseCase internal constructor(
             designSystemId = context.designSystemId,
             platform = platform.toApiMetaPlatform(),
             version = context.selectedVersion,
+            readContext = command.readContext,
         )
         val exported = when (val result = remoteSource.export(remoteCommand)) {
             is ExportComponentsResult.Failed -> return FetchComponentsResult.Failed(result.message)
@@ -239,6 +242,8 @@ public data class FetchComponentsCommand(
     public val apiUrlOverride: String? = null,
     public val designSystemUri: String? = null,
     public val platform: TargetPlatform? = null,
+    /** Граница предыдущей части ds fetch, без дополнительного запроса карточки. */
+    public val readContext: String? = null,
 )
 
 /**

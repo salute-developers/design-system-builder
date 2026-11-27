@@ -7,6 +7,7 @@ import { ComponentColorPicker } from './ComponentColorPicker';
 import type { ColorTokenOption } from './types';
 
 interface ColorControlProps {
+    readOnly?: boolean;
     label: string;
     /** Токен или сырой цвет свойства. */
     value: string;
@@ -34,7 +35,17 @@ const displayHex = (color: string) => {
  * Поле цвета инспектора (`component-color-control` прототипа): образец, имя токена или Hex, отвязка токена
  * и слот действий. Клик по полю открывает пикер цвета слева от него.
  */
-export const ColorControl = ({ label, value, color, linked, tokens, actions, clear, onChange }: ColorControlProps) => {
+export const ColorControl = ({
+    label,
+    value,
+    color,
+    linked,
+    tokens,
+    actions,
+    clear,
+    onChange,
+    readOnly = false,
+}: ColorControlProps) => {
     const [open, setOpen] = useState(false);
     const trigger = useRef<HTMLButtonElement>(null);
     // Клик по своему полю не закрывает пикер, а по полю другого цвета — закрывает: открыт только один пикер.
@@ -49,6 +60,7 @@ export const ColorControl = ({ label, value, color, linked, tokens, actions, cle
             <div className={`component-inspector-color-field ${open ? 'is-open' : ''}`}>
                 <button
                     ref={trigger}
+                    disabled={readOnly}
                     type="button"
                     className="component-inspector-color-main"
                     data-color-field={fieldId}
@@ -66,17 +78,20 @@ export const ColorControl = ({ label, value, color, linked, tokens, actions, cle
                     <button
                         type="button"
                         className="component-field-detach"
+                        disabled={readOnly}
                         title="Отвязать стиль"
                         aria-label={`Отвязать стиль: ${label}`}
-                        onClick={() => onChange(color.toUpperCase())}
+                        onClick={() => {
+                            if (!readOnly) onChange(color.toUpperCase());
+                        }}
                     >
                         <TyGlyph name="unlink" />
                     </button>
                 )}
-                {clear}
+                {!readOnly && clear}
             </div>
-            <span className="component-color-detach-slot">{actions}</span>
-            {open && (
+            <span className="component-color-detach-slot">{!readOnly && actions}</span>
+            {open && !readOnly && (
                 <ComponentColorPicker
                     label={label}
                     value={value}

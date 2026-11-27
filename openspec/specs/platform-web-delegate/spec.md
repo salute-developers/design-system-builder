@@ -50,9 +50,15 @@ installed `dsbuilder-web-generator`: the managed installation or the one from gl
 
 The delegate SHALL find the web generator in this order: the `--tool` directory, then the `DSBUILDER_WEB_TOOL`
 directory, then the managed installation `~/.dsbuilder/toolchains/web`, then `dsbuilder-web-generator` in `PATH`,
-then in the bin directory of the global npm prefix. A directory is the web generator when it contains
-`package.json`. The home directory SHALL be taken from `HOME`, on Windows from `USERPROFILE` when `HOME` is not set.
-`npm` SHALL be found in `PATH`. `DSBUILDER_WEB_TOOL` SHALL NOT be required.
+then in the bin directory of the global npm prefix.
+
+#### Scenario: Условия выполнения — Web tool discovery
+
+- **WHEN** CLI обнаруживает доступные web-инструменты
+- **THEN** A directory is the web generator when it contains
+  `package.json`. The home directory SHALL be taken from `HOME`, on Windows from `USERPROFILE` when `HOME` is not set.
+  `npm` SHALL be found in `PATH`. `DSBUILDER_WEB_TOOL` SHALL NOT be required.
+
 
 #### Scenario: Управляемая установка без переменных
 

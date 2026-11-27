@@ -30,6 +30,9 @@ public data class ProjectConfig(
     public val platforms: List<String> = emptyList(),
     @EncodeDefault(EncodeDefault.Mode.NEVER)
     public val breakpoints: JsonArray? = null,
+    /** Явно выбранная версия; отсутствие оставляет выбор серверу. */
+    @EncodeDefault(EncodeDefault.Mode.NEVER)
+    public val version: String? = null,
 )
 
 /**

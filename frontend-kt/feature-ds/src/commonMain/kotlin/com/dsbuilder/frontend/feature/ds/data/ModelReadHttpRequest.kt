@@ -30,7 +30,7 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
                 ModelReadOperation.TOKEN_GROUPS -> "$ds/token-groups"
                 ModelReadOperation.COMPONENTS -> "$ds/components"
                 ModelReadOperation.COMPONENT_STYLES -> "$ds/components/$id/styles"
-                ModelReadOperation.COMPONENT -> "design-systems/catalog/components/$id"
+                ModelReadOperation.COMPONENT -> "$ds/components/$id"
                 else -> "$ds/${resourcePath(command, id)}"
             }
         }
@@ -65,10 +65,7 @@ internal data class ModelReadHttpRequest(val url: String, val paged: Boolean, va
             if (command.operation == ModelReadOperation.COMPONENT_DEPENDENCIES) {
                 parameters["include"] = "reuseConfig"
             }
-            if (command.operation != ModelReadOperation.COMPONENT && command.operation != ModelReadOperation.VERSIONS) {
-                parameters["version"] = command.version ?: "draft"
-            }
-            if (command.operation == ModelReadOperation.VERSIONS) command.version?.let { parameters["version"] = it }
+            command.version?.let { parameters["version"] = it }
             if (page) {
                 parameters["limit"] = limit.toString()
                 command.cursor?.let { parameters["cursor"] = it }

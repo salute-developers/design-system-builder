@@ -125,7 +125,8 @@ internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map 
     if (operation != ModelReadOperation.COMPONENT && operation != ModelReadOperation.VERSIONS) {
         properties["version"] = McpToolInputDefinition(
             description = "Exact major.minor.patch or draft. Explicit value overrides the selected context version; " +
-                "without either, reads the draft. The result reports the actual selected version.",
+                "without either, public readers get the latest publication and project members get the draft. " +
+                "The result reports the actual selected version; anonymous draft reads are forbidden.",
         )
     }
     if (operation == ModelReadOperation.VERSIONS) {
@@ -133,7 +134,7 @@ internal fun modelMcpTools(): List<McpToolDefinition> = modelToolOperations.map 
             description = "Project ID; requires designSystemId, excludes URI.",
         )
         properties["designSystemId"] = McpToolInputDefinition(
-            description = "System ID from design_systems_list; requires projectId.",
+            description = "Explicit system ID from a direct link or authorized discovery; requires projectId.",
         )
     }
     val id = modelResourceArgument(operation)
@@ -224,23 +225,24 @@ private fun modelDescription(name: String, operation: ModelReadOperation): Strin
     MODEL_DESCRIPTIONS.getValue(operation).replace("{tool}", name)
 
 private const val MODEL_DESCRIPTION_0 =
-    "List published model versions with server cursor pagination. Without context, first call projects_list, " +
-        "then design_systems_list(projectId), then pass both projectId and designSystemId here. " +
-        "Use each returned designSystem URI in subsequent reads. " +
-        "User session required; run dsbuilder auth login. " +
-        "Alternatively retain existing URI/workspace calls. No global selection is stored."
+    "List published model versions with server cursor pagination. For a public system, pass a direct " +
+        "designSystem URI or both projectId and designSystemId without login or catalog discovery. " +
+        "Authorized users may discover projects_list then design_systems_list(projectId). " +
+        "Use each returned designSystem URI in subsequent reads. No global selection is stored."
 private const val MODEL_DESCRIPTION_1 =
     "List token groups and subgroups in tree position order with server cursor pagination. " +
         "Use a group ID to filter tokens_list or palette_get."
 private const val MODEL_DESCRIPTION_2 =
     "List authoritative model data through {tool}. Filters and cursor pagination are applied by the server. " +
-        "An explicit version overrides the selected context version; without either, reads the draft."
+        "An explicit version overrides the context; without either, public readers get the latest publication " +
+        "and project members get the draft. Public reads need a direct URI or local configuration, not login."
 private const val MODEL_DESCRIPTION_3 =
     "Read authoritative model data through {tool}. This is one resource read, not a paged list. " +
-        "An explicit version overrides the selected context version; without either, reads the draft."
+        "An explicit version overrides the context; without either, public readers get the latest publication " +
+        "and project members get the draft. Public reads need a direct URI or local configuration, not login."
 private const val MODEL_DESCRIPTION_4 =
-    "Read current component metadata by " +
-        "componentId without selecting a configuration."
+    "Read component metadata in the selected design-system boundary by componentId, " +
+        "without selecting a configuration."
 private const val MODEL_DESCRIPTION_5 =
     "Read axes, declared values and defaults of one versioned configuration by appearanceId. " +
         "First call components_list, then component_configurations_list; pass this tool's value IDs to " +

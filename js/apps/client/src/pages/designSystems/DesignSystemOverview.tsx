@@ -1,5 +1,7 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { getDsReadBoundary } from '../../api/dsReadBoundary';
+import { authService } from '../../api/authService';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { designSystemsApi, projectsApi } from '../../api';
 import { CatalogPage, EmptyState, sortCatalogByName, State } from '../../components/Catalog/Catalog';
 import { any, choose, Visible } from '../../components/rendering';
@@ -9,42 +11,77 @@ import { ThemeCard } from '../themes/ThemeCard';
 
 export const DesignSystemPage = () => {
     const { projectId = '', designSystemId = '' } = useParams();
-    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
+    const [selection] = useSearchParams();
+    return <DesignSystemOverview key={JSON.stringify([projectId, designSystemId, selection.toString()])} />;
+};
+
+/** Публикация и неизвестный режим заново разрешаются до использования вложенных кешей. */
+const DesignSystemOverview = () => {
+    const { projectId = '', designSystemId = '' } = useParams();
+    const [selection] = useSearchParams();
+    const versionKey = selection.toString();
+    const cacheVersion = versionKey ? `:${versionKey}` : '';
+    const [resolveBoundary] = useState(() => {
+        const current = getDsReadBoundary(projectId, designSystemId);
+        return Boolean(versionKey) || current?.accessMode !== 'project' || Boolean(current?.versionId);
+    });
     const system = useLoad(
-        (signal) => designSystemsApi.get(projectId, designSystemId, signal),
-        [projectId, designSystemId],
-        `system:${projectId}:${designSystemId}`,
+        (signal) => designSystemsApi.get(projectId, designSystemId, signal, resolveBoundary ? 0 : 30_000),
+        [projectId, designSystemId, versionKey],
+        resolveBoundary ? undefined : `system:${projectId}:${designSystemId}${cacheVersion}`,
+    );
+    const boundary = getDsReadBoundary(projectId, designSystemId);
+    const publicRead = boundary?.accessMode === 'public';
+    const project = useLoad(
+        (signal) => projectsApi.get(projectId, signal),
+        [projectId],
+        `project:${projectId}`,
+        (Boolean(system.data) || getDsReadBoundary(projectId, designSystemId)?.accessMode === 'project') && !publicRead,
     );
     const themes = useLoad(
         (signal) => designSystemsApi.tenants(projectId, designSystemId, signal),
-        [projectId, designSystemId],
-        `themes:${projectId}:${designSystemId}`,
+        [projectId, designSystemId, versionKey],
+        `themes:${projectId}:${designSystemId}${cacheVersion}${boundary?.versionId ? `:${boundary.versionId}` : ''}`,
+        Boolean(system.data),
     );
     const [sort, setSort] = useState('modified');
+    const navigationProjectId = publicRead ? undefined : projectId;
+    const back = publicRead ? undefined : `/projects/${projectId}`;
+    const projectName = project.data?.name ?? system.data?.projectName ?? '';
+
     if (any(project.error, system.error, themes.error))
         return (
-            <State
-                text="Не удалось загрузить Design System"
-                title="Темы"
-                back={`/projects/${projectId}`}
-                projectName={project.data?.name}
-                projectId={projectId}
-                kind="theme"
-                retry={() => {
-                    project.reload();
-                    system.reload();
-                    themes.reload();
-                }}
-            />
+            <>
+                <State
+                    text="Не удалось загрузить Design System"
+                    title="Темы"
+                    back={back}
+                    projectName={project.data?.name}
+                    projectId={navigationProjectId}
+                    kind="theme"
+                    retry={() => {
+                        project.reload();
+                        system.reload();
+                        themes.reload();
+                    }}
+                />
+                {!authService.isAuthenticated() && (
+                    <Link
+                        to={`/login?returnTo=${encodeURIComponent(window.location.pathname + window.location.search)}`}
+                    >
+                        Войти
+                    </Link>
+                )}
+            </>
         );
-    if (!project.data || !system.data)
+    if ((!publicRead && !project.data) || !system.data)
         return (
             <State
                 text="Загружаем темы…"
                 title="Темы"
-                back={`/projects/${projectId}`}
+                back={back}
                 projectName={project.data?.name}
-                projectId={projectId}
+                projectId={navigationProjectId}
                 kind="theme"
             />
         );
@@ -53,26 +90,39 @@ export const DesignSystemPage = () => {
             <State
                 text="Дизайн-система недоступна"
                 title="Темы"
-                back={`/projects/${projectId}`}
-                projectName={project.data.name}
-                projectId={projectId}
+                back={back}
+                projectName={projectName}
+                projectId={navigationProjectId}
                 kind="system"
             />
         );
-    const role = choose(project.data.status === 'active', 'viewer' as const, project.data.effectiveRole);
+    const projectRole = choose(
+        project.data?.status === 'active',
+        'viewer' as const,
+        project.data?.effectiveRole ?? 'viewer',
+    );
+    const role = choose(Boolean(boundary?.versionId), projectRole, 'viewer' as const);
     const visibleThemes = themes.data ?? [];
     return (
         <CatalogPage
             sort={sort}
             onSort={setSort}
             title={system.data.name}
-            projectName={project.data.name}
-            projectId={projectId}
+            projectName={projectName}
+            projectId={navigationProjectId}
             eyebrow="Темы"
-            back={`/projects/${projectId}`}
-            breadcrumbSegments={[{ label: project.data.name, to: `/projects/${projectId}` }]}
+            back={back}
+            breadcrumbSegments={publicRead ? [] : [{ label: projectName, to: `/projects/${projectId}` }]}
             action={
                 <div className="actions">
+                    {publicRead && visibleThemes[0] && (
+                        <Link
+                            className="secondary"
+                            to={`/projects/${projectId}/design-systems/${designSystemId}/themes/${visibleThemes[0].id}/versions${boundary?.versionId ? `?versionId=${boundary.versionId}` : ''}`}
+                        >
+                            Версии
+                        </Link>
+                    )}
                     <Visible when={can(role, 'designSystems:write')}>
                         <Link
                             className="catalog-icon-action"
@@ -104,7 +154,13 @@ export const DesignSystemPage = () => {
                     visibleThemes.length === 0,
                     <div className="catalog-grid">
                         {sortCatalogByName(visibleThemes, sort).map((theme) => (
-                            <ThemeCard key={theme.id} projectId={projectId} theme={theme} role={role} />
+                            <ThemeCard
+                                key={theme.id}
+                                projectId={projectId}
+                                theme={theme}
+                                role={role}
+                                versionId={boundary?.versionId}
+                            />
                         ))}
                     </div>,
                     <EmptyState

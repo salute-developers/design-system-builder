@@ -4,6 +4,7 @@ import com.dsbuilder.authorization.PolicyEvaluator
 import com.dsbuilder.ds.core.application.DsFailure
 import com.dsbuilder.ds.core.application.DsResult
 import com.dsbuilder.ds.core.application.withIdempotentResponse
+import com.dsbuilder.ds.core.domain.DesignSystemVisibility
 import com.dsbuilder.ds.core.presentation.OkResponse
 import com.dsbuilder.ds.core.presentation.TrustedDsRequestContextMapper
 import com.dsbuilder.ds.core.presentation.dsPathDesignSystemId
@@ -107,6 +108,9 @@ fun Route.designSystemRoutes(
                 json.decodeFromJsonElement(UpdateDesignSystemRequest.serializer(), payload)
             }.getOrNull()
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            if ("visibility" in payload && request.visibility == null) {
+                return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
+            }
             val command = request.toCommand("description" in payload)
                 ?: return@patch call.respondFailure(DsFailure.InvalidRequest("invalid_body"))
             val mutation = call.repeatableMutation(context, payload, json = json, response = DesignSystemResponse::from)
@@ -202,12 +206,16 @@ private fun CreateDesignSystemRequest.toCommand(): CreateDesignSystem? {
     return CreateDesignSystem(normalizedName, normalizedProjectName, normalizedDescription)
 }
 
+@Suppress("ReturnCount") // Невалидный PATCH отклоняется целиком до начала транзакции.
 private fun UpdateDesignSystemRequest.toCommand(descriptionPresent: Boolean): UpdateDesignSystem? {
     val normalizedName = name?.trim()
     val normalizedDescription = description?.trim()
     if (normalizedName != null && (normalizedName.isEmpty() || normalizedName.length > 255)) return null
     if (normalizedDescription != null && normalizedDescription.length > 1000) return null
-    return UpdateDesignSystem(normalizedName, normalizedDescription, descriptionPresent)
+    val visibility = visibility?.let {
+        DesignSystemVisibility.parse(it) ?: return null
+    }
+    return UpdateDesignSystem(normalizedName, normalizedDescription, descriptionPresent, visibility)
 }
 
 private fun String.toUuid(): UUID? = runCatching { UUID.fromString(this) }.getOrNull()

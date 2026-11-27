@@ -67,6 +67,7 @@ internal class DsFetchCliCommand(
                     apiUrlOverride = null,
                     designSystemUri = designSystem,
                     platform = platform,
+                    readContext = (themes as? FetchThemesResult.Fetched)?.readContext,
                 ),
             )
         }

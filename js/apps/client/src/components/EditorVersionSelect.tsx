@@ -1,3 +1,4 @@
+import { choose } from './rendering';
 import { useState } from 'react';
 import { useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -11,10 +12,12 @@ export const EditorVersionSelect = ({
     context,
     draftId,
     selectedVersion,
+    publishedOnly = false,
 }: {
     context: EditorContextKey;
     draftId?: string;
     selectedVersion?: string;
+    publishedOnly?: boolean;
 }) => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -36,13 +39,21 @@ export const EditorVersionSelect = ({
                 if (hasPersistedComponentMutation(context)) throw new Error('pending component');
             }
             const next = new URLSearchParams(searchParams);
+            next.delete('version');
             if (selected === 'draft') next.delete('versionId');
             else next.set('versionId', selected);
             const pathname =
                 selected !== 'draft' && location.pathname.endsWith('/settings')
                     ? location.pathname.replace(/\/settings$/, '/colors')
                     : location.pathname;
-            navigate({ pathname, search: next.toString() });
+            navigate({
+                pathname: choose(
+                    publishedOnly,
+                    pathname,
+                    `/projects/${context.projectId}/design-systems/${context.designSystemId}`,
+                ),
+                search: next.toString(),
+            });
         } catch {
             setError('Есть несохранённые изменения. Дождитесь сохранения и повторите выбор версии.');
         } finally {
@@ -51,7 +62,7 @@ export const EditorVersionSelect = ({
     };
 
     const options = [
-        { value: 'draft', label: 'Черновик' },
+        ...choose(publishedOnly, [{ value: 'draft', label: 'Черновик' }], []),
         ...[...versions]
             .sort((left, right) => right.sequenceNumber - left.sequenceNumber)
             .map((version) => ({ value: version.id, label: `v${version.version}` })),
@@ -60,7 +71,7 @@ export const EditorVersionSelect = ({
         options.push({
             value: versionId,
             label:
-                !opened && selectedVersion
+                selectedVersion
                     ? `v${selectedVersion}`
                     : !opened
                       ? 'Опубликованная версия'

@@ -163,8 +163,7 @@
                                 "readonly"
                             ],
                             "value": "text.default.secondary"
-                        }
-                        ,
+                        },
                         {
                             "state": [
                                 "activated",
@@ -504,18 +503,6 @@
         }
     },
     "props": {
-        "disableAlpha": {
-            "type": "float",
-            "value": 0.4
-        },
-        "prefixPadding": {
-            "type": "dimension",
-            "value": 6.0
-        },
-        "suffixPadding": {
-            "type": "dimension",
-            "value": 6.0
-        },
         "dividerHeight": {
             "type": "dimension",
             "value": 1.0
@@ -645,6 +632,10 @@
         "singleLine": {
             "type": "boolean",
             "value": true
+        },
+        "disabledAlpha": {
+            "type": "float",
+            "value": 0.4
         }
     },
     "bindings": [

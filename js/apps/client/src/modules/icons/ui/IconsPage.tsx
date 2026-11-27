@@ -283,7 +283,12 @@ const Screen = ({ catalog }: { catalog: IconCatalog }) => {
  */
 export const IconsPage = ({ embedded = false }: { embedded?: boolean }) => {
     const { projectId = '' } = useParams();
-    const project = useLoad((signal) => projectsApi.get(projectId, signal), [projectId], `project:${projectId}`);
+    const project = useLoad(
+        (signal) => projectsApi.get(projectId, signal),
+        [projectId],
+        `project:${projectId}`,
+        !embedded,
+    );
     const catalog = useIconCatalog(projectId);
 
     const shellProps = {

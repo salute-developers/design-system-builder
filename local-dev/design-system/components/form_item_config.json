@@ -94,10 +94,6 @@
             "type": "typography",
             "value": "body.xs.normal"
         },
-        "captionSpacing": {
-            "type": "dimension",
-            "value": 4.0
-        },
         "captionPadding": {
             "type": "dimension",
             "value": 5.0

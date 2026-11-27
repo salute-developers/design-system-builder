@@ -19,7 +19,7 @@ class GetComponentReuseConfigUseCase(
     suspend fun execute(context: DsRequestContext, id: UUID): DsResult<ComponentReuseConfig> =
         policy.read(context, ProjectScope.COMPONENTS_READ) {
             transactions.readOnly(context) {
-                repository.findAccessible(context.projectId, context.principal.globalAdmin, id)
+                repository.findAccessible(context.projectId, context.globalAdmin, id)
                     ?.let { DsResult.Success(it) } ?: DsResult.Failure(DsFailure.NotFound)
             }
         }

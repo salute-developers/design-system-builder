@@ -20,6 +20,41 @@ import kotlin.test.assertTrue
  * `core-network` (ADR-0004).
  */
 class KtorAuthenticatedHttpClientRequestTest {
+    private class FetchTransportFailure : Throwable("Fail to fetch")
+
+    @Test
+    fun transportThrowableBecomesFailureWithoutHttpStatus() = runTest {
+        val engine = MockEngine { throw FetchTransportFailure() }
+        HttpClient(engine).use { http ->
+            val client = KtorAuthenticatedHttpClientFactory { http }.create(
+                "https://api.example.test",
+                BackendCredential.Anonymous,
+            )
+            val result = client.get("/selected-system") as AuthenticatedHttpResult.Failure
+            assertEquals(null, result.statusCode)
+            assertTrue(result.message.contains("Backend is unreachable"))
+        }
+    }
+
+    @Test
+    fun anonymousReadsNeverSendAuthorization() = runTest {
+        var calls = 0
+        val engine = MockEngine { request ->
+            assertEquals(null, request.headers[HttpHeaders.Authorization])
+            calls++
+            respond(content = "{}", status = HttpStatusCode.OK)
+        }
+        HttpClient(engine).use { http ->
+            val client = KtorAuthenticatedHttpClientFactory { http }.create(
+                "https://api.example.test",
+                BackendCredential.Anonymous,
+            )
+            client.get("/selected-system")
+            client.post("/selected-system/component-config/export", "{}")
+        }
+        assertEquals(2, calls)
+    }
+
     @Test
     fun onlyUnambiguousReadHeadersCrossTheTransportBoundary() = runTest {
         val engine = MockEngine {

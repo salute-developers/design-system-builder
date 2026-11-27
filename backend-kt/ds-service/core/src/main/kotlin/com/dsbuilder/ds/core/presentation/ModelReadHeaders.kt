@@ -12,6 +12,7 @@ import kotlinx.serialization.json.put
 @PublishedApi
 internal fun ApplicationCall.appendReadContext(context: ModelReadContext?) {
     if (context == null) return
+    if (context.accessMode == "public") response.header("Cache-Control", "no-store")
     response.header(
         "X-DS-Read-Context",
         coreReadContextJson(context).toString(),
@@ -29,6 +30,7 @@ internal fun ApplicationCall.appendReadPage(page: ModelReadPage?) {
 /** Представление контекста одинаково в метаданных чтения и отказе совместимости. */
 internal fun coreReadContextJson(context: ModelReadContext) = buildJsonObject {
     put("designSystemId", context.designSystemId.toString())
+    put("accessMode", context.accessMode)
     context.version?.let { put("version", it) }
     context.versionId?.let { put("versionId", it.toString()) }
     context.draftId?.let { put("draftId", it.toString()) }

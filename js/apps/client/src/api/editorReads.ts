@@ -1,3 +1,4 @@
+import { readBoundaryForRoot, receiveDsReadBoundary, clearDsReadBoundaries } from './dsReadBoundary';
 import { abortableDelay as delay } from './abortableDelay';
 import { CanceledError, isAxiosError, type AxiosRequestConfig, type AxiosResponse } from 'axios';
 import { authService } from './authService';
@@ -13,6 +14,11 @@ const metadataRevisions = new Map<string, number>();
 const metadataSeenAt = new Map<string, number>();
 export const getEditorMetadataRevision = (context: EditorContextKey) =>
     metadataRevisions.get(`${context.projectId}:${context.designSystemId}:${context.versionId ?? 'draft'}`) ?? 0;
+
+const dsRoot = (url: string) =>
+    new URL(url, API_GATEWAY_URL || window.location.origin).pathname.match(
+        /^(\/api\/projects\/[^/]+\/design-systems\/[^/]+)(?:\/|$)/,
+    )?.[1];
 
 const normalizedUrl = (url: string) => new URL(url, API_GATEWAY_URL || window.location.origin).href;
 
@@ -57,6 +63,7 @@ export const invalidateEditorReads = (
 authService.onSessionReset(() => {
     for (const entry of pending.values()) entry.controller.abort();
     pending.clear();
+    clearDsReadBoundaries();
     confirmed.clear();
     metadataRevisions.clear();
     metadataSeenAt.clear();
@@ -72,6 +79,29 @@ export function readEditor<T>(
     freshFor = 0,
 ): Promise<AxiosResponse<T>> {
     const { signal, ...request } = config;
+    const locationAtRequest = window.location.href;
+    const root = dsRoot(url);
+    const pathname = new URL(url, API_GATEWAY_URL || window.location.origin).pathname;
+    const params = { ...request.params };
+    const rootRead = pathname === root;
+    const selectorNames = ['versionId', 'version'];
+    const implicitSelection = params.versionId === undefined && params.version === undefined;
+    if (rootRead && implicitSelection) {
+        const selected = new URLSearchParams(window.location.search);
+        for (const name of selectorNames) {
+            const value = selected.get(name);
+            if (value !== null) params[name] = value;
+        }
+    }
+    const boundary = root ? readBoundaryForRoot(root) : undefined;
+    const dependentPublication = {
+        resource: !rootRead,
+        history: !pathname.includes('/versions'),
+        implicit: implicitSelection,
+        publication: boundary?.versionId,
+    };
+    if (Object.values(dependentPublication).every(Boolean)) params.versionId = boundary?.versionId;
+    request.params = Object.keys(params).length ? params : undefined;
     const resourceUrl = normalizedUrl(url);
     const path = new URL(resourceUrl).pathname;
     const catalogRead =
@@ -110,7 +140,17 @@ export function readEditor<T>(
                             ? await http.get<T>(url, { ...request, signal: controller.signal })
                             : await http.post<T>(url, exportBody, { ...request, signal: controller.signal });
                     if (controller.signal.aborted) throw new CanceledError();
-                    if (ttl > 0 && epoch === requestEpoch) {
+                    receiveDsReadBoundary(
+                        {
+                            root,
+                            pathname,
+                            params: request.params,
+                            locationAtRequest,
+                            current: epoch === requestEpoch,
+                        },
+                        response.headers?.['x-ds-read-context'],
+                    );
+                    if (ttl > 0 && response.headers?.['cache-control'] !== 'no-store' && epoch === requestEpoch) {
                         confirmed.set(resourceKey, {
                             response,
                             expiresAt: Date.now() + ttl,
