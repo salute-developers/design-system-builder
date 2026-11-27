@@ -41,6 +41,8 @@ Options:
            Version published after the component seed. Requires --components-package. Default: 0.1.0.
   --skip-design-system
            Do not create the design system and do not load the components.
+  --skip-documentation
+           Do not publish missing Compose documentation for an existing sdds_serv_local.
   --help   Show this help.
 
 Setup imports Web and Compose Core from the selected preview archives. A separate DSBUILDER_WEB_API_META requires
@@ -93,6 +95,7 @@ COMPONENTS_PACKAGE_EXPLICIT=0
 THEME_PACKAGE_ARGS=()
 PUBLISH_VERSION_ARGS=()
 SKIP_DESIGN_SYSTEM=0
+SKIP_DOCUMENTATION=0
 [[ -n "$COMPONENTS_PACKAGE" ]] && COMPONENTS_PACKAGE_EXPLICIT=1
 BUNDLED_PLUGIN_ZIP="$ROOT_DIR/local-dev/compose-preview/preview-compose-plugin.zip"
 BUNDLED_WEB_PLUGIN_ZIP="$ROOT_DIR/local-dev/web-preview/preview-web-plugin.zip"
@@ -152,6 +155,10 @@ while [[ $# -gt 0 ]]; do
       SKIP_DESIGN_SYSTEM=1
       shift
       ;;
+    --skip-documentation)
+      SKIP_DOCUMENTATION=1
+      shift
+      ;;
     --help)
       usage
       exit 0
@@ -200,19 +207,29 @@ if [[ "$ACTION" == "down" ]]; then
   exit 0
 fi
 
-# Bootstrap and publication share one snapshot, including when a local build overwrites the original ZIP.
-web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
-if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" && -z "${DSBUILDER_WEB_API_META:-}" &&
-      ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
-  web_preview_download="$(mktemp -d)"
-  trap 'rm -f "$web_preview_download/preview-web-plugin.zip"; rmdir "$web_preview_download"' EXIT
-  WEB_PLUGIN_ZIP="$web_preview_download/preview-web-plugin.zip"
-  if [[ "$web_preview_source" =~ ^https?:// ]]; then
+# Publication, Core selection and optional seed must use the same archive bytes.
+preview_download=""
+snapshot_preview() {
+  local source="$1" destination="$2"
+  if [[ "$source" =~ ^https?:// ]]; then
     require curl
-    log "Downloading the Web preview archive"
-    curl --fail --silent --show-error --location --max-time 120 --output "$WEB_PLUGIN_ZIP" "$web_preview_source"
+    curl --fail --silent --show-error --location --max-time 120 --output "$destination" "$source"
   else
-    cp -- "$web_preview_source" "$WEB_PLUGIN_ZIP"
+    cp -- "$source" "$destination"
+  fi
+}
+if [[ "$BACKEND_ONLY" == "0" && "$SKIP_PLUGIN" == "0" ]]; then
+  preview_download="$(mktemp -d)"
+  trap 'rm -f "$preview_download/preview-compose-plugin.zip" "$preview_download/preview-web-plugin.zip"; rmdir "$preview_download"' EXIT
+  compose_preview_source="${PLUGIN_ZIP:-$BUNDLED_PLUGIN_ZIP}"
+  if [[ "$compose_preview_source" =~ ^https?:// || -f "$compose_preview_source" ]]; then
+    PLUGIN_ZIP="$preview_download/preview-compose-plugin.zip"
+    snapshot_preview "$compose_preview_source" "$PLUGIN_ZIP"
+  fi
+  web_preview_source="${WEB_PLUGIN_ZIP:-$BUNDLED_WEB_PLUGIN_ZIP}"
+  if [[ -z "${DSBUILDER_WEB_API_META:-}" && ( "$web_preview_source" =~ ^https?:// || -f "$web_preview_source" ) ]]; then
+    WEB_PLUGIN_ZIP="$preview_download/preview-web-plugin.zip"
+    snapshot_preview "$web_preview_source" "$WEB_PLUGIN_ZIP"
   fi
 fi
 
@@ -261,6 +278,10 @@ publish_plugin() {
       exit 1
     fi
     log "The $title could not be published; setup continues without its preview. See local-dev/README.md for archive requirements."
+    return
+  fi
+  if [[ "$platform" == "compose" && "$SKIP_DESIGN_SYSTEM" == "0" ]]; then
+    "$ROOT_DIR/ensure-local-preview-core.sh" --archive "$archive"
   fi
 }
 
@@ -306,6 +327,11 @@ if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$COMPONENTS_PACKAGE_EXPLICIT" == "1" ]]; 
     echo "[local-setup] The requested component package path is empty" >&2
     exit 2
   fi
+fi
+
+if [[ "$SKIP_DESIGN_SYSTEM" == "0" && "$SKIP_DOCUMENTATION" == "0" ]]; then
+  log "Ensuring Compose documentation for the existing demo design system"
+  "$ROOT_DIR/publish-local-documentation.sh" --if-missing
 fi
 
 log "Local setup is ready"

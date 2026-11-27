@@ -1,3 +1,5 @@
+import org.jetbrains.intellij.platform.gradle.tasks.RunIdeTask
+
 plugins {
     id("convention.intellij-platform-module")
     id("org.jetbrains.kotlin.plugin.serialization")
@@ -41,15 +43,33 @@ dependencies {
 
     intellijPlatform {
         androidStudio("2024.3.2.15")
+        // В bundled JBR Android Studio нет JCEF, необходимого превью в песочнице.
+        jetbrainsRuntime("21.0.6b895.109", variant = "jcef")
     }
 }
 
 intellijPlatform {
     pluginConfiguration {
         name = "DS Builder"
+        version = providers.gradleProperty("idePluginVersion").orElse("0.1.0-dev")
         ideaVersion {
             sinceBuild = "243"
             untilBuild = "243.*"
         }
     }
 }
+
+tasks.named<RunIdeTask>("runIde") {
+    environment(
+        "DSBUILDER_API_URL",
+        providers.environmentVariable("DSBUILDER_API_URL").orElse("http://localhost:8080").get(),
+    )
+}
+
+tasks.register<Exec>("releaseToolsTest") {
+    group = "verification"
+    description = "Проверяет упаковку и неизменяемость выпуска IDEA-плагина."
+    commandLine("python3", "-m", "unittest", "discover", "-s", "distribution/tests")
+}
+
+tasks.named("check") { dependsOn("releaseToolsTest") }

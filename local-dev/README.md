@@ -11,6 +11,7 @@
 | `web-preview/preview-web-plugin.zip` | Собранный web preview plugin (plasma `packages/sdds-preview-web-plugin`) вместе с `api-meta.json` | `./publish-preview-plugin.sh --platform react --channel dev` |
 | `design-system/components/` | Пакет конфигураций компонентов: `meta.json` и `*_config.json` | `./seed-local-design-system.sh` |
 | `design-system/theme/android/` | Значения токенов темы для Android (`android_color.json` и др.) | `./seed-local-design-system.sh` |
+| `design-system/documentation.tar.gz` | Документация SDDS Serv с кодовыми ссылками токенов и стилей Compose | `./publish-local-documentation.sh` и `setup-local` |
 | `icons/icons-manifest.json` | Стартовый набор иконок `@salutejs/sdds-icons` (185 иконок трёх размеров с SVG, категориями и синонимами) | `./publish-local-icons.sh` |
 | `icons/starter-icons.txt` | Канонические имена иконок стартового набора, по одному в строке | `./refresh-local-dev-icons.sh` |
 | `apply_theme_values.py` | Помощник, который переносит значения токенов темы в тему контура | `./seed-local-design-system.sh` |
@@ -50,6 +51,31 @@
 перезаписывает сохранённый снимок.
 
 ## Как это работает
+
+После успешной публикации Compose-превью setup автоматически привязывает существующую локальную
+`sdds_serv_local` к точному Core из опубликованного ZIP (координаты и SHA-256 метаданных), если
+Core ещё не выбран либо остался технический снимок миграции. Шаг меняет только выбор Core
+черновика и проверяет доступность совместимого preview; конфигурации, токены и опубликованные
+версии сохраняются. Явный выбор Core сохраняется. Без демонстрационной ДС ничего не создаётся;
+`--skip-plugin` / `-SkipPlugin`, `--skip-design-system` / `-SkipDesignSystem` отключают этот шаг.
+
+`setup-local.sh` и `setup-local.ps1` после импорта компонентов (либо при повторном запуске с уже существующей
+`sdds_serv_local`) публикуют отсутствующую Compose-документацию для последней опубликованной версии этой ДС.
+Без демонстрационной ДС шаг пропускается: другие ДС и черновики не меняются. Уже активная документация
+сохраняется. Пропустить этот шаг можно через `--skip-documentation` / `-SkipDocumentation` или
+`--skip-design-system` / `-SkipDesignSystem`.
+
+Для принудительной повторной публикации: `./publish-local-documentation.sh`.
+Свой пакет можно передать через `--bundle path/to/docs-bundle.tar.gz`. Помощник принимает только локальный
+gateway (`GATEWAY_URL`, по умолчанию `http://localhost:8080`) и использует ту же локальную учётную запись, что seed.
+Он заменяет идентификатор и версию в manifest пакета на текущие, загружает пакет через API и ждёт успешной
+обработки; ошибка публикации останавливает setup. Перезапуск setup не требует повторной генерации Android-библиотеки.
+
+Встроенный пакет документации получен из агрегатора `tokens/sdds.serv.compose` репозитория plasma-android
+(`.sdds/temp/docs`, SB Serv theme `0.9.0`), собран командой `dsbuilder docs generate --platform compose --docs-dir …`.
+Он содержит исходные `components-info.json`, `theme-info.json`, страницы и примеры; кодовые ссылки не вычисляются
+из имён токенов или конфигураций. Для обновления пакета сгенерируйте документацию той же SDDS Serv и замените
+`local-dev/design-system/documentation.tar.gz` результатом `docs generate`.
 
 1. `setup-local.sh` или Windows-вариант `setup-local.ps1` поднимает контур, регистрирует Core из ZIP
    под локальным администратором и публикует оба плагина служебной учёткой через `dsbuilder preview-plugin publish`.

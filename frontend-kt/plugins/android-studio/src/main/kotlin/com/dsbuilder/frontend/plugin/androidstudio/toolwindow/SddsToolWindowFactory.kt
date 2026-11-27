@@ -16,6 +16,10 @@ import com.intellij.ui.content.ContentFactory
  */
 public class SddsToolWindowFactory : ToolWindowFactory {
     override fun createToolWindowContent(project: Project, toolWindow: ToolWindow) {
+        // Отдельный Swing POPUP_LAYER обеспечивает и отрисовку, и клики над JCEF OSR.
+        // OnSameCanvas остаётся ниже SwingPanel; blending на macOS не исправляет hit testing.
+        System.setProperty("compose.layers.type", "COMPONENT")
+        System.setProperty("compose.swing.render.on.graphics", "true")
         // Состояние навигации переживает пересоздание композиции при сворачивании/разворачивании панели.
         val mainState = MainScreenState()
         val composePanel = ComposePanel().apply {
